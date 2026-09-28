@@ -6,8 +6,8 @@ class LiveKitCallService {
     required String token,
     RoomOptions? options,
   }) async {
-    final room = Room();
-    await room.connect(serverUrl, token, roomOptions: options);
+    final room = Room(roomOptions: options ?? const RoomOptions());
+    await room.connect(serverUrl, token);
     return room;
   }
 
