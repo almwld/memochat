@@ -41,6 +41,6 @@ class NotificationService {
         playSound: true,
       ),
     );
-    return _plugin.show(id, title, body, details, payload: payload);
+    return _plugin.show(id: id, title: title, body: body, notificationDetails: details, payload: payload);
   }
 }
