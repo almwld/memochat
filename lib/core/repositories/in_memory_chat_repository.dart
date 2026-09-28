@@ -5,43 +5,45 @@ import '../models/message.dart';
 import 'chat_repository.dart';
 
 class InMemoryChatRepository implements ChatRepository {
-  InMemoryChatRepository()
-      : _conversationController = StreamController<List<Conversation>>.broadcast(),
-        _messageControllers = {};
+  final StreamController<List<Conversation>> _conversationController =
+      StreamController<List<Conversation>>.broadcast();
+  final StreamController<List<ChatMessage>> _messageController =
+      StreamController<List<ChatMessage>>.broadcast();
 
-  final StreamController<List<Conversation>> _conversationController;
-  final Map<String, StreamController<List<ChatMessage>>> _messageControllers;
-  final List<Conversation> _conversations = [
-    Conversation(id: 'demo', participant: ChatUser(id: 'user-2', displayName: 'MemoChat', isOnline: true), unreadCount: 2),
-  ];
-  final Map<String, List<ChatMessage>> _messages = {
-    'demo': [
-      ChatMessage(
-        id: 'welcome',
-        conversationId: 'demo',
-        senderId: 'user-2',
-        createdAt: DateTime(2026, 9, 28, 18, 30),
-        type: MessageType.text,
-        text: 'مرحباً بك في MemoChat 👋',
-      ),
-    ],
+  final Conversation _conversation = Conversation(
+    id: 'demo',
+    participant: ChatUser(id: 'user-2', displayName: 'MemoChat', isOnline: true),
+    unreadCount: 2,
+  );
+
+  final List<ChatMessage> _messages = <ChatMessage>[
+    ChatMessage(
+      id: 'welcome',
+      conversationId: 'demo',
+      senderId: 'user-2',
+      createdAt: DateTime(2026, 9, 28, 18, 30),
+      type: MessageType.text,
+      text: 'مرحباً بك في MemoChat 👋',
+    ),
   ];
 
   @override
   Stream<List<Conversation>> watchConversations() {
-    scheduleMicrotask(() => _conversationController.add(List.unmodifiable(_conversations)));
+    scheduleMicrotask(() => _conversationController.add(<Conversation>[_conversation]));
     return _conversationController.stream;
   }
 
   @override
   Stream<List<ChatMessage>> watchMessages(String conversationId) {
-    final controller = _messageControllers.putIfAbsent(conversationId, () => StreamController<List<ChatMessage>>.broadcast());
-    scheduleMicrotask(() => controller.add(List.unmodifiable(_messages[conversationId] ?? [])));
-    return controller.stream;
+    scheduleMicrotask(() => _messageController.add(List.unmodifiable(_messages)));
+    return _messageController.stream;
   }
 
   @override
-  Future<ChatMessage> sendMessage({required String conversationId, required String text}) async {
+  Future<ChatMessage> sendMessage({
+    required String conversationId,
+    required String text,
+  }) async {
     final message = ChatMessage(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       conversationId: conversationId,
@@ -52,9 +54,8 @@ class InMemoryChatRepository implements ChatRepository {
       status: MessageStatus.sent,
       isMine: true,
     );
-    final messages = _messages.putIfAbsent(conversationId, () => []);
-    messages.add(message);
-    _messageControllers[conversationId]?.add(List.unmodifiable(messages));
+    _messages.add(message);
+    _messageController.add(List.unmodifiable(_messages));
     return message;
   }
 }
