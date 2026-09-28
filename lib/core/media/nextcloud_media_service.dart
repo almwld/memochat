@@ -23,6 +23,7 @@ class NextcloudMediaService {
       request.add(bytes);
       final response = await request.close();
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        // ignore: prefer_interpolation_to_compose_strings
         throw HttpException('Media upload failed: HTTP ' + response.statusCode.toString());
       }
       final location = response.headers.value(HttpHeaders.locationHeader);
