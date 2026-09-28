@@ -8,7 +8,7 @@ void main() {
 
     expect(find.text('MemoChat'), findsOneWidget);
     expect(
-      find.text('Your conversations will appear here.'),
+      find.text('ابدأ محادثة جديدة'),
       findsOneWidget,
     );
   });
