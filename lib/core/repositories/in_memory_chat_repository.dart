@@ -12,11 +12,7 @@ class InMemoryChatRepository implements ChatRepository {
   final StreamController<List<Conversation>> _conversationController;
   final Map<String, StreamController<List<ChatMessage>>> _messageControllers;
   final List<Conversation> _conversations = [
-    Conversation(
-      id: 'demo',
-      participant: ChatUser(id: 'user-2', displayName: 'MemoChat', isOnline: true),
-      unreadCount: 2,
-    ),
+    Conversation(id: 'demo', participant: ChatUser(id: 'user-2', displayName: 'MemoChat', isOnline: true), unreadCount: 2),
   ];
   final Map<String, List<ChatMessage>> _messages = {
     'demo': [
@@ -25,10 +21,11 @@ class InMemoryChatRepository implements ChatRepository {
         conversationId: 'demo',
         senderId: 'user-2',
         createdAt: DateTime(2026, 9, 28, 18, 30),
+        type: MessageType.text,
         text: 'مرحباً بك في MemoChat 👋',
       ),
     ],
-  };
+  ];
 
   @override
   Stream<List<Conversation>> watchConversations() {
@@ -38,21 +35,19 @@ class InMemoryChatRepository implements ChatRepository {
 
   @override
   Stream<List<ChatMessage>> watchMessages(String conversationId) {
-    final controller = _messageControllers.putIfAbsent(
-      conversationId,
-      () => StreamController<List<ChatMessage>>.broadcast(),
-    );
+    final controller = _messageControllers.putIfAbsent(conversationId, () => StreamController<List<ChatMessage>>.broadcast());
     scheduleMicrotask(() => controller.add(List.unmodifiable(_messages[conversationId] ?? [])));
     return controller.stream;
   }
 
   @override
-  Future<ChatMessage> sendMessage(String conversationId, String text) async {
+  Future<ChatMessage> sendMessage({required String conversationId, required String text}) async {
     final message = ChatMessage(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       conversationId: conversationId,
       senderId: 'me',
       createdAt: DateTime.now(),
+      type: MessageType.text,
       text: text.trim(),
       status: MessageStatus.sent,
       isMine: true,
