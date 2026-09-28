@@ -25,7 +25,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
-    await widget.repository.sendMessage(widget.conversation.id, text);
+    await widget.repository.sendMessage(conversationId: widget.conversation.id, text: text);
   }
 
   @override
