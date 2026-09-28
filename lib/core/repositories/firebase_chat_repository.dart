@@ -41,7 +41,7 @@ class FirebaseChatRepository implements ChatRepository {
         type: MessageType.values.firstWhere((value) => value.name == data['type'], orElse: () => MessageType.text),
         text: data['text'] as String? ?? '',
         status: MessageStatus.values.firstWhere((value) => value.name == data['status'], orElse: () => MessageStatus.sent),
-        isMine: data['senderId'] as String? == 'me',
+        isMine: (data['senderId'] as String?) == 'me',
       );
     }).toList());
   }
