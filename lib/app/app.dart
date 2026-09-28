@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/repositories/in_memory_chat_repository.dart';
+import '../core/theme/app_theme.dart';
 import '../features/home/presentation/home_screen.dart';
 
 class MemoChatApp extends StatefulWidget {
@@ -16,11 +17,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
     return MaterialApp(
       title: 'MemoChat',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0A8F83)),
-        scaffoldBackgroundColor: const Color(0xFFF7F9FA),
-      ),
+      theme: AppTheme.light(),
       home: HomeScreen(repository: repository),
     );
   }
