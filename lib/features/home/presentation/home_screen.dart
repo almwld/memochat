@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../chat/presentation/chat_screen.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({required this.repository, super.key});
@@ -13,6 +14,10 @@ class HomeScreen extends StatelessWidget {
         title: const Text('MemoChat', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [
           IconButton(onPressed: () {}, icon: const Icon(Icons.search_rounded)),
+          IconButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationCenterScreen())),
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
           IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert_rounded)),
         ],
       ),
