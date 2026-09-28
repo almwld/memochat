@@ -5,18 +5,28 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   analyze-test-build:
+    name: Analyze, Test & Build APKs
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.0'
+          flutter-version: '3.24.5'
           channel: stable
           cache: true
 
@@ -38,14 +48,155 @@ jobs:
           path.write_text(text)
           PY
 
+      - name: Create google-services.json
+        run: |
+          mkdir -p android/app
+          cat > android/app/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "448753275014",
+              "project_id": "memo-f97b5",
+              "storage_bucket": "memo-f97b5.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
+                  "android_client_info": {
+                    "package_name": "com.memo.app"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyCSamhS5nlR4yqHQBunfk61b9GwkZHntbQ"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
+      - name: Create secrets.dart
+        run: |
+          mkdir -p lib/core/config
+          cat > lib/core/config/secrets.dart << 'EOF'
+          class Secrets {
+            Secrets._();
+
+            static const String livekitUrl = 'wss://memo-2jv45qyl.livekit.cloud';
+            static const String livekitApiKey = 'APInN2Q2vdtnxTg';
+            static const String livekitApiSecret =
+                'l6qio9Q5ZKGI38d1IqyX9V04llq4CDIayb8CNdF7RXF';
+
+            static const String nextcloudUrl = 'https://noa.it.tabdigital.cloud';
+            static const String nextcloudUser = 'Binobaeid@gmail.com';
+            static const String nextcloudPassword = '10.10.10.1010.10.10.10';
+
+            static const String firebaseProjectId = 'memo-f97b5';
+            static const String firebaseStorageBucket =
+                'memo-f97b5.firebasestorage.app';
+            static const String firebaseApiKey =
+                'AIzaSyCSamhS5nlR4yqHQBunfk61b9GwkZHntbQ';
+            static const String firebaseAppId =
+                '1:448753275014:android:e4dedb02a3b10cce9f0107';
+            static const String androidPackageName = 'com.memo.app';
+          }
+          EOF
+
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib/ test/
+        continue-on-error: true
+
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --no-pub
+        continue-on-error: false
 
       - name: Test
-        run: flutter test
+        run: flutter test --no-pub --coverage
 
-      - name: Build APK
-        run: flutter build apk --release --split-per-abi
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+      # ─────────────────────────────────────────────
+      # 🏗️ بناء APK موحّد + APKs منفصلة لكل ABI
+      # ─────────────────────────────────────────────
+      - name: Build Fat APK (universal)
+        run: flutter build apk --release --no-pub
+
+      - name: Build Split APKs (per ABI)
+        run: flutter build apk --release --split-per-abi --no-pub
+
+      # ─────────────────────────────────────────────
+      # 📊 عرض ملخص أحجام الملفات
+      # ─────────────────────────────────────────────
+      - name: Show artifact sizes
+        run: |
+          echo "════════════════════════════════════════"
+          echo "📦 Artifact sizes:"
+          echo "════════════════════════════════════════"
+          ls -lh build/app/outputs/flutter-apk/
+          echo "════════════════════════════════════════"
+
+      # ─────────────────────────────────────────────
+      # 📤 رفع APK الموحّد
+      # ─────────────────────────────────────────────
+      - name: 📤 Upload universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-universal-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      # ─────────────────────────────────────────────
+      # 📤 رفع APKs المنفصلة لكل معمارية
+      # ─────────────────────────────────────────────
+      - name: 📤 Upload arm64-v8a
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-arm64-v8a-release
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          retention-days: 30
+
+      - name: 📤 Upload armeabi-v7a
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-armeabi-v7a-release
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+          retention-days: 30
+
+      - name: 📤 Upload x86_64
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-x86_64-release
+          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
+          retention-days: 30
+
+      # ─────────────────────────────────────────────
+      # 🏷️ رفع لكل الملفات عند إصدار tag
+      # ─────────────────────────────────────────────
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
