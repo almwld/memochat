@@ -11,6 +11,7 @@ class ChatMessage {
     required this.type,
     this.text = '',
     this.status = MessageStatus.sent,
+    this.isMine = false,
   });
 
   final String id;
@@ -20,4 +21,5 @@ class ChatMessage {
   final MessageType type;
   final String text;
   final MessageStatus status;
+  final bool isMine;
 }
