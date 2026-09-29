@@ -46,7 +46,7 @@ class _CallScreenState extends State<CallScreen> {
   final calls = CallService();
   Room? room;
   StreamSubscription<CallModel?>? callSub;
-  StreamSubscription<ConnectivityResult>? netSub;
+  StreamSubscription<List<ConnectivityResult>>? netSub;
   Timer? timeout;
   Timer? timer;
   Timer? sync;
@@ -100,9 +100,9 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> watchNet() async {
     try {
       final c = await Connectivity().checkConnectivity();
-      if (mounted) setState(() => online = c != ConnectivityResult.none);
+      if (mounted) setState(() => online = !c.contains(ConnectivityResult.none));
       netSub = Connectivity().onConnectivityChanged.listen((c) {
-        if (mounted) setState(() => online = c != ConnectivityResult.none);
+        if (mounted) setState(() => online = !c.contains(ConnectivityResult.none));
       });
     } catch (e) {
       debugPrint('CALL NET $e');
