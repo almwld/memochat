@@ -37,22 +37,14 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path('android/app/build.gradle')
           text = path.read_text()
-
-          # Keep Android namespace, applicationId and MainActivity package aligned.
-          # flutter create initially generates com.memo.memochat, while this app uses
-          # com.memo.app. Android requires MainActivity to follow the final namespace.
           text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
           text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
-
           lines = text.splitlines()
           output = []
-          in_default_config = False
           inserted_min = False
           inserted_desugar = False
-
           for line in lines:
               stripped = line.strip()
               if stripped.startswith('compileSdk'):
@@ -71,42 +63,29 @@ jobs:
                   inserted_desugar = True
                   continue
               output.append(line)
-              if stripped == 'defaultConfig {':
-                  in_default_config = True
-
           if not inserted_min:
               for i, line in enumerate(output):
                   if line.strip() == 'defaultConfig {':
                       output.insert(i + 1, '        minSdk 23')
                       inserted_min = True
                       break
-
           if not inserted_desugar:
               raise SystemExit('Could not locate compileOptions block')
           if not inserted_min:
               raise SystemExit('Could not configure minSdk')
-
           text = '\n'.join(output) + '\n'
           dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
           if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
               text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
-
           path.write_text(text)
           PY
-
           mkdir -p android/app/src/main/kotlin/com/memo/app
           if [ -f android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt ]; then
-            sed 's/^package com\.memo\.memochat$/package com.memo.app/' \
-              android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt \
-              > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
+            sed 's/^package com\.memo\.memochat$/package com.memo.app/' android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
             rm -rf android/app/src/main/kotlin/com/memo/memochat
           fi
-
-          echo "Configured Android package alignment:"
           grep -nE 'namespace|applicationId' android/app/build.gradle
           grep -R -n '^package ' android/app/src/main/kotlin || true
-
-          echo "Configured Android build:"
           grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
 
       - name: Prepare Android SDK 35
@@ -115,10 +94,7 @@ jobs:
           if [ -z "$SDKMANAGER" ]; then
             SDKMANAGER="$(find "/usr/local/lib/android/sdk/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
           fi
-          if [ -z "$SDKMANAGER" ]; then
-            echo "Android sdkmanager not found"
-            exit 1
-          fi
+          if [ -z "$SDKMANAGER" ]; then echo "Android sdkmanager not found"; exit 1; fi
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
@@ -127,7 +103,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-
           app = Path('android/app/build.gradle')
           text = app.read_text()
           text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
@@ -135,7 +110,6 @@ jobs:
           app.write_text(text)
           print("Android app baseline: compileSdk=35, targetSdk=35")
           PY
-
           grep -nE 'compileSdk|targetSdk|minSdk' android/app/build.gradle
 
       - name: Create google-services.json
@@ -154,21 +128,11 @@ jobs:
               {
                 "client_info": {
                   "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
-                  "android_client_info": {
-                    "package_name": "com.memo.app"
-                  }
+                  "android_client_info": {"package_name": "com.memo.app"}
                 },
                 "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "$FIREBASE_ANDROID_API_KEY"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
+                "api_key": [{"current_key": "$FIREBASE_ANDROID_API_KEY"}],
+                "services": {"appinvite_service": {"other_platform_oauth_client": []}}
               }
             ],
             "configuration_version": "1"
@@ -190,22 +154,17 @@ jobs:
           cat > lib/core/config/secrets.dart << EOF
           class Secrets {
             Secrets._();
-
             static const String livekitUrl = '$LIVEKIT_URL';
             static const String livekitApiKey = '$LIVEKIT_API_KEY';
             static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
             static const String livekitTokenServerUrl = '$LIVEKIT_TOKEN_SERVER_URL';
-
             static const String nextcloudUrl = '$NEXTCLOUD_URL';
             static const String nextcloudUser = '$NEXTCLOUD_USER';
             static const String nextcloudPassword = '$NEXTCLOUD_PASSWORD';
-
             static const String firebaseProjectId = 'memo-f97b5';
-            static const String firebaseStorageBucket =
-                'memo-f97b5.firebasestorage.app';
+            static const String firebaseStorageBucket = 'memo-f97b5.firebasestorage.app';
             static const String firebaseApiKey = '$FIREBASE_ANDROID_API_KEY';
-            static const String firebaseAppId =
-                '1:448753275014:android:e4dedb02a3b10cce9f0107';
+            static const String firebaseAppId = '1:448753275014:android:e4dedb02a3b10cce9f0107';
             static const String androidPackageName = 'com.memo.app';
           }
           EOF
@@ -217,15 +176,10 @@ jobs:
         run: |
           LIVEKIT_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/livekit_client-2.2.5/android/build.gradle' -print -quit)"
           WEBRTC_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/flutter_webrtc-0.11.7/android/build.gradle' -print -quit)"
-          if [ -z "$LIVEKIT_GRADLE" ] || [ -z "$WEBRTC_GRADLE" ]; then
-            echo "Expected pinned LiveKit/WebRTC Android build files were not found"
-            exit 1
-          fi
+          if [ -z "$LIVEKIT_GRADLE" ] || [ -z "$WEBRTC_GRADLE" ]; then echo "Expected pinned LiveKit/WebRTC Android build files were not found"; exit 1; fi
           sed -i 's/compileSdkVersion 30/compileSdkVersion 35/' "$LIVEKIT_GRADLE"
           sed -i 's/compileSdkVersion 31/compileSdkVersion 35/' "$WEBRTC_GRADLE"
-          echo "LiveKit:"
           grep -nE 'compileSdkVersion|minSdkVersion' "$LIVEKIT_GRADLE"
-          echo "flutter_webrtc:"
           grep -nE 'compileSdkVersion|minSdkVersion' "$WEBRTC_GRADLE"
 
       - name: Generate launcher icons
@@ -276,30 +230,29 @@ jobs:
           platform: android
           note: memochat GitHub Actions build ${{ github.run_number }}
 
-      - name: Generate Appetize job summary
+      - name: Generate Build summary
         if: always()
         env:
           APPETIZE_RESULT: ${{ steps.appetize.outcome }}
           APPETIZE_PUBLIC_KEY: ${{ steps.appetize.outputs.publicKey }}
         run: |
           {
+            echo '# Build summary'
+            echo
             echo '## Appetize cloud test'
             echo
-            echo '### Job summary generated at run-time'
-            echo
             if [ "$APPETIZE_RESULT" = "success" ] && [ -n "$APPETIZE_PUBLIC_KEY" ]; then
-              echo '✅ **Appetize upload: successful**'
-              echo
-              echo "**Appetize public key:** `$APPETIZE_PUBLIC_KEY`"
+              echo '✅ Appetize upload: successful'
               echo
               echo "### [Open MemoChat in Appetize](https://appetize.io/app/$APPETIZE_PUBLIC_KEY)"
               echo
-              echo "[Open embedded preview](https://appetize.io/embed/$APPETIZE_PUBLIC_KEY)"
+              echo 'Job summary generated at run-time'
             else
-              echo '⚠️ **Appetize cloud test was not completed.**'
+              echo '⚠️ Appetize cloud test was not completed.'
               echo
               echo 'The APK build and GitHub artifacts are still available above.'
-              echo 'Check the **Appetize cloud test** step logs for the upload error.'
+              echo
+              echo 'Job summary generated at run-time'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
