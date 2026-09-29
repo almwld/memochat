@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:memochat/core/constants/app_colors.dart';
-import 'package:memochat/core/constants/imagekit.dart';
-import 'package:memochat/core/services/toast_service.dart';
+import 'package:memochat/features/chat/services/toast_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ContactInfoSheet extends StatefulWidget {
@@ -18,14 +17,14 @@ class ContactInfoSheet extends StatefulWidget {
 
   const ContactInfoSheet({
     super.key,
-    this.name = 'د. أحمد المؤيد',
-    this.phone = '+967 777 777 777',
-    this.imageUrl = ImageKit.doctor1,
-    this.specialty = 'استشاري باطنية وأطفال',
-    this.rating = 4.9,
-    this.reviews = 328,
-    this.experience = '20+ سنة',
-    this.isAvailable = true,
+    this.name = 'مستخدم MemoChat',
+    this.phone,
+    this.imageUrl,
+    this.specialty,
+    this.rating,
+    this.reviews,
+    this.experience,
+    this.isAvailable,
   });
 
   @override
