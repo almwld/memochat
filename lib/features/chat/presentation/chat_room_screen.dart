@@ -3,8 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
 import 'package:memochat/core/theme/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
@@ -912,7 +910,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       : null;
                   final status = _uploadStatusFor(message);
                   final messageId = rawMessageId ?? index.toString();
-                  final messageKey = _messageKeys.putIfAbsent(messageId, GlobalKey.new);
                   Widget bubble = MessageBubble(
                       key: ValueKey(messageId),
                       message: message,
