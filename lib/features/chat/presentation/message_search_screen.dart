@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
-import 'package:memochat/presentation/widgets/common/unified_search_bar.dart';
+import 'package:memochat/features/chat/presentation/widgets/unified_search_bar.dart';
 
 class MessageSearchScreen extends StatefulWidget {
   final String chatId;
