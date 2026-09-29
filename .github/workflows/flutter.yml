@@ -119,20 +119,25 @@ jobs:
           root = Path('android/build.gradle')
           text = root.read_text()
           marker = '// MemoChat: force Android compile SDK for every Android plugin'
-          if marker not in text:
-              text += '''
-              
+          if marker in text:
+              text = text[:text.index(marker)].rstrip() + '\n'
+          text += '''
+          
           // MemoChat: force Android compile SDK for every Android plugin
           subprojects {
-              afterEvaluate { project ->
-                  def androidExtension = project.extensions.findByName("android")
-                  if (androidExtension != null) {
-                      androidExtension.compileSdkVersion 35
+              plugins.withId("com.android.application") {
+                  android {
+                      compileSdk 35
+                  }
+              }
+              plugins.withId("com.android.library") {
+                  android {
+                      compileSdk 35
                   }
               }
           }
           '''
-              root.write_text(text)
+          root.write_text(text)
 
           print("Android SDK baseline: compileSdk=35, targetSdk=35, plugin compileSdk=35")
           PY
