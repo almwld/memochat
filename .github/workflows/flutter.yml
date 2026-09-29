@@ -53,7 +53,7 @@ jobs:
                   output.append('    compileSdk 35')
                   continue
               if stripped.startswith('minSdk'):
-                  output.append('        minSdk 21')
+                  output.append('        minSdk 23')
                   inserted_min = True
                   continue
               if stripped.startswith('applicationId'):
