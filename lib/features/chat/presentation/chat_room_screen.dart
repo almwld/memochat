@@ -144,6 +144,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   Set<String> _newMessageIds = <String>{};
   bool _hasInitialMessageSnapshot = false;
   bool _loading = true;
+  String? _loadError;
   bool _online = false;
   DateTime? _lastSeen;
   bool _muted = false;
@@ -157,7 +158,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onChatScroll);
-    _listen();
+    _initializeRoom();
     _loadPendingMedia();
     
     unawaited(NotificationService().cancelChatNotifications(widget.chatId));
@@ -270,13 +271,74 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     return deletedFor is Map && deletedFor[uid] == true;
   }
 
+  Future<void> _initializeRoom() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      if (mounted) setState(() { _loading = false; _loadError = 'يجب تسجيل الدخول لفتح المحادثة.'; });
+      return;
+    }
+    if (widget.chatId.trim().isEmpty || widget.otherUserId.trim().isEmpty || widget.otherUserId == uid) {
+      if (mounted) setState(() { _loading = false; _loadError = 'بيانات المحادثة غير صالحة.'; });
+      return;
+    }
+    try {
+      final ref = _firestore.collection('chats').doc(widget.chatId);
+      final snapshot = await ref.get();
+      if (snapshot.exists) {
+        final data = snapshot.data() ?? <String, dynamic>{};
+        final participants = (data['participants'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+        if (!participants.contains(uid)) {
+          if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
+          return;
+        }
+        _listen();
+        return;
+      }
+
+      // Some legacy entry points can provide a stale/in-memory conversation id.
+      // Re-create the canonical Firebase chat and replace the stale route.
+      final newChatId = await _chat.createChat(
+        userId: widget.otherUserId,
+        userName: widget.otherUserName.trim().isEmpty ? 'مستخدم' : widget.otherUserName.trim(),
+        currentUserName: _auth.currentUser?.displayName?.trim().isNotEmpty == true
+            ? _auth.currentUser!.displayName!.trim()
+            : 'مستخدم MemoChat',
+        userImage: widget.otherUserImage ?? widget.groupImage,
+        currentUserImage: _auth.currentUser?.photoURL,
+      );
+      if (!mounted) return;
+      if (newChatId != widget.chatId) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (_) => ChatRoomScreen(
+            chatId: newChatId,
+            otherUserId: widget.otherUserId,
+            otherUserName: widget.otherUserName,
+            otherUserImage: widget.otherUserImage,
+            isGroup: widget.isGroup,
+            groupImage: widget.groupImage,
+            lastMessage: widget.lastMessage,
+          ),
+        ));
+        return;
+      }
+      _listen();
+    } catch (e) {
+      debugPrint('chat room initialization failed: $e');
+      if (mounted) setState(() { _loading = false; _loadError = 'تعذر تجهيز المحادثة حالياً. تحقق من الاتصال ثم حاول مرة أخرى.'; });
+    }
+  }
+
   void _listen() {
     _chatSub = _firestore
         .collection('chats')
         .doc(widget.chatId)
         .snapshots()
         .listen((snapshot) {
-      if (!mounted || !snapshot.exists) return;
+      if (!mounted) return;
+      if (!snapshot.exists) {
+        setState(() { _loading = false; _loadError ??= 'المحادثة غير موجودة.'; });
+        return;
+      }
       final data = snapshot.data() ?? <String, dynamic>{};
       final uid = _auth.currentUser?.uid;
       final mutedFor = data['mutedFor'];
@@ -357,7 +419,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       unawaited(_loadPendingMedia());
     }, onError: (error) {
       debugPrint('chat stream: $error');
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _loadError = error.toString(); });
     });
   }
 
@@ -882,7 +944,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         Expanded(
             child: ChatBackground(
                 child: Stack(children: [
-          if (all.isEmpty)
+          if (_loadError != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chat_bubble_outline_rounded, size: 44, color: AppColors.primary.withOpacity(.75)),
+                    const SizedBox(height: 12),
+                    Text(_loadError!, textAlign: TextAlign.center, style: TextStyle(color: dark ? Colors.white70 : const Color(0xFF49615E), fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 14),
+                    FilledButton.icon(onPressed: () { setState(() { _loadError = null; _loading = true; }); _initializeRoom(); }, icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+                  ],
+                ),
+              ),
+            )
+          else if (all.isEmpty)
             Center(
                 child: Text('ابدأ المحادثة',
                     style: TextStyle(
