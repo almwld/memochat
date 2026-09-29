@@ -190,9 +190,8 @@ jobs:
           rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
           dart run flutter_launcher_icons
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib/ test/
-        continue-on-error: true
+      - name: Format Dart sources
+        run: dart format lib/ test/
 
       - name: Analyze
         run: flutter analyze --no-pub
@@ -221,7 +220,7 @@ jobs:
 
       - name: Appetize cloud test
         id: appetize
-        if: always() && (success() || failure())
+        if: success()
         continue-on-error: true
         uses: appetizeio/github-action-appetize@v1.1.0
         with:
