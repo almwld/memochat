@@ -292,7 +292,7 @@ jobs:
               echo
               echo "**Appetize public key:** `$APPETIZE_PUBLIC_KEY`"
               echo
-              echo "### [Open Sehatak in Appetize](https://appetize.io/app/$APPETIZE_PUBLIC_KEY)"
+              echo "### [Open MemoChat in Appetize](https://appetize.io/app/$APPETIZE_PUBLIC_KEY)"
               echo
               echo "[Open embedded preview](https://appetize.io/embed/$APPETIZE_PUBLIC_KEY)"
             else
