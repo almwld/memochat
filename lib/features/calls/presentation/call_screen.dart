@@ -76,7 +76,7 @@ class _CallScreenState extends State<CallScreen> {
                       const SizedBox(height: 28),
                       FilledButton.tonalIcon(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const AppIcon(AppIcons.phoneCall),
+                        icon: const Icon(Icons.call_end_rounded),
                         label: const Text('إنهاء المكالمة'),
                       ),
                     ],
