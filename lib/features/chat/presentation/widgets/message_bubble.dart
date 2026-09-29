@@ -552,7 +552,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.sehatak.app',
+                  userAgentPackageName: 'com.memochat.app',
                 ),
                 MarkerLayer(
                   markers: [
