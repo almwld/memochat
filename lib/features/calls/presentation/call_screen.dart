@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,7 +18,7 @@ class _CallScreenState extends State<CallScreen>{
   Future<void> _start() async{
     try{
       final uid=FirebaseAuth.instance.currentUser?.uid;if(uid==null)throw StateError('يرجى تسجيل الدخول');
-      final ref=_db.collection('calls').doc();_callId=ref.id;final roomName='call_\${ref.id}';
+      final ref=_db.collection('calls').doc();_callId=ref.id;final roomName='call_'+ref.id;
       await ref.set({'callId':ref.id,'chatId':widget.chatId,'callerId':uid,'receiverId':widget.otherUserId,'callerName':FirebaseAuth.instance.currentUser?.displayName??'مستخدم','callerPhotoUrl':FirebaseAuth.instance.currentUser?.photoURL??'','isVideo':widget.isVideo,'callType':widget.isVideo?'video':'audio','status':'calling','roomName':roomName,'liveKitRoomName':roomName,'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});
       unawaited(const CallNotificationService().send(ref.id));
       final issued=await _token.issue(roomName:roomName,participantName:FirebaseAuth.instance.currentUser?.displayName??'مستخدم');
@@ -29,7 +30,7 @@ class _CallScreenState extends State<CallScreen>{
   Future<void> _cameraToggle()async{final p=_room?.localParticipant;if(p==null||!widget.isVideo)return;final n=!_camera;await p.setCameraEnabled(n);if(mounted)setState(()=>_camera=n);}
   Future<void> _end()async{if(_callId!=null)await _db.collection('calls').doc(_callId).set({'status':'ended','endedAt':FieldValue.serverTimestamp()},SetOptions(merge:true));_timer?.cancel();final r=_room;if(r!=null)await r.disconnect();if(mounted)Navigator.pop(context);}
   @override void dispose(){_timer?.cancel();final r=_room;if(r!=null)unawaited(r.disconnect());super.dispose();}
-  String _time(){final m=(_seconds~/60).toString().padLeft(2,'0');final s=(_seconds%60).toString().padLeft(2,'0');return '\$m:\$s';}
+  String _time(){final m=(_seconds~/60).toString().padLeft(2,'0');final s=(_seconds%60).toString().padLeft(2,'0');return m+':'+s;}
   @override Widget build(BuildContext context)=>Scaffold(backgroundColor:const Color(0xFF081012),body:SafeArea(child:Stack(children:[
     if(_room!=null)Positioned.fill(child:_remoteView()),
     if(_connecting)const Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83))),
