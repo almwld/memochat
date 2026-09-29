@@ -3,7 +3,7 @@ import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_screen.dart';
-import '../../calls/presentation/calls_history_screen.dart';
+import '../../chat/presentation/calls_screen.dart';
 import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 
@@ -34,7 +34,7 @@ class _MainShellState extends State<MainShell> {
         onNewChat: () => setState(() => _index = 1),
       ),
       ContactsScreen(repository: widget.repository),
-      const CallsHistoryScreen(),
+      const CallsScreen(),
       SettingsScreen(
         onThemeModeChanged: widget.onThemeModeChanged,
         onSignOut: widget.onSignOut,
