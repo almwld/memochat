@@ -383,7 +383,7 @@ class ChatMediaTransferService {
   Future<String?> _retryShare(NextcloudService service, String remotePath) async {
     for (var i = 0; i < 3; i++) {
       final url = await service.createPublicShare(remotePath);
-      if (url != null && url.isNotEmpty) return url;
+      if (url.isNotEmpty) return url;
       await Future<void>.delayed(Duration(seconds: 2 * (i + 1)));
     }
     return null;
@@ -426,7 +426,8 @@ class ChatMediaTransferService {
   Future<void> dispose() async {
     await _connectivitySub?.cancel();
     _connectivitySub = null;
-    await _db?.close();
+    final db = _db;
+    if (db != null) await db.close();
     _db = null;
   }
 }
