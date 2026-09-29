@@ -307,9 +307,9 @@ class CallService {
         builder: (_) => CallScreen(
           callId: normalizedId,
           chatId: chatId,
-          doctorName: data['callerName']?.toString() ?? 'مستخدم',
-          doctorId: data['callerId']?.toString() ?? '',
-          doctorImage: data['callerPhotoUrl']?.toString(),
+          userName: data['callerName']?.toString() ?? 'مستخدم',
+          userId: data['callerId']?.toString() ?? '',
+          userImage: data['callerPhotoUrl']?.toString(),
           isVideo: data['isVideoCall'] == true || data['callType']?.toString() == 'video',
           isOutgoing: false,
         ),
@@ -329,7 +329,7 @@ class CallService {
     if (callerId.isEmpty) return;
     await _notificationCancelAndStop(normalizedId);
     if (!context.mounted) return;
-    await ChatNavigation.openChat(context, doctorName: callerName, doctorId: callerId, doctorImage: callerImage);
+    await ChatNavigation.openChat(context, userName: callerName, userId: callerId, userImage: callerImage);
   }
 
   Future<void> _notificationCancelAndStop(String id) async {
