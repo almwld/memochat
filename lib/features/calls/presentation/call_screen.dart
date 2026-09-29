@@ -22,8 +22,8 @@ class _CallScreenState extends State<CallScreen>{
       unawaited(const CallNotificationService().send(ref.id));
       final issued=await _token.issue(roomName:roomName,participantName:FirebaseAuth.instance.currentUser?.displayName??'مستخدم');
       final room=Room(roomOptions:const RoomOptions(adaptiveStream:true,dynacast:true));await room.connect(issued.serverUrl,issued.token);await room.localParticipant?.setMicrophoneEnabled(true);if(widget.isVideo)await room.localParticipant?.setCameraEnabled(true);
-      if(!mounted){await room.disconnect();return;}setState(()=>{_room=room;_connecting=false;_camera=widget.isVideo;});await ref.update({'status':'connected','connectedAt':FieldValue.serverTimestamp()});_timer=Timer.periodic(const Duration(seconds:1),(_){if(mounted)setState(()=>_seconds++);});
-    }catch(e){if(mounted)setState(()=>{_connecting=false;_error=e.toString();});}
+      if(!mounted){await room.disconnect();return;}setState(() {_room=room;_connecting=false;_camera=widget.isVideo;});await ref.update({'status':'connected','connectedAt':FieldValue.serverTimestamp()});_timer=Timer.periodic(const Duration(seconds:1),(_){if(mounted)setState(()=>_seconds++);});
+    }catch(e){if(mounted)setState(() {_connecting=false;_error=e.toString();});}
   }
   Future<void> _mute()async{final p=_room?.localParticipant;if(p==null)return;final n=!_muted;await p.setMicrophoneEnabled(!n);if(mounted)setState(()=>_muted=n);}
   Future<void> _cameraToggle()async{final p=_room?.localParticipant;if(p==null||!widget.isVideo)return;final n=!_camera;await p.setCameraEnabled(n);if(mounted)setState(()=>_camera=n);}
