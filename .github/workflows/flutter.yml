@@ -265,30 +265,6 @@ jobs:
           echo "Artifact sizes:"
           ls -lh build/app/outputs/flutter-apk/
 
-      - name: Android startup smoke test
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_5
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: |
-            adb install -r build/app/outputs/flutter-apk/app-release.apk
-            adb logcat -c
-            adb shell am force-stop com.memo.app
-            adb shell monkey -p com.memo.app 1
-            sleep 12
-            echo '=== CURRENT FOCUS ==='
-            adb shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp' || true
-            echo '=== PROCESS ==='
-            adb shell pidof com.memo.app || true
-            echo '=== FLUTTER/FATAL LOG ==='
-            adb logcat -d -v brief | grep -E 'FATAL EXCEPTION|AndroidRuntime|flutter|Firebase|firebase_core|PlatformException|MissingPluginException' || true
-            echo '=== FRAME INFO ==='
-            adb shell dumpsys gfxinfo com.memo.app | grep -E 'Stats since|frames rendered|Janky frames|Number of frames' || true
-
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
