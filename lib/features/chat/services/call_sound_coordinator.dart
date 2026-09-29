@@ -22,7 +22,7 @@ class CallSoundCoordinator {
 
   StreamSubscription<User?>? _authSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callsSubscription;
-  final SoundManager _sounds = SoundManager();
+  final SoundManager _sounds = SoundManager.instance;
   String? _activeCallId;
   String? _incomingUiCallId;
   bool _incomingMuted = false;
