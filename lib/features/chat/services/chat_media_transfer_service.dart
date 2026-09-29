@@ -16,7 +16,7 @@ import 'package:memochat/firebase_options.dart';
 import 'chat_service.dart';
 import 'nextcloud_service.dart';
 
-const String chatMediaTransferTask = 'sehatak.chat.media.transfer';
+const String chatMediaTransferTask = 'memochat.chat.media.transfer';
 
 @pragma('vm:entry-point')
 void chatMediaTransferCallbackDispatcher() {
@@ -59,7 +59,7 @@ class ChatMediaTransferService {
     if (_db != null) return _db!;
     final root = await getDatabasesPath();
     _db = await openDatabase(
-      p.join(root, 'sehatak_chat_outbox.db'),
+      p.join(root, 'memochat_chat_outbox.db'),
       version: 2,
       onCreate: (db, version) async {
         await db.execute('''
@@ -119,7 +119,7 @@ class ChatMediaTransferService {
       await Workmanager().initialize(chatMediaTransferCallbackDispatcher, isInDebugMode: false);
       _workerInitialized = true;
       await Workmanager().registerPeriodicTask(
-        'sehatak-chat-media-periodic',
+        'memochat-chat-media-periodic',
         chatMediaTransferTask,
         frequency: const Duration(minutes: 15),
         constraints: Constraints(networkType: NetworkType.connected),
@@ -134,7 +134,7 @@ class ChatMediaTransferService {
     if (!_workerInitialized) return;
     try {
       await Workmanager().registerOneOffTask(
-        'sehatak-chat-media-${DateTime.now().microsecondsSinceEpoch}',
+        'memochat-chat-media-${DateTime.now().microsecondsSinceEpoch}',
         chatMediaTransferTask,
         constraints: Constraints(networkType: NetworkType.connected),
       );
@@ -157,7 +157,7 @@ class ChatMediaTransferService {
     if (!await sourceFile.exists()) throw StateError('الملف المحلي غير موجود');
     final id = '${chatId}_${DateTime.now().microsecondsSinceEpoch}_${sourceFile.uri.pathSegments.last.hashCode.abs()}';
     final dir = await getApplicationDocumentsDirectory();
-    final mediaDir = Directory(p.join(dir.path, 'sehatak_chat_media', chatId));
+    final mediaDir = Directory(p.join(dir.path, 'memochat_chat_media', chatId));
     await mediaDir.create(recursive: true);
     final rawName = fileName?.trim().isNotEmpty == true ? fileName!.trim() : p.basename(sourceFile.path);
     final safeName = rawName.replaceAll(RegExp(r'[/\\]'), '_');
