@@ -66,10 +66,6 @@ jobs:
 
           # Current Firebase Firestore requires Android API 23+.
           min_sdk = re.search(r'(?m)^\s*minSdk(?:Version)?\s*=?.*
-          dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
-          if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
-              text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
-
           path.write_text(text)
           PY
 
@@ -233,11 +229,7 @@ jobs:
               if not default_config:
                   raise SystemExit('Could not locate defaultConfig block')
               insert_at = default_config.end()
-              text = (
-                  text[:insert_at]
-                  + '\n        minSdk = 23'
-                  + text[insert_at:]
-              )
+              text = text[:insert_at] + '\n        minSdk = 23' + text[insert_at:]
 
           # Match the Firebase Android app declared in google-services.json.
           text, changed = re.subn(
