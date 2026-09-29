@@ -100,11 +100,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Future<void> _startChat(ChatUser user) async {
     try {
-      await widget.repository.createConversation(otherUserId: user.id, otherUserName: user.displayName, otherUserPhoto: user.avatarUrl);
+      final chatId = await widget.repository.createConversation(otherUserId: user.id, otherUserName: user.displayName, otherUserPhoto: user.avatarUrl);
       if (!mounted) return;
-      final ids = <String>[user.id];
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-        chatId: ids.join('_'),
+        chatId: chatId,
         otherUserId: user.id,
         otherUserName: user.displayName,
         otherUserImage: user.avatarUrl,
