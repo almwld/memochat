@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'chat_room_screen.dart';
@@ -14,6 +15,7 @@ class _ChatScreenState extends State<ChatScreen> {
   int _tab = 0;
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _chats() {
+    if (Firebase.apps.isEmpty) return const Stream.empty();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const Stream.empty();
     return FirebaseFirestore.instance.collection('chats')
