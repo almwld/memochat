@@ -25,21 +25,28 @@ abstract final class AppTheme {
         primary: AppColors.primary,
         error: AppColors.error,
       ),
-      scaffoldBackgroundColor: dark ? const Color(0xFF0B1121) : AppColors.background,
+      scaffoldBackgroundColor:
+          dark ? const Color(0xFF0B1121) : AppColors.background,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: dark ? const Color(0xFF0B1121) : AppColors.background,
-        foregroundColor: dark ? Colors.white : const Color(0xFF172026),
+        backgroundColor:
+            dark ? const Color(0xFF0B1121) : AppColors.background,
+        foregroundColor:
+            dark ? Colors.white : const Color(0xFF172026),
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 72,
         elevation: 0,
         backgroundColor: dark ? const Color(0xFF111827) : Colors.white,
-        indicatorColor: AppColors.primary.withValues(alpha: .14),
-        labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: dark ? Colors.white : const Color(0xFF263238)),
+        indicatorColor: AppColors.primary.withOpacity(.14),
+        labelTextStyle: MaterialStatePropertyAll(
+          TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: dark ? Colors.white : const Color(0xFF263238),
+          ),
         ),
       ),
       textTheme: const TextTheme(
@@ -62,13 +69,18 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(
+            color: AppColors.primary,
+            width: 1.5,
+          ),
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
       ),
     );
   }
