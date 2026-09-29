@@ -31,28 +31,112 @@ jobs:
           cache: true
 
       - name: Generate Android platform files
-        run: flutter create --platforms=android --project-name memochat .
+        run: flutter create --platforms=android --project-name memochat --org com.memo .
 
-      - name: Enable Android core library desugaring
+      - name: Configure Android build
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           path = Path('android/app/build.gradle')
           text = path.read_text()
-          if 'coreLibraryDesugaringEnabled true' not in text:
-              text = text.replace(
-                  'compileOptions {',
-                  'compileOptions {\n        coreLibraryDesugaringEnabled true',
-                  1,
-              )
-          if "coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'" not in text:
-              text = text.replace(
-                  'dependencies {',
-                  "dependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'",
-                  1,
-              )
+
+          # Keep Android namespace, applicationId and MainActivity package aligned.
+          # flutter create initially generates com.memo.memochat, while this app uses
+          # com.memo.app. Android requires MainActivity to follow the final namespace.
+          text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
+          text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
+
+          lines = text.splitlines()
+          output = []
+          in_default_config = False
+          inserted_min = False
+          inserted_desugar = False
+
+          for line in lines:
+              stripped = line.strip()
+              if stripped.startswith('compileSdk'):
+                  output.append('    compileSdk 35')
+                  continue
+              if stripped.startswith('minSdk'):
+                  output.append('        minSdk 23')
+                  inserted_min = True
+                  continue
+              if stripped.startswith('applicationId'):
+                  output.append('        applicationId "com.memo.app"')
+                  continue
+              if stripped == 'compileOptions {':
+                  output.append(line)
+                  output.append('        coreLibraryDesugaringEnabled true')
+                  inserted_desugar = True
+                  continue
+              output.append(line)
+              if stripped == 'defaultConfig {':
+                  in_default_config = True
+
+          if not inserted_min:
+              for i, line in enumerate(output):
+                  if line.strip() == 'defaultConfig {':
+                      output.insert(i + 1, '        minSdk 23')
+                      inserted_min = True
+                      break
+
+          if not inserted_desugar:
+              raise SystemExit('Could not locate compileOptions block')
+          if not inserted_min:
+              raise SystemExit('Could not configure minSdk')
+
+          text = '\n'.join(output) + '\n'
+          dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
+          if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
+              text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
+
           path.write_text(text)
           PY
+
+          mkdir -p android/app/src/main/kotlin/com/memo/app
+          if [ -f android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt ]; then
+            sed 's/^package com\.memo\.memochat$/package com.memo.app/' \
+              android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt \
+              > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
+            rm -rf android/app/src/main/kotlin/com/memo/memochat
+          fi
+
+          echo "Configured Android package alignment:"
+          grep -nE 'namespace|applicationId' android/app/build.gradle
+          grep -R -n '^package ' android/app/src/main/kotlin || true
+
+          echo "Configured Android build:"
+          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
+
+      - name: Prepare Android SDK 35
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "/usr/local/lib/android/sdk/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android sdkmanager not found"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Force app Android SDK baseline
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          app = Path('android/app/build.gradle')
+          text = app.read_text()
+          text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
+          text = re.sub(r'targetSdk(?:Version)?\s+[^\n]+', 'targetSdk 35', text, count=1)
+          app.write_text(text)
+          print("Android app baseline: compileSdk=35, targetSdk=35")
+          PY
+
+          grep -nE 'compileSdk|targetSdk|minSdk' android/app/build.gradle
 
       - name: Create google-services.json
         env:
@@ -96,6 +180,7 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          LIVEKIT_TOKEN_SERVER_URL: ${{ secrets.LIVEKIT_TOKEN_SERVER_URL }}
           NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
           NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
           NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
@@ -109,6 +194,7 @@ jobs:
             static const String livekitUrl = '$LIVEKIT_URL';
             static const String livekitApiKey = '$LIVEKIT_API_KEY';
             static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
+            static const String livekitTokenServerUrl = '$LIVEKIT_TOKEN_SERVER_URL';
 
             static const String nextcloudUrl = '$NEXTCLOUD_URL';
             static const String nextcloudUser = '$NEXTCLOUD_USER';
@@ -127,8 +213,28 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Align Android media plugin compile SDKs
+        run: |
+          LIVEKIT_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/livekit_client-2.2.5/android/build.gradle' -print -quit)"
+          WEBRTC_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/flutter_webrtc-0.11.7/android/build.gradle' -print -quit)"
+          if [ -z "$LIVEKIT_GRADLE" ] || [ -z "$WEBRTC_GRADLE" ]; then
+            echo "Expected pinned LiveKit/WebRTC Android build files were not found"
+            exit 1
+          fi
+          sed -i 's/compileSdkVersion 30/compileSdkVersion 35/' "$LIVEKIT_GRADLE"
+          sed -i 's/compileSdkVersion 31/compileSdkVersion 35/' "$WEBRTC_GRADLE"
+          echo "LiveKit:"
+          grep -nE 'compileSdkVersion|minSdkVersion' "$LIVEKIT_GRADLE"
+          echo "flutter_webrtc:"
+          grep -nE 'compileSdkVersion|minSdkVersion' "$WEBRTC_GRADLE"
+
       - name: Generate launcher icons
-        run: dart run flutter_launcher_icons
+        run: |
+          mkdir -p build/icon
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
+          dart run flutter_launcher_icons
 
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed lib/ test/
@@ -158,6 +264,30 @@ jobs:
         run: |
           echo "Artifact sizes:"
           ls -lh build/app/outputs/flutter-apk/
+
+      - name: Android startup smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            adb install -r build/app/outputs/flutter-apk/app-release.apk
+            adb logcat -c
+            adb shell am force-stop com.memo.app
+            adb shell monkey -p com.memo.app 1
+            sleep 12
+            echo '=== CURRENT FOCUS ==='
+            adb shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp' || true
+            echo '=== PROCESS ==='
+            adb shell pidof com.memo.app || true
+            echo '=== FLUTTER/FATAL LOG ==='
+            adb logcat -d -v brief | grep -E 'FATAL EXCEPTION|AndroidRuntime|flutter|Firebase|firebase_core|PlatformException|MissingPluginException' || true
+            echo '=== FRAME INFO ==='
+            adb shell dumpsys gfxinfo com.memo.app | grep -E 'Stats since|frames rendered|Janky frames|Number of frames' || true
 
       - name: Upload universal APK
         uses: actions/upload-artifact@v4

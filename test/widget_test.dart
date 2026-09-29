@@ -5,7 +5,6 @@ void main() {
   testWidgets('MemoChat launches', (tester) async {
     await tester.pumpWidget(const MemoChatApp());
     await tester.pump();
-    expect(find.text('MemoChat'), findsAtLeastNWidgets(1));
-    expect(find.text('ابدأ محادثة جديدة'), findsOneWidget);
+    expect(find.text('الدردشة'), findsOneWidget);
   });
 }

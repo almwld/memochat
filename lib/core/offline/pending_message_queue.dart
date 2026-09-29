@@ -59,4 +59,16 @@ class PendingMessageQueue {
   }
 
   Future<void> clear() async => (await _prefs).remove(_key);
+
+  Future<void> flush(Future<void> Function(PendingMessage message) sender) async {
+    final pending = await read();
+    for (final message in pending) {
+      try {
+        await sender(message);
+        await remove(message.id);
+      } catch (_) {
+        // Keep failed messages queued for the next connectivity/retry cycle.
+      }
+    }
+  }
 }
