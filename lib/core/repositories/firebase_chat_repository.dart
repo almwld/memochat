@@ -34,11 +34,13 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   @override
-  Future<void> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
+  Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
     final ids = [_uid, otherUserId]..sort();
     final me = FirebaseAuth.instance.currentUser;
-    await _chats().doc(ids.join('_')).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+    final chatId = ids.join('_');
+    await _chats().doc(chatId).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+    return chatId;
   }
 
   @override
