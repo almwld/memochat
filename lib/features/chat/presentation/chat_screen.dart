@@ -6,17 +6,19 @@ import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({required this.repository, super.key});
+  const ChatScreen({required this.repository, this.onNewChat, super.key});
   final ChatRepository repository;
+  final VoidCallback? onNewChat;
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
 
   @override
-  void dispose() { _search.dispose(); super.dispose(); }
+  void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -25,7 +27,7 @@ class _ChatScreenState extends State<ChatScreen> {
           actions: [
             IconButton(
               tooltip: 'بحث',
-              onPressed: () {},
+              onPressed: () => _searchFocus.requestFocus(),
               icon: const AppIcon(AppIcons.search, size: 23),
             ),
           ],
@@ -59,7 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       subtitle: 'كل محادثاتك ورسائلك في مكان واحد، بتجربة عربية سريعة ومرتبة.',
                       action: IconButton(
                         tooltip: 'محادثة جديدة',
-                        onPressed: () {},
+                        onPressed: widget.onNewChat,
                         color: Colors.white,
                         icon: const Icon(Icons.add_rounded),
                       ),
