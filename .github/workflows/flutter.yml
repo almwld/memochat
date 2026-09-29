@@ -265,6 +265,44 @@ jobs:
           echo "Artifact sizes:"
           ls -lh build/app/outputs/flutter-apk/
 
+      - name: Appetize cloud test
+        id: appetize
+        if: always() && (success() || failure())
+        continue-on-error: true
+        uses: appetizeio/github-action-appetize@v1.1.0
+        with:
+          apiToken: ${{ secrets.APPETIZE_API_KEY }}
+          appFile: build/app/outputs/flutter-apk/app-release.apk
+          platform: android
+          note: memochat GitHub Actions build ${{ github.run_number }}
+
+      - name: Generate Appetize job summary
+        if: always()
+        env:
+          APPETIZE_RESULT: ${{ steps.appetize.outcome }}
+          APPETIZE_PUBLIC_KEY: ${{ steps.appetize.outputs.publicKey }}
+        run: |
+          {
+            echo '## Appetize cloud test'
+            echo
+            echo '### Job summary generated at run-time'
+            echo
+            if [ "$APPETIZE_RESULT" = "success" ] && [ -n "$APPETIZE_PUBLIC_KEY" ]; then
+              echo '✅ **Appetize upload: successful**'
+              echo
+              echo "**Appetize public key:** `$APPETIZE_PUBLIC_KEY`"
+              echo
+              echo "### [Open Sehatak in Appetize](https://appetize.io/app/$APPETIZE_PUBLIC_KEY)"
+              echo
+              echo "[Open embedded preview](https://appetize.io/embed/$APPETIZE_PUBLIC_KEY)"
+            else
+              echo '⚠️ **Appetize cloud test was not completed.**'
+              echo
+              echo 'The APK build and GitHub artifacts are still available above.'
+              echo 'Check the **Appetize cloud test** step logs for the upload error.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
