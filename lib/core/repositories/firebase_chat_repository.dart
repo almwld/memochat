@@ -21,15 +21,34 @@ class FirebaseChatRepository implements ChatRepository {
 
   @override
   Stream<List<ChatUser>> watchContacts({String query = ''}) {
-    final normalized = query.trim().toLowerCase();
+    final normalized = query.trim().toLowerCase().replaceFirst(RegExp(r'^@'), '');
     if (_uid.isEmpty) return const Stream.empty();
-    return _firestore.collection('users').limit(100).snapshots().map((snapshot) => snapshot.docs.map((doc) {
+
+    Query<Map<String, dynamic>> source;
+    if (normalized.isNotEmpty && normalized.startsWith('memo_')) {
+      source = _firestore.collection('users').where('publicId', isEqualTo: normalized).limit(10);
+    } else {
+      source = _firestore.collection('users').limit(100);
+    }
+
+    return source.snapshots().map((snapshot) => snapshot.docs.map((doc) {
       if (doc.id == _uid) return null;
       final data = doc.data();
       final name = data['displayName']?.toString() ?? 'مستخدم';
       final username = data['username']?.toString() ?? '';
-      if (normalized.isNotEmpty && !name.toLowerCase().contains(normalized) && !username.toLowerCase().contains(normalized) && !data['publicId'].toString().toLowerCase().contains(normalized)) return null;
-      return ChatUser(id: doc.id, displayName: name, username: username.isEmpty ? null : username, avatarUrl: data['photoUrl']?.toString() ?? data['photoURL']?.toString(), isOnline: data['isOnline'] == true);
+      final publicId = data['publicId']?.toString() ?? username;
+      final matches = normalized.isEmpty ||
+          name.toLowerCase().contains(normalized) ||
+          username.toLowerCase().contains(normalized) ||
+          publicId.toLowerCase().contains(normalized);
+      if (!matches) return null;
+      return ChatUser(
+        id: doc.id,
+        displayName: name,
+        username: username.isEmpty ? null : username,
+        avatarUrl: data['photoUrl']?.toString() ?? data['photoURL']?.toString(),
+        isOnline: data['isOnline'] == true,
+      );
     }).whereType<ChatUser>().toList());
   }
 
