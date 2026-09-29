@@ -148,7 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             TextField(controller: name, textDirection: TextDirection.rtl, decoration: const InputDecoration(labelText: 'الاسم')),
             const SizedBox(height: 12),
-            Text('معرّفك العام: @$publicId', style: const TextStyle(fontWeight: FontWeight.w700)),,
+            Text('معرّفك العام: @$publicId', style: const TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
         actions: [
