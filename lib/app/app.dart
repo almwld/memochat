@@ -20,13 +20,20 @@ class MemoChatApp extends StatefulWidget {
 class _MemoChatAppState extends State<MemoChatApp>{
   final _fallbackRepository=InMemoryChatRepository();
   ThemeMode _themeMode=ThemeMode.system;
-  ChatRepository get _repository=>Firebase.apps.isNotEmpty?FirebaseChatRepository():_fallbackRepository;
+  bool _firebaseReady = Firebase.apps.isNotEmpty;
+  bool _firebaseChecking = Firebase.apps.isEmpty;
+  ChatRepository get _repository => FirebaseChatRepository();
 
   @override void initState(){super.initState();unawaited(_initializeServices());}
   Future<void> _initializeServices() async {
-    if(Firebase.apps.isEmpty)return;
+    if(Firebase.apps.isEmpty){
+      try {
+        await Firebase.initializeApp();
+      } catch (_) {}
+    }
+    if(mounted)setState(() { _firebaseReady = Firebase.apps.isNotEmpty; _firebaseChecking = false; });
+    if(!_firebaseReady)return;
     try{final user=FirebaseAuth.instance.currentUser;if(user!=null)await _syncUser(user);}catch(_){}
-    if(mounted)setState((){});
   }
   Future<void> _syncUser(User user) async {
     final id='memo_'+user.uid.substring(0,8).toLowerCase();
@@ -42,8 +49,11 @@ class _MemoChatAppState extends State<MemoChatApp>{
     navigatorKey:memoNavigatorKey,title:'MemoChat',debugShowCheckedModeBanner:false,
     theme:AppTheme.light(),darkTheme:AppTheme.dark(),themeMode:_themeMode,locale:const Locale('ar'),
     builder:(context,child)=>Directionality(textDirection:TextDirection.rtl,child:child??const SizedBox.shrink()),
-    home:Firebase.apps.isEmpty?HomeScreen(repository:_repository,onThemeModeChanged:_setThemeMode,onSignOut:_signOut):
-      StreamBuilder<User?>(
+    home:_firebaseChecking
+      ? const _FirebaseLoadingScreen()
+      : !_firebaseReady
+        ? _FirebaseUnavailableScreen(onRetry: () async { if(mounted)setState(()=>_firebaseChecking=true); try { await Firebase.initializeApp(); } catch (_) {} if(mounted)setState(()=>_firebaseReady=Firebase.apps.isNotEmpty); if(_firebaseReady && mounted) unawaited(_initializeServices()); })
+        : StreamBuilder<User?>(
         stream:FirebaseAuth.instance.authStateChanges(),
         builder:(context,snapshot){
           if(snapshot.connectionState==ConnectionState.waiting)return const Scaffold(body:Center(child:CircularProgressIndicator()));
@@ -53,5 +63,31 @@ class _MemoChatAppState extends State<MemoChatApp>{
           return HomeScreen(repository:_repository,onThemeModeChanged:_setThemeMode,onSignOut:_signOut);
         },
       ),
+  );
+}
+
+class _FirebaseLoadingScreen extends StatelessWidget {
+  const _FirebaseLoadingScreen();
+  @override Widget build(BuildContext context) => const Scaffold(
+    body: Center(child: CircularProgressIndicator()),
+  );
+}
+
+class _FirebaseUnavailableScreen extends StatelessWidget {
+  const _FirebaseUnavailableScreen({required this.onRetry});
+  final Future<void> Function() onRetry;
+  @override Widget build(BuildContext context) => Scaffold(
+    body: Center(child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.cloud_off_rounded, size: 56, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 16),
+        const Text('تعذر الاتصال بخدمات MemoChat', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        const Text('لا يمكن فتح المحادثات دون اتصال Firebase. أعد المحاولة بدلاً من تشغيل التطبيق ببيانات وهمية.', textAlign: TextAlign.center),
+        const SizedBox(height: 20),
+        FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+      ]),
+    )),
   );
 }
