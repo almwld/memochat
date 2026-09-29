@@ -13,7 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'call_sound_coordinator.dart';
 import 'chat_service.dart';
-import '../../firebase_options.dart';
+import 'package:memochat/firebase_options.dart';
 
 typedef NotificationTapHandler = Future<void> Function(String? payload);
 
