@@ -50,10 +50,10 @@ jobs:
           for line in lines:
               stripped = line.strip()
               if stripped.startswith('compileSdk'):
-                  output.append('    compileSdk 35')
+                  output.append('    compileSdk 34')
                   continue
               if stripped.startswith('minSdk'):
-                  output.append('        minSdk 23')
+                  output.append('        minSdk 21')
                   inserted_min = True
                   continue
               if stripped.startswith('applicationId'):
