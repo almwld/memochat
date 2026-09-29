@@ -39,7 +39,7 @@ class FirebaseChatRepository implements ChatRepository {
     final ids = [_uid, otherUserId]..sort();
     final me = FirebaseAuth.instance.currentUser;
     final chatId = ids.join('_');
-    await _chats().doc(chatId).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+    await _chats().doc(chatId).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'participantDetails': {_uid: {'name': me?.displayName ?? 'مستخدم', 'photoUrl': me?.photoURL ?? ''}, otherUserId: {'name': otherUserName, 'photoUrl': otherUserPhoto ?? ''}}, 'isGroup': false, 'isArchived': false, 'isPinned': false, 'isMuted': false, 'unreadCount': {_uid: 0, otherUserId: 0}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
     return chatId;
   }
 
@@ -93,7 +93,7 @@ class FirebaseChatRepository implements ChatRepository {
                         status: MessageStatus.sent,
                         isMine: data['lastMessageSenderId'] == _uid,
                       ),
-                unreadCount: (data['unreadCount'] as num?)?.toInt() ?? 0,
+                unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
               );
             }).toList());
   }
