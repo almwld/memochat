@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
@@ -19,6 +20,7 @@ class _CallsScreenState extends State<CallsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (Firebase.apps.isEmpty) return _empty('سجّل الدخول لعرض سجل المكالمات', isDark);
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
     if (currentUid == null) {
