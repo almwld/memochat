@@ -48,6 +48,13 @@ class _MemoChatAppState extends State<MemoChatApp> {
       title: 'MemoChat',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
+      locale: const Locale('ar'),
+      builder: (context, child) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: !_ready
           ? const Scaffold(
               body: Center(
