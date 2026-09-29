@@ -822,9 +822,7 @@ class NotificationService {
 
   int _typedNotificationId(String type, Map<String, dynamic>? data) {
     final sourceId = data?['notificationId'] ??
-        data?['messageId'] ?? data?['appointmentId'] ?? data?['orderId'] ??
-        data?['invoiceId'] ?? data?['paymentId'] ?? data?['labId'] ??
-        data?['requestId'];
+        data?['messageId'] ?? data?['callId'] ?? data?['notificationId'] ?? data?['id'];
     final source = sourceId?.toString().trim();
     return _stableNotificationId(
       'typed:$type:${source != null && source.isNotEmpty ? source : jsonEncode(data ?? const <String, dynamic>{})}',
