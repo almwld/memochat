@@ -20,6 +20,28 @@ class FirebaseChatRepository implements ChatRepository {
       _chats().doc(id).collection('messages');
 
   @override
+  Stream<List<ChatUser>> watchContacts({String query = ''}) {
+    final normalized = query.trim().toLowerCase();
+    if (_uid.isEmpty) return const Stream.empty();
+    return _firestore.collection('users').limit(100).snapshots().map((snapshot) => snapshot.docs.map((doc) {
+      if (doc.id == _uid) return null;
+      final data = doc.data();
+      final name = data['displayName']?.toString() ?? 'مستخدم';
+      final username = data['username']?.toString() ?? '';
+      if (normalized.isNotEmpty && !name.toLowerCase().contains(normalized) && !username.toLowerCase().contains(normalized)) return null;
+      return ChatUser(id: doc.id, displayName: name, username: username.isEmpty ? null : username, avatarUrl: data['photoUrl']?.toString() ?? data['photoURL']?.toString(), isOnline: data['isOnline'] == true);
+    }).whereType<ChatUser>().toList());
+  }
+
+  @override
+  Future<void> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
+    if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
+    final ids = [_uid, otherUserId]..sort();
+    final me = FirebaseAuth.instance.currentUser;
+    await _chats().doc(ids.join('_')).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+  }
+
+  @override
   Stream<List<Conversation>> watchConversations() {
     if (_uid.isEmpty) return const Stream.empty();
 
