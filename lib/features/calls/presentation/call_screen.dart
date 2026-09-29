@@ -8,8 +8,8 @@ import '../../../core/calls/livekit_token_service.dart';
 import '../../../core/calls/call_notification_service.dart';
 
 class CallScreen extends StatefulWidget {
-  const CallScreen({super.key,required this.chatId,required this.otherUserId,required this.otherUserName,this.otherUserImage,required this.isVideo});
-  final String chatId,otherUserId,otherUserName; final String? otherUserImage; final bool isVideo;
+  const CallScreen({super.key,required this.chatId,required this.otherUserId,required this.otherUserName,this.otherUserImage,required this.isVideo,this.incomingCallId});
+  final String chatId,otherUserId,otherUserName; final String? otherUserImage; final bool isVideo; final String? incomingCallId;
   @override State<CallScreen> createState()=>_CallScreenState();
 }
 class _CallScreenState extends State<CallScreen>{
@@ -18,11 +18,10 @@ class _CallScreenState extends State<CallScreen>{
   Future<void> _start() async{
     try{
       final uid=FirebaseAuth.instance.currentUser?.uid;if(uid==null)throw StateError('يرجى تسجيل الدخول');
-      final ref=_db.collection('calls').doc();_callId=ref.id;final roomName='call_'+ref.id;
-      await ref.set({'callId':ref.id,'chatId':widget.chatId,'callerId':uid,'receiverId':widget.otherUserId,'callerName':FirebaseAuth.instance.currentUser?.displayName??'مستخدم','callerPhotoUrl':FirebaseAuth.instance.currentUser?.photoURL??'','isVideo':widget.isVideo,'callType':widget.isVideo?'video':'audio','status':'calling','roomName':roomName,'liveKitRoomName':roomName,'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});
-      unawaited(const CallNotificationService().send(ref.id));
+      final ref=widget.incomingCallId!=null?_db.collection('calls').doc(widget.incomingCallId):_db.collection('calls').doc();_callId=ref.id;final existing=widget.incomingCallId!=null?await ref.get():null;final data=existing?.data()??<String,dynamic>{};final roomName=(data['roomName']??'call_'+ref.id).toString();
+      if(widget.incomingCallId==null){await ref.set({'callId':ref.id,'chatId':widget.chatId,'callerId':uid,'receiverId':widget.otherUserId,'callerName':FirebaseAuth.instance.currentUser?.displayName??'مستخدم','callerPhotoUrl':FirebaseAuth.instance.currentUser?.photoURL??'','isVideo':widget.isVideo,'callType':widget.isVideo?'video':'audio','status':'calling','roomName':roomName,'liveKitRoomName':roomName,'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});unawaited(const CallNotificationService().send(ref.id));}else{await ref.update({'status':'connected','answeredAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});}
       final issued=await _token.issue(roomName:roomName,participantName:FirebaseAuth.instance.currentUser?.displayName??'مستخدم');
-      final room=Room(roomOptions:const RoomOptions(adaptiveStream:true,dynacast:true));await room.connect(issued.serverUrl,issued.token);await room.localParticipant?.setMicrophoneEnabled(true);if(widget.isVideo)await room.localParticipant?.setCameraEnabled(true);
+      final room=Room(roomOptions:const RoomOptions(adaptiveStream:true,dynacast:true));await room.connect(issued.serverUrl,issued.token);await room.localParticipant?.setMicrophoneEnabled(true);if(widget.isVideo)await room.localParticipant?.setCameraEnabled(true);await room.setSpeakerOn(true);
       if(!mounted){await room.disconnect();return;}setState(() {_room=room;_connecting=false;_camera=widget.isVideo;});await ref.update({'status':'connected','connectedAt':FieldValue.serverTimestamp()});_timer=Timer.periodic(const Duration(seconds:1),(_){if(mounted)setState(()=>_seconds++);});
     }catch(e){if(mounted)setState(() {_connecting=false;_error=e.toString();});}
   }
