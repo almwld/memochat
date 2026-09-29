@@ -1,13 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
+import '../../../core/models/chat_user.dart';
+import '../../../core/repositories/chat_repository.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_room_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
-  const ContactsScreen({super.key});
+  const ContactsScreen({required this.repository, super.key});
+  final ChatRepository repository;
   @override
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
@@ -62,104 +62,32 @@ class _ContactsScreenState extends State<ContactsScreen> {
       );
 
   Widget _users() {
-    if (Firebase.apps.isEmpty) {
-      return const SliverFillRemaining(
-        hasScrollBody: false,
-        child: _ContactState(
-          title: 'جاري تهيئة الحسابات',
-          subtitle: 'تتم تهيئة الاتصال بالخدمة تلقائيًا. لا حاجة لإعادة تشغيل التطبيق.',
-        ),
-      );
-    }
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('users').limit(100).snapshots(),
+    return StreamBuilder<List<ChatUser>>(
+      stream: widget.repository.watchContacts(query: _search.text),
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const SliverFillRemaining(
-            hasScrollBody: false,
-            child: _ContactState(
-              title: 'تعذر تحميل الحسابات',
-              subtitle: 'تحقق من الاتصال وقواعد الوصول ثم حاول مرة أخرى.',
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        final query = _search.text.trim().toLowerCase();
-        final users = snapshot.data!.docs.where((doc) {
-          if (doc.id == uid) return false;
-          final data = doc.data();
-          final name = data['displayName']?.toString() ?? '';
-          final username = data['username']?.toString() ?? '';
-          return query.isEmpty ||
-              name.toLowerCase().contains(query) ||
-              username.toLowerCase().contains(query);
-        }).toList();
-
-        if (users.isEmpty) {
-          return const SliverFillRemaining(
-            hasScrollBody: false,
-            child: _ContactState(
-              title: 'لا يوجد مستخدمون مطابقون',
-              subtitle: 'جرّب اسمًا آخر أو اسم المستخدم.',
-            ),
-          );
-        }
-
+        if (snapshot.hasError) return const SliverFillRemaining(hasScrollBody: false, child: _ContactState(title: 'تعذر تحميل الحسابات', subtitle: 'تحقق من الاتصال والصلاحيات.'));
+        if (!snapshot.hasData) return const SliverFillRemaining(hasScrollBody: false, child: Center(child: CircularProgressIndicator()));
+        final users = snapshot.data!;
+        if (users.isEmpty) return const SliverFillRemaining(hasScrollBody: false, child: _ContactState(title: 'لا يوجد مستخدمون مطابقون', subtitle: 'جرّب اسمًا آخر أو اسم المستخدم.'));
         return SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-          sliver: SliverList.separated(
+          sliver: SliverList.builder(
             itemCount: users.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (_, index) {
-              final doc = users[index];
-              final data = doc.data();
-              final name = data['displayName']?.toString() ?? 'مستخدم';
-              final username = data['username']?.toString();
-              final photo = data['photoUrl']?.toString() ?? data['photoURL']?.toString();
-              final online = data['isOnline'] == true;
-
-              return Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 8, 10, 8),
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundImage: photo?.isNotEmpty == true ? NetworkImage(photo!) : null,
-                        child: photo?.isNotEmpty == true
-                            ? null
-                            : Text(name.characters.first, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      ),
-                      if (online)
-                        PositionedDirectional(
-                          end: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 14,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF28B86B),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Theme.of(context).cardColor, width: 2),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(username?.isNotEmpty == true ? '@$username' : (online ? 'متصل الآن' : 'متاح للتواصل')),
-                  trailing: FilledButton.tonalIcon(
-                    onPressed: () => _startChat(doc),
-                    icon: const AppIcon(AppIcons.chat, size: 18),
-                    label: const Text('رسالة'),
+            itemBuilder: (context, index) {
+              final user = users[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Card(
+                  child: ListTile(
+                    contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 8, 10, 8),
+                    leading: CircleAvatar(
+                      radius: 28,
+                      backgroundImage: user.avatarUrl?.isNotEmpty == true ? NetworkImage(user.avatarUrl!) : null,
+                      child: user.avatarUrl?.isNotEmpty == true ? null : Text(user.displayName.characters.first),
+                    ),
+                    title: Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text(user.username?.isNotEmpty == true ? '@${user.username}' : (user.isOnline ? 'متصل الآن' : 'متاح للتواصل')),
+                    trailing: FilledButton.tonalIcon(onPressed: () => _startChat(user), icon: const AppIcon(AppIcons.chat, size: 18), label: const Text('رسالة')),
                   ),
                 ),
               );
@@ -170,56 +98,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Future<void> _startChat(QueryDocumentSnapshot<Map<String, dynamic>> user) async {
-    final me = FirebaseAuth.instance.currentUser;
-    if (me == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('جارٍ تجهيز الحساب، حاول مرة أخرى.')));
-      return;
-    }
-
-    final ids = [me.uid, user.id]..sort();
-    final chatId = ids.join('_');
-    final data = user.data();
-
+  Future<void> _startChat(ChatUser user) async {
     try {
-      await FirebaseFirestore.instance.collection('chats').doc(chatId).set(
-        {
-          'participants': ids,
-          'participantNames': {
-            me.uid: me.displayName ?? 'مستخدم',
-            user.id: data['displayName'] ?? 'مستخدم',
-          },
-          'participantPhotos': {
-            me.uid: me.photoURL ?? '',
-            user.id: data['photoUrl'] ?? data['photoURL'] ?? '',
-          },
-          'updatedAt': FieldValue.serverTimestamp(),
-          'createdAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await widget.repository.createConversation(otherUserId: user.id, otherUserName: user.displayName, otherUserPhoto: user.avatarUrl);
+      if (!mounted) return;
+      final ids = <String>[user.id];
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
+        chatId: ids.join('_'),
+        otherUserId: user.id,
+        otherUserName: user.displayName,
+        otherUserImage: user.avatarUrl,
+      )));
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر إنشاء المحادثة. تحقق من الاتصال والصلاحيات.')),
-        );
-      }
-      return;
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء المحادثة. تحقق من الاتصال والصلاحيات.')));
     }
-
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          chatId: chatId,
-          otherUserId: user.id,
-          otherUserName: data['displayName']?.toString() ?? 'مستخدم',
-          otherUserImage: data['photoUrl']?.toString() ?? data['photoURL']?.toString(),
-        ),
-      ),
-    );
-  }
-}
+  }}
 
 class _ContactState extends StatelessWidget {
   const _ContactState({required this.title, required this.subtitle});
