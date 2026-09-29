@@ -104,7 +104,7 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Force compileSdk 35 for app and plugins
+      - name: Force app Android SDK baseline
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -112,37 +112,13 @@ jobs:
 
           app = Path('android/app/build.gradle')
           text = app.read_text()
-          text = re.sub(r'compileSdk(?:Version)?\\s+[^\\n]+', 'compileSdk 35', text, count=1)
-          text = re.sub(r'targetSdk(?:Version)?\\s+[^\\n]+', 'targetSdk 35', text, count=1)
+          text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
+          text = re.sub(r'targetSdk(?:Version)?\s+[^\n]+', 'targetSdk 35', text, count=1)
           app.write_text(text)
-
-          root = Path('android/build.gradle')
-          text = root.read_text()
-          marker = '// MemoChat: force Android compile SDK for every Android plugin'
-          if marker in text:
-              text = text[:text.index(marker)].rstrip() + '\n'
-          text += '''
-          
-          // MemoChat: force Android compile SDK for every Android plugin
-          subprojects {
-              plugins.withId("com.android.application") {
-                  android {
-                      compileSdk 35
-                  }
-              }
-              plugins.withId("com.android.library") {
-                  android {
-                      compileSdk 35
-                  }
-              }
-          }
-          '''
-          root.write_text(text)
-
-          print("Android SDK baseline: compileSdk=35, targetSdk=35, plugin compileSdk=35")
+          print("Android app baseline: compileSdk=35, targetSdk=35")
           PY
 
-          grep -RniE 'compileSdk|targetSdk|compileSdkVersion' android/app/build.gradle android/build.gradle
+          grep -nE 'compileSdk|targetSdk|minSdk' android/app/build.gradle
 
       - name: Create google-services.json
         env:
@@ -217,15 +193,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Align LiveKit Android compile SDK
+      - name: Align Android media plugin compile SDKs
         run: |
           LIVEKIT_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/livekit_client-2.2.5/android/build.gradle' -print -quit)"
-          if [ -z "$LIVEKIT_GRADLE" ]; then
-            echo "livekit_client 2.2.5 Android build.gradle not found"
+          WEBRTC_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/flutter_webrtc-0.11.7/android/build.gradle' -print -quit)"
+          if [ -z "$LIVEKIT_GRADLE" ] || [ -z "$WEBRTC_GRADLE" ]; then
+            echo "Expected pinned LiveKit/WebRTC Android build files were not found"
             exit 1
           fi
           sed -i 's/compileSdkVersion 30/compileSdkVersion 35/' "$LIVEKIT_GRADLE"
+          sed -i 's/compileSdkVersion 31/compileSdkVersion 35/' "$WEBRTC_GRADLE"
+          echo "LiveKit:"
           grep -nE 'compileSdkVersion|minSdkVersion' "$LIVEKIT_GRADLE"
+          echo "flutter_webrtc:"
+          grep -nE 'compileSdkVersion|minSdkVersion' "$WEBRTC_GRADLE"
 
       - name: Generate launcher icons
         run: |
