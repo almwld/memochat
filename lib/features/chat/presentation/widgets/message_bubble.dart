@@ -395,12 +395,6 @@ class _MessageBubbleState extends State<MessageBubble> {
         context: context,
         showDragHandle: true,
         builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (name.toLowerCase().contains('_rx.pdf') || name.toLowerCase().contains('_labs.pdf'))
-            ListTile(
-              leading: Icon(name.toLowerCase().contains('_labs.pdf') ? Icons.biotech_outlined : Icons.local_pharmacy_outlined),
-              title: Text(name.toLowerCase().contains('_labs.pdf') ? 'تنفيذ طلب الفحوصات' : 'تنفيذ الوصفة الطبية'),
-              onTap: () => Navigator.pop(ctx, 'service'),
-            ),
           ListTile(leading: const Icon(Icons.visibility_outlined), title: const Text('فتح المستند'), onTap: () => Navigator.pop(ctx, 'open')),
           ListTile(leading: const Icon(Icons.share_outlined), title: const Text('مشاركة / إرسال خارج التطبيق'), onTap: () => Navigator.pop(ctx, 'share')),
           ListTile(leading: const Icon(Icons.save_alt_outlined), title: const Text('حفظ في المكتبة'), onTap: () => Navigator.pop(ctx, 'library')),
@@ -411,9 +405,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       if (action == null) return;
       final file = await _downloadRemote();
       if (file == null) { _showFileError(); return; }
-      if (action == 'service') {
-        await _chooseMedicalService(name.toLowerCase().contains('_labs.pdf') ? 'labs' : 'rx');
-      } else if (action == 'open') {
+      if (action == 'open') {
         if (isPdf || isOffice) {
           if (mounted) await showDialog<void>(context: context, builder: (_) => _DocumentWebViewDialog(title: name, url: url));
         } else if (isText) {
