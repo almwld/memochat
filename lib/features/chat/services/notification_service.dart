@@ -172,94 +172,47 @@ Future<void> handleMessageNotificationAction({
   await NotificationService().cancelChatNotifications(chatId);
 }
 
-enum SehatakNotificationType {
+enum MemoChatNotificationType {
   newMessage,
-  appointment,
-  medication,
-  labResult,
-  labRequest,
-  payment,
-  invoice,
-  order,
+  call,
   promotional,
   system,
-  health,
   social,
 }
 
-extension SehatakNotificationTypeValue on SehatakNotificationType {
-  String get wireValue {
-    switch (this) {
-      case SehatakNotificationType.newMessage: return 'new_message';
-      case SehatakNotificationType.appointment: return 'appointment';
-      case SehatakNotificationType.medication: return 'medication';
-      case SehatakNotificationType.labResult: return 'lab_result';
-      case SehatakNotificationType.labRequest: return 'lab_request';
-      case SehatakNotificationType.payment: return 'payment';
-      case SehatakNotificationType.invoice: return 'invoice';
-      case SehatakNotificationType.order: return 'order';
-      case SehatakNotificationType.promotional: return 'promotional';
-      case SehatakNotificationType.system: return 'system';
-      case SehatakNotificationType.health: return 'health';
-      case SehatakNotificationType.social: return 'social';
-    }
-  }
+extension MemoChatNotificationTypeValue on MemoChatNotificationType {
+  String get wireValue => switch (this) {
+    MemoChatNotificationType.newMessage => 'new_message',
+    MemoChatNotificationType.call => 'incoming_call',
+    MemoChatNotificationType.promotional => 'promotional',
+    MemoChatNotificationType.system => 'system',
+    MemoChatNotificationType.social => 'social',
+  };
 
-  static SehatakNotificationType? fromWireValue(String? value) {
+  static MemoChatNotificationType? fromWireValue(String? value) {
     switch (value) {
       case 'new_message':
-      case 'message': return SehatakNotificationType.newMessage;
-      case 'appointment':
-      case 'appointment_confirmed':
-      case 'appointment_reminder_24h':
-      case 'appointment_reminder_1h':
-      case 'appointment_rescheduled':
-      case 'appointment_cancelled': return SehatakNotificationType.appointment;
-      case 'medication':
-      case 'medication_reminder':
-      case 'medication_expired':
-      case 'medication_refill': return SehatakNotificationType.medication;
-      case 'lab_result':
-      case 'lab_result_ready':
-      case 'lab_reminder': return SehatakNotificationType.labResult;
-      case 'lab_request':
-      case 'lab_test_request':
-      case 'lab_booking_created':
-      case 'lab_booking_confirmed': return SehatakNotificationType.labRequest;
-      case 'payment':
-      case 'payment_success':
-      case 'payment_failed':
-      case 'payment_refunded':
-      case 'balance_added': return SehatakNotificationType.payment;
-      case 'invoice':
-      case 'invoice_created':
-      case 'invoice_paid':
-      case 'invoice_due':
-      case 'invoice_cancelled': return SehatakNotificationType.invoice;
-      case 'order':
-      case 'order_confirmed':
-      case 'order_preparing':
-      case 'order_ready':
-      case 'order_on_way':
-      case 'order_delivered':
-      case 'order_cancelled': return SehatakNotificationType.order;
-      case 'promotional': return SehatakNotificationType.promotional;
+      case 'message':
+        return MemoChatNotificationType.newMessage;
+      case 'incoming_call':
+      case 'call':
+        return MemoChatNotificationType.call;
+      case 'promotional':
+        return MemoChatNotificationType.promotional;
       case 'system':
       case 'system_update':
       case 'system_maintenance':
       case 'system_feature':
-      case 'system_security': return SehatakNotificationType.system;
-      case 'health':
-      case 'health_water':
-      case 'health_exercise':
-      case 'health_sleep':
-      case 'health_challenge': return SehatakNotificationType.health;
+      case 'system_security':
+        return MemoChatNotificationType.system;
       case 'social':
       case 'social_follow':
       case 'social_like':
       case 'social_comment':
-      case 'social_share': return SehatakNotificationType.social;
-      default: return null;
+      case 'social_share':
+        return MemoChatNotificationType.social;
+      default:
+        return null;
     }
   }
 }
@@ -276,7 +229,7 @@ class NotificationService {
   bool _callCoordinatorStarted = false;
 
   static const MethodChannel _fullScreenChannel =
-      MethodChannel('com.sehatak.app/full_screen_intent');
+      MethodChannel('com.memo.app/full_screen_intent');
 
   /// Checks whether the app can currently use Full Screen Intent on Android.
   /// Returns true when available, false when explicitly denied, and null when
@@ -301,38 +254,31 @@ class NotificationService {
     }
   }
 
-  static const messageChannelId = 'sehatak_messages_v2';
-  static const appointmentChannelId = 'sehatak_appointments_v1';
-  static const medicationChannelId = 'sehatak_medications_v1';
-  static const labChannelId = 'sehatak_labs_v1';
-  static const paymentChannelId = 'sehatak_payments_v1';
-  static const invoiceChannelId = 'sehatak_invoices_v1';
-  static const labRequestChannelId = 'sehatak_lab_requests_v1';
-  static const orderChannelId = 'sehatak_orders_v1';
-  static const promotionalChannelId = 'sehatak_promotions_v1';
-  static const systemChannelId = 'sehatak_system_v1';
-  static const healthChannelId = 'sehatak_health_v1';
-  static const socialChannelId = 'sehatak_social_v1';
-  static const callChannelId = 'sehatak_calls_v3';
+  static const messageChannelId = 'memochat_messages_v1';
+  static const promotionalChannelId = 'memochat_promotions_v1';
+  static const systemChannelId = 'memochat_system_v1';
+  static const socialChannelId = 'memochat_social_v1';
+  static const callChannelId = 'memochat_calls_v1';
 
   static const _messageChannel = AndroidNotificationChannel(
-    messageChannelId, 'صحتك - الرسائل',
+    messageChannelId, 'MemoChat - الرسائل',
     description: 'إشعارات الرسائل الجديدة في الدردشة', importance: Importance.high,
     playSound: true, sound: RawResourceAndroidNotificationSound('notification'),
   );
-  static const _appointmentChannel = AndroidNotificationChannel(appointmentChannelId, 'صحتك - المواعيد', description: 'تأكيدات وتذكيرات المواعيد', importance: Importance.high);
-  static const _medicationChannel = AndroidNotificationChannel(medicationChannelId, 'صحتك - الأدوية', description: 'تذكيرات الأدوية', importance: Importance.high);
-  static const _labChannel = AndroidNotificationChannel(labChannelId, 'صحتك - التحاليل', description: 'نتائج وتذكيرات التحاليل', importance: Importance.high);
-  static const _paymentChannel = AndroidNotificationChannel(paymentChannelId, 'صحتك - المدفوعات', description: 'تحديثات المدفوعات والمحفظة', importance: Importance.high);
-  static const _invoiceChannel = AndroidNotificationChannel(invoiceChannelId, 'صحتك - الفواتير', description: 'الفواتير والمدفوعات', importance: Importance.high);
-  static const _labRequestChannel = AndroidNotificationChannel(labRequestChannelId, 'صحتك - طلبات الفحص', description: 'طلبات الفحوصات والتحاليل', importance: Importance.high);
-  static const _orderChannel = AndroidNotificationChannel(orderChannelId, 'صحتك - الطلبات', description: 'تحديثات طلبات الصيدلية والخدمات', importance: Importance.high);
-  static const _promotionalChannel = AndroidNotificationChannel(promotionalChannelId, 'صحتك - العروض', description: 'العروض والمحتوى الترويجي', importance: Importance.defaultImportance);
-  static const _systemChannel = AndroidNotificationChannel(systemChannelId, 'صحتك - النظام', description: 'تحديثات وصيانة وتنبيهات النظام', importance: Importance.defaultImportance);
-  static const _healthChannel = AndroidNotificationChannel(healthChannelId, 'صحتك - الصحة', description: 'التذكيرات والتحديات الصحية', importance: Importance.defaultImportance);
-  static const _socialChannel = AndroidNotificationChannel(socialChannelId, 'صحتك - الاجتماعي', description: 'التفاعلات الاجتماعية', importance: Importance.defaultImportance);
+  static const _promotionalChannel = AndroidNotificationChannel(
+    promotionalChannelId, 'MemoChat - العروض',
+    description: 'المحتوى الترويجي', importance: Importance.defaultImportance,
+  );
+  static const _systemChannel = AndroidNotificationChannel(
+    systemChannelId, 'MemoChat - النظام',
+    description: 'تحديثات النظام', importance: Importance.defaultImportance,
+  );
+  static const _socialChannel = AndroidNotificationChannel(
+    socialChannelId, 'MemoChat - الاجتماعي',
+    description: 'التفاعلات الاجتماعية', importance: Importance.defaultImportance,
+  );
   static const _callChannel = AndroidNotificationChannel(
-    callChannelId, 'صحتك - المكالمات',
+    callChannelId, 'MemoChat - المكالمات',
     description: 'إشعارات المكالمات الواردة', importance: Importance.max,
     playSound: true, sound: RawResourceAndroidNotificationSound('call_ringtone'),
   );
@@ -379,16 +325,8 @@ class NotificationService {
       }, onDidReceiveBackgroundNotificationResponse: notificationActionBackgroundHandler);
       final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       await android?.createNotificationChannel(_messageChannel);
-      await android?.createNotificationChannel(_appointmentChannel);
-      await android?.createNotificationChannel(_medicationChannel);
-      await android?.createNotificationChannel(_labChannel);
-      await android?.createNotificationChannel(_paymentChannel);
-      await android?.createNotificationChannel(_invoiceChannel);
-      await android?.createNotificationChannel(_labRequestChannel);
-      await android?.createNotificationChannel(_orderChannel);
       await android?.createNotificationChannel(_promotionalChannel);
       await android?.createNotificationChannel(_systemChannel);
-      await android?.createNotificationChannel(_healthChannel);
       await android?.createNotificationChannel(_socialChannel);
       await android?.createNotificationChannel(_callChannel);
       // ⚡ Full Screen Intent is UI-only. The FCM background isolate
@@ -480,7 +418,7 @@ class NotificationService {
     bool? playSound,
   }) async {
     await initialize(startCallCoordinator: false);
-    final family = SehatakNotificationTypeValue.fromWireValue(type);
+    final family = MemoChatNotificationTypeValue.fromWireValue(type);
     if (family == null) {
       await showMessageNotification(
         title: title,
@@ -517,7 +455,7 @@ class NotificationService {
     final channelName = _channelNameFor(family);
     final importance = _importanceFor(family);
     final resolvedSound =
-        playSound ?? family != SehatakNotificationType.promotional;
+        playSound ?? family != MemoChatNotificationType.promotional;
     StyleInformation style = const BigTextStyleInformation('');
     final imageUrl = (data?['imageUrl'] ??
             data?['mediaUrl'] ??
@@ -568,7 +506,7 @@ class NotificationService {
       ),
     );
     final notificationId =
-        family == SehatakNotificationType.newMessage && data?['chatId'] != null
+        family == MemoChatNotificationType.newMessage && data?['chatId'] != null
             ? _chatNotificationId(data!['chatId'].toString())
             : _typedNotificationId(type, data);
     await _notifications.show(
@@ -699,7 +637,7 @@ class NotificationService {
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         messageChannelId,
-        'صحتك - الرسائل',
+        'MemoChat - الرسائل',
         channelDescription: 'إشعارات الرسائل الجديدة في الدردشة',
         importance: Importance.high,
         priority: Priority.high,
@@ -715,7 +653,7 @@ class NotificationService {
         icon: 'ic_notification',
         color: const Color(0xFF0A8F83),
         actions: actions,
-        groupKey: chatId.isEmpty ? null : 'sehatak_chat_${chatId}',
+        groupKey: chatId.isEmpty ? null : 'memochat_chat_${chatId}',
       ),
       iOS: const DarwinNotificationDetails(
         presentAlert: true,
@@ -759,7 +697,7 @@ class NotificationService {
   Future<void> _showCallNotification({required int id, required String callerName, required String callId, required bool isVideo, required bool silent, required String smallIcon}) async {
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        callChannelId, 'صحتك - المكالمات', channelDescription: 'إشعارات المكالمات الواردة',
+        callChannelId, 'MemoChat - المكالمات', channelDescription: 'إشعارات المكالمات الواردة',
         importance: Importance.max, priority: Priority.max, playSound: !silent,
         sound: silent ? null : const RawResourceAndroidNotificationSound('call_ringtone'),
         category: AndroidNotificationCategory.call, visibility: NotificationVisibility.public,
@@ -844,77 +782,37 @@ class NotificationService {
     });
   }
 
-  String _channelFor(SehatakNotificationType type) {
-    switch (type) {
-      case SehatakNotificationType.newMessage: return messageChannelId;
-      case SehatakNotificationType.appointment: return appointmentChannelId;
-      case SehatakNotificationType.medication: return medicationChannelId;
-      case SehatakNotificationType.labResult: return labChannelId;
-      case SehatakNotificationType.labRequest: return labRequestChannelId;
-      case SehatakNotificationType.payment: return paymentChannelId;
-      case SehatakNotificationType.invoice: return invoiceChannelId;
-      case SehatakNotificationType.order: return orderChannelId;
-      case SehatakNotificationType.promotional: return promotionalChannelId;
-      case SehatakNotificationType.system: return systemChannelId;
-      case SehatakNotificationType.health: return healthChannelId;
-      case SehatakNotificationType.social: return socialChannelId;
-    }
-  }
+  String _channelFor(MemoChatNotificationType type) => switch (type) {
+    MemoChatNotificationType.newMessage => messageChannelId,
+    MemoChatNotificationType.call => callChannelId,
+    MemoChatNotificationType.promotional => promotionalChannelId,
+    MemoChatNotificationType.system => systemChannelId,
+    MemoChatNotificationType.social => socialChannelId,
+  };
 
-  String _channelNameFor(SehatakNotificationType type) {
-    switch (type) {
-      case SehatakNotificationType.newMessage: return 'صحتك - الرسائل';
-      case SehatakNotificationType.appointment: return 'صحتك - المواعيد';
-      case SehatakNotificationType.medication: return 'صحتك - الأدوية';
-      case SehatakNotificationType.labResult: return 'صحتك - التحاليل';
-      case SehatakNotificationType.labRequest: return 'صحتك - طلبات الفحص';
-      case SehatakNotificationType.payment: return 'صحتك - المدفوعات';
-      case SehatakNotificationType.invoice: return 'صحتك - الفواتير';
-      case SehatakNotificationType.order: return 'صحتك - الطلبات';
-      case SehatakNotificationType.promotional: return 'صحتك - العروض';
-      case SehatakNotificationType.system: return 'صحتك - النظام';
-      case SehatakNotificationType.health: return 'صحتك - الصحة';
-      case SehatakNotificationType.social: return 'صحتك - الاجتماعي';
-    }
-  }
+  String _channelNameFor(MemoChatNotificationType type) => switch (type) {
+    MemoChatNotificationType.newMessage => 'MemoChat - الرسائل',
+    MemoChatNotificationType.call => 'MemoChat - المكالمات',
+    MemoChatNotificationType.promotional => 'MemoChat - العروض',
+    MemoChatNotificationType.system => 'MemoChat - النظام',
+    MemoChatNotificationType.social => 'MemoChat - الاجتماعي',
+  };
 
-  Importance _importanceFor(SehatakNotificationType type) {
-    switch (type) {
-      case SehatakNotificationType.appointment:
-      case SehatakNotificationType.medication:
-      case SehatakNotificationType.labResult:
-      case SehatakNotificationType.labRequest:
-      case SehatakNotificationType.payment:
-      case SehatakNotificationType.invoice:
-      case SehatakNotificationType.order:
-      case SehatakNotificationType.newMessage:
-        return Importance.high;
-      case SehatakNotificationType.promotional:
-      case SehatakNotificationType.system:
-      case SehatakNotificationType.health:
-      case SehatakNotificationType.social:
-        return Importance.defaultImportance;
-    }
-  }
+  Importance _importanceFor(MemoChatNotificationType type) => switch (type) {
+    MemoChatNotificationType.newMessage => Importance.high,
+    MemoChatNotificationType.call => Importance.max,
+    MemoChatNotificationType.promotional => Importance.defaultImportance,
+    MemoChatNotificationType.system => Importance.defaultImportance,
+    MemoChatNotificationType.social => Importance.defaultImportance,
+  };
 
-  AndroidNotificationCategory _categoryFor(SehatakNotificationType type) {
-    switch (type) {
-      case SehatakNotificationType.newMessage: return AndroidNotificationCategory.message;
-      case SehatakNotificationType.appointment:
-      case SehatakNotificationType.medication:
-      case SehatakNotificationType.health:
-        return AndroidNotificationCategory.reminder;
-      case SehatakNotificationType.labResult:
-      case SehatakNotificationType.labRequest:
-      case SehatakNotificationType.payment:
-      case SehatakNotificationType.invoice:
-      case SehatakNotificationType.order:
-        return AndroidNotificationCategory.status;
-      case SehatakNotificationType.promotional: return AndroidNotificationCategory.promo;
-      case SehatakNotificationType.system: return AndroidNotificationCategory.service;
-      case SehatakNotificationType.social: return AndroidNotificationCategory.social;
-    }
-  }
+  AndroidNotificationCategory _categoryFor(MemoChatNotificationType type) => switch (type) {
+    MemoChatNotificationType.newMessage => AndroidNotificationCategory.message,
+    MemoChatNotificationType.call => AndroidNotificationCategory.call,
+    MemoChatNotificationType.promotional => AndroidNotificationCategory.promo,
+    MemoChatNotificationType.system => AndroidNotificationCategory.service,
+    MemoChatNotificationType.social => AndroidNotificationCategory.social,
+  };
 
   int _notificationId() {
     return DateTime.now().microsecondsSinceEpoch.remainder(0x7fffffff);
