@@ -343,7 +343,7 @@ class ChatMediaTransferService {
     final path = 'chat_media/$chatId/$type/$id/$name';
     final ref = FirebaseStorage.instance.ref().child(path);
     final metadata = SettableMetadata(
-      contentType: job['mime_type']?.toString()?.trim().isNotEmpty == true
+      contentType: (job['mime_type']?.toString() ?? '').trim().isNotEmpty
           ? job['mime_type'].toString()
           : _defaultMime(type),
       customMetadata: {'chatId': chatId, 'senderId': FirebaseAuth.instance.currentUser?.uid ?? '', 'outboxId': id},
