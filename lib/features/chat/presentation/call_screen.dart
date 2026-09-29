@@ -15,20 +15,20 @@ import 'package:memochat/features/chat/services/toast_service.dart';
 class CallScreen extends StatefulWidget {
   final String chatId;
   final String? callId;
-  final String doctorName;
-  final String doctorId;
+  final String userName;
+  final String userId;
   final bool isVideo;
-  final String? doctorImage;
+  final String? userImage;
   final bool isOutgoing;
 
   const CallScreen({
     super.key,
     required this.chatId,
     this.callId,
-    required this.doctorName,
-    required this.doctorId,
+    required this.userName,
+    required this.userId,
     this.isVideo = true,
-    this.doctorImage,
+    this.userImage,
     this.isOutgoing = true,
   });
 
@@ -168,9 +168,9 @@ class _CallScreenState extends State<CallScreen> {
         c = loaded;
       } else if (widget.isOutgoing) {
         final created = await calls.initiateCall(
-          receiverId: widget.doctorId,
-          receiverName: widget.doctorName,
-          receiverPhotoUrl: widget.doctorImage,
+          receiverId: widget.userId,
+          receiverName: widget.userName,
+          receiverPhotoUrl: widget.userImage,
           type: widget.isVideo ? CallType.video : CallType.audio,
           chatId: widget.chatId,
         );
@@ -294,7 +294,7 @@ class _CallScreenState extends State<CallScreen> {
         roomName: roomName!,
         callerName: user.displayName?.trim().isNotEmpty == true
             ? user.displayName!.trim()
-            : widget.doctorName,
+            : widget.userName,
         isVideo: widget.isVideo,
       );
       // The accept transition is already persisted by CallService.
@@ -611,7 +611,7 @@ class _CallScreenState extends State<CallScreen> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         avatar(96),
         const SizedBox(height: 12),
-        Text(widget.doctorName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+        Text(widget.userName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         const Text('الكاميرا غير مفعلة', style: TextStyle(color: Colors.white60)),
       ]),
@@ -622,7 +622,7 @@ class _CallScreenState extends State<CallScreen> {
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       avatar(140),
       const SizedBox(height: 22),
-      Text(widget.doctorName, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+      Text(widget.userName, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
       if (s.isNotEmpty) ...[
         const SizedBox(height: 12),
         Text(s, style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600)),
@@ -638,11 +638,11 @@ class _CallScreenState extends State<CallScreen> {
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: teal,
-      image: widget.doctorImage?.trim().isNotEmpty == true
-          ? DecorationImage(image: NetworkImage(widget.doctorImage!.trim()), fit: BoxFit.cover)
+      image: widget.userImage?.trim().isNotEmpty == true
+          ? DecorationImage(image: NetworkImage(widget.userImage!.trim()), fit: BoxFit.cover)
           : null,
     ),
-    child: widget.doctorImage?.trim().isNotEmpty == true
+    child: widget.userImage?.trim().isNotEmpty == true
         ? null
         : const Icon(Icons.person_rounded, color: Colors.white, size: 64),
   );
