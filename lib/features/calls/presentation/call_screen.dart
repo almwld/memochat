@@ -22,6 +22,7 @@ class _CallScreenState extends State<CallScreen> {
   final _ringtone = RingtoneService();
   Room? _room;
   Timer? _timer;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _callSubscription;
   String? _callId;
   String? _error;
   bool _connecting = false, _muted = false, _camera = false, _speaker = true;
@@ -64,7 +65,22 @@ class _CallScreenState extends State<CallScreen> {
         'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp(),
       });
       await const CallNotificationService().send(ref.id);
-      await _connect(roomName, ref);
+      if (mounted) setState(() => _connecting = false);
+      _callSubscription = ref.snapshots().listen((snap) async {
+        final data = snap.data();
+        final status = data?['status']?.toString();
+        if (status == 'accepted' || status == 'connected') {
+          await _callSubscription?.cancel();
+          _callSubscription = null;
+          await _connect(roomName, ref);
+        } else if (status == 'rejected' || status == 'ended') {
+          await _callSubscription?.cancel();
+          _callSubscription = null;
+          if (mounted) {
+            setState(() => _error = status == 'rejected' ? 'تم رفض المكالمة' : 'انتهت المكالمة');
+          }
+        }
+      });
     } catch (e) { if (mounted) setState(() => _error = e.toString()); }
   }
 
@@ -132,7 +148,7 @@ class _CallScreenState extends State<CallScreen> {
     if (mounted) Navigator.of(context).pop();
   }
   @override void dispose() {
-    unawaited(_ringtone.dispose()); _timer?.cancel();
+    unawaited(_ringtone.dispose()); _timer?.cancel(); unawaited(_callSubscription?.cancel());
     final room = _room; if (room != null) unawaited(room.disconnect()); super.dispose();
   }
   String _time() => '${(_seconds ~/ 60).toString().padLeft(2, '0')}:${(_seconds % 60).toString().padLeft(2, '0')}';
@@ -142,6 +158,7 @@ class _CallScreenState extends State<CallScreen> {
     body: SafeArea(child: Stack(children: [
       if (_room != null) Positioned.fill(child: _remoteView()),
       if (_isIncoming && _room == null && _error == null) _incomingView(),
+      if (!_isIncoming && _room == null && _error == null) _outgoingView(),
       if (_connecting) const Center(child: CircularProgressIndicator(color: Color(0xFF0A8F83))),
       if (_error != null) _errorView(),
       if (_room != null) _controls(),
@@ -164,6 +181,18 @@ class _CallScreenState extends State<CallScreen> {
       ]),
     ]),
   ));
+
+  Widget _outgoingView() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+    CircleAvatar(radius: 62, backgroundImage: widget.otherUserImage?.isNotEmpty == true ? NetworkImage(widget.otherUserImage!) : null, child: widget.otherUserImage?.isNotEmpty == true ? null : const Icon(Icons.person_rounded, size: 58)),
+    const SizedBox(height: 20),
+    Text(widget.otherUserName, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+    const SizedBox(height: 8),
+    Text(widget.isVideo ? 'جاري الاتصال عبر الفيديو...' : 'جاري الاتصال...', style: const TextStyle(color: Colors.white70)),
+    const SizedBox(height: 28),
+    const CircularProgressIndicator(color: Color(0xFF0A8F83)),
+    const SizedBox(height: 28),
+    IconButton.filled(onPressed: _end, style: IconButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.all(20)), icon: const Icon(Icons.call_end_rounded, size: 30)),
+  ]));
 
   Widget _roundAction(IconData icon, Color color, VoidCallback action) => IconButton.filled(
     onPressed: action, style: IconButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.all(20)), icon: Icon(icon, size: 30),
