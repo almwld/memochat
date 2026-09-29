@@ -7,6 +7,7 @@ import 'app/app.dart';
 import 'core/services/firebase_bootstrap.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/notifications/push_notification_service.dart';
+import 'features/chat/services/chat_media_transfer_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +26,12 @@ Future<void> _startSecondaryServices() async {
   if (Firebase.apps.isEmpty) return;
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  try {
+    await ChatMediaTransferService.instance.initialize().timeout(const Duration(seconds: 8));
+  } catch (_) {
+    // Media outbox is optional and must never block app startup.
+  }
+
   try {
     await PushNotificationService(
       localNotifications: NotificationService(),
