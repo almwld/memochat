@@ -23,11 +23,11 @@ class NextcloudService {
   String password = '';
 
   Future<void> loadConfig() async {
-    baseUrl = (await _storage.read(key: 'sehatak.nextcloud.base_url') ?? '')
+    baseUrl = (await _storage.read(key: 'memochat.nextcloud.base_url') ?? '')
         .trim()
         .replaceFirst(RegExp(r'/$'), '');
-    username = (await _storage.read(key: 'sehatak.nextcloud.username') ?? '').trim();
-    password = await _storage.read(key: 'sehatak.nextcloud.app_password') ?? '';
+    username = (await _storage.read(key: 'memochat.nextcloud.username') ?? '').trim();
+    password = await _storage.read(key: 'memochat.nextcloud.app_password') ?? '';
     debugPrint('📡 NC config: baseUrl=$baseUrl user=$username hasPass=${password.isNotEmpty}');
   }
 
@@ -39,9 +39,9 @@ class NextcloudService {
     this.baseUrl = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     this.username = username.trim();
     this.password = password;
-    await _storage.write(key: 'sehatak.nextcloud.base_url', value: this.baseUrl);
-    await _storage.write(key: 'sehatak.nextcloud.username', value: this.username);
-    await _storage.write(key: 'sehatak.nextcloud.app_password', value: this.password);
+    await _storage.write(key: 'memochat.nextcloud.base_url', value: this.baseUrl);
+    await _storage.write(key: 'memochat.nextcloud.username', value: this.username);
+    await _storage.write(key: 'memochat.nextcloud.app_password', value: this.password);
   }
 
   Future<void> clearConfig() async {
@@ -49,9 +49,9 @@ class NextcloudService {
     username = '';
     password = '';
     await Future.wait([
-      _storage.delete(key: 'sehatak.nextcloud.base_url'),
-      _storage.delete(key: 'sehatak.nextcloud.username'),
-      _storage.delete(key: 'sehatak.nextcloud.app_password'),
+      _storage.delete(key: 'memochat.nextcloud.base_url'),
+      _storage.delete(key: 'memochat.nextcloud.username'),
+      _storage.delete(key: 'memochat.nextcloud.app_password'),
     ]);
   }
 
