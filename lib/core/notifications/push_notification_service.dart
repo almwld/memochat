@@ -85,5 +85,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     fallbackId: message.messageId,
   );
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
-  await NotificationInbox().addNotification(notification);
+  final inbox = NotificationInbox();
+  if (!await inbox.addNotification(notification)) return;
+  // Notification payloads are rendered by FCM while the app is backgrounded;
+  // data-only payloads need a local notification instead.
+  if (message.notification == null) {
+    final local = NotificationService();
+    await local.initialize();
+    await local.show(notification);
+  }
 }

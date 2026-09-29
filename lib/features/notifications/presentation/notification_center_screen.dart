@@ -12,21 +12,33 @@ class NotificationCenterScreen extends StatefulWidget {
 class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final _inbox = NotificationInbox();
   late Future<List<NotificationInboxItem>> _items;
+  late Future<int> _unread;
 
   @override
   void initState() {
     super.initState();
     _items = _inbox.read();
+    _unread = _inbox.unreadCount();
   }
 
   Future<void> _refresh() async {
-    setState(() => _items = _inbox.read());
+    setState(() {
+      _items = _inbox.read();
+      _unread = _inbox.unreadCount();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الإشعارات')),
+      appBar: AppBar(
+        title: FutureBuilder<int>(
+          future: _unread,
+          builder: (context, snapshot) => Text(
+            snapshot.hasData && snapshot.data! > 0 ? 'الإشعارات (${snapshot.data})' : 'الإشعارات',
+          ),
+        ),
+      ),
       body: FutureBuilder<List<NotificationInboxItem>>(
         future: _items,
         builder: (context, snapshot) {
