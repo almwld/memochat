@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../core/repositories/in_memory_chat_repository.dart';
-import '../core/services/firebase_bootstrap.dart';
 import '../core/theme/app_theme.dart';
 import '../features/home/presentation/home_screen.dart';
 
@@ -29,19 +28,12 @@ class _MemoChatAppState extends State<MemoChatApp> {
   }
 
   Future<void> _initializeServices() async {
-    final firebaseReady = await FirebaseBootstrap.initialize().timeout(
-      const Duration(seconds: 8),
-      onTimeout: () => false,
-    );
-    if (!firebaseReady || !mounted) return;
+    if (Firebase.apps.isEmpty) return;
 
     try {
       var user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        user = (await FirebaseAuth.instance.signInAnonymously().timeout(
-          const Duration(seconds: 6),
-        ))
-            .user;
+        user = (await FirebaseAuth.instance.signInAnonymously()).user;
       }
       if (user != null) {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
@@ -57,7 +49,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
         );
       }
     } catch (_) {
-      // The UI remains usable; data screens rebuild when Firebase is ready.
+      // Firebase availability/authentication is handled by the main startup path.
     }
 
     if (mounted) setState(() {});
@@ -67,9 +59,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
     if (Firebase.apps.isEmpty) return;
     try {
       await FirebaseAuth.instance.signOut();
-      await FirebaseAuth.instance.signInAnonymously().timeout(
-        const Duration(seconds: 6),
-      );
+      await FirebaseAuth.instance.signInAnonymously();
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) setState(() {});
