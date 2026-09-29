@@ -16,9 +16,8 @@ class ChatDetailScreen extends StatefulWidget {
   final String chatId;
   final String? userName;
   final String? userId;
-  final bool? isDoctor;
   final String? userImage;
-  const ChatDetailScreen({super.key, required this.chatId, this.userName, this.userId, this.isDoctor, this.userImage});
+  const ChatDetailScreen({super.key, required this.chatId, this.userName, this.userId, this.userImage});
   @override State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
