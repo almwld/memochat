@@ -1,8 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../../app/app.dart';
 import '../../features/calls/presentation/call_screen.dart';
-import 'dart:convert';
 import 'notification_inbox.dart';
 import 'notification_service.dart';
 
@@ -41,8 +42,9 @@ class PushNotificationService {
 
   Future<void> _handleOpened(RemoteMessage message) async {
     final id = message.messageId;
-    if (id == null) return;
-    await _inbox.markRead(id);
+    if (id != null) await _inbox.markRead(id);
+    final callId = message.data['callId']?.toString();
+    if (callId != null) await _openIncomingCall(callId);
   }
   Future<void> _handleLocalTap(NotificationResponse response) async {
     final payload = response.payload;
@@ -76,6 +78,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final id = message.messageId ?? DateTime.now().microsecondsSinceEpoch.toString();
   await inbox.add(NotificationInboxItem(
     id: id, title: title, body: body, createdAt: DateTime.now(),
-    route: message.data['route']?.toString(),
+    route: message.data['route']?.toString() ?? (message.data['callId'] == null ? null : 'call:' + message.data['callId'].toString()),
   ));
 }
