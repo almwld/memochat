@@ -166,6 +166,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     _markRead();
   }
 
+  Future<void> _setTyping(bool typing) async {
+    _typingClearTimer?.cancel();
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty || widget.chatId.isEmpty) return;
+    try {
+      await _firestore.collection('chats').doc(widget.chatId).set({
+        'typing.$uid': typing,
+        'typingUpdatedAt.$uid': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (typing) {
+        _typingClearTimer = Timer(const Duration(seconds: 4), () => unawaited(_setTyping(false)));
+      }
+    } catch (e) {
+      debugPrint('typing update failed: $e');
+    }
+  }
+
   Future<void> _loadPendingMedia() async {
     try {
       final jobs =
