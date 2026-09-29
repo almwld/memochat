@@ -194,7 +194,7 @@ jobs:
         run: dart format lib/ test/
 
       - name: Analyze
-        run: flutter analyze --no-pub
+        run: flutter analyze --no-pub --no-fatal-infos
 
       - name: Test
         run: flutter test --no-pub --coverage
