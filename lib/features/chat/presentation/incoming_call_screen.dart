@@ -357,7 +357,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     final isCompact = size.height < 700;
     final imageUrl = widget.callerImage?.trim().isNotEmpty == true
         ? widget.callerImage!.trim()
-        : ImageKit.doctor1;
+        : null;
 
     return PopScope(
       canPop: false,
