@@ -14,14 +14,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import 'package:memochat/core/constants/app_images.dart';
-import 'package:memochat/core/constants/imagekit.dart';
+import 'package:flutter/material.dart';
+import '';
 import 'package:memochat/core/models/call_model.dart';
-import 'package:memochat/core/services/call_service.dart';
-import 'package:memochat/core/services/active_call_registry.dart';
-import 'package:memochat/core/services/call_sound_coordinator.dart';
+import 'package:memochat/features/chat/services/call_service.dart';
+import 'package:memochat/features/chat/services/active_call_registry.dart';
+import 'package:memochat/features/chat/services/call_sound_coordinator.dart';
 import 'package:memochat/core/services/toast_service.dart';
-import '../call/call_screen.dart';
+import 'call_screen.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   final String callId;
