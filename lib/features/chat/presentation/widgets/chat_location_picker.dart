@@ -39,7 +39,7 @@ class _ChatLocationPickerState extends State<ChatLocationPicker> {
     setState(()=>_point=point); if(move)_map.move(point,17); setState(()=>_loading=true);
     try{
       final uri=Uri.https('nominatim.openstreetmap.org','/reverse',{'format':'jsonv2','lat':point.latitude.toStringAsFixed(7),'lon':point.longitude.toStringAsFixed(7),'zoom':'18','addressdetails':'1','accept-language':'ar'});
-      final r=await http.get(uri,headers:{'User-Agent':'Sehatak/1.1 (com.sehatak.app)','Accept':'application/json'}).timeout(const Duration(seconds:8));
+      final r=await http.get(uri,headers:{'User-Agent':'MemoChat/1.0 (com.memo.app)','Accept':'application/json'}).timeout(const Duration(seconds:8));
       if(r.statusCode!=200)throw StateError('Nominatim ${r.statusCode}');
       final d=jsonDecode(r.body) as Map<String,dynamic>; final a=d['address'] is Map?Map<String,dynamic>.from(d['address']):<String,dynamic>{};
       String v(String k)=>(a[k]??'').toString();
@@ -80,7 +80,7 @@ class _ChatLocationPickerState extends State<ChatLocationPicker> {
                 onTap: (_, point) => _select(point, false),
               ),
               children: [
-                TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.sehatak.app'),
+                TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.memo.app'),
                 if (_point != null)
                   MarkerLayer(
                     markers: [
