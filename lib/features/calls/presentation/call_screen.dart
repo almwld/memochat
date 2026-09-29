@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import '../../../core/calls/livekit_token_service.dart';
 import '../../../core/calls/call_notification_service.dart';
+import '../../../core/notifications/ringtone_service.dart';
 
 class CallScreen extends StatefulWidget {
   const CallScreen({super.key,required this.chatId,required this.otherUserId,required this.otherUserName,this.otherUserImage,required this.isVideo,this.incomingCallId});
@@ -13,7 +14,7 @@ class CallScreen extends StatefulWidget {
   @override State<CallScreen> createState()=>_CallScreenState();
 }
 class _CallScreenState extends State<CallScreen>{
-  final _token=const LiveKitTokenService(); final _db=FirebaseFirestore.instance; Room? _room; Timer? _timer; String? _callId,_error; bool _connecting=true,_muted=false,_camera=true,_speaker=true; int _seconds=0;
+  final _token=const LiveKitTokenService(); final _db=FirebaseFirestore.instance; final _ringtone=RingtoneService(); Room? _room; Timer? _timer; String? _callId,_error; bool _connecting=true,_muted=false,_camera=true,_speaker=true; int _seconds=0;
   @override void initState(){super.initState();_start();}
   Future<void> _start() async{
     try{
@@ -27,8 +28,8 @@ class _CallScreenState extends State<CallScreen>{
   }
   Future<void> _mute()async{final p=_room?.localParticipant;if(p==null)return;final n=!_muted;await p.setMicrophoneEnabled(!n);if(mounted)setState(()=>_muted=n);}
   Future<void> _cameraToggle()async{final p=_room?.localParticipant;if(p==null||!widget.isVideo)return;final n=!_camera;await p.setCameraEnabled(n);if(mounted)setState(()=>_camera=n);}
-  Future<void> _end()async{if(_callId!=null)await _db.collection('calls').doc(_callId).set({'status':'ended','endedAt':FieldValue.serverTimestamp()},SetOptions(merge:true));_timer?.cancel();final r=_room;if(r!=null)await r.disconnect();if(mounted)Navigator.pop(context);}
-  @override void dispose(){_timer?.cancel();final r=_room;if(r!=null)unawaited(r.disconnect());super.dispose();}
+  Future<void> _end()async{await _ringtone.stopAllSounds();if(_callId!=null)await _db.collection('calls').doc(_callId).set({'status':'ended','endedAt':FieldValue.serverTimestamp()},SetOptions(merge:true));_timer?.cancel();final r=_room;if(r!=null)await r.disconnect();if(mounted)Navigator.pop(context);}
+  @override void dispose(){unawaited(_ringtone.dispose());_timer?.cancel();final r=_room;if(r!=null)unawaited(r.disconnect());super.dispose();}
   String _time(){final m=(_seconds~/60).toString().padLeft(2,'0');final s=(_seconds%60).toString().padLeft(2,'0');return m+':'+s;}
   @override Widget build(BuildContext context)=>Scaffold(backgroundColor:const Color(0xFF081012),body:SafeArea(child:Stack(children:[
     if(_room!=null)Positioned.fill(child:_remoteView()),
