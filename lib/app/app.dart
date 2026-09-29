@@ -1,3 +1,4 @@
+final GlobalKey<NavigatorState> memoNavigatorKey = GlobalKey<NavigatorState>();
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -19,7 +20,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
     if(mounted)setState(()=>_ready=FirebaseAuth.instance.currentUser!=null);
   }
   @override Widget build(BuildContext context)=>MaterialApp(
-    title:'MemoChat',debugShowCheckedModeBanner:false,theme:AppTheme.light(),
+    navigatorKey:memoNavigatorKey,title:'MemoChat',debugShowCheckedModeBanner:false,theme:AppTheme.light(),
     home:_ready?HomeScreen(repository:repository):const Scaffold(
       body:Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83))),
     ),
