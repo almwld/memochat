@@ -357,7 +357,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     final isCompact = size.height < 700;
     final imageUrl = widget.callerImage?.trim().isNotEmpty == true
         ? widget.callerImage!.trim()
-        : null;
+        : '';
 
     return PopScope(
       canPop: false,
@@ -607,7 +607,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
                     spreadRadius: 8,
                   ),
                 ],
-                image: DecorationImage(
+                image: imageUrl.isEmpty ? null : DecorationImage(
                   image: NetworkImage(imageUrl),
                   fit: BoxFit.cover,
                   onError: (_, __) {},
