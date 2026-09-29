@@ -18,6 +18,8 @@ dependencies:
   livekit_client: 2.2.5
   flutter_webrtc: 0.11.7
   shared_preferences: ^2.3.5
+  file_picker: ^9.2.3
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
