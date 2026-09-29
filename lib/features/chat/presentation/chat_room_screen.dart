@@ -8,16 +8,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
-import 'package:memochat/core/models/status_model.dart';
-import 'package:memochat/core/services/chat_media_transfer_service.dart';
-import 'package:memochat/core/services/chat_reply_context.dart';
+import 'package:memochat/features/chat/models/status_model.dart';
+import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
+import 'package:memochat/features/chat/services/chat_reply_context.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
 import 'package:memochat/features/chat/services/notification_service.dart';
 import 'package:memochat/features/chat/services/status_service.dart';
 import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
 import 'package:memochat/presentation/screens/patient/patient_profile.dart';
-import 'package:memochat/presentation/screens/call/call_screen.dart';
+import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/message_search_screen.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
@@ -153,7 +153,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _muted = false;
   bool _pinned = false;
   MessageModel? _replyingTo;
-  bool _isDoctor = false;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
       _firestore.collection('chats').doc(widget.chatId).collection('messages');
 
@@ -163,68 +162,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onChatScroll);
     _listen();
-    _loadDoctorRole();
     _loadPendingMedia();
     _startPendingRefresh();
     unawaited(NotificationService().cancelChatNotifications(widget.chatId));
     _markRead();
-  }
-
-  Future<void> _loadDoctorRole() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    try {
-      final snap = await _firestore.collection('users').doc(uid).get();
-      final data = snap.data() ?? <String, dynamic>{};
-      final role = data['role']?.toString();
-      final verified = data['isVerified'];
-      if (mounted) setState(() => _isDoctor = (role == 'doctor' || role == 'طبيب') && verified != false);
-    } catch (e) {
-      debugPrint('doctor role check: $e');
-    }
-  }
-
-  Future<void> _setTyping(bool typing) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    _typingClearTimer?.cancel();
-    if (typing) {
-      _typingClearTimer =
-          Timer(const Duration(seconds: 2), () => _setTyping(false));
-    }
-    try {
-      await _firestore
-          .collection('chats')
-          .doc(widget.chatId)
-          .set({'typing.$uid': typing}, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('typing update: $e');
-    }
-  }
-
-  
-
-  
-
-  
-
-  void _startPendingRefresh() {
-    _pendingRefreshTimer?.cancel();
-    var delay = const Duration(seconds: 2);
-    void schedule() {
-      _pendingRefreshTimer = Timer(delay, () async {
-        if (!mounted) return;
-        await _loadPendingMedia();
-        final pending = _localMedia.isNotEmpty;
-        final nextSeconds = (delay.inSeconds * 2).clamp(2, 16).toInt();
-        delay = pending
-            ? Duration(seconds: nextSeconds)
-            : const Duration(seconds: 8);
-        schedule();
-      });
-    }
-
-    schedule();
   }
 
   Future<void> _loadPendingMedia() async {
@@ -454,12 +395,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   void _profile() {
-    if (widget.otherUserId.trim().isEmpty) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PatientProfile(userId: widget.otherUserId),
-      ),
-    );
+    if (widget.otherUserName.trim().isEmpty) return;
+    showModalBottomSheet<void>(context: context, builder: (_) => ListTile(title: Text(widget.otherUserName), subtitle: Text(widget.otherUserId), leading: CircleAvatar(backgroundImage: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? NetworkImage((widget.otherUserImage ?? widget.groupImage)!) : null, child: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? null : const Icon(Icons.person_rounded))));
   }
 
   Future<void> _openOtherUserStatus(UserStatusModel status) async { if (!mounted || status.stories.isEmpty) return; await Navigator.push(context, MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))); }
@@ -1112,14 +1049,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             onSendImage: (_) {},
             onLocalMedia: _addLocalMedia,
             onShareLocation: _shareLocation,
-            onDoctorMedicalForms: _isDoctor
-                ? () => showDoctorMedicalForms(
-                    context: context,
-                    chatId: widget.chatId,
-                    patientId: widget.otherUserId,
-                    patientName: widget.otherUserName,
-                  )
-                : null),
+null),
       ]),
     );
   }
