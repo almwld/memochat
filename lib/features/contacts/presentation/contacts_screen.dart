@@ -50,7 +50,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   controller: _search,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
-                    hintText: 'ابحث بالاسم أو اسم المستخدم...',
+                    hintText: 'ابحث بالاسم أو @memo_معرّف...',
                     prefixIcon: AppIcon(AppIcons.search, size: 21),
                   ),
                 ),
