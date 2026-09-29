@@ -367,12 +367,12 @@ class _CallScreenState extends State<CallScreen> {
     VideoTrack? rem;
     final lp = r.localParticipant;
     if (lp != null) {
-      for (final p in lp.videoTracks) {
+      for (final p in lp.trackPublications.values) {
         if (p.track is VideoTrack) { l = p.track as VideoTrack; break; }
       }
     }
     for (final part in r.participants.values) {
-      for (final p in part.videoTracks) {
+      for (final p in part.trackPublications.values) {
         if (p.track is VideoTrack) { rem = p.track as VideoTrack; break; }
       }
       if (rem != null) break;
@@ -381,7 +381,7 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void bind(Participant p) {
-    for (final pub in p.videoTracks) {
+    for (final pub in p.trackPublications.values) {
       if (pub.track is VideoTrack) {
         if (p is LocalParticipant) {
           if (mounted) setState(() => localTrack = pub.track as VideoTrack);
