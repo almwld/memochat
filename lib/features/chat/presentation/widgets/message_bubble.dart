@@ -55,14 +55,9 @@ class _MessageBubbleState extends State<MessageBubble> {
     return '$dd/$mo/${local.year} $hh:$mm';
   }
 
-  Future<void> _sendToAnotherChat(String path) async {
-    if (path.trim().isEmpty) return;
+  Future<void> _sendToAnotherChat(File file) async {
     try {
-      if (path.startsWith('http')) {
-        await Share.share(path);
-      } else {
-        await Share.shareXFiles([XFile(path)]);
-      }
+      await Share.shareXFiles([XFile(file.path)]);
     } catch (e) {
       debugPrint('share message failed: $e');
     }
