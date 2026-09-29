@@ -86,7 +86,7 @@ class VoiceService {
     await _nextcloud.loadConfig();
     final result = await _nextcloud.uploadFile(
       file: file,
-      path: 'sehatak/chats/$chatId/audio',
+      path: 'memochat/chats/$chatId/audio',
       fileName: 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
       onProgress: (sent, total) {
         onProgress?.call();
