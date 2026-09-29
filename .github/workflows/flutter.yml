@@ -204,6 +204,16 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Align LiveKit Android compile SDK
+        run: |
+          LIVEKIT_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/livekit_client-2.2.5/android/build.gradle' -print -quit)"
+          if [ -z "$LIVEKIT_GRADLE" ]; then
+            echo "livekit_client 2.2.5 Android build.gradle not found"
+            exit 1
+          fi
+          sed -i 's/compileSdkVersion 30/compileSdkVersion 35/' "$LIVEKIT_GRADLE"
+          grep -nE 'compileSdkVersion|minSdkVersion' "$LIVEKIT_GRADLE"
+
       - name: Generate launcher icons
         run: |
           mkdir -p build/icon
