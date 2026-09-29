@@ -15,7 +15,7 @@ dependencies:
   cloud_firestore: ^6.3.0
   firebase_messaging: 16.2.0
   flutter_local_notifications: ^19.5.0
-  livekit_client: ^2.4.0
+  livekit_client: 2.3.6
   shared_preferences: ^2.3.5
 
 dev_dependencies:
