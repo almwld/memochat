@@ -10,9 +10,9 @@ class ChatBackground extends StatelessWidget {
   });
 
   static const String _lightWallpaper =
-      'assets/images/sehatak_chat_wallpaper_light.svg';
+      'assets/images/memochat_chat_wallpaper_light.svg';
   static const String _darkWallpaper =
-      'assets/images/sehatak_chat_wallpaper_dark.svg';
+      'assets/images/memochat_chat_wallpaper_dark.svg';
 
   @override
   Widget build(BuildContext context) {
