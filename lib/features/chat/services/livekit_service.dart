@@ -245,7 +245,7 @@ class LiveKitService {
     }
   }
 
-  static const MethodChannel _callAudioChannel = MethodChannel('com.sehatak.app/call_audio');
+  static const MethodChannel _callAudioChannel = MethodChannel('com.memo.app/call_audio');
 
   Future<void> setSpeakerphone(bool on) async {
     try {
