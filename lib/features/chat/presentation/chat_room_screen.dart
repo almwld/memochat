@@ -16,12 +16,10 @@ import 'package:memochat/features/chat/services/toast_service.dart';
 import 'package:memochat/features/chat/services/notification_service.dart';
 import 'package:memochat/features/chat/services/status_service.dart';
 import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
-import 'package:memochat/presentation/screens/patient/patient_profile.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/message_search_screen.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
-import 'package:memochat/features/chat/presentation/widgets/doctor_medical_forms_sheet.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
 import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
 
