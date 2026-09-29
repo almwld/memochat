@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../app_router.dart';
-import '../../presentation/screens/chat/incoming_call_screen.dart';
+import '../../../app/app.dart';
+import '../presentation/incoming_call_screen.dart';
 import '../models/call_model.dart';
 import 'active_call_registry.dart';
 import 'sound_manager.dart';
@@ -256,7 +256,7 @@ class CallSoundCoordinator {
   }
 
   void _showIncomingCall(Map<String, dynamic> data, String callId) {
-    final nav = navigatorKey.currentState;
+    final nav = memoNavigatorKey.currentState;
     if (nav == null) {
       // The Firestore snapshot can arrive before Flutter's root Navigator is
       // mounted (especially during cold start). Do not lose the incoming call;
