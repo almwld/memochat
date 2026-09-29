@@ -8,6 +8,7 @@ import '../core/repositories/chat_repository.dart';
 import '../core/repositories/firebase_chat_repository.dart';
 import '../core/repositories/in_memory_chat_repository.dart';
 import '../core/theme/app_theme.dart';
+import '../core/services/firebase_bootstrap.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 
@@ -27,9 +28,7 @@ class _MemoChatAppState extends State<MemoChatApp>{
   @override void initState(){super.initState();unawaited(_initializeServices());}
   Future<void> _initializeServices() async {
     if(Firebase.apps.isEmpty){
-      try {
-        await Firebase.initializeApp();
-      } catch (_) {}
+      await FirebaseBootstrap.initialize();
     }
     if(mounted)setState(() { _firebaseReady = Firebase.apps.isNotEmpty; _firebaseChecking = false; });
     if(!_firebaseReady)return;
@@ -52,7 +51,7 @@ class _MemoChatAppState extends State<MemoChatApp>{
     home:_firebaseChecking
       ? const _FirebaseLoadingScreen()
       : !_firebaseReady
-        ? _FirebaseUnavailableScreen(onRetry: () async { if(mounted)setState(()=>_firebaseChecking=true); try { await Firebase.initializeApp(); } catch (_) {} if(mounted)setState(()=>_firebaseReady=Firebase.apps.isNotEmpty); if(_firebaseReady && mounted) unawaited(_initializeServices()); })
+        ? _FirebaseUnavailableScreen(onRetry: () async { if(mounted)setState(()=>_firebaseChecking=true); await FirebaseBootstrap.initialize(); if(mounted)setState(()=>_firebaseReady=Firebase.apps.isNotEmpty); if(_firebaseReady && mounted) unawaited(_initializeServices()); })
         : StreamBuilder<User?>(
         stream:FirebaseAuth.instance.authStateChanges(),
         builder:(context,snapshot){
