@@ -1,5 +1,4 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
-// ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
