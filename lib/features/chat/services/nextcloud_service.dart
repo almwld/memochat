@@ -84,8 +84,8 @@ class NextcloudService {
 
   String _platformPath(String path) {
     final clean = _cleanLogicalPath(path);
-    if (clean.isEmpty) return 'Sehatak';
-    return clean == 'Sehatak' || clean.startsWith('Sehatak/') ? clean : 'Sehatak/$clean';
+    if (clean.isEmpty) return 'MemoChat';
+    return clean == 'MemoChat' || clean.startsWith('MemoChat/') ? clean : 'MemoChat/$clean';
   }
 
   String _davUrl(String remotePath) {
