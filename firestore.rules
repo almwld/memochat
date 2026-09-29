@@ -24,8 +24,7 @@ service cloud.firestore {
         request.resource.data.participants is list &&
         request.resource.data.participants.size() >= 2 &&
         request.auth.uid in request.resource.data.participants &&
-        request.resource.data.participants.size() ==
-          request.resource.data.participants.toSet().size();
+        request.resource.data.participants.hasAll([request.auth.uid]);
 
       allow update: if isChatParticipant(chatId) &&
         request.resource.data.participants == resource.data.participants &&
