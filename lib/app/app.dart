@@ -6,7 +6,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../core/repositories/chat_repository.dart';
 import '../core/repositories/firebase_chat_repository.dart';
-import '../core/repositories/in_memory_chat_repository.dart';
 import '../core/theme/app_theme.dart';
 import '../core/services/firebase_bootstrap.dart';
 import '../features/auth/presentation/auth_screen.dart';
@@ -19,7 +18,6 @@ class MemoChatApp extends StatefulWidget {
   @override State<MemoChatApp> createState()=>_MemoChatAppState();
 }
 class _MemoChatAppState extends State<MemoChatApp>{
-  final _fallbackRepository=InMemoryChatRepository();
   ThemeMode _themeMode=ThemeMode.system;
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _firebaseChecking = Firebase.apps.isEmpty;
