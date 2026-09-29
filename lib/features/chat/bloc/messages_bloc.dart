@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/models/message_model.dart';
-import '../../core/services/chat_service.dart';
+import 'package:memochat/core/models/message_model.dart';
+import 'package:memochat/core/services/chat_service.dart';
 
 // ============================================================
 // الأحداث
