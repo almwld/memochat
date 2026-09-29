@@ -371,7 +371,7 @@ class _CallScreenState extends State<CallScreen> {
         if (p.track is VideoTrack) { l = p.track as VideoTrack; break; }
       }
     }
-    for (final part in r.participants.values) {
+    for (final part in r.remoteParticipants.values) {
       for (final p in part.trackPublications.values) {
         if (p.track is VideoTrack) { rem = p.track as VideoTrack; break; }
       }
