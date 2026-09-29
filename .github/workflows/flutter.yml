@@ -37,209 +37,40 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('android/app/build.gradle')
           text = path.read_text()
 
-          # Flutter 3.24 generates Groovy syntax such as:
-          # compileSdk = flutter.compileSdkVersion
-          text, changed = re.subn(
-              r'(?m)^\s*compileSdk(?:Version)?\s*=?.*$',
-              '    compileSdk = 35',
-              text,
-              count=1,
+          # Firebase Firestore currently requires Android API 23+.
+          text = text.replace(
+              'compileSdk = flutter.compileSdkVersion',
+              'compileSdk = 35',
           )
-          if changed != 1:
-              raise SystemExit('Could not locate compileSdk declaration')
+          text = text.replace(
+              'minSdk = flutter.minSdkVersion',
+              'minSdk = 23',
+          )
+          text = text.replace(
+              'minSdkVersion flutter.minSdkVersion',
+              'minSdkVersion 23',
+          )
 
           if 'coreLibraryDesugaringEnabled true' not in text:
-              match = re.search(r'(?m)^\s*compileOptions\s*\{', text)
-              if not match:
+              marker = 'compileOptions {'
+              if marker not in text:
                   raise SystemExit('Could not locate compileOptions block')
-              insert_at = match.end()
-              text = (
-                  text[:insert_at]
-                  + '\n        coreLibraryDesugaringEnabled true'
-                  + text[insert_at:]
+              text = text.replace(
+                  marker,
+                  marker + '\n        coreLibraryDesugaringEnabled true',
+                  1,
               )
 
-          # Current Firebase Firestore requires Android API 23+.
-          min_sdk = re.search(r'(?m)^\s*minSdk(?:Version)?\s*=?.*
-          path.write_text(text)
-          PY
-
-          echo "Configured Android build:"
-          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
-
-      - name: Create google-services.json
-        env:
-          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: |
-          mkdir -p android/app
-          cat > android/app/google-services.json << EOF
-          {
-            "project_info": {
-              "project_number": "448753275014",
-              "project_id": "memo-f97b5",
-              "storage_bucket": "memo-f97b5.firebasestorage.app"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
-                  "android_client_info": {
-                    "package_name": "com.memo.app"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "$FIREBASE_ANDROID_API_KEY"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
-
-      - name: Create secrets.dart
-        env:
-          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
-          NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
-          NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
-          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: |
-          mkdir -p lib/core/config
-          cat > lib/core/config/secrets.dart << EOF
-          class Secrets {
-            Secrets._();
-
-            static const String livekitUrl = '$LIVEKIT_URL';
-            static const String livekitApiKey = '$LIVEKIT_API_KEY';
-            static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
-
-            static const String nextcloudUrl = '$NEXTCLOUD_URL';
-            static const String nextcloudUser = '$NEXTCLOUD_USER';
-            static const String nextcloudPassword = '$NEXTCLOUD_PASSWORD';
-
-            static const String firebaseProjectId = 'memo-f97b5';
-            static const String firebaseStorageBucket =
-                'memo-f97b5.firebasestorage.app';
-            static const String firebaseApiKey = '$FIREBASE_ANDROID_API_KEY';
-            static const String firebaseAppId =
-                '1:448753275014:android:e4dedb02a3b10cce9f0107';
-            static const String androidPackageName = 'com.memo.app';
-          }
-          EOF
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Generate launcher icons
-        run: |
-          mkdir -p build/icon
-          sudo apt-get update
-          sudo apt-get install -y librsvg2-bin
-          rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
-          dart run flutter_launcher_icons
-
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib/ test/
-        continue-on-error: true
-
-      - name: Analyze
-        run: flutter analyze --no-pub
-
-      - name: Test
-        run: flutter test --no-pub --coverage
-
-      - name: Upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage/
-          retention-days: 7
-
-      - name: Build Fat APK (universal)
-        run: flutter build apk --release --no-pub
-
-      - name: Build Split APKs (per ABI)
-        run: flutter build apk --release --split-per-abi --no-pub
-
-      - name: Show artifact sizes
-        run: |
-          echo "Artifact sizes:"
-          ls -lh build/app/outputs/flutter-apk/
-
-      - name: Upload universal APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-universal-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
-
-      - name: Upload arm64-v8a
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-arm64-v8a-release
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          retention-days: 30
-
-      - name: Upload armeabi-v7a
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-armeabi-v7a-release
-          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-          retention-days: 30
-
-      - name: Upload x86_64
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-x86_64-release
-          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
-          retention-days: 30
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            build/app/outputs/flutter-apk/app-x86_64-release.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-, text)
-          if min_sdk:
-              text = text[:min_sdk.start()] + '        minSdk = 23' + text[min_sdk.end():]
-          else:
-              default_config = re.search(r'(?m)^\s*defaultConfig\s*\{', text)
-              if not default_config:
-                  raise SystemExit('Could not locate defaultConfig block')
-              insert_at = default_config.end()
-              text = text[:insert_at] + '\n        minSdk = 23' + text[insert_at:]
-
-          # Match the Firebase Android app declared in google-services.json.
-          text, changed = re.subn(
-              r'(?m)^\s*applicationId\s+["\'].*?["\']',
-              '        applicationId "com.memo.app"',
-              text,
-              count=1,
-          )
-          if changed != 1:
-              raise SystemExit('Could not locate applicationId declaration')
+          if 'applicationId "com.memo.app"' not in text:
+              text = text.replace(
+                  'applicationId "com.memo.memochat"',
+                  'applicationId "com.memo.app"',
+                  1,
+              )
 
           dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
           if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
@@ -249,7 +80,7 @@ jobs:
           PY
 
           echo "Configured Android build:"
-          grep -nE 'compileSdk|coreLibraryDesugaring' android/app/build.gradle
+          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
 
       - name: Create google-services.json
         env:
