@@ -31,7 +31,7 @@ class InMemoryChatRepository implements ChatRepository {
   Stream<List<ChatUser>> watchContacts({String query = ''}) => Stream.value(<ChatUser>[]);
 
   @override
-  Future<void> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {}
+  Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async => 'demo';
 
   @override
   Stream<List<Conversation>> watchConversations() {
