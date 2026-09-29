@@ -17,7 +17,7 @@ class NotificationService {
   Future<void> initialize({
     void Function(NotificationResponse response)? onTap,
   }) async {
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('@drawable/memochat_notification');
     const settings = InitializationSettings(android: android);
     await _plugin.initialize(settings: settings, onDidReceiveNotificationResponse: onTap);
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -38,6 +38,7 @@ class NotificationService {
         channelDescription: 'New MemoChat messages and call events.',
         importance: Importance.high,
         priority: Priority.high,
+        icon: '@drawable/memochat_notification',
         playSound: true,
       ),
     );
