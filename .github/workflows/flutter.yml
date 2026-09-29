@@ -162,6 +162,7 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          LIVEKIT_TOKEN_SERVER_URL: ${{ secrets.LIVEKIT_TOKEN_SERVER_URL }}
           NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
           NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
           NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
@@ -175,6 +176,7 @@ jobs:
             static const String livekitUrl = '$LIVEKIT_URL';
             static const String livekitApiKey = '$LIVEKIT_API_KEY';
             static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
+            static const String livekitTokenServerUrl = '$LIVEKIT_TOKEN_SERVER_URL';
 
             static const String nextcloudUrl = '$NEXTCLOUD_URL';
             static const String nextcloudUser = '$NEXTCLOUD_USER';
