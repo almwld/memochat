@@ -377,7 +377,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       return;
     }
     final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/sehatak_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final path = '${dir.path}/memochat_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
     try {
       await _recorder.start(
         const RecordConfig(encoder: AudioEncoder.aacLc),
