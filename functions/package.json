@@ -1,7 +1,7 @@
 {
   "name": "memochat-functions",
-  "description": "Trusted backend functions for Sehatak payments, wallet, verification, lab services and LiveKit",
-  "main": "main.js",
+  "description": "Trusted backend functions for MemoChat messaging, notifications and LiveKit",
+  "main": "index.js",
   "engines": {"node": "20"},
   "private": true,
   "dependencies": {
