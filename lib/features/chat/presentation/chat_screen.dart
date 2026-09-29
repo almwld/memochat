@@ -1,116 +1,36 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../../../core/models/conversation.dart';
-import '../../../core/models/message.dart';
-import '../../../core/repositories/chat_repository.dart';
+import 'chat_room_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({required this.conversation, required this.repository, super.key});
-  final Conversation conversation;
-  final ChatRepository repository;
-
-  @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  const ChatScreen({super.key});
+  @override State<ChatScreen> createState()=>_ChatScreenState();
 }
-
-class _ChatScreenState extends State<ChatScreen> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+class _ChatScreenState extends State<ChatScreen>{
+  final _search=TextEditingController(); int _tab=0;
+  Stream<QuerySnapshot<Map<String,dynamic>>> _chats(){
+    final uid=FirebaseAuth.instance.currentUser?.uid;
+    if(uid==null)return const Stream.empty();
+    return FirebaseFirestore.instance.collection('chats').where('participants',arrayContains:uid).orderBy('updatedAt',descending:true).snapshots();
   }
-
-  Future<void> _send() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
-    _controller.clear();
-    await widget.repository.sendMessage(conversationId: widget.conversation.id, text: text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final participant = widget.conversation.participant;
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(children: [
-          CircleAvatar(child: Text(participant.displayName.characters.first)),
-          const SizedBox(width: 10),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(participant.displayName, style: const TextStyle(fontSize: 16)),
-            Text(participant.isOnline ? 'متصل الآن' : 'غير متصل', style: const TextStyle(fontSize: 12)),
-          ]),
-        ]),
-        actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.videocam_outlined)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined)),
-        ],
+  @override void dispose(){_search.dispose();super.dispose();}
+  @override Widget build(BuildContext context){
+    final dark=Theme.of(context).brightness==Brightness.dark;
+    return Scaffold(backgroundColor:dark?const Color(0xFF0B1121):const Color(0xFFF7FAFA),
+      appBar:AppBar(title:const Text('الدردشة',style:TextStyle(fontWeight:FontWeight.w800)),centerTitle:true,backgroundColor:const Color(0xFF0A8F83),foregroundColor:Colors.white,elevation:0,
+        bottom:PreferredSize(preferredSize:const Size.fromHeight(58),child:Container(margin:const EdgeInsets.fromLTRB(12,0,12,10),height:48,decoration:BoxDecoration(color:dark?const Color(0xFF162039):Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[_tabButton('المحادثات',0),_tabButton('المكالمات',1),_tabButton('تواصل',2)]))),
       ),
-      body: Column(children: [
-        Expanded(
-          child: StreamBuilder<List<ChatMessage>>(
-            stream: widget.repository.watchMessages(widget.conversation.id),
-            builder: (context, snapshot) {
-              final messages = snapshot.data ?? const <ChatMessage>[];
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  final message = messages[index];
-                  return Align(
-                    alignment: message.isMine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 310),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: message.isMine ? const Color(0xFF0A8F83) : Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Flexible(child: Text(message.text, style: TextStyle(color: message.isMine ? Colors.white : const Color(0xFF263238)))),
-                        if (message.isMine) ...[
-                          const SizedBox(width: 7),
-                          Icon(
-                            message.status == MessageStatus.read ? Icons.done_all : Icons.done,
-                            size: 16,
-                            color: message.status == MessageStatus.read ? Colors.lightBlueAccent : Colors.white70,
-                          ),
-                        ],
-                      ]),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-            child: Row(children: [
-              IconButton(onPressed: () {}, icon: const Icon(Icons.add_circle_outline)),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _send(),
-                  decoration: InputDecoration(
-                    hintText: 'اكتب رسالة...',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton.filled(onPressed: _send, icon: const Icon(Icons.send_rounded)),
-            ]),
-          ),
-        ),
-      ]),
-    );
+      body:_tab==0?_conversations(dark):_tab==1?_calls(dark):_contacts(dark),
+      floatingActionButton:_tab==0?FloatingActionButton(backgroundColor:const Color(0xFF0A8F83),onPressed:()=>setState(()=>_tab=2),child:const Icon(Icons.chat_rounded,color:Colors.white)):null);
   }
+  Widget _tabButton(String label,int i)=>Expanded(child:GestureDetector(onTap:()=>setState(()=>_tab=i),child:AnimatedContainer(duration:const Duration(milliseconds:200),margin:const EdgeInsets.all(4),decoration:BoxDecoration(color:_tab==i?const Color(0xFF0A8F83):Colors.transparent,borderRadius:BorderRadius.circular(12)),child:Center(child:Text(label,style:TextStyle(color:_tab==i?Colors.white:Colors.grey,fontWeight:FontWeight.w700)))));
+  Widget _conversations(bool dark)=>Column(children:[
+    Padding(padding:const EdgeInsets.fromLTRB(16,14,16,8),child:TextField(controller:_search,textDirection:TextDirection.rtl,decoration:InputDecoration(hintText:'ابحث في محادثاتك...',prefixIcon:const Icon(Icons.search),filled:true,fillColor:dark?const Color(0xFF162039):Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),
+    Expanded(child:StreamBuilder<QuerySnapshot<Map<String,dynamic>>>(stream:_chats(),builder:(context,s){if(s.hasError)return Center(child:Text('تعذر تحميل المحادثات: '+s.error.toString()));if(!s.hasData)return const Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83)));final docs=s.data!.docs.where((d){final q=_search.text.trim().toLowerCase();final data=d.data();return q.isEmpty||data['lastMessage']?.toString().toLowerCase().contains(q)==true;}).toList();if(docs.isEmpty)return const Center(child:Text('لا توجد محادثات بعد'));return ListView.separated(padding:const EdgeInsets.fromLTRB(16,8,16,100),itemCount:docs.length,separatorBuilder:(_,__)=>const SizedBox(height:8),itemBuilder:(context,i)=>_chatTile(docs[i],dark));}))
+  ]);
+  Widget _chatTile(DocumentSnapshot<Map<String,dynamic>> d,bool dark){final data=d.data()??{};final uid=FirebaseAuth.instance.currentUser?.uid??'';final ids=List<String>.from(data['participants']??const[]);final other=ids.firstWhere((x)=>x!=uid,orElse:()=>''),names=Map<String,dynamic>.from(data['participantNames']??{}),photos=Map<String,dynamic>.from(data['participantPhotos']??{});final name=names[other]?.toString()??'مستخدم';final photo=photos[other]?.toString();return Card(elevation:0,color:dark?const Color(0xFF162039):Colors.white,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16)),child:ListTile(contentPadding:const EdgeInsets.symmetric(horizontal:12,vertical:6),leading:CircleAvatar(radius:28,backgroundImage:photo?.isNotEmpty==true?NetworkImage(photo!):null,child:photo?.isNotEmpty==true?null:const Icon(Icons.person,color:Color(0xFF0A8F83))),title:Text(name,style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(data['lastMessage']?.toString()??'اضغط لفتح المحادثة',maxLines:1,overflow:TextOverflow.ellipsis),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatRoomScreen(chatId:d.id,otherUserId:other,otherUserName:name,otherUserImage:photo))));}
+  Widget _calls(bool dark)=>StreamBuilder<QuerySnapshot<Map<String,dynamic>>>(stream:FirebaseFirestore.instance.collection('calls').where('participants',arrayContains:FirebaseAuth.instance.currentUser?.uid).orderBy('createdAt',descending:true).limit(50).snapshots(),builder:(context,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());if(s.data!.docs.isEmpty)return const Center(child:Text('لا توجد مكالمات'));return ListView.builder(itemCount:s.data!.docs.length,itemBuilder:(context,i){final d=s.data!.docs[i].data();return ListTile(leading:CircleAvatar(child:Icon(d['isVideo']==true?Icons.videocam:Icons.call)),title:Text(d['otherUserName']?.toString()??'مستخدم'),subtitle:Text(d['status']?.toString()??''),trailing:IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>CallScreen(chatId:d['chatId']?.toString()??'',otherUserId:d['otherUserId']?.toString()??'',otherUserName:d['otherUserName']?.toString()??'مستخدم',isVideo:d['isVideo']==true))),icon:const Icon(Icons.call,color:Color(0xFF0A8F83)));});});
+  Widget _contacts(bool dark)=>Column(children:[Padding(padding:const EdgeInsets.all(16),child:TextField(controller:_search,decoration:InputDecoration(hintText:'ابحث عن مستخدم للبدء...',prefixIcon:const Icon(Icons.search),filled:true,fillColor:dark?const Color(0xFF162039):Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)),onSubmitted:(_)=>setState((){}))),Expanded(child:StreamBuilder<QuerySnapshot<Map<String,dynamic>>>(stream:FirebaseFirestore.instance.collection('users').limit(50).snapshots(),builder:(context,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());final uid=FirebaseAuth.instance.currentUser?.uid??'';final q=_search.text.trim().toLowerCase();final users=s.data!.docs.where((d){final data=d.data();final haystack=(data['displayName']?.toString()??'')+' '+(data['email']?.toString()??'');return d.id!=uid&&haystack.toLowerCase().contains(q);}).toList();return ListView.builder(itemCount:users.length,itemBuilder:(context,i){final d=users[i].data();return ListTile(leading:CircleAvatar(child:Text((d['displayName']?.toString()??'م').characters.first)),title:Text(d['displayName']?.toString()??'مستخدم'),subtitle:Text(d['email']?.toString()??''),trailing:const Icon(Icons.chat,color:Color(0xFF0A8F83)),onTap:()=>_startChat(users[i]));});}))]);
+  Future<void> _startChat(QueryDocumentSnapshot<Map<String,dynamic>> user)async{final me=FirebaseAuth.instance.currentUser;if(me==null)return;final other=user.id;final ids=[me.uid,other]..sort();final id=ids.join('_');final ref=FirebaseFirestore.instance.collection('chats').doc(id);final otherData=user.data();await ref.set({'participants':ids,'participantNames':{me.uid:me.displayName??'مستخدم',other:otherData['displayName']??'مستخدم'},'participantPhotos':{me.uid:me.photoURL??'',other:otherData['photoUrl']??otherData['photoURL']??''},'lastMessage':'','updatedAt':FieldValue.serverTimestamp(),'createdAt':FieldValue.serverTimestamp()},SetOptions(merge:true));if(mounted)Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatRoomScreen(chatId:id,otherUserId:other,otherUserName:otherData['displayName']?.toString()??'مستخدم',otherUserImage:otherData['photoUrl']?.toString())));}
 }
