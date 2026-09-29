@@ -72,6 +72,6 @@ class _AuthScreenState extends State<AuthScreen> {
           const SizedBox(height:12),
           FilledButton(onPressed:_busy?null:_submit,child:Padding(padding:const EdgeInsets.symmetric(vertical:14),child:_busy?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2)):Text(_register?'إنشاء الحساب':'تسجيل الدخول'))),
           TextButton(onPressed:_busy?null:()=>setState(()=>_register=!_register),child:Text(_register?'لدي حساب بالفعل':'إنشاء حساب جديد'))
-        ]))))));
+        ])))))));
   }
 }
