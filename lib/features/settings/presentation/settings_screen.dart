@@ -137,9 +137,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final data = doc.data() ?? {};
     final name = TextEditingController(text: data['displayName']?.toString() ?? user.displayName ?? '');
-    final username = TextEditingController(text: data['username']?.toString() ?? '');
+    final publicId = data['publicId']?.toString() ?? data['username']?.toString() ?? 'memo_' + user.uid.substring(0, 8).toLowerCase();
 
-    final result = await showDialog<(String, String)>(
+    final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('تعديل الحساب'),
@@ -148,26 +148,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             TextField(controller: name, textDirection: TextDirection.rtl, decoration: const InputDecoration(labelText: 'الاسم')),
             const SizedBox(height: 12),
-            TextField(controller: username, textDirection: TextDirection.ltr, decoration: const InputDecoration(labelText: 'اسم المستخدم')),
+            Text('معرّفك العام: @$publicId', style: const TextStyle(fontWeight: FontWeight.w700)),,
           ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(context, (name.text.trim(), username.text.trim())), child: const Text('حفظ')),
+          FilledButton(onPressed: () => Navigator.pop(context, name.text.trim()), child: const Text('حفظ')),
         ],
       ),
     );
     name.dispose();
-    username.dispose();
+     
     if (result == null) return;
 
     try {
-      final displayName = result.$1.isEmpty ? 'مستخدم MemoChat' : result.$1;
+      final displayName = result!.isEmpty ? 'مستخدم MemoChat' : result;
       await user.updateDisplayName(displayName);
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
         {
           'displayName': displayName,
-          'username': result.$2.replaceFirst('@', '').trim().toLowerCase(),
+          'username': publicId, 'publicId': publicId,
           'photoUrl': user.photoURL ?? '',
           'updatedAt': FieldValue.serverTimestamp(),
         },
@@ -184,7 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('تسجيل الخروج'),
-        content: const Text('سيتم إنهاء الجلسة الحالية وإنشاء جلسة مؤقتة جديدة للمحافظة على استمرارية التطبيق.'),
+        content: const Text('سيتم إنهاء جلسة MemoChat الحالية، ويمكنك تسجيل الدخول مجددًا من شاشة الدخول.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('متابعة')),
@@ -330,7 +330,16 @@ class _AccountCard extends StatelessWidget {
                     children: [
                       Text(user?.displayName ?? 'مستخدم MemoChat', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
                       const SizedBox(height: 4),
-                      Text(user?.isAnonymous == true ? 'حساب مؤقت • اضغط للتعديل' : user?.email ?? 'حساب MemoChat'),
+                      if (user != null) FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
+                        builder: (context, snapshot) {
+                          final data = snapshot.data?.data() ?? const <String, dynamic>{};
+                          final id = data['publicId']?.toString() ?? data['username']?.toString() ?? 'memo_' + user!.uid.substring(0, 8).toLowerCase();
+                          return Text('@$id', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700));
+                        },
+                      ),
+                      const SizedBox(height: 2),
+                      Text(user?.email ?? 'حساب MemoChat'),
                     ],
                   ),
                 ),
