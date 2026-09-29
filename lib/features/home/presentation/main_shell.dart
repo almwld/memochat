@@ -29,7 +29,10 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      ChatScreen(repository: widget.repository),
+      ChatScreen(
+        repository: widget.repository,
+        onNewChat: () => setState(() => _index = 1),
+      ),
       const ContactsScreen(),
       const CallsHistoryScreen(),
       SettingsScreen(
