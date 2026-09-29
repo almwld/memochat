@@ -287,10 +287,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (mounted && _otherTyping != otherTyping)
         setState(() => _otherTyping = otherTyping);
       setState(() {
-        _muted = uid != null && mutedFor is Map && mutedFor[uid] == true
+        _muted = mutedFor is Map && mutedFor[uid] == true
             ? true
             : data['isMuted'] == true && mutedFor is! Map;
-        _pinned = uid != null && pinnedFor is Map && pinnedFor[uid] == true
+        _pinned = pinnedFor is Map && pinnedFor[uid] == true
             ? true
             : data['isPinned'] == true && pinnedFor is! Map;
       });
