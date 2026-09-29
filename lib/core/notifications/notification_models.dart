@@ -20,7 +20,7 @@ enum NotificationPriority { low, normal, high }
 
 enum NotificationChannel { messages, calls, missedCalls, system }
 
-extension NotificationTypeCodec on NotificationType {
+extension NotificationTypeWireName on NotificationType {
   String get wireName => switch (this) {
         NotificationType.textMessage => 'text_message',
         NotificationType.imageMessage => 'image_message',
@@ -37,6 +37,9 @@ extension NotificationTypeCodec on NotificationType {
         NotificationType.general => 'general',
       };
 
+}
+
+abstract final class NotificationTypeCodec {
   static NotificationType parse(String? value) => NotificationType.values.firstWhere(
         (type) => type.wireName == value,
         orElse: () => NotificationType.general,
