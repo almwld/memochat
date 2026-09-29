@@ -106,8 +106,6 @@ jobs:
           grep -nE 'namespace|applicationId' android/app/build.gradle
           grep -R -n '^package ' android/app/src/main/kotlin || true
 
-          PY
-
           echo "Configured Android build:"
           grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
 
