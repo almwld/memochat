@@ -104,6 +104,40 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Force Android plugin compile SDK baseline
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('android/build.gradle')
+          text = root.read_text()
+
+          # Remove any legacy afterEvaluate compile-SDK hook. It is unsafe when
+          # a plugin project has already completed evaluation.
+          text = re.sub(
+              r'\\n?\\s*// MemoChat: force Android compile SDK for every Android plugin\\s*\\n?'
+              r'\\s*subprojects\\s*\\{\\s*\\n?'
+              r'\\s*afterEvaluate\\s*\\{\\s*project\\s*->\\s*\\n?'
+              r'\\s*def androidExtension\\s*=\\s*project\\.extensions\\.findByName\\("android"\\)\\s*\\n?'
+              r'\\s*if\\s*\\(androidExtension\\s*!=\\s*null\\)\\s*\\{\\s*\\n?'
+              r'\\s*androidExtension\\.compileSdkVersion 35\\s*\\n?'
+              r'\\s*\\}\\s*\\n?\\s*\\}\\s*\\n?\\s*\\}\\s*\\n?',
+              '\\n',
+              text,
+              flags=re.MULTILINE,
+          )
+
+          marker = '// MemoChat: configure Android plugin compile SDK without afterEvaluate'
+          if marker not in text:
+              text = text.rstrip() + f'''\\n\\n{marker}\\nsubprojects {{\\n    plugins.withId("com.android.application") {{\\n        android {{\\n            compileSdkVersion 35\\n        }}\\n    }}\\n    plugins.withId("com.android.library") {{\\n        android {{\\n            compileSdkVersion 35\\n        }}\\n    }}\\n}}\\n'''
+
+          root.write_text(text)
+          PY
+
+          echo "Root Android plugin compile SDK hooks:"
+          grep -nE 'afterEvaluate|plugins.withId|compileSdkVersion' android/build.gradle || true
+
       - name: Force app Android SDK baseline
         run: |
           python3 - <<'PY'
