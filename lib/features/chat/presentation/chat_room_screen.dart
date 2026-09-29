@@ -960,6 +960,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 ),
               ),
             )
+          else if (_loading)
+            const Center(
+              child: CircularProgressIndicator(),
+            )
           else if (all.isEmpty)
             Center(
                 child: Text('ابدأ المحادثة',
@@ -1198,10 +1202,3 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       case MessageType.file:
         return 'ملف';
       case MessageType.location:
-        return 'موقع';
-      default:
-        return 'رسالة';
-    }
-  }
-}
-
