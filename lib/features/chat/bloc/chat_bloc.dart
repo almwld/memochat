@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/models/chat_model.dart';
-import '../../core/services/chat_service.dart';
+import 'package:memochat/core/models/chat_model.dart';
+import 'package:memochat/core/services/chat_service.dart';
 
 // ============================================================
 // Events
