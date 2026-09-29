@@ -10,9 +10,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:record/record.dart';
 import 'package:memochat/core/constants/app_colors.dart';
-import 'package:memochat/core/services/chat_media_transfer_service.dart';
-import 'package:memochat/core/services/reliable_message_service.dart';
-import 'package:memochat/core/services/toast_service.dart';
+import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
+import 'package:memochat/features/chat/services/reliable_message_service.dart';
+import 'package:memochat/features/chat/services/toast_service.dart';
 
 class ChatInputBar extends StatefulWidget {
   final String chatId;
@@ -25,7 +25,6 @@ class ChatInputBar extends StatefulWidget {
   final Function(Map<String, dynamic>)? onLocalMedia;
   final VoidCallback? onShareLocation;
   final Function(bool)? onTyping;
-  final VoidCallback? onDoctorMedicalForms;
 
   const ChatInputBar({
     super.key,
@@ -36,7 +35,6 @@ class ChatInputBar extends StatefulWidget {
     this.onLocalMedia,
     this.onShareLocation,
     this.onTyping,
-    this.onDoctorMedicalForms,
   });
 
   @override
@@ -675,7 +673,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           _mediaItem(Icons.photo_library_outlined, 'المعرض', () => _pickImage(ImageSource.gallery)),
           _mediaItem(Icons.video_library, 'فيديو', _pickVideo),
           _mediaItem(Icons.attach_file, 'ملف', _pickFile),
-          _mediaItem(Icons.description_outlined, 'نماذج الطبيب', widget.onDoctorMedicalForms ?? () {}),
+          _mediaItem(Icons.description_outlined, 'نماذج الطبيب', widget.onExtraAction ?? () {}),
           _mediaItem(Icons.location_on_outlined, 'موقعي', () {
             setState(() => _attachments = false);
             widget.onShareLocation?.call();
