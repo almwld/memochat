@@ -16,8 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memochat/core/services/chat_media_transfer_service.dart';
 import 'package:memochat/core/constants/app_colors.dart';
-import 'package:memochat/core/services/medical_document_service.dart';
-import 'package:memochat/presentation/screens/chat/widgets/audio_waveform_bubble.dart';
+import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubble.dart';
 
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
