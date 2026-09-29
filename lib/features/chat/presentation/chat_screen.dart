@@ -1,14 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'chat_room_screen.dart';
+import '../../../core/models/conversation.dart';
 import '../../../core/repositories/chat_repository.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/premium_ui.dart';
+import 'chat_room_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.repository, super.key});
   final ChatRepository repository;
-
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -16,107 +15,219 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _chats() {
-    if (Firebase.apps.isEmpty) return const Stream.empty();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Stream.empty();
-    return FirebaseFirestore.instance.collection('chats').where('participants', arrayContains: uid).snapshots();
-  }
-
   @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
+  void dispose() { _search.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w800))),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-          child: TextField(
-            controller: _search,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: 'ابحث في محادثاتك...',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () {
-                        _search.clear();
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.clear_rounded),
-                    ),
+        appBar: AppBar(
+          title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
+          actions: [
+            IconButton(
+              tooltip: 'بحث',
+              onPressed: () {},
+              icon: const AppIcon(AppIcons.search, size: 23),
             ),
+          ],
+        ),
+        body: StreamBuilder<List<Conversation>>(
+          stream: widget.repository.watchConversations(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _StateView(
+                icon: AppIcons.chat,
+                title: 'تعذر تحميل المحادثات',
+                subtitle: 'تحقق من الاتصال ثم حاول مرة أخرى.',
+                action: FilledButton.icon(
+                  onPressed: () => setState(() {}),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              );
+            }
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+            final conversations = snapshot.data!;
+            final filtered = _filtered(conversations);
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    child: PremiumHero(
+                      icon: AppIcons.chat,
+                      title: 'مساحتك الخاصة',
+                      subtitle: 'كل محادثاتك ورسائلك في مكان واحد، بتجربة عربية سريعة ومرتبة.',
+                      action: IconButton(
+                        tooltip: 'محادثة جديدة',
+                        onPressed: () {},
+                        color: Colors.white,
+                        icon: const Icon(Icons.add_rounded),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: TextField(
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'ابحث في المحادثات...',
+                        prefixIcon: AppIcon(AppIcons.search, size: 21),
+                      ),
+                    ),
+                  ),
+                ),
+                if (filtered.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _StateView(
+                      icon: AppIcons.message,
+                      title: 'ابدأ أول محادثة',
+                      subtitle: 'انتقل إلى «تواصل» للعثور على أشخاص وابدأ محادثة جديدة.',
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+                    sliver: SliverList.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        return _ConversationCard(
+                          conversation: item,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatRoomScreen(
+                                chatId: item.id,
+                                otherUserId: item.participant.id,
+                                otherUserName: item.participant.displayName,
+                                otherUserImage: item.participant.avatarUrl,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      );
+
+  List<Conversation> _filtered(List<Conversation> source) {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) return source;
+    return source.where((item) {
+      final name = item.participant.displayName.toLowerCase();
+      final text = item.lastMessage?.text.toLowerCase() ?? '';
+      return name.contains(query) || text.contains(query);
+    }).toList();
+  }
+}
+
+class _ConversationCard extends StatelessWidget {
+  const _ConversationCard({required this.conversation, required this.onTap});
+  final Conversation conversation;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final user = conversation.participant;
+    final preview = conversation.lastMessage?.text ?? 'ابدأ المحادثة الآن';
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 29,
+                    backgroundColor: scheme.primaryContainer,
+                    backgroundImage: user.avatarUrl?.isNotEmpty == true ? NetworkImage(user.avatarUrl!) : null,
+                    child: user.avatarUrl?.isNotEmpty == true
+                        ? null
+                        : Text(
+                            user.displayName.characters.first,
+                            style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 19),
+                          ),
+                  ),
+                  if (user.isOnline)
+                    PositionedDirectional(
+                      bottom: 1,
+                      end: 1,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF28B86B),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Theme.of(context).cardColor, width: 2.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              if (conversation.unreadCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(20)),
+                  child: Text(
+                    conversation.unreadCount.toString(),
+                    style: TextStyle(color: scheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w900),
+                  ),
+                )
+              else
+                Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+            ],
           ),
         ),
-        Expanded(child: _conversationList()),
-      ],
-    ),
-  );
-
-  Widget _conversationList() {
-    if (Firebase.apps.isEmpty) {
-      return const Center(child: Text('خدمة المحادثات غير متاحة حاليًا'));
-    }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Center(child: Text('يرجى تسجيل الدخول لعرض المحادثات'));
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _chats(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const Center(child: Text('تعذر تحميل المحادثات'));
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        final query = _search.text.trim().toLowerCase();
-        final docs = snapshot.data!.docs.where((doc) {
-          final data = doc.data();
-          final last = data['lastMessage']?.toString() ?? '';
-          final names = Map<String, dynamic>.from(data['participantNames'] as Map? ?? const {});
-          final ids = List<String>.from(data['participants'] ?? const []);
-          final other = ids.firstWhere((id) => id != uid, orElse: () => '');
-          final name = names[other]?.toString() ?? '';
-          return query.isEmpty || last.toLowerCase().contains(query) || name.toLowerCase().contains(query);
-        }).toList();
-        if (docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('لا توجد محادثات بعد\nمن «تواصل» اختر مستخدمًا وابدأ محادثة جديدة.', textAlign: TextAlign.center),
-            ),
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          itemCount: docs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (_, i) => _tile(docs[i], uid),
-        );
-      },
-    );
-  }
-
-  Widget _tile(DocumentSnapshot<Map<String, dynamic>> doc, String uid) {
-    final data = doc.data() ?? <String, dynamic>{};
-    final ids = List<String>.from(data['participants'] ?? const []);
-    final other = ids.firstWhere((id) => id != uid, orElse: () => '');
-    final names = Map<String, dynamic>.from(data['participantNames'] as Map? ?? const {});
-    final photos = Map<String, dynamic>.from(data['participantPhotos'] as Map? ?? const {});
-    final name = names[other]?.toString() ?? 'مستخدم';
-    final photo = photos[other]?.toString();
-    return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 7, 12, 7),
-        leading: CircleAvatar(radius: 27, backgroundImage: photo?.isNotEmpty == true ? NetworkImage(photo!) : null, child: photo?.isNotEmpty == true ? null : const Icon(Icons.person_rounded)),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(data['lastMessage']?.toString().isNotEmpty == true ? data['lastMessage'].toString() : 'ابدأ المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: const Icon(Icons.chevron_left_rounded),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-          chatId: doc.id, otherUserId: other, otherUserName: name, otherUserImage: photo,
-        ))),
       ),
     );
   }
+}
+
+class _StateView extends StatelessWidget {
+  const _StateView({required this.icon, required this.title, required this.subtitle, this.action});
+  final AppIconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              PremiumIconTile(icon: icon, size: 76, iconSize: 36),
+              const SizedBox(height: 18),
+              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 7),
+              Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
+              if (action != null) ...[const SizedBox(height: 18), action!],
+            ],
+          ),
+        ),
+      );
 }
