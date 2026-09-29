@@ -381,7 +381,7 @@ class ChatMediaTransferService {
   Future<String?> _retryShare(NextcloudService service, String remotePath) async {
     for (var i = 0; i < 3; i++) {
       final url = await service.createPublicShare(remotePath);
-      if (url.isNotEmpty) return url;
+      if ((url ?? '').isNotEmpty) return url;
       await Future<void>.delayed(Duration(seconds: 2 * (i + 1)));
     }
     return null;
@@ -413,8 +413,8 @@ class ChatMediaTransferService {
     await db.update('media_outbox', {
       'status': 'queued',
       'error': null,
-      'remote_path': job['remote_path']?.toString().startsWith('firebase://') == true ? job['remote_path'] : null,
-      'remote_url': job['remote_path']?.toString().startsWith('firebase://') == true ? job['remote_url'] : null,
+      'remote_path': (job['remote_path']?.toString() ?? '').startsWith('firebase://') ? job['remote_path'] : null,
+      'remote_url': (job['remote_path']?.toString() ?? '').startsWith('firebase://') ? job['remote_url'] : null,
       'updated_at': DateTime.now().millisecondsSinceEpoch,
     }, where: 'id = ?', whereArgs: [id]);
     await processPending();
