@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'app/app.dart';
@@ -6,19 +7,21 @@ import 'core/services/firebase_bootstrap.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/notifications/push_notification_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Never block the first Flutter frame on Firebase, FCM, permissions, or audio.
+
+  // Firebase must be ready before screens that query Auth/Firestore are mounted.
+  await FirebaseBootstrap.initialize().timeout(
+    const Duration(seconds: 8),
+    onTimeout: () => false,
+  );
+
   runApp(const MemoChatApp());
   unawaited(_startSecondaryServices());
 }
 
 Future<void> _startSecondaryServices() async {
-  final firebaseReady = await FirebaseBootstrap.initialize().timeout(
-    const Duration(seconds: 8),
-    onTimeout: () => false,
-  );
-  if (!firebaseReady) return;
+  if (Firebase.apps.isEmpty) return;
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   try {
