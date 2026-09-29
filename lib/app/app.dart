@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../core/repositories/in_memory_chat_repository.dart';
 import '../core/theme/app_theme.dart';
 import '../features/home/presentation/home_screen.dart';
