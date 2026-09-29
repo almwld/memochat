@@ -40,7 +40,6 @@ class _MediaViewerState extends State<MediaViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Colors.black,
