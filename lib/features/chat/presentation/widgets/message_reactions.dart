@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:memochat/core/constants/app_colors.dart';
 
 class MessageReactions extends StatefulWidget {
   final Function(String) onReactionSelected;
