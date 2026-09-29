@@ -33,7 +33,7 @@ class _MainShellState extends State<MainShell> {
         repository: widget.repository,
         onNewChat: () => setState(() => _index = 1),
       ),
-      const ContactsScreen(repository: widget.repository),
+      ContactsScreen(repository: widget.repository),
       const CallsHistoryScreen(),
       SettingsScreen(
         onThemeModeChanged: widget.onThemeModeChanged,
