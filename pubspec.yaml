@@ -75,3 +75,4 @@ flutter_launcher_icons:
 
 dependency_overrides:
   geolocator_android: 4.6.1
+  package_info_plus: 8.3.1
