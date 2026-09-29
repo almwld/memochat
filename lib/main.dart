@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'app/app.dart';
@@ -5,46 +6,26 @@ import 'core/services/firebase_bootstrap.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/notifications/push_notification_service.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  final firebaseReady = await FirebaseBootstrap.initialize();
-  if (!firebaseReady) {
-    runApp(const MemoChatStartupErrorApp());
-    return;
-  }
-
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
+  // Never block the first Flutter frame on Firebase, FCM, permissions, or audio.
   runApp(const MemoChatApp());
-
-  // Secondary services start after the first Flutter frame.
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    try {
-      await PushNotificationService(
-        localNotifications: NotificationService(),
-      ).initialize();
-    } catch (_) {
-      // Notification failure must never prevent the chat UI from starting.
-    }
-  });
+  unawaited(_startSecondaryServices());
 }
 
-class MemoChatStartupErrorApp extends StatelessWidget {
-  const MemoChatStartupErrorApp({super.key});
+Future<void> _startSecondaryServices() async {
+  final firebaseReady = await FirebaseBootstrap.initialize().timeout(
+    const Duration(seconds: 8),
+    onTimeout: () => false,
+  );
+  if (!firebaseReady) return;
 
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Center(
-          child: Text(
-            'تعذر تشغيل التطبيق بسبب خطأ في تهيئة Firebase.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
-    );
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  try {
+    await PushNotificationService(
+      localNotifications: NotificationService(),
+    ).initialize().timeout(const Duration(seconds: 8));
+  } catch (_) {
+    // Notifications are optional and must never prevent the chat UI from starting.
   }
 }

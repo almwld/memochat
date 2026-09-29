@@ -32,7 +32,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
 
     if (FirebaseAuth.instance.currentUser == null) {
       try {
-        await FirebaseAuth.instance.signInAnonymously();
+        await FirebaseAuth.instance.signInAnonymously().timeout(const Duration(seconds: 5));
       } catch (_) {
         // Auth configuration must not blank the application.
       }
