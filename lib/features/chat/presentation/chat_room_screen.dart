@@ -1064,7 +1064,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             onSendImage: (_) {},
             onLocalMedia: _addLocalMedia,
             onShareLocation: _shareLocation,
-null),
+          ),
       ]),
     );
   }
