@@ -287,9 +287,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
         pageBuilder: (_, __, ___) => CallScreen(
           callId: widget.callId,
           chatId: widget.chatId,
-          doctorId: widget.callerId,
-          doctorName: widget.callerName,
-          doctorImage: widget.callerImage,
+          userId: widget.callerId,
+          userName: widget.callerName,
+          userImage: widget.callerImage,
           isVideo: widget.isVideo,
           isOutgoing: false,
         ),
