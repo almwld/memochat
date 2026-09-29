@@ -9,6 +9,7 @@ class ReliableMessageService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final ReliableMessageService instance = ReliableMessageService._();
 
   static Future<String> sendText({
     required String chatId,
@@ -88,6 +89,17 @@ class ReliableMessageService {
     await batch.commit();
     if (effectiveReplyId != null) ChatReplyContext.instance.clear(chatId);
     return messageRef.id;
+  }
+
+  Future<void> acknowledgeDelivered({required String chatId, required List<String> messageIds}) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || messageIds.isEmpty) return;
+    final batch = _db.batch();
+    for (final id in messageIds) {
+      final ref = _db.collection('chats').doc(chatId).collection('messages').doc(id);
+      batch.update(ref, {'isDelivered': true, 'deliveredAt': FieldValue.serverTimestamp()});
+    }
+    await batch.commit();
   }
 
   static String _attachmentPreview(Map<String, dynamic> d) {
