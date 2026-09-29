@@ -41,37 +41,46 @@ jobs:
           path = Path('android/app/build.gradle')
           text = path.read_text()
 
-          # Firebase Firestore currently requires Android API 23+.
-          text = text.replace(
-              'compileSdk = flutter.compileSdkVersion',
-              'compileSdk = 35',
-          )
-          text = text.replace(
-              'minSdk = flutter.minSdkVersion',
-              'minSdk = 23',
-          )
-          text = text.replace(
-              'minSdkVersion flutter.minSdkVersion',
-              'minSdkVersion 23',
-          )
+          lines = text.splitlines()
+          output = []
+          in_default_config = False
+          inserted_min = False
+          inserted_desugar = False
 
-          if 'coreLibraryDesugaringEnabled true' not in text:
-              marker = 'compileOptions {'
-              if marker not in text:
-                  raise SystemExit('Could not locate compileOptions block')
-              text = text.replace(
-                  marker,
-                  marker + '\n        coreLibraryDesugaringEnabled true',
-                  1,
-              )
+          for line in lines:
+              stripped = line.strip()
+              if stripped.startswith('compileSdk'):
+                  output.append('    compileSdk 35')
+                  continue
+              if stripped.startswith('minSdk'):
+                  output.append('        minSdk 23')
+                  inserted_min = True
+                  continue
+              if stripped.startswith('applicationId'):
+                  output.append('        applicationId "com.memo.app"')
+                  continue
+              if stripped == 'compileOptions {':
+                  output.append(line)
+                  output.append('        coreLibraryDesugaringEnabled true')
+                  inserted_desugar = True
+                  continue
+              output.append(line)
+              if stripped == 'defaultConfig {':
+                  in_default_config = True
 
-          if 'applicationId "com.memo.app"' not in text:
-              text = text.replace(
-                  'applicationId "com.memo.memochat"',
-                  'applicationId "com.memo.app"',
-                  1,
-              )
+          if not inserted_min:
+              for i, line in enumerate(output):
+                  if line.strip() == 'defaultConfig {':
+                      output.insert(i + 1, '        minSdk 23')
+                      inserted_min = True
+                      break
 
+          if not inserted_desugar:
+              raise SystemExit('Could not locate compileOptions block')
+          if not inserted_min:
+              raise SystemExit('Could not configure minSdk')
+
+          text = '\n'.join(output) + '\n'
           dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
           if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
               text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
