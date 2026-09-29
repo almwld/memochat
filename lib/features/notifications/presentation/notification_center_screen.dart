@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/notifications/notification_inbox.dart';
+import '../../../core/theme/app_icons.dart';
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -42,7 +43,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: item.read ? Colors.grey.shade200 : const Color(0xFFE0F2F1),
-                    child: Icon(Icons.notifications_none_rounded, color: item.read ? Colors.grey : const Color(0xFF0A8F83)),
+                    child: AppIcon(AppIcons.notifications, color: item.read ? Colors.grey : const Color(0xFF0A8F83)),
                   ),
                   title: Text(item.title, style: TextStyle(fontWeight: item.read ? FontWeight.w500 : FontWeight.w700)),
                   subtitle: Text(item.body),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/repositories/chat_repository.dart';
+import '../../../core/theme/app_icons.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.conversation, required this.repository, super.key});
@@ -43,8 +44,8 @@ class _ChatScreenState extends State<ChatScreen> {
           ]),
         ]),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.videocam_outlined)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined)),
+          IconButton(onPressed: () {}, icon: const AppIcon(AppIcons.videoCall)),
+          IconButton(onPressed: () {}, icon: const AppIcon(AppIcons.phoneCall)),
         ],
       ),
       body: Column(children: [
@@ -91,7 +92,7 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
             child: Row(children: [
-              IconButton(onPressed: () {}, icon: const Icon(Icons.add_circle_outline)),
+              IconButton(onPressed: () {}, icon: const AppIcon(AppIcons.attachment)),
               Expanded(
                 child: TextField(
                   controller: _controller,
@@ -106,7 +107,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              IconButton.filled(onPressed: _send, icon: const Icon(Icons.send_rounded)),
+              IconButton.filled(onPressed: _send, icon: const AppIcon(AppIcons.send)),
             ]),
           ),
         ),

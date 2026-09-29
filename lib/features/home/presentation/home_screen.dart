@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/repositories/chat_repository.dart';
+import '../../../core/theme/app_icons.dart';
 import '../../chat/presentation/chat_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../auth/presentation/auth_screen.dart';
@@ -14,14 +15,14 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('MemoChat', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search_rounded)),
+          IconButton(onPressed: () {}, icon: const AppIcon(AppIcons.search)),
           IconButton(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationCenterScreen())),
-            icon: const Icon(Icons.notifications_none_rounded),
+            icon: const AppIcon(AppIcons.notifications),
           ),
           IconButton(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthScreen())),
-            icon: const Icon(Icons.more_vert_rounded),
+            icon: const AppIcon(AppIcons.more),
           ),
         ],
       ),
@@ -51,7 +52,7 @@ class HomeScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(onPressed: () {}, child: const Icon(Icons.chat_rounded)),
+      floatingActionButton: FloatingActionButton(onPressed: () {}, child: const AppIcon(AppIcons.chat)),
     );
   }
 }

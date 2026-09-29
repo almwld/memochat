@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import '../../../core/calls/livekit_call_service.dart';
+import '../../../core/theme/app_icons.dart';
 
 class CallScreen extends StatefulWidget {
   const CallScreen({required this.serverUrl, required this.token, required this.title, super.key});
@@ -69,13 +70,13 @@ class _CallScreenState extends State<CallScreen> {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.videocam_rounded, size: 72, color: Colors.white),
+                      const AppIcon(AppIcons.videoCall, size: 72, color: Colors.white),
                       const SizedBox(height: 16),
                       Text('متصل بالمكالمة', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
                       const SizedBox(height: 28),
                       FilledButton.tonalIcon(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.call_end_rounded),
+                        icon: const AppIcon(AppIcons.phoneCall),
                         label: const Text('إنهاء المكالمة'),
                       ),
                     ],
