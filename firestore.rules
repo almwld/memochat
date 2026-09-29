@@ -2,43 +2,94 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+    function signedIn() {
+      return request.auth != null;
+    }
+
     function isChatParticipant(chatId) {
       return signedIn() &&
         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
     }
+
     function isCallParty() {
       return signedIn() &&
-        (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+        (resource.data.callerId == request.auth.uid ||
+         resource.data.receiverId == request.auth.uid);
     }
 
     match /chats/{chatId} {
       allow read: if isChatParticipant(chatId);
+
       allow create: if signedIn() &&
-        request.auth.uid in request.resource.data.participants;
-      allow update: if isChatParticipant(chatId);
+        request.resource.data.participants is list &&
+        request.resource.data.participants.size() >= 2 &&
+        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.size() ==
+          request.resource.data.participants.toSet().size();
+
+      allow update: if isChatParticipant(chatId) &&
+        request.resource.data.participants == resource.data.participants &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage',
+          'lastMessageTime',
+          'lastMessageSenderId',
+          'unreadCount',
+          'updatedAt',
+          'isArchived',
+          'isPinned',
+          'isMuted',
+          'pinnedFor',
+          'mutedFor',
+          'typing',
+          'typingUpdatedAt',
+          'deletedFor'
+        ]);
+
       allow delete: if false;
 
       match /messages/{messageId} {
         allow read: if isChatParticipant(chatId);
+
         allow create: if isChatParticipant(chatId) &&
-          request.resource.data.senderId == request.auth.uid;
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.chatId == chatId;
+
         allow update: if isChatParticipant(chatId) &&
-          (resource.data.senderId == request.auth.uid ||
-           request.resource.data.status in ['delivered', 'read']);
+          (
+            (
+              resource.data.senderId == request.auth.uid &&
+              request.resource.data.senderId == resource.data.senderId
+            ) ||
+            (
+              resource.data.senderId != request.auth.uid &&
+              request.resource.data.senderId == resource.data.senderId &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'isDelivered',
+                'status',
+                'deliveredAt',
+                'isRead',
+                'readAt'
+              ])
+            )
+          );
+
         allow delete: if false;
       }
     }
 
     match /callLocks/{lockId} {
-      allow read, create, update: if signedIn() && request.auth.uid in request.resource.data.participants;
-      allow delete: if signedIn() && request.auth.uid in resource.data.participants;
+      allow read, create, update: if signedIn() &&
+        request.auth.uid in request.resource.data.participants;
+      allow delete: if signedIn() &&
+        request.auth.uid in resource.data.participants;
     }
 
     match /notifications/{notificationId} {
-      allow read, update: if signedIn() && resource.data.userId == request.auth.uid;
+      allow read, update: if signedIn() &&
+        resource.data.userId == request.auth.uid;
       allow create: if false;
-      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if signedIn() &&
+        resource.data.userId == request.auth.uid;
     }
 
     match /calls/{callId} {
@@ -54,6 +105,7 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == userId;
       allow delete: if false;
+
       match /private/{documentId} {
         allow read, write: if signedIn() && request.auth.uid == userId;
       }
