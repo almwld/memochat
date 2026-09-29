@@ -9,5 +9,5 @@ class _MemoChatAppState extends State<MemoChatApp> {
  late final repository=InMemoryChatRepository(); bool _ready=FirebaseAuth.instance.currentUser!=null;
  @override void initState(){super.initState();_ensureAuth();}
  Future<void> _ensureAuth() async { if(FirebaseAuth.instance.currentUser==null){try{await FirebaseAuth.instance.signInAnonymously();}catch(_){}} if(mounted)setState(()=>_ready=FirebaseAuth.instance.currentUser!=null); }
- @override Widget build(BuildContext context)=>MaterialApp(title:'MemoChat',debugShowCheckedModeBanner:false,theme:AppTheme.light(),home:_ready?HomeScreen(repository:repository):const Scaffold(body:Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83))));
+ @override Widget build(BuildContext context)=>MaterialApp(title:'MemoChat',debugShowCheckedModeBanner:false,theme:AppTheme.light(),home:_ready?HomeScreen(repository:repository):const Scaffold(body:Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83)))));
 }
