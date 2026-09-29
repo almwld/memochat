@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/offline/pending_message_queue.dart';
 import '../../../core/media/nextcloud_media_service.dart';
 import '../../../core/theme/app_icons.dart';
@@ -33,7 +34,67 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   @override Widget build(BuildContext context){final dark=Theme.of(context).brightness==Brightness.dark;return Scaffold(backgroundColor:dark?const Color(0xFF0B1121):const Color(0xFFF4F7F7),appBar:AppBar(backgroundColor:const Color(0xFF0A8F83),foregroundColor:Colors.white,titleSpacing:0,title:Row(children:[CircleAvatar(radius:21,backgroundImage:widget.otherUserImage?.isNotEmpty==true?NetworkImage(widget.otherUserImage!):null,child:widget.otherUserImage?.isNotEmpty==true?null:const Icon(Icons.person)),const SizedBox(width:10),Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(widget.otherUserName,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w700)),_statusText()])]),actions:[IconButton(tooltip:'مكالمة صوتية',onPressed:()=>_call(false),icon:const AppIcon(AppIcons.phoneCall,size:22,color:Colors.white)),IconButton(tooltip:'مكالمة فيديو',onPressed:()=>_call(true),icon:const AppIcon(AppIcons.videoCall,size:22,color:Colors.white))]),body:ChatWallpaper(child:Column(children:[Expanded(child:_messagesView(dark)),_composer(dark)])));}
   Widget _statusText()=>StreamBuilder<DocumentSnapshot<Map<String,dynamic>>>(stream:_db.collection('users').doc(widget.otherUserId).snapshots(),builder:(context,s){final d=s.data?.data()??{};return Text(d['isOnline']==true?'متصل الآن':'غير متصل',style:const TextStyle(fontSize:11,color:Colors.white70));});
   Widget _messagesView(bool dark)=>StreamBuilder<QuerySnapshot<Map<String,dynamic>>>(stream:_messages.orderBy('timestamp',descending:true).limit(200).snapshots(),builder:(context,s){if(s.hasError)return Center(child:Text('تعذر تحميل الرسائل: '+s.error.toString()));if(!s.hasData)return const Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83)));final docs=s.data!.docs;if(_uid.isNotEmpty){for(final doc in docs){final d=doc.data();if(d['senderId']!=_uid&&d['status']!='read'&&!_readMarked.contains(doc.id)){_readMarked.add(doc.id);unawaited(doc.reference.update({'status':'read','readAt':FieldValue.serverTimestamp()}).catchError((_){ }));}}}return ListView.builder(controller:_scroll,padding:const EdgeInsets.fromLTRB(12,16,12,12),reverse:true,itemCount:docs.length,itemBuilder:(context,i)=>_bubble(docs[i],dark));});
-  Widget _bubble(DocumentSnapshot<Map<String,dynamic>> doc,bool dark){final d=doc.data()??{};final mine=d['senderId']==_uid;final type=d['type']?.toString()??'text';final url=d['fileUrl']?.toString();return GestureDetector(onLongPress:()=>setState(()=>_reply={'id':doc.id,'senderName':d['senderName']??'مستخدم','text':d['text']??'مرفق'}),child:Align(alignment:mine?AlignmentDirectional.centerEnd:AlignmentDirectional.centerStart,child:Container(constraints:const BoxConstraints(maxWidth:320),margin:const EdgeInsets.only(bottom:6),padding:const EdgeInsets.symmetric(horizontal:13,vertical:9),decoration:BoxDecoration(color:mine?const Color(0xFF0A8F83):(dark?const Color(0xFF162039):Colors.white),borderRadius:BorderRadiusDirectional.only(topStart:const Radius.circular(18),topEnd:const Radius.circular(18),bottomStart:Radius.circular(mine?18:4),bottomEnd:Radius.circular(mine?4:18))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[if(d['replyPreview'] is Map)_replyBox(d,mine),if(type=='image'&&url!=null)ClipRRect(borderRadius:BorderRadius.circular(14),child:Image.network(url,width:260,height:220,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.broken_image,color:Colors.white70,size:48))),if(type=='video'||type=='audio'||type=='file')ListTile(contentPadding:EdgeInsets.zero,leading:Icon(type=='video'?Icons.play_circle_fill:type=='audio'?Icons.audiotrack:Icons.insert_drive_file,color:mine?Colors.white:const Color(0xFF0A8F83),size:36),title:Text(d['fileName']?.toString()??d['text']?.toString()??'مرفق',maxLines:2,overflow:TextOverflow.ellipsis,style:TextStyle(color:mine?Colors.white:(dark?Colors.white:Colors.black87))),onTap:()=>showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('رابط الوسائط'),content:SelectableText(url??'')))),if(type=='text')Text(d['text']?.toString()??'',style:TextStyle(color:mine?Colors.white:(dark?Colors.white:Colors.black87),fontSize:15)),const SizedBox(height:3),Row(mainAxisSize:MainAxisSize.min,children:[Text(_time(d['timestamp']),style:TextStyle(color:mine?Colors.white60:Colors.grey,fontSize:10)),if(mine)Padding(padding:const EdgeInsetsDirectional.only(start:5),child:Icon(d['status']=='read'?Icons.done_all:Icons.done,size:15,color:d['status']=='read'?Colors.lightBlueAccent:Colors.white70))])]))));}
+  Widget _bubble(DocumentSnapshot<Map<String,dynamic>> doc,bool dark){final d=doc.data()??{};final mine=d['senderId']==_uid;final type=d['type']?.toString()??'text';final url=d['fileUrl']?.toString();return GestureDetector(onLongPress:()=>_messageActions(doc.id,d,mine),child:Align(alignment:mine?AlignmentDirectional.centerEnd:AlignmentDirectional.centerStart,child:Container(constraints:const BoxConstraints(maxWidth:320),margin:const EdgeInsets.only(bottom:6),padding:const EdgeInsets.symmetric(horizontal:13,vertical:9),decoration:BoxDecoration(color:mine?const Color(0xFF0A8F83):(dark?const Color(0xFF162039):Colors.white),borderRadius:BorderRadiusDirectional.only(topStart:const Radius.circular(18),topEnd:const Radius.circular(18),bottomStart:Radius.circular(mine?18:4),bottomEnd:Radius.circular(mine?4:18))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[if(d['replyPreview'] is Map)_replyBox(d,mine),if(type=='image'&&url!=null)ClipRRect(borderRadius:BorderRadius.circular(14),child:Image.network(url,width:260,height:220,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.broken_image,color:Colors.white70,size:48))),if(type=='video'||type=='audio'||type=='file')ListTile(contentPadding:EdgeInsets.zero,leading:Icon(type=='video'?Icons.play_circle_fill:type=='audio'?Icons.audiotrack:Icons.insert_drive_file,color:mine?Colors.white:const Color(0xFF0A8F83),size:36),title:Text(d['fileName']?.toString()??d['text']?.toString()??'مرفق',maxLines:2,overflow:TextOverflow.ellipsis,style:TextStyle(color:mine?Colors.white:(dark?Colors.white:Colors.black87))),onTap:()=>showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('رابط الوسائط'),content:SelectableText(url??'')))),if(type=='text')Text(d['text']?.toString()??'',style:TextStyle(color:mine?Colors.white:(dark?Colors.white:Colors.black87),fontSize:15)),const SizedBox(height:3),Row(mainAxisSize:MainAxisSize.min,children:[Text(_time(d['timestamp']),style:TextStyle(color:mine?Colors.white60:Colors.grey,fontSize:10)),if(mine)Padding(padding:const EdgeInsetsDirectional.only(start:5),child:_statusIcon(d['status']?.toString(), mine))])]))));}
+  Widget _statusIcon(String? status, bool mine) {
+    final icon = switch (status) {
+      'read' => Icons.done_all,
+      'delivered' => Icons.done_all,
+      _ => Icons.done,
+    };
+    final color = status == 'read'
+        ? Colors.lightBlueAccent
+        : mine
+            ? Colors.white70
+            : Colors.grey;
+    return Icon(icon, size: 15, color: color);
+  }
+
+  Future<void> _messageActions(
+    String id,
+    Map<String, dynamic> data,
+    bool mine,
+  ) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply_rounded),
+              title: const Text('الرد'),
+              onTap: () => Navigator.pop(context, 'reply'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('نسخ النص'),
+              enabled: (data['text']?.toString() ?? '').isNotEmpty,
+              onTap: () => Navigator.pop(context, 'copy'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'reply') {
+      setState(() => _reply = {
+            'id': id,
+            'senderName': data['senderName'] ?? 'مستخدم',
+            'text': data['text'] ?? 'مرفق',
+          });
+    } else if (action == 'copy') {
+      final text = data['text']?.toString() ?? '';
+      if (text.isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: text));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم نسخ النص')),
+          );
+        }
+      }
+    }
+  }
+
   Widget _replyBox(Map<String,dynamic>d,bool mine){final r=d['replyPreview'] as Map;return Container(margin:const EdgeInsets.only(bottom:6),padding:const EdgeInsets.all(7),decoration:BoxDecoration(color:Colors.black12,borderRadius:BorderRadius.circular(9)),child:Text(r['text']?.toString()??'',maxLines:2,overflow:TextOverflow.ellipsis,style:TextStyle(color:mine?Colors.white70:Colors.black54,fontSize:11)));}
   String _time(dynamic value){if(value is Timestamp){final x=value.toDate();return x.hour.toString().padLeft(2,'0')+':'+x.minute.toString().padLeft(2,'0');}return '';}
   Widget _composer(bool dark)=>SafeArea(top:false,child:Column(children:[if(_reply!=null)Container(margin:const EdgeInsets.fromLTRB(10,4,10,0),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:dark?const Color(0xFF162039):Colors.white,borderRadius:BorderRadius.circular(14)),child:Row(children:[const Icon(Icons.reply,color:Color(0xFF0A8F83)),const SizedBox(width:8),Expanded(child:Text(_reply?['text']?.toString()??'')),IconButton(onPressed:()=>setState(()=>_reply=null),icon:const Icon(Icons.close))])),Padding(padding:const EdgeInsets.fromLTRB(8,6,8,8),child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[IconButton(tooltip:'إرفاق ملف',onPressed:_pickFile,icon:_uploading?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.add_circle_outline,color:Color(0xFF0A8F83))),Expanded(child:TextField(controller:_text,minLines:1,maxLines:5,textDirection:TextDirection.rtl,decoration:InputDecoration(hintText:'اكتب رسالة...',filled:true,fillColor:dark?const Color(0xFF162039):Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none),contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:11)))),const SizedBox(width:5),IconButton.filled(tooltip:'إرسال',onPressed:_send,style:IconButton.styleFrom(backgroundColor:const Color(0xFF0A8F83)),icon:const Icon(Icons.send_rounded))]))]));
