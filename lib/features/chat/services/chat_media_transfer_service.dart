@@ -14,7 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:workmanager/workmanager.dart';
 
-import '../../firebase_options.dart';
+import 'package:memochat/firebase_options.dart';
 import 'chat_service.dart';
 import 'nextcloud_service.dart';
 
