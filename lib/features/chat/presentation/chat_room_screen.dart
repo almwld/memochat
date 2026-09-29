@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
-import 'package:memochat/core/constants/app_colors.dart';
+import 'package:memochat/core/theme/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
 import 'package:memochat/features/chat/models/status_model.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
@@ -387,9 +387,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
         builder: (_) => CallScreen(
             chatId: widget.chatId,
-            doctorName: widget.otherUserName,
-            doctorId: widget.otherUserId,
-            doctorImage: widget.otherUserImage ?? widget.groupImage,
+            userName: widget.otherUserName,
+            userId: widget.otherUserId,
+            userImage: widget.otherUserImage ?? widget.groupImage,
             isVideo: video,
             isOutgoing: true)));
   }
