@@ -1202,3 +1202,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       case MessageType.file:
         return 'ملف';
       case MessageType.location:
+        return 'موقع';
+      default:
+        return 'رسالة';
+    }
+  }
+}
