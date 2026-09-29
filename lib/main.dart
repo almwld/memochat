@@ -8,12 +8,17 @@ import 'core/notifications/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FirebaseBootstrap.initialize();
-  if (Firebase.apps.isNotEmpty) {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await PushNotificationService(
-      localNotifications: NotificationService(),
-    ).initialize();
-  }
+
+  // Render Flutter immediately. Firebase/network initialization must never
+  // keep the native launch screen black.
   runApp(const MemoChatApp());
+
+  // Notifications are secondary startup work and must not block first paint.
+  final initialized = await FirebaseBootstrap.initialize();
+  if (!initialized || Firebase.apps.isEmpty) return;
+
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await PushNotificationService(
+    localNotifications: NotificationService(),
+  ).initialize();
 }
