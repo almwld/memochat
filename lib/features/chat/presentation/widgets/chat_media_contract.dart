@@ -1,4 +1,4 @@
-/// Canonical media types used by the Sehatak chat timeline.
+/// Canonical media types used by the MemoChat chat timeline.
 /// Keep these values aligned with Firestore message `type`.
 abstract final class ChatMediaType {
   static const text = 'text';
