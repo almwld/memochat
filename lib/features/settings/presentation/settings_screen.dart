@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/premium_ui.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -23,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _readReceiptsKey = 'settings.readReceipts';
   static const _typingKey = 'settings.typing';
   static const _onlineKey = 'settings.online';
+  static const _themeKey = 'settings.theme';
 
   bool _notifications = true;
   bool _readReceipts = true;
@@ -31,56 +34,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ThemeMode _themeMode = ThemeMode.system;
   bool _loading = true;
 
-  User? get _user =>
-      Firebase.apps.isEmpty ? null : FirebaseAuth.instance.currentUser;
+  User? get _user => Firebase.apps.isEmpty ? null : FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
+    _load();
   }
 
-  Future<void> _loadPreferences() async {
+  Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    final mode = prefs.getString(_themeKey) ?? 'system';
     if (!mounted) return;
     setState(() {
       _notifications = prefs.getBool(_notificationsKey) ?? true;
       _readReceipts = prefs.getBool(_readReceiptsKey) ?? true;
       _typing = prefs.getBool(_typingKey) ?? true;
       _online = prefs.getBool(_onlineKey) ?? true;
-      final mode = prefs.getString('settings.theme') ?? 'system';
-      _themeMode = switch (mode) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
+      _themeMode = mode == 'light'
+          ? ThemeMode.light
+          : mode == 'dark'
+              ? ThemeMode.dark
+              : ThemeMode.system;
       _loading = false;
     });
     widget.onThemeModeChanged(_themeMode);
   }
 
-  Future<void> _setBool(String key, bool value) async {
+  Future<void> _toggle(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _setTheme(ThemeMode mode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'settings.theme',
-      switch (mode) {
-        ThemeMode.light => 'light',
-        ThemeMode.dark => 'dark',
-        ThemeMode.system => 'system',
-      },
-    );
     if (!mounted) return;
-    setState(() => _themeMode = mode);
-    widget.onThemeModeChanged(mode);
+    setState(() {
+      if (key == _notificationsKey) _notifications = value;
+      if (key == _readReceiptsKey) _readReceipts = value;
+      if (key == _typingKey) _typing = value;
+      if (key == _onlineKey) _online = value;
+    });
   }
 
-  Future<void> _updatePrivacy(String field, bool value) async {
+  Future<void> _privacy(String field, bool value) async {
     final user = _user;
     if (user == null) return;
     try {
@@ -89,34 +82,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SetOptions(merge: true),
       );
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر حفظ إعداد الخصوصية')),
-        );
-      }
+      if (mounted) _snack('تعذر حفظ إعداد الخصوصية.');
     }
   }
+
+  Future<void> _themePicker() async {
+    final selected = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('اختيار المظهر', style: TextStyle(fontWeight: FontWeight.w900))),
+            _themeOption(ThemeMode.system, 'حسب الجهاز', Icons.brightness_auto_rounded),
+            _themeOption(ThemeMode.light, 'فاتح', Icons.light_mode_rounded),
+            _themeOption(ThemeMode.dark, 'داكن', Icons.dark_mode_rounded),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final value = selected == ThemeMode.light
+        ? 'light'
+        : selected == ThemeMode.dark
+            ? 'dark'
+            : 'system';
+    await prefs.setString(_themeKey, value);
+    if (!mounted) return;
+    setState(() => _themeMode = selected);
+    widget.onThemeModeChanged(selected);
+  }
+
+  Widget _themeOption(ThemeMode mode, String title, IconData icon) => ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: Radio<ThemeMode>(
+          value: mode,
+          groupValue: _themeMode,
+          onChanged: (_) => Navigator.pop(context, mode),
+        ),
+        onTap: () => Navigator.pop(context, mode),
+      );
 
   Future<void> _editProfile() async {
     final user = _user;
     if (user == null) {
-      _showInfo('الحساب غير متصل بخدمة Firebase حاليًا.');
+      _snack('الحساب في وضع التجهيز. سيظهر الملف عند اكتمال الاتصال.');
       return;
     }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final data = doc.data() ?? {};
-    final nameController = TextEditingController(
-      text: data['displayName']?.toString() ?? user.displayName ?? '',
-    );
-    final usernameController = TextEditingController(
-      text: data['username']?.toString() ?? '',
-    );
+    final name = TextEditingController(text: data['displayName']?.toString() ?? user.displayName ?? '');
+    final username = TextEditingController(text: data['username']?.toString() ?? '');
 
-    if (!mounted) return;
     final result = await showDialog<(String, String)>(
       context: context,
       builder: (context) => AlertDialog(
@@ -124,52 +146,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: nameController,
-              textDirection: TextDirection.rtl,
-              decoration: const InputDecoration(
-                labelText: 'الاسم',
-                prefixIcon: Icon(Icons.person_outline_rounded),
-              ),
-            ),
+            TextField(controller: name, textDirection: TextDirection.rtl, decoration: const InputDecoration(labelText: 'الاسم')),
             const SizedBox(height: 12),
-            TextField(
-              controller: usernameController,
-              textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(
-                labelText: 'اسم المستخدم',
-                prefixIcon: Icon(Icons.alternate_email_rounded),
-              ),
-            ),
+            TextField(controller: username, textDirection: TextDirection.ltr, decoration: const InputDecoration(labelText: 'اسم المستخدم')),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              context,
-              (nameController.text.trim(), usernameController.text.trim()),
-            ),
-            child: const Text('حفظ'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(context, (name.text.trim(), username.text.trim())), child: const Text('حفظ')),
         ],
       ),
     );
-    nameController.dispose();
-    usernameController.dispose();
-
+    name.dispose();
+    username.dispose();
     if (result == null) return;
+
     try {
-      await user.updateDisplayName(
-        result.$1.isEmpty ? 'مستخدم MemoChat' : result.$1,
-      );
+      final displayName = result.$1.isEmpty ? 'مستخدم MemoChat' : result.$1;
+      await user.updateDisplayName(displayName);
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
         {
-          'displayName':
-              result.$1.isEmpty ? 'مستخدم MemoChat' : result.$1,
+          'displayName': displayName,
           'username': result.$2.replaceFirst('@', '').trim().toLowerCase(),
           'photoUrl': user.photoURL ?? '',
           'updatedAt': FieldValue.serverTimestamp(),
@@ -178,201 +175,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       if (mounted) setState(() {});
     } catch (_) {
-      if (mounted) {
-        _showInfo('تعذر حفظ بيانات الحساب. تحقق من الاتصال وقواعد Firestore.');
-      }
+      if (mounted) _snack('تعذر حفظ بيانات الحساب.');
     }
-  }
-
-  Future<void> _showThemePicker() async {
-    final selected = await showDialog<ThemeMode>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('المظهر'),
-        children: [
-          _themeOption(context, ThemeMode.system, 'حسب الجهاز'),
-          _themeOption(context, ThemeMode.light, 'فاتح'),
-          _themeOption(context, ThemeMode.dark, 'داكن'),
-        ],
-      ),
-    );
-    if (selected != null) await _setTheme(selected);
-  }
-
-  Widget _themeOption(BuildContext context, ThemeMode mode, String title) =>
-      RadioListTile<ThemeMode>(
-        value: mode,
-        groupValue: _themeMode,
-        title: Text(title),
-        onChanged: (value) {
-          if (value != null) Navigator.pop(context, value);
-        },
-      );
-
-  Future<void> _clearLocalSettings() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('مسح الإعدادات المحلية؟'),
-        content: const Text(
-          'سيتم إعادة إعدادات MemoChat المحلية إلى قيمها الافتراضية. '
-          'لن يتم حذف المحادثات أو بيانات Firebase.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('مسح'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_notificationsKey);
-    await prefs.remove(_readReceiptsKey);
-    await prefs.remove(_typingKey);
-    await prefs.remove(_onlineKey);
-    await prefs.remove('settings.theme');
-    if (!mounted) return;
-    setState(() {
-      _notifications = true;
-      _readReceipts = true;
-      _typing = true;
-      _online = true;
-      _themeMode = ThemeMode.system;
-    });
-    widget.onThemeModeChanged(ThemeMode.system);
   }
 
   Future<void> _confirmSignOut() async {
-    final confirmed = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('تسجيل الخروج'),
-        content: const Text('سيتم إنهاء جلسة الحساب الحالية ثم إنشاء جلسة مؤقتة جديدة.'),
+        content: const Text('سيتم إنهاء الجلسة الحالية وإنشاء جلسة مؤقتة جديدة للمحافظة على استمرارية التطبيق.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('تسجيل الخروج'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('متابعة')),
         ],
       ),
     );
-    if (confirmed == true) widget.onSignOut();
+    if (ok == true) widget.onSignOut();
   }
 
-  void _showInfo(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _snack(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        appBar: _SettingsAppBar(),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final user = _user;
     return Scaffold(
-      appBar: const _SettingsAppBar(),
+      appBar: AppBar(title: const Text('الإعدادات', style: TextStyle(fontWeight: FontWeight.w900))),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 120),
         children: [
+          PremiumHero(
+            icon: AppIcons.settings,
+            title: 'تحكم كامل',
+            subtitle: 'خصص الخصوصية، الإشعارات والمظهر بما يناسبك.',
+            action: const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 14),
           _AccountCard(user: user, onTap: _editProfile),
-          const SizedBox(height: 16),
-          const _SectionTitle('التفضيلات'),
-          _SettingsCard(
+          const SizedBox(height: 18),
+          const _SectionTitle('الإشعارات والخصوصية'),
+          _CardGroup(
             children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.notifications_outlined),
-                title: const Text('الإشعارات'),
-                subtitle: const Text('رسائل ومكالمات وتنبيهات النظام'),
+              _SwitchRow(
+                icon: AppIcons.notifications,
+                title: 'الإشعارات',
+                subtitle: 'الرسائل والمكالمات والتنبيهات',
                 value: _notifications,
-                onChanged: (value) async {
-                  setState(() => _notifications = value);
-                  await _setBool(_notificationsKey, value);
-                },
+                onChanged: (v) => _toggle(_notificationsKey, v),
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.done_all_rounded),
-                title: const Text('إيصالات القراءة'),
-                subtitle: const Text('السماح بإظهار حالة قراءة الرسائل'),
+              _SwitchRow(
+                icon: AppIcons.message,
+                title: 'إيصالات القراءة',
+                subtitle: 'السماح بإظهار حالة القراءة',
                 value: _readReceipts,
-                onChanged: (value) async {
-                  setState(() => _readReceipts = value);
-                  await _setBool(_readReceiptsKey, value);
-                  await _updatePrivacy('readReceipts', value);
+                onChanged: (v) async {
+                  await _toggle(_readReceiptsKey, v);
+                  await _privacy('readReceipts', v);
                 },
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.edit_note_rounded),
-                title: const Text('مؤشر الكتابة'),
-                subtitle: const Text('إظهار أنك تكتب للطرف الآخر'),
+              _SwitchRow(
+                icon: AppIcons.profile,
+                title: 'مؤشر الكتابة',
+                subtitle: 'إظهار أنك تكتب للطرف الآخر',
                 value: _typing,
-                onChanged: (value) async {
-                  setState(() => _typing = value);
-                  await _setBool(_typingKey, value);
-                  await _updatePrivacy('showTyping', value);
+                onChanged: (v) async {
+                  await _toggle(_typingKey, v);
+                  await _privacy('showTyping', v);
                 },
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.circle_outlined),
-                title: const Text('حالة الاتصال'),
-                subtitle: const Text('إظهار متصل الآن وآخر ظهور'),
+              _SwitchRow(
+                icon: AppIcons.contacts,
+                title: 'حالة الاتصال',
+                subtitle: 'متصل الآن وآخر ظهور',
                 value: _online,
-                onChanged: (value) async {
-                  setState(() => _online = value);
-                  await _setBool(_onlineKey, value);
-                  await _updatePrivacy('showOnline', value);
+                onChanged: (v) async {
+                  await _toggle(_onlineKey, v);
+                  await _privacy('showOnline', v);
                 },
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          const _SectionTitle('المظهر والبيانات'),
-          _SettingsCard(
+          const SizedBox(height: 18),
+          const _SectionTitle('المظهر والتطبيق'),
+          _CardGroup(
             children: [
               ListTile(
-                leading: const Icon(Icons.palette_outlined),
-                title: const Text('المظهر'),
-                subtitle: Text(
-                  switch (_themeMode) {
-                    ThemeMode.light => 'فاتح',
-                    ThemeMode.dark => 'داكن',
-                    ThemeMode.system => 'حسب الجهاز',
-                  },
-                ),
+                leading: const PremiumIconTile(icon: AppIcons.settings, size: 42, iconSize: 20),
+                title: const Text('المظهر', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(_themeMode == ThemeMode.light ? 'فاتح' : _themeMode == ThemeMode.dark ? 'داكن' : 'حسب الجهاز'),
                 trailing: const Icon(Icons.chevron_left_rounded),
-                onTap: _showThemePicker,
+                onTap: _themePicker,
               ),
               ListTile(
-                leading: const Icon(Icons.storage_outlined),
-                title: const Text('البيانات والتخزين'),
-                subtitle: const Text('إعادة الإعدادات المحلية دون حذف بيانات السحابة'),
+                leading: const PremiumIconTile(icon: AppIcons.file, size: 42, iconSize: 20),
+                title: const Text('البيانات والتخزين', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('إعدادات محلية بدون حذف المحادثات السحابية'),
                 trailing: const Icon(Icons.chevron_left_rounded),
-                onTap: _clearLocalSettings,
+                onTap: () => _snack('التخزين المحلي متاح تلقائيًا ويُدار حسب حاجة التطبيق.'),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           const _SectionTitle('الحساب'),
-          _SettingsCard(
+          _CardGroup(
             children: [
               ListTile(
-                leading: const Icon(Icons.logout_rounded),
-                title: const Text('تسجيل الخروج'),
+                leading: const PremiumIconTile(icon: AppIcons.profile, size: 42, iconSize: 20),
+                title: Text(user?.displayName ?? 'مستخدم MemoChat', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(user?.isAnonymous == true ? 'حساب مؤقت' : user?.email ?? 'حساب MemoChat'),
+                trailing: const Icon(Icons.edit_outlined),
+                onTap: _editProfile,
+              ),
+              ListTile(
+                leading: const PremiumIconTile(icon: AppIcons.more, size: 42, iconSize: 20),
+                title: const Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: const Text('إنهاء الجلسة الحالية'),
                 onTap: _confirmSignOut,
               ),
@@ -384,77 +304,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _SettingsAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _SettingsAppBar();
-
-  @override
-  Widget build(BuildContext context) =>
-      AppBar(title: const Text('الإعدادات'));
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-}
-
 class _AccountCard extends StatelessWidget {
   const _AccountCard({required this.user, required this.onTap});
-
   final User? user;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Card(
-        child: ListTile(
-          contentPadding:
-              const EdgeInsetsDirectional.fromSTEB(16, 10, 12, 10),
-          leading: CircleAvatar(
-            radius: 28,
-            backgroundImage: user?.photoURL?.isNotEmpty == true
-                ? NetworkImage(user!.photoURL!)
-                : null,
-            child: user?.photoURL?.isNotEmpty == true
-                ? null
-                : const Icon(Icons.person_rounded),
-          ),
-          title: Text(
-            user?.displayName ?? 'مستخدم MemoChat',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          subtitle: Text(
-            user?.isAnonymous == true
-                ? 'حساب مؤقت — اضغط للتعديل'
-                : user?.email ?? 'حساب MemoChat',
-          ),
-          trailing: const Icon(Icons.edit_outlined),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
           onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 31,
+                  backgroundImage: user?.photoURL?.isNotEmpty == true ? NetworkImage(user!.photoURL!) : null,
+                  child: user?.photoURL?.isNotEmpty == true ? null : const Icon(Icons.person_rounded, size: 28),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(user?.displayName ?? 'مستخدم MemoChat', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+                      const SizedBox(height: 4),
+                      Text(user?.isAnonymous == true ? 'حساب مؤقت • اضغط للتعديل' : user?.email ?? 'حساب MemoChat'),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.edit_outlined),
+              ],
+            ),
+          ),
         ),
       );
 }
 
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.title);
-
   final String title;
-
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-        ),
+        child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
       );
 }
 
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.children});
-
+class _CardGroup extends StatelessWidget {
+  const _CardGroup({required this.children});
   final List<Widget> children;
-
   @override
   Widget build(BuildContext context) => Card(
         clipBehavior: Clip.antiAlias,
         child: Column(children: children),
+      );
+}
+
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+  final AppIconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+        secondary: PremiumIconTile(icon: icon, size: 42, iconSize: 20),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        value: value,
+        onChanged: onChanged,
       );
 }
