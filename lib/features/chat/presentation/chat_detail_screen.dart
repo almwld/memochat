@@ -8,6 +8,7 @@ import '../bloc/messages_bloc.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/chat_service.dart';
 import '';
+import 'package:memochat/features/chat/services/reliable_message_service.dart';
 import 'package:memochat/core/services/chat_reply_context.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/message_bubble.dart';
@@ -83,7 +84,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final headerColor = isDark ? const Color(0xFF102B2A) : AppColors.primary;
     final inputSurface = isDark ? const Color(0xFF121A29) : Colors.white;
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+      backgroundColor: isDark ? AppColors.background : AppColors.background,
       appBar: AppBar(
         titleSpacing: 0,
         title: Row(children: [
