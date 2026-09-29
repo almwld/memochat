@@ -72,3 +72,6 @@ flutter_launcher_icons:
   adaptive_icon_background: "#0A8F83"
   adaptive_icon_foreground: assets/icon/icon_app.png
   min_sdk_android: 21
+
+dependency_overrides:
+  geolocator_android: 4.6.1
