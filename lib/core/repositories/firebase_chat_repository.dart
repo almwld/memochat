@@ -28,7 +28,7 @@ class FirebaseChatRepository implements ChatRepository {
       final data = doc.data();
       final name = data['displayName']?.toString() ?? 'مستخدم';
       final username = data['username']?.toString() ?? '';
-      if (normalized.isNotEmpty && !name.toLowerCase().contains(normalized) && !username.toLowerCase().contains(normalized)) return null;
+      if (normalized.isNotEmpty && !name.toLowerCase().contains(normalized) && !username.toLowerCase().contains(normalized) && !data['publicId'].toString().toLowerCase().contains(normalized)) return null;
       return ChatUser(id: doc.id, displayName: name, username: username.isEmpty ? null : username, avatarUrl: data['photoUrl']?.toString() ?? data['photoURL']?.toString(), isOnline: data['isOnline'] == true);
     }).whereType<ChatUser>().toList());
   }
