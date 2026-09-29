@@ -153,7 +153,7 @@ class LiveKitService {
       for (var attempt = 0; attempt < 10; attempt++) {
         final local = result.localParticipant;
         if (local != null) {
-          for (final publication in local.videoTracks) {
+          for (final publication in local.trackPublications.values) {
             final candidate = publication.track;
             if (candidate is LocalVideoTrack &&
                 publication.source == TrackSource.camera) {
@@ -235,7 +235,7 @@ class LiveKitService {
   Future<void> switchCamera() async {
     final participant = _room?.localParticipant;
     if (participant == null) return;
-    for (final publication in participant.videoTracks) {
+    for (final publication in participant.trackPublications.values) {
       final track = publication.track;
       if (track is LocalVideoTrack) {
         _isFrontCamera = !_isFrontCamera;
