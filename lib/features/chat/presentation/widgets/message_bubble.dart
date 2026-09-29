@@ -16,7 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memochat/core/services/chat_media_transfer_service.dart';
 import 'package:memochat/core/constants/app_colors.dart';
-import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubble.dart';
+import 'package:memochat/presentation/screens/chat/widgets/audio_waveform_bubble.dart';
 
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
@@ -388,98 +388,6 @@ class _MessageBubbleState extends State<MessageBubble> {
       }
     }
 
-    Future<void> _chooseMedicalService(String formType) async {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-      final isLab = formType == 'labs';
-      final choice = await showModalBottomSheet<String>(
-        context: context,
-        showDragHandle: true,
-        builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.all(16), child: Text(
-            isLab ? 'كيف تريد تنفيذ الفحوصات؟' : 'كيف تريد صرف الوصفة؟',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-          ListTile(leading: const Icon(Icons.storefront_outlined), title: Text(isLab ? 'اختيار مختبر من منصة صحتك' : 'اختيار صيدلية من منصة صحتك'), onTap: () => Navigator.pop(ctx, 'facility')),
-          ListTile(leading: const Icon(Icons.home_work_outlined), title: Text(isLab ? 'طلب سحب العينة من المنزل' : 'طلب توصيل الدواء إلى المنزل'), onTap: () => Navigator.pop(ctx, 'home')),
-          ListTile(leading: const Icon(Icons.directions_walk_outlined), title: Text(isLab ? 'سأذهب بنفسي إلى المختبر' : 'سأستلم الدواء من الصيدلية'), onTap: () => Navigator.pop(ctx, 'self')),
-        ])),
-      );
-      if (choice == null) return;
-      String? facilityId;
-      String? facilityName;
-      if (choice == 'facility') {
-        final names = <Map<String,String>>[];
-        for (final collection in isLab ? ['labs','laboratories'] : ['pharmacies']) {
-          try {
-            final s = await FirebaseFirestore.instance.collection(collection).limit(30).get();
-            for (final d in s.docs) {
-              final data = d.data();
-              names.add({'id': d.id, 'name': (data['name'] ?? data['title'] ?? 'منشأة صحية').toString()});
-            }
-          } catch (_) {}
-          if (names.isNotEmpty) break;
-        }
-        if (!mounted) return;
-        final selected = await showModalBottomSheet<Map<String,String>>(
-          context: context, showDragHandle: true,
-          builder: (ctx) => SafeArea(child: SizedBox(height: 420, child:
-            names.isEmpty ? const Center(child: Text('لا توجد منشآت متاحة حالياً')) :
-            ListView(children: [for (final n in names)
-              ListTile(leading: Icon(isLab ? Icons.biotech : Icons.local_pharmacy), title: Text(n['name']!), onTap: () => Navigator.pop(ctx, n))]
-          ))),
-        );
-        if (selected == null) return;
-        facilityId = selected['id'];
-        facilityName = selected['name'];
-      }
-      final docs = await FirebaseFirestore.instance.collection('medical_documents')
-          .where('fileName', isEqualTo: name).limit(1).get();
-      final documentId = docs.docs.isNotEmpty ? docs.docs.first.id : '';
-      if (documentId.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر العثور على المستند الطبي.')));
-        return;
-      }
-      await FirebaseFirestore.instance.collection('medical_requests').add({
-        'documentId': documentId,
-        'type': isLab ? 'lab' : 'pharmacy',
-        'patientId': uid,
-        'doctorId': docs.docs.first.data()['doctorId'],
-        'mode': choice,
-        'facilityId': facilityId,
-        'facilityName': facilityName,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isLab ? 'تم إرسال طلب الفحوصات.' : 'تم إرسال الوصفة إلى خدمة الصيدلية.')),
-      );
-    }
-
-
-    Future<void> _sendToAnotherChat(File file) async {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-      final snap = await FirebaseFirestore.instance.collection('chats').where('participants', arrayContains: uid).limit(50).get();
-      if (!mounted) return;
-      final selected = await showModalBottomSheet<String>(
-        context: context, showDragHandle: true,
-        builder: (ctx) => SafeArea(child: SizedBox(height: 420, child: ListView(
-          children: snap.docs.where((d) => d.id != m['chatId']).map((d) {
-            final data = d.data(); final parts = List<String>.from(data['participants'] ?? const []);
-            final other = parts.firstWhere((x) => x != uid, orElse: () => '');
-            final details = data['participantDetails'] is Map ? Map<String,dynamic>.from(data['participantDetails']) : <String,dynamic>{};
-            final otherData = details[other] is Map ? Map<String,dynamic>.from(details[other]) : <String,dynamic>{};
-            return ListTile(leading: const Icon(Icons.chat_bubble_outline), title: Text((otherData['name'] ?? 'محادثة').toString()), onTap: () => Navigator.pop(ctx, d.id));
-          }).toList(),
-        ))),
-      );
-      if (selected == null) return;
-      await ChatMediaTransferService.instance.enqueue(
-        chatId: selected, sourceFile: file, type: 'file', folder: 'documents',
-        preview: '📄 $name', fileName: name, fileSize: m['fileSize']?.toString(), mimeType: mime,
-      );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تجهيز المستند للإرسال إلى الدردشة المحددة.')));
-    }
 
     Future<void> _documentActions() async {
       if (url.isEmpty) return;
@@ -513,7 +421,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           if (mounted) await showDialog<void>(context: context, builder: (_) => _TextDocumentDialog(title: name, content: text));
         }
       } else if (action == 'share' || action == 'download') {
-        await MedicalDocumentServiceCompat.share(file, download: action == 'download');
+        await Share.shareXFiles([XFile(file.path)], text: action == 'download' ? 'نسخة محفوظة من الملف' : 'ملف من المحادثة');
       } else if (action == 'library') {
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
@@ -909,8 +817,3 @@ class _JustAudioMessagePlayerState extends State<JustAudioMessagePlayer> {
   }
 }
 
-class MedicalDocumentServiceCompat {
-  static Future<void> share(File file, {bool download = false}) async {
-    await Share.shareXFiles([XFile(file.path)], text: download ? 'نسخة محفوظة من مستند صحتك' : 'مستند من منصة صحتك');
-  }
-}
