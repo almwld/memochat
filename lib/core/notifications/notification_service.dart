@@ -19,8 +19,13 @@ class NotificationService {
   }) async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
-    await _plugin.initialize(settings: settings, onDidReceiveNotificationResponse: onTap);
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: onTap,
+    );
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(_channel);
     await androidPlugin?.requestNotificationsPermission();
   }
@@ -41,6 +46,12 @@ class NotificationService {
         playSound: true,
       ),
     );
-    return _plugin.show(id: id, title: title, body: body, notificationDetails: details, payload: payload);
+    return _plugin.show(
+      id,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
   }
 }
