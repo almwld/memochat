@@ -161,7 +161,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     _scrollController.addListener(_onChatScroll);
     _listen();
     _loadPendingMedia();
-    _startPendingRefresh();
+    
     unawaited(NotificationService().cancelChatNotifications(widget.chatId));
     _markRead();
   }
