@@ -67,13 +67,6 @@ class _MemoChatAppState extends State<MemoChatApp> {
 
     if (!_firebaseReady || !mounted) return;
 
-    // User sync is secondary and can never delay the first frame or login UI.
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) unawaited(_syncUser(user));
-    } catch (error) {
-      debugPrint('startup user sync failed: $error');
-    }
   }
 
   Future<void> _syncUser(User user) async {
