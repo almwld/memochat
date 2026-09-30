@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/firebase_bootstrap.dart';
@@ -24,6 +25,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool _register = false;
   bool _busy = false;
+  bool _googleBusy = false;
   String? _error;
 
   @override
@@ -65,6 +67,100 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _error = 'تعذر تهيئة خدمة الحساب$detail. تحقق من إعدادات Firebase والإنترنت ثم حاول مرة أخرى.');
     }
     return false;
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_busy || _googleBusy) {
+      return;
+    }
+
+    setState(() {
+      _googleBusy = true;
+      _error = null;
+    });
+
+    try {
+      if (!await _ensureFirebase()) {
+        return;
+      }
+
+      final googleSignIn = GoogleSignIn(
+        scopes: const <String>['email'],
+      );
+      final googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'google-id-token-missing',
+          message: 'لم يتم استلام رمز Google.',
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      final result = await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = result.user;
+
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'google-user-missing',
+          message: 'تعذر إنشاء جلسة Google.',
+        );
+      }
+
+      final displayName = user.displayName?.trim().isNotEmpty == true
+          ? user.displayName!.trim()
+          : 'مستخدم MemoChat';
+
+      try {
+        await _writeUserDocument(
+          user,
+          displayName: displayName,
+          publicId: _publicId(user.uid),
+          includeCreatedAt: result.additionalUserInfo?.isNewUser == true,
+        );
+      } catch (_) {}
+    } on GoogleSignInException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        return;
+      }
+      setState(() {
+        _error = 'تعذر تسجيل الدخول بحساب Google. حاول مرة أخرى.';
+      });
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = switch (e.code) {
+          'account-exists-with-different-credential' =>
+            'هذا البريد مرتبط بطريقة تسجيل دخول أخرى. سجّل الدخول بها أولاً.',
+          'network-request-failed' =>
+            'تحقق من اتصال الإنترنت ثم حاول مرة أخرى.',
+          'operation-not-allowed' =>
+            'تسجيل الدخول عبر Google غير مفعّل لهذا المشروع.',
+          'google-id-token-missing' =>
+            'لم يتم استلام رمز Google. تحقق من إعدادات OAuth ثم حاول مرة أخرى.',
+          _ => e.message ?? 'تعذر تسجيل الدخول بحساب Google.',
+        };
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'تعذر تسجيل الدخول بحساب Google. حاول مرة أخرى.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _googleBusy = false);
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -467,6 +563,46 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                 ),
+              SizedBox(
+                height: 54,
+                child: OutlinedButton.icon(
+                  onPressed: (_busy || _googleBusy) ? null : _signInWithGoogle,
+                  icon: _googleBusy
+                      ? const SizedBox(
+                          width: 21,
+                          height: 21,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const _GoogleMark(),
+                  label: const Text(
+                    'المتابعة باستخدام Google',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: scheme.outline.withOpacity(.35)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: scheme.outline.withOpacity(.25))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'أو بالبريد الإلكتروني',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurface.withOpacity(.48),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: scheme.outline.withOpacity(.25))),
+                ],
+              ),
+              const SizedBox(height: 12),
               const SizedBox(height: 4),
               FilledButton(
                 onPressed: _busy ? null : _submit,
@@ -498,6 +634,27 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GoogleMark extends StatelessWidget {
+  const _GoogleMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 24,
+      height: 24,
+      child: Center(
+        child: Text(
+          'G',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
           ),
         ),
       ),
