@@ -24,6 +24,7 @@ class ShakeService {
   DateTime? _lastShake;
   bool _running = false;
   bool _publishing = false;
+  bool _matchDeliveredForCurrentShake = false;
 
   String get _uid => _auth.currentUser?.uid ?? '';
   CollectionReference<Map<String, dynamic>> get _presenceCollection =>
@@ -41,7 +42,7 @@ class ShakeService {
     _presence = _presenceCollection.where('active', isEqualTo: true).limit(25).snapshots().listen((snapshot) async {
       try {
         for (final doc in snapshot.docs) {
-          if (doc.id == _uid || _lastShake == null) continue;
+          if (doc.id == _uid || _lastShake == null || _matchDeliveredForCurrentShake) continue;
           final data = doc.data();
           final expiresAt = data['expiresAt'];
           if (expiresAt is! Timestamp || expiresAt.toDate().isBefore(DateTime.now())) continue;
@@ -49,6 +50,7 @@ class ShakeService {
           if (shakenAt is! Timestamp || DateTime.now().difference(shakenAt.toDate()).abs() > const Duration(seconds: 4)) continue;
           if (DateTime.now().difference(_lastShake!).abs() > const Duration(seconds: 4)) continue;
           await _createMatch(doc.id);
+          _matchDeliveredForCurrentShake = true;
           onMatch(ShakeMatch(id: _matchId(_uid, doc.id), otherUserId: doc.id));
           break;
         }
@@ -63,6 +65,7 @@ class ShakeService {
       final now = DateTime.now();
       if (_lastShake != null && now.difference(_lastShake!) < const Duration(seconds: 3)) return;
       _lastShake = now;
+      _matchDeliveredForCurrentShake = false;
       onShake();
       try {
         if (await Vibration.hasVibrator()) await Vibration.vibrate(duration: 80);
