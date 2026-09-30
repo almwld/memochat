@@ -128,18 +128,17 @@ jobs:
       # ═══════════════════════════════════════════════════
       # Restore the known-good Android project baseline from cc2218c
       # ═══════════════════════════════════════════════════
-      - name: Restore stable Android project configuration
-        run: |
-          flutter create --platforms=android --project-name memochat --org com.memo .
+      - name: Generate Android platform files
+        run: flutter create --platforms=android --project-name memochat --org com.memo .
 
+      - name: Configure Android build
+        run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           path = Path('android/app/build.gradle')
           text = path.read_text()
           text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
           text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
-          text = re.sub(r'(?m)^\\s*compileSdk(?:Version)?\\s*(?:=\\s*)?.*
           lines = text.splitlines()
           output = []
           inserted_min = False
@@ -178,13 +177,11 @@ jobs:
               text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
           path.write_text(text)
           PY
-
           mkdir -p android/app/src/main/kotlin/com/memo/app
           if [ -f android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt ]; then
             sed 's/^package com\.memo\.memochat$/package com.memo.app/' android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
             rm -rf android/app/src/main/kotlin/com/memo/memochat
           fi
-
           grep -nE 'namespace|applicationId' android/app/build.gradle
           grep -R -n '^package ' android/app/src/main/kotlin || true
           grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
