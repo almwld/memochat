@@ -139,15 +139,10 @@ jobs:
           }
           EOF
 
-      - name: Create secrets.dart
+      - name: Create runtime config
         env:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
           LIVEKIT_TOKEN_SERVER_URL: ${{ secrets.LIVEKIT_TOKEN_SERVER_URL }}
-          NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
-          NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
-          NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
           FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
         run: |
           mkdir -p lib/core/config
@@ -155,12 +150,7 @@ jobs:
           class Secrets {
             Secrets._();
             static const String livekitUrl = '$LIVEKIT_URL';
-            static const String livekitApiKey = '$LIVEKIT_API_KEY';
-            static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
             static const String livekitTokenServerUrl = '$LIVEKIT_TOKEN_SERVER_URL';
-            static const String nextcloudUrl = '$NEXTCLOUD_URL';
-            static const String nextcloudUser = '$NEXTCLOUD_USER';
-            static const String nextcloudPassword = '$NEXTCLOUD_PASSWORD';
             static const String firebaseProjectId = 'memo-f97b5';
             static const String firebaseStorageBucket = 'memo-f97b5.firebasestorage.app';
             static const String firebaseApiKey = '$FIREBASE_ANDROID_API_KEY';
@@ -213,10 +203,14 @@ jobs:
       - name: Build Split APKs (per ABI)
         run: flutter build apk --release --split-per-abi --no-pub
 
+      - name: Build App Bundle (production)
+        run: flutter build appbundle --release --no-pub
+
       - name: Show artifact sizes
         run: |
           echo "Artifact sizes:"
           ls -lh build/app/outputs/flutter-apk/
+          ls -lh build/app/outputs/bundle/release/app-release.aab
 
       - name: Appetize cloud test
         id: appetize
@@ -255,6 +249,13 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Upload production App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
@@ -292,5 +293,6 @@ jobs:
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk
+            build/app/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
