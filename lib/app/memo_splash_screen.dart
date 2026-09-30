@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class MemoSplashScreen extends StatefulWidget {
   const MemoSplashScreen({super.key});
@@ -77,9 +76,10 @@ class _MemoSplashScreenState extends State<MemoSplashScreen>
                           ),
                         ],
                       ),
-                      child: SvgPicture.asset(
-                        'assets/icon/icon_app.svg',
-                        fit: BoxFit.contain,
+                      child: const Icon(
+                        Icons.forum_rounded,
+                        color: Colors.white,
+                        size: 54,
                       ),
                     ),
                     const SizedBox(height: 24),
