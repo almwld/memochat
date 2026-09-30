@@ -147,6 +147,27 @@ async function main() {
     await assertFails(deleteDoc(doc(mallory, 'notifications/n-1')));
 
     console.log('Firestore security rules: all tests passed.');
+    await assertFails(
+      setDoc(doc(alice, 'reports/report-1'), {
+        reporterId: 'mallory',
+        targetUserId: 'bob',
+        reason: 'spam',
+        createdAt: new Date(),
+      }),
+    );
+
+    await assertSucceeds(
+      setDoc(doc(alice, 'reports/report-2'), {
+        reporterId: 'alice',
+        targetUserId: 'bob',
+        reason: 'spam',
+        createdAt: new Date(),
+      }),
+    );
+
+    await assertFails(
+      getDoc(doc(bob, 'reports/report-2')),
+    );
   } finally {
     await testEnv.cleanup();
   }
