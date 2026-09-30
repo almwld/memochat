@@ -63,6 +63,19 @@ jobs:
           cache: true
 
       # ═══════════════════════════════════════════════════
+      # 2️⃣ Restore missing Flutter Android scaffolding
+      # ═══════════════════════════════════════════════════
+      - name: Restore Android project scaffolding
+        run: |
+          # The repository keeps the customized Android source tree, while
+          # Flutter regenerates any missing Gradle/platform scaffolding.
+          flutter create --platforms=android --no-pub .
+          test -f android/app/build.gradle
+          test -f android/settings.gradle
+          test -f android/build.gradle
+          echo "✅ Android Gradle scaffolding restored"
+
+      # ═══════════════════════════════════════════════════
       # 2️⃣ Inject secrets (from env above)
       # ═══════════════════════════════════════════════════
       - name: Inject google-services.json
