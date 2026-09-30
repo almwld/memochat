@@ -58,6 +58,19 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
+        labelStyle: TextStyle(
+          color: dark ? Colors.white70 : const Color(0xFF455A64),
+          fontWeight: FontWeight.w600,
+        ),
+        floatingLabelStyle: TextStyle(
+          color: dark ? Colors.white : AppColors.primary,
+          fontWeight: FontWeight.w700,
+        ),
+        hintStyle: TextStyle(
+          color: dark ? Colors.white54 : const Color(0xFF607D8B),
+        ),
+        prefixIconColor: dark ? Colors.white70 : const Color(0xFF607D8B),
+        suffixIconColor: dark ? Colors.white70 : const Color(0xFF607D8B),
         fillColor: dark ? const Color(0xFF162039) : AppColors.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
