@@ -59,7 +59,10 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     if (mounted) {
-      setState(() => _error = 'تعذر الاتصال بخدمة الحساب. تحقق من الإنترنت وحاول مرة أخرى.');
+      final firebaseError = FirebaseBootstrap.lastFirebaseError;
+      final code = firebaseError?.code;
+      final detail = code == null || code.isEmpty ? '' : ' (Firebase: $code)';
+      setState(() => _error = 'تعذر تهيئة خدمة الحساب$detail. تحقق من إعدادات Firebase والإنترنت ثم حاول مرة أخرى.');
     }
     return false;
   }
