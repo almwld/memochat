@@ -7,45 +7,6 @@ class CommunitiesScreen extends StatelessWidget {
   final CommunityService? service;
   CommunityService get _service => service ?? CommunityService();
 
-  Future<void> _createChannel(BuildContext context) async {
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('إنشاء قناة'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameController, maxLength: 80, decoration: const InputDecoration(labelText: 'اسم القناة')),
-            TextField(controller: descriptionController, maxLength: 300, decoration: const InputDecoration(labelText: 'الوصف')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('إنشاء')),
-        ],
-      ),
-    );
-    if (result == true) {
-      try {
-        await service.createChannel(
-          communityId: communityId,
-          name: nameController.text,
-          description: descriptionController.text,
-        );
-      } catch (_) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تعذر إنشاء القناة.')),
-          );
-        }
-      }
-    }
-    nameController.dispose();
-    descriptionController.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -78,7 +39,7 @@ class CommunitiesScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.groups_rounded)),
                   title: Text(data['name']?.toString() ?? 'مجتمع', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(description.isNotEmpty ? description : members.toString() + ' أعضاء', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(description.isNotEmpty ? description : '$members أعضاء', maxLines: 2, overflow: TextOverflow.ellipsis),
                   trailing: const Icon(Icons.chevron_left_rounded),
                   onTap: () => _openCommunity(context, docs[index].id, data['name']?.toString() ?? 'مجتمع'),
                 ),
@@ -138,6 +99,41 @@ class CommunityDetailScreen extends StatelessWidget {
   final String communityId;
   final String name;
   final CommunityService service;
+
+  Future<void> _createChannel(BuildContext context) async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إنشاء قناة'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameController, maxLength: 80, decoration: const InputDecoration(labelText: 'اسم القناة')),
+            TextField(controller: descriptionController, maxLength: 300, decoration: const InputDecoration(labelText: 'الوصف')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('إنشاء')),
+        ],
+      ),
+    );
+    if (result == true) {
+      try {
+        await service.createChannel(
+          communityId: communityId,
+          name: nameController.text,
+          description: descriptionController.text,
+        );
+      } catch (_) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء القناة.')));
+      }
+    }
+    nameController.dispose();
+    descriptionController.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +214,10 @@ class _ChannelScreenState extends State<ChannelScreen> {
   final _controller = TextEditingController();
 
   @override
-  void dispose() { _controller.dispose(); super.dispose(); }
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
