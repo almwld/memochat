@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/services/firebase_bootstrap.dart';
 
@@ -125,11 +126,11 @@ class _AuthScreenState extends State<AuthScreen> {
           includeCreatedAt: result.additionalUserInfo?.isNewUser == true,
         );
       } catch (_) {}
-    } on GoogleSignInException catch (e) {
+    } on PlatformException catch (e) {
       if (!mounted) {
         return;
       }
-      if (e.code == GoogleSignInExceptionCode.canceled) {
+      if (e.code == 'sign_in_canceled' || e.code == 'canceled') {
         return;
       }
       setState(() {
