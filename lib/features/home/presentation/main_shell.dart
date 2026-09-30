@@ -20,7 +20,7 @@ class MainShell extends StatefulWidget {
   final VoidCallback onSignOut;
 
   @override
-  State<MainShell> createState() => _MainShellState;
+  State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
