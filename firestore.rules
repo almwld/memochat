@@ -8,13 +8,27 @@ service cloud.firestore {
 
     function isChatParticipant(chatId) {
       return signedIn() &&
-        request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        request.auth.uid in
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
     }
 
     function isCallParty() {
       return signedIn() &&
-        (resource.data.callerId == request.auth.uid ||
-         resource.data.receiverId == request.auth.uid);
+        (
+          resource.data.callerId == request.auth.uid ||
+          resource.data.receiverId == request.auth.uid ||
+          request.auth.uid in resource.data.participants
+        );
+    }
+
+    function callIdentityUnchanged() {
+      return request.resource.data.callerId == resource.data.callerId &&
+        request.resource.data.receiverId == resource.data.receiverId &&
+        request.resource.data.participants == resource.data.participants &&
+        request.resource.data.chatId == resource.data.chatId &&
+        request.resource.data.callType == resource.data.callType &&
+        request.resource.data.liveKitRoomName == resource.data.liveKitRoomName &&
+        request.resource.data.roomName == resource.data.roomName;
     }
 
     match /chats/{chatId} {
@@ -23,8 +37,7 @@ service cloud.firestore {
       allow create: if signedIn() &&
         request.resource.data.participants is list &&
         request.resource.data.participants.size() >= 2 &&
-        request.auth.uid in request.resource.data.participants &&
-        request.resource.data.participants.hasAll([request.auth.uid]);
+        request.auth.uid in request.resource.data.participants;
 
       allow update: if isChatParticipant(chatId) &&
         request.resource.data.participants == resource.data.participants &&
@@ -54,15 +67,38 @@ service cloud.firestore {
           request.resource.data.chatId == chatId;
 
         allow update: if isChatParticipant(chatId) &&
+          request.resource.data.senderId == resource.data.senderId &&
+          request.resource.data.chatId == resource.data.chatId &&
           (
             (
               resource.data.senderId == request.auth.uid &&
-              request.resource.data.senderId == resource.data.senderId
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'text',
+                'type',
+                'isEdited',
+                'editedAt',
+                'isDeleted',
+                'deletedAt',
+                'isPinned',
+                'pinnedAt',
+                'pinnedBy',
+                'reactions',
+                'deletedFor',
+                'isDelivered',
+                'status',
+                'deliveredAt',
+                'isRead',
+                'readAt'
+              ])
             ) ||
             (
               resource.data.senderId != request.auth.uid &&
-              request.resource.data.senderId == resource.data.senderId &&
               request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'isPinned',
+                'pinnedAt',
+                'pinnedBy',
+                'reactions',
+                'deletedFor',
                 'isDelivered',
                 'status',
                 'deliveredAt',
@@ -77,26 +113,68 @@ service cloud.firestore {
     }
 
     match /callLocks/{lockId} {
-      allow read, create, update: if signedIn() &&
+      allow read: if signedIn() &&
+        request.auth.uid in resource.data.participants;
+
+      allow create: if signedIn() &&
+        request.resource.data.participants is list &&
+        request.resource.data.participants.size() == 2 &&
         request.auth.uid in request.resource.data.participants;
+
+      allow update: if signedIn() &&
+        request.auth.uid in resource.data.participants &&
+        request.resource.data.participants == resource.data.participants &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'activeCallId',
+          'status',
+          'updatedAt'
+        ]);
+
       allow delete: if signedIn() &&
         request.auth.uid in resource.data.participants;
     }
 
     match /notifications/{notificationId} {
-      allow read, update: if signedIn() &&
+      allow read: if signedIn() &&
         resource.data.userId == request.auth.uid;
+
+      allow update: if signedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isRead',
+          'readAt'
+        ]);
+
       allow create: if false;
+
       allow delete: if signedIn() &&
         resource.data.userId == request.auth.uid;
     }
 
     match /calls/{callId} {
       allow create: if signedIn() &&
-        request.resource.data.callerId == request.auth.uid;
+        request.resource.data.callerId == request.auth.uid &&
+        request.resource.data.receiverId is string &&
+        request.resource.data.participants is list &&
+        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.receiverId in request.resource.data.participants;
+
       allow read: if isCallParty();
-      allow update: if isCallParty() ||
-        (signedIn() && request.resource.data.receiverId == request.auth.uid);
+
+      allow update: if isCallParty() &&
+        callIdentityUnchanged() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'isAnswered',
+          'connectedAt',
+          'endedAt',
+          'durationSeconds',
+          'endedReason',
+          'busyReason',
+          'metadata'
+        ]);
+
       allow delete: if false;
     }
 
