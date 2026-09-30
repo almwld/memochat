@@ -41,10 +41,13 @@ class ShakeService {
     _presence = _presenceCollection.where('active', isEqualTo: true).limit(25).snapshots().listen((snapshot) async {
       try {
         for (final doc in snapshot.docs) {
-          if (doc.id == _uid) continue;
+          if (doc.id == _uid || _lastShake == null) continue;
           final data = doc.data();
           final expiresAt = data['expiresAt'];
           if (expiresAt is! Timestamp || expiresAt.toDate().isBefore(DateTime.now())) continue;
+          final shakenAt = data['shakenAt'];
+          if (shakenAt is! Timestamp || DateTime.now().difference(shakenAt.toDate()).abs() > const Duration(seconds: 4)) continue;
+          if (DateTime.now().difference(_lastShake!).abs() > const Duration(seconds: 4)) continue;
           await _createMatch(doc.id);
           onMatch(ShakeMatch(id: _matchId(_uid, doc.id), otherUserId: doc.id));
           break;
@@ -77,6 +80,7 @@ class ShakeService {
         'uid': _uid,
         'active': true,
         'updatedAt': FieldValue.serverTimestamp(),
+        'shakenAt': Timestamp.fromDate(now),
         'expiresAt': Timestamp.fromDate(now.add(const Duration(seconds: 8))),
       }, SetOptions(merge: true));
       _expiryTimer?.cancel();
