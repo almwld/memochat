@@ -6,6 +6,7 @@ import '../../chat/presentation/chat_screen.dart';
 import '../../chat/presentation/calls_screen.dart';
 import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../shake/presentation/shake_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -34,6 +35,7 @@ class _MainShellState extends State<MainShell> {
         onNewChat: () => setState(() => _index = 1),
       ),
       ContactsScreen(repository: widget.repository),
+      DiscoverScreen(repository: widget.repository),
       const CallsScreen(),
       SettingsScreen(
         onThemeModeChanged: widget.onThemeModeChanged,
@@ -72,6 +74,15 @@ class _MainShellState extends State<MainShell> {
                 label: 'تواصل',
               ),
               NavigationDestination(
+                icon: AppIcon(AppIcons.search, size: 22),
+                selectedIcon: PremiumIconTile(
+                  icon: AppIcons.search,
+                  size: 42,
+                  iconSize: 21,
+                ),
+                label: 'اكتشف',
+              ),
+              NavigationDestination(
                 icon: AppIcon(AppIcons.phoneCall, size: 22),
                 selectedIcon: PremiumIconTile(
                   icon: AppIcons.phoneCall,
@@ -92,6 +103,69 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class DiscoverScreen extends StatelessWidget {
+  const DiscoverScreen({required this.repository, super.key});
+
+  final ChatRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('اكتشف', style: TextStyle(fontWeight: FontWeight.w900)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+        children: [
+          PremiumHero(
+            icon: AppIcons.search,
+            title: 'اكتشف أشخاصاً وطرقاً جديدة للتواصل',
+            subtitle: 'ابحث عن الأشخاص، ابدأ محادثة، أو استخدم الرجّ للتعارف القريب.',
+            action: const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.contacts, size: 48, iconSize: 23),
+              title: const Text('العثور على أشخاص', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('ابحث بالاسم أو المعرّف العام وابدأ محادثة.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ContactsScreen(repository: repository)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.chat, size: 48, iconSize: 23),
+              title: const Text('رجّ للتعارف', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('رجّ هاتفك للعثور على شخص آخر يهز هاتفه في الوقت نفسه.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ShakeScreen(repository: repository)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.phoneCall, size: 48, iconSize: 23),
+              title: const Text('المكالمات', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('الوصول السريع إلى سجل المكالمات.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CallsScreen()),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
