@@ -19,6 +19,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _agreeTerms = false;
 
   bool _register = false;
   bool _busy = false;
@@ -29,6 +31,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -65,6 +68,10 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_register && !_agreeTerms) {
+      setState(() => _error = 'يجب الموافقة على الشروط والأحكام لإكمال إنشاء الحساب.');
+      return;
+    }
 
     setState(() {
       _busy = true;
@@ -88,6 +95,9 @@ class _AuthScreenState extends State<AuthScreen> {
         final user = credentials.user!;
         final name = _nameController.text.trim();
         final publicId = _publicId(user.uid);
+
+        // Keep the account signed in while email verification is completed.
+        await user.sendEmailVerification();
 
         try {
           await user.updateDisplayName(name);
@@ -401,13 +411,33 @@ class _AuthScreenState extends State<AuthScreen> {
                   prefixIcon: Icon(Icons.lock_outline_rounded),
                 ),
                 validator: (value) {
-                  if (value == null || value.length < 6) {
-                    return '6 أحرف على الأقل.';
+                  if (value == null || value.length < 8) {
+                    return '8 أحرف على الأقل.';
                   }
                   return null;
                 },
               ),
-              if (!_register)
+              if (_register) ...[
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'تأكيد كلمة المرور',
+                    prefixIcon: Icon(Icons.lock_reset_rounded),
+                  ),
+                  validator: (value) => value != _passwordController.text
+                      ? 'كلمتا المرور غير متطابقتين.'
+                      : null,
+                ),
+                CheckboxListTile(
+                  value: _agreeTerms,
+                  onChanged: _busy ? null : (v) => setState(() => _agreeTerms = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('أوافق على الشروط والأحكام'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ] else
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: TextButton(
