@@ -105,66 +105,42 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme=Theme.of(context);
-    final scheme=theme.colorScheme;
-    final dark=theme.brightness==Brightness.dark;
-    return Directionality(
-      textDirection:TextDirection.rtl,
-      child:Scaffold(
-        backgroundColor:dark?const Color(0xFF071A18):const Color(0xFFF5FAF9),
-        body:SafeArea(
-          child:Stack(children:[
-            Positioned(top:-150,right:-110,child:_AuthOrb(size:330,color:scheme.primary)),
-            Positioned(bottom:-180,left:-120,child:_AuthOrb(size:380,color:scheme.secondary)),
-            Center(child:SingleChildScrollView(
-              padding:const EdgeInsets.fromLTRB(22,28,22,28),
-              child:ConstrainedBox(
-                constraints:const BoxConstraints(maxWidth:460),
-                child:Column(children:[
-                  Container(width:86,height:86,padding:const EdgeInsets.all(15),
-                    decoration:BoxDecoration(color:scheme.primary,borderRadius:BorderRadius.circular(26),
-                      boxShadow:[BoxShadow(color:scheme.primary.withOpacity(.24),blurRadius:28,offset:const Offset(0,12))]),
-                    child:Image.asset('assets/icon/icon_app.png',fit:BoxFit.contain,
-                      errorBuilder:(_,__,___)=>const Icon(Icons.forum_rounded,color:Colors.white,size:46))),
-                  const SizedBox(height:16),
-                  Text('MemoChat',textAlign:TextAlign.center,style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.w900,letterSpacing:-.6)),
-                  const SizedBox(height:5),
-                  Text('تواصل. شارك. ابقَ قريباً.',textAlign:TextAlign.center,style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurface.withOpacity(.56))),
-                  const SizedBox(height:28),
-                  Card(
-                    elevation:0,margin:EdgeInsets.zero,
-                    color:dark?const Color(0xFF10201E).withOpacity(.94):Colors.white.withOpacity(.96),
-                    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(28),side:BorderSide(color:scheme.primary.withOpacity(.10))),
-                    child:Padding(padding:const EdgeInsets.fromLTRB(20,24,20,18),
-                      child:Form(key:_formKey,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-                        Text(_register?'إنشاء حساب جديد':'مرحباً بعودتك',style:theme.textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w900)),
-                        const SizedBox(height:6),
-                        Text(_register?'أنشئ هويتك في MemoChat وابدأ التواصل.':'سجّل الدخول للوصول إلى محادثاتك.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurface.withOpacity(.62),height:1.45)),
-                        const SizedBox(height:22),
-                        if(_register)...[
-                          TextFormField(controller:_name,textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'الاسم',prefixIcon:Icon(Icons.person_outline_rounded)),validator:(v)=>v==null||v.trim().length<2?'أدخل اسمك.':null),
-                          const SizedBox(height:14),
-                        ],
-                        TextFormField(controller:_email,keyboardType:TextInputType.emailAddress,textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'البريد الإلكتروني',prefixIcon:Icon(Icons.email_outlined)),validator:(v)=>v==null||!v.contains('@')?'أدخل بريداً صحيحاً.':null),
-                        const SizedBox(height:14),
-                        TextFormField(controller:_password,obscureText:true,onFieldSubmitted:(_)=>_submit(),decoration:const InputDecoration(labelText:'كلمة المرور',prefixIcon:Icon(Icons.lock_outline_rounded)),validator:(v)=>v==null||v.length<6?'6 أحرف على الأقل.':null),
-                        if(!_register)Align(alignment:AlignmentDirectional.centerStart,child:TextButton(onPressed:_busy?null:_reset,child:const Text('نسيت كلمة المرور؟'))),
-                        if(_error!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:Container(padding:const EdgeInsets.all(11),decoration:BoxDecoration(color:scheme.error.withOpacity(.08),borderRadius:BorderRadius.circular(13)),child:Text(_error!,textAlign:TextAlign.center,style:TextStyle(color:scheme.error,fontWeight:FontWeight.w600)))),
-                        const SizedBox(height:4),
-                        FilledButton(onPressed:_busy?null:_submit,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(54),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16))),child:_busy?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2.2,color:Colors.white)):Text(_register?'إنشاء الحساب':'تسجيل الدخول',style:const TextStyle(fontWeight:FontWeight.w800))),
-                        const SizedBox(height:5),
-                        TextButton(onPressed:_busy?null:()=>setState(()=>_register=!_register),child:Text(_register?'لدي حساب بالفعل':'إنشاء حساب جديد')),
-                      ])),
-                    ),
-                  ),
-                  const SizedBox(height:18),
-                  Text('معرّفك العام يُنشأ تلقائياً بعد التسجيل ويمكن استخدامه للعثور عليك.',textAlign:TextAlign.center,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurface.withOpacity(.48),height:1.45)),
-                ]),
-              ),
-            )),
+    final theme=Theme.of(context), scheme=theme.colorScheme, dark=theme.brightness==Brightness.dark;
+    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
+      backgroundColor:dark?const Color(0xFF071A18):const Color(0xFFF5FAF9),
+      body:SafeArea(child:Stack(children:[
+        Positioned(top:-150,right:-110,child:_AuthOrb(size:330,color:scheme.primary)),
+        Positioned(bottom:-180,left:-120,child:_AuthOrb(size:380,color:scheme.secondary)),
+        Center(child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(22,28,22,28),child:ConstrainedBox(
+          constraints:const BoxConstraints(maxWidth:460),
+          child:Column(children:[
+            Container(width:86,height:86,padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:scheme.primary,borderRadius:BorderRadius.circular(26),boxShadow:[BoxShadow(color:scheme.primary.withOpacity(.24),blurRadius:28,offset:const Offset(0,12))]),child:Image.asset('assets/icon/icon_app.png',fit:BoxFit.contain,errorBuilder:(_,__,___)=>const Icon(Icons.forum_rounded,color:Colors.white,size:46))),
+            const SizedBox(height:16),
+            Text('MemoChat',textAlign:TextAlign.center,style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.w900,letterSpacing:-.6)),
+            const SizedBox(height:5),
+            Text('تواصل. شارك. ابقَ قريباً.',textAlign:TextAlign.center,style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurface.withOpacity(.56))),
+            const SizedBox(height:28),
+            Card(elevation:0,margin:EdgeInsets.zero,color:dark?const Color(0xFF10201E).withOpacity(.94):Colors.white.withOpacity(.96),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(28),side:BorderSide(color:scheme.primary.withOpacity(.10))),child:Padding(padding:const EdgeInsets.fromLTRB(20,24,20,18),child:Form(key:_formKey,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+              Text(_register?'إنشاء حساب جديد':'مرحباً بعودتك',style:theme.textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w900)),
+              const SizedBox(height:6),
+              Text(_register?'أنشئ هويتك في MemoChat وابدأ التواصل.':'سجّل الدخول للوصول إلى محادثاتك.',style:theme.textTheme.bodyMedium?.copyWith(color:scheme.onSurface.withOpacity(.62),height:1.45)),
+              const SizedBox(height:22),
+              if(_register)...[TextFormField(controller:_name,textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'الاسم',prefixIcon:Icon(Icons.person_outline_rounded)),validator:(v)=>v==null||v.trim().length<2?'أدخل اسمك.':null),const SizedBox(height:14)],
+              TextFormField(controller:_email,keyboardType:TextInputType.emailAddress,textInputAction:TextInputAction.next,decoration:const InputDecoration(labelText:'البريد الإلكتروني',prefixIcon:Icon(Icons.email_outlined)),validator:(v)=>v==null||!v.contains('@')?'أدخل بريداً صحيحاً.':null),
+              const SizedBox(height:14),
+              TextFormField(controller:_password,obscureText:true,onFieldSubmitted:(_)=>_submit(),decoration:const InputDecoration(labelText:'كلمة المرور',prefixIcon:Icon(Icons.lock_outline_rounded)),validator:(v)=>v==null||v.length<6?'6 أحرف على الأقل.':null),
+              if(!_register)Align(alignment:AlignmentDirectional.centerStart,child:TextButton(onPressed:_busy?null:_reset,child:const Text('نسيت كلمة المرور؟'))),
+              if(_error!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:Container(padding:const EdgeInsets.all(11),decoration:BoxDecoration(color:scheme.error.withOpacity(.08),borderRadius:BorderRadius.circular(13)),child:Text(_error!,textAlign:TextAlign.center,style:TextStyle(color:scheme.error,fontWeight:FontWeight.w600)))),
+              const SizedBox(height:4),
+              FilledButton(onPressed:_busy?null:_submit,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(54),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16))),child:_busy?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2.2,color:Colors.white)):Text(_register?'إنشاء الحساب':'تسجيل الدخول',style:const TextStyle(fontWeight:FontWeight.w800))),
+              const SizedBox(height:5),
+              TextButton(onPressed:_busy?null:()=>setState(()=>_register=!_register),child:Text(_register?'لدي حساب بالفعل':'إنشاء حساب جديد')),
+            ])))),
+            const SizedBox(height:18),
+            Text('معرّفك العام يُنشأ تلقائياً بعد التسجيل ويمكن استخدامه للعثور عليك.',textAlign:TextAlign.center,style:theme.textTheme.bodySmall?.copyWith(color:scheme.onSurface.withOpacity(.48),height:1.45)),
           ]),
-        ),
-      ),
+        ))),
+      ])),
     );
   }
 }
