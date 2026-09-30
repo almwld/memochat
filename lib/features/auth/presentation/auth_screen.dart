@@ -303,14 +303,10 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ],
           ),
-          child: Image.asset(
-            'assets/icon/icon_app.png',
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.forum_rounded,
-              color: Colors.white,
-              size: 46,
-            ),
+          child: const Icon(
+            Icons.forum_rounded,
+            color: Colors.white,
+            size: 46,
           ),
         ),
         const SizedBox(height: 16),
