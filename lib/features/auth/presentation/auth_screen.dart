@@ -56,7 +56,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override Widget build(BuildContext context){
     final t=Theme.of(context);
-    return Scaffold(body:SafeArea(child:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(28),
+    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(body:SafeArea(child:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(28),
       child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:440),child:Form(key:_formKey,child:Column(
         crossAxisAlignment:CrossAxisAlignment.stretch,children:[
           Icon(Icons.forum_rounded,size:64,color:t.colorScheme.primary),const SizedBox(height:20),
@@ -72,6 +72,6 @@ class _AuthScreenState extends State<AuthScreen> {
           const SizedBox(height:12),
           FilledButton(onPressed:_busy?null:_submit,child:Padding(padding:const EdgeInsets.symmetric(vertical:14),child:_busy?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2)):Text(_register?'إنشاء الحساب':'تسجيل الدخول'))),
           TextButton(onPressed:_busy?null:()=>setState(()=>_register=!_register),child:Text(_register?'لدي حساب بالفعل':'إنشاء حساب جديد'))
-        ])))))));
+        ]))))))));
   }
 }
