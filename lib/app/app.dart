@@ -25,6 +25,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _showSplash = true;
   bool _initializationStarted = false;
+  String? _lastSyncedUid;
 
   ChatRepository get _repository => FirebaseChatRepository();
 
@@ -146,13 +147,17 @@ class _MemoChatAppState extends State<MemoChatApp> {
               : StreamBuilder<User?>(
                   stream: FirebaseAuth.instance.authStateChanges(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const AuthScreen();
+                    if (snapshot.connectionState == ConnectionState.waiting ||
+                        !snapshot.hasData) {
+                      return const _AuthLoadingScreen();
                     }
                     final user = snapshot.data;
                     if (user == null) return const AuthScreen();
-                    // Email verification is not a navigation gate in MemoChat.
-                    unawaited(_syncUser(user));
+                    // authStateChanges is the sole navigation authority.
+                    if (_lastSyncedUid != user.uid) {
+                      _lastSyncedUid = user.uid;
+                      unawaited(_syncUser(user));
+                    }
                     return HomeScreen(
                       repository: _repository,
                       onThemeModeChanged: _setThemeMode,
@@ -160,6 +165,32 @@ class _MemoChatAppState extends State<MemoChatApp> {
                     );
                   },
                 ),
+    );
+  }
+}
+
+class _AuthLoadingScreen extends StatelessWidget {
+  const _AuthLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.forum_rounded, size: 54, color: scheme.primary),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2.5, color: scheme.primary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
