@@ -122,8 +122,9 @@ Future<void> handleCallNotificationAction({
   if (status != 'calling' && status != 'ringing') return;
   if (action == 'call_answer') {
     await ref.update(<String, dynamic>{
-      'status': 'accepted',
+      'status': 'connected',
       'isAnswered': true,
+      'connectedAt': FieldValue.serverTimestamp(),
     });
   } else {
     await ref.update(<String, dynamic>{
