@@ -146,6 +146,52 @@ async function main() {
 
     await assertFails(deleteDoc(doc(mallory, 'notifications/n-1')));
 
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'communities/community-1'), {
+        ownerId: 'alice',
+        name: 'Developers',
+        description: 'Dev community',
+        visibility: 'public',
+        membersCount: 1,
+      });
+      await setDoc(doc(db, 'communities/community-1/members/alice'), {
+        userId: 'alice',
+        role: 'owner',
+      });
+      await setDoc(doc(db, 'communities/community-1/channels/general'), {
+        communityId: 'community-1',
+        ownerId: 'alice',
+        name: 'General',
+      });
+    });
+
+    await assertSucceeds(
+      getDoc(doc(alice, 'communities/community-1')),
+    );
+    await assertSucceeds(
+      setDoc(doc(bob, 'communities/community-1/members/bob'), {
+        userId: 'bob',
+        role: 'member',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(mallory, 'communities/community-1/channels/bad'), {
+        communityId: 'community-1',
+        ownerId: 'mallory',
+        name: 'Bad',
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(bob, 'communities/community-1/channels/general/posts/post-1'), {
+        authorId: 'bob',
+        text: 'hello community',
+      }),
+    );
+    await assertFails(
+      getDoc(doc(mallory, 'communities/community-1/channels/general/posts/post-1')),
+    );
+
     console.log('Firestore security rules: all tests passed.');
     await assertFails(
       setDoc(doc(alice, 'reports/report-1'), {
