@@ -19,7 +19,7 @@ class PushNotificationService {
   final FirebaseMessaging _messaging;
   final NotificationService _localNotifications;
   final NotificationInbox _inbox = NotificationInbox();
-  final RingtoneService _ringtone = ringtone ?? RingtoneService();
+  final RingtoneService _ringtone;
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
