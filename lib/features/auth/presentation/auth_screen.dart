@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import '../../../core/services/firebase_bootstrap.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  const AuthScreen({super.key, this.onFirebaseReady});
+
+  final VoidCallback? onFirebaseReady;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -34,14 +36,29 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<bool> _ensureFirebase() async {
     if (Firebase.apps.isNotEmpty) {
+      widget.onFirebaseReady?.call();
       return true;
     }
 
-    final ready = await FirebaseBootstrap.initialize();
-    if (!ready && mounted) {
-      setState(() => _error = 'الخدمة غير جاهزة بعد. حاول مرة أخرى.');
+    for (var attempt = 0; attempt < 4; attempt++) {
+      final ready = await FirebaseBootstrap.initialize().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => false,
+      );
+      if (ready || Firebase.apps.isNotEmpty) {
+        if (mounted) setState(() => _error = null);
+        widget.onFirebaseReady?.call();
+        return true;
+      }
+      if (attempt < 3) {
+        await Future<void>.delayed(Duration(milliseconds: 300 * (attempt + 1)));
+      }
     }
-    return ready;
+
+    if (mounted) {
+      setState(() => _error = 'تعذر الاتصال بخدمة الحساب. تحقق من الإنترنت وحاول مرة أخرى.');
+    }
+    return false;
   }
 
   Future<void> _submit() async {
@@ -72,24 +89,31 @@ class _AuthScreenState extends State<AuthScreen> {
         final name = _nameController.text.trim();
         final publicId = _publicId(user.uid);
 
-        await user.updateDisplayName(name);
-        await _writeUserDocument(
-          user,
-          displayName: name,
-          publicId: publicId,
-          includeCreatedAt: true,
-        );
+        try {
+          await user.updateDisplayName(name);
+        } catch (_) {}
+
+        try {
+          await _writeUserDocument(
+            user,
+            displayName: name,
+            publicId: publicId,
+            includeCreatedAt: true,
+          );
+        } catch (_) {}
       } else {
         final credentials = await auth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
         final user = credentials.user!;
-        await _writeUserDocument(
-          user,
-          displayName: user.displayName ?? 'مستخدم MemoChat',
-          publicId: _publicId(user.uid),
-        );
+        try {
+          await _writeUserDocument(
+            user,
+            displayName: user.displayName ?? 'مستخدم MemoChat',
+            publicId: _publicId(user.uid),
+          );
+        } catch (_) {}
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
