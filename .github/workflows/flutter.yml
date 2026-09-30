@@ -111,28 +111,31 @@ jobs:
           p = Path('android/app/build.gradle')
           s = p.read_text()
           if 'signingConfigs {' not in s:
-              s = s.replace('android {', '''android {
-    def signingPropertiesFile = rootProject.file("key.properties")
-    def signingProperties = new Properties()
-    if (signingPropertiesFile.exists()) {
-        signingProperties.load(new FileInputStream(signingPropertiesFile))
-    }
-
-    signingConfigs {
-        release {
-            if (signingPropertiesFile.exists()) {
-                storeFile rootProject.file(signingProperties['storeFile'])
-                storePassword signingProperties['storePassword']
-                keyAlias signingProperties['keyAlias']
-                keyPassword signingProperties['keyPassword']
-            }
-        }
-    }''', 1)
+              signing_block = [
+                  '    def signingPropertiesFile = rootProject.file("key.properties")',
+                  '    def signingProperties = new Properties()',
+                  '    if (signingPropertiesFile.exists()) {',
+                  '        signingProperties.load(new FileInputStream(signingPropertiesFile))',
+                  '    }',
+                  '',
+                  '    signingConfigs {',
+                  '        release {',
+                  '            if (signingPropertiesFile.exists()) {',
+                  '                storeFile rootProject.file(signingProperties["storeFile"])',
+                  '                storePassword signingProperties["storePassword"]',
+                  '                keyAlias signingProperties["keyAlias"]',
+                  '                keyPassword signingProperties["keyPassword"]',
+                  '            }',
+                  '        }',
+                  '    }',
+              ]
+              s = s.replace('android {', 'android {\\n' + '\\n'.join(signing_block), 1)
           if 'signingConfig signingConfigs.release' not in s:
-              s = s.replace('buildTypes {', '''buildTypes {
-        release {
-            signingConfig signingConfigs.release
-        }''', 1)
+              s = s.replace(
+                  'buildTypes {',
+                  'buildTypes {\\n        release {\\n            signingConfig signingConfigs.release\\n        }',
+                  1,
+              )
           p.write_text(s)
           PY
           test -f android/app/memochat-release.jks
