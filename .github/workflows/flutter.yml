@@ -129,11 +129,11 @@ jobs:
                   '        }',
                   '    }',
               ]
-              s = s.replace('android {', 'android {\\n' + '\\n'.join(signing_block), 1)
+              s = s.replace('android {', 'android {\n' + '\n'.join(signing_block), 1)
           if 'signingConfig signingConfigs.release' not in s:
               s = s.replace(
                   'buildTypes {',
-                  'buildTypes {\\n        release {\\n            signingConfig signingConfigs.release\\n        }',
+                  'buildTypes {\n        release {\n            signingConfig signingConfigs.release\n        }',
                   1,
               )
           p.write_text(s)
