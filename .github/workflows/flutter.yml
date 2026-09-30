@@ -15,26 +15,92 @@ env:
   FLUTTER_VERSION: '3.24.5'
   JAVA_VERSION: '17'
 
-  # Runtime configuration is supplied only through GitHub Actions Secrets.
-  # Never place credentials, private keys, or service passwords in this workflow.
-  LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-  LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-  LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-  NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
-  NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
-  NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
-  FIREBASE_PROJECT_NUMBER: ${{ secrets.FIREBASE_PROJECT_NUMBER }}
-  FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-  FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
-  FIREBASE_MOBILE_SDK_APP_ID: ${{ secrets.FIREBASE_MOBILE_SDK_APP_ID }}
-  FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-  FIREBASE_ANDROID_PACKAGE: ${{ secrets.FIREBASE_ANDROID_PACKAGE }}
-  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-  KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+  # ═══════════════════════════════════════════════════════════
+  # 🔐 المفاتيح المضمّنة (للاختبار فقط)
+  # ═══════════════════════════════════════════════════════════
+  LIVEKIT_URL: 'wss://memo-2jv45qyl.livekit.cloud'
+  LIVEKIT_API_KEY: 'APInN2Q2vdtnxTg'
+  LIVEKIT_API_SECRET: 'l6qio9Q5ZKGI38d1IqyX9V04llq4CDIayb8CNdF7RXF'
 
-  GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+  NEXTCLOUD_URL: 'https://noa.it.tabdigital.cloud'
+  NEXTCLOUD_USER: 'Binobaeid@gmail.com'
+  NEXTCLOUD_PASSWORD: '10.10.10.1010.10.10.10'
+
+  FIREBASE_PROJECT_NUMBER: '448753275014'
+  FIREBASE_PROJECT_ID: 'memo-f97b5'
+  FIREBASE_STORAGE_BUCKET: 'memo-f97b5.firebasestorage.app'
+  FIREBASE_MOBILE_SDK_APP_ID: '1:448753275014:android:e4dedb02a3b10cce9f0107'
+  FIREBASE_API_KEY: 'AIzaSyCSamhS5nlR4yqHQBunfk61b9GwkZHntbQ'
+  FIREBASE_ANDROID_PACKAGE: 'com.memo.app'
+
+  KEYSTORE_PASSWORD: 'Kk12345678'
+  KEY_PASSWORD: 'Kk12345678'
+  KEY_ALIAS: 'memochat'
+
+  # ═══════════════════════════════════════════════════════════
+  # 📦 Keystore Base64 (كامل)
+  # ═══════════════════════════════════════════════════════════
+  KEYSTORE_BASE64: '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'
+
+  # ═══════════════════════════════════════════════════════════
+  # 📦 google-services.json (كامل)
+  # ═══════════════════════════════════════════════════════════
+  GOOGLE_SERVICES_JSON: |
+    {
+      "project_info": {
+        "project_number": "448753275014",
+        "project_id": "memo-f97b5",
+        "storage_bucket": "memo-f97b5.firebasestorage.app"
+      },
+      "client": [
+        {
+          "client_info": {
+            "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
+            "android_client_info": {
+              "package_name": "com.memo.app"
+            }
+          },
+          "oauth_client": [
+            {
+              "client_id": "448753275014-03c2ge0c3fhhrl0vupfps7262vs92pj6.apps.googleusercontent.com",
+              "client_type": 1,
+              "android_info": {
+                "package_name": "com.memo.app",
+                "certificate_hash": "5b251d8b069b6763e8fa6566456d038eeb804b53"
+              }
+            },
+            {
+              "client_id": "448753275014-df58mhe0nlt20v6q2ici83f8qt5vme5q.apps.googleusercontent.com",
+              "client_type": 1,
+              "android_info": {
+                "package_name": "com.memo.app",
+                "certificate_hash": "6110569ed024c3da2a05eef4ac764ad36f898371"
+              }
+            },
+            {
+              "client_id": "448753275014-7hmiihl18tpi968v5b7gkejfl43c613r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ],
+          "api_key": [
+            {
+              "current_key": "AIzaSyCSamhS5nlR4yqHQBunfk61b9GwkZHntbQ"
+            }
+          ],
+          "services": {
+            "appinvite_service": {
+              "other_platform_oauth_client": [
+                {
+                  "client_id": "448753275014-7hmiihl18tpi968v5b7gkejfl43c613r.apps.googleusercontent.com",
+                  "client_type": 3
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "configuration_version": "1"
+    }
 
 jobs:
   analyze-test-build:
@@ -43,14 +109,11 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # ═══════════════════════════════════════════════════
-      # 1️⃣ Setup
-      # ═══════════════════════════════════════════════════
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -63,12 +126,10 @@ jobs:
           cache: true
 
       # ═══════════════════════════════════════════════════
-      # 2️⃣ Restore missing Flutter Android scaffolding
+      # Restore missing Android scaffolding
       # ═══════════════════════════════════════════════════
       - name: Restore Android project scaffolding
         run: |
-          # The repository keeps the customized Android source tree, while
-          # Flutter regenerates any missing Gradle/platform scaffolding.
           flutter create --platforms=android --no-pub .
           test -f android/app/build.gradle
           test -f android/settings.gradle
@@ -76,60 +137,7 @@ jobs:
           echo "✅ Android Gradle scaffolding restored"
 
       # ═══════════════════════════════════════════════════
-      # 2️⃣ Restore exact build #548 test configuration
-      # ═══════════════════════════════════════════════════
-      - name: Restore build 548 test configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin 1b7d95ed373711ddc171623a6dcd8de8f3a375cb --depth=1
-          git show 1b7d95ed373711ddc171623a6dcd8de8f3a375cb:.github/workflows/flutter.yml > /tmp/flutter-548.yml
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          text = Path("/tmp/flutter-548.yml").read_text()
-          env = text.split("\nenv:\n", 1)[1].split("\n\njobs:", 1)[0]
-          lines = env.splitlines()
-          values = {}
-          current = None
-          block = None
-
-          for line in lines:
-              if not line or line.startswith("  #"):
-                  continue
-              m = re.match(r"  ([A-Z0-9_]+):(?:[ ]?(.*))?$", line)
-              if m:
-                  current = m.group(1)
-                  value = m.group(2) or ""
-                  if value == "|":
-                      block = []
-                      values[current] = block
-                  else:
-                      values[current] = value.strip().strip("'").strip('"')
-                      block = None
-                  continue
-              if current and block is not None:
-                  block.append(line[4:] if line.startswith("    ") else line)
-
-          out = []
-          for key, value in values.items():
-              if isinstance(value, list):
-                  value = "\n".join(value)
-                  delimiter = "MEMOCHAT_548_END"
-                  out.append(f"{key}<<{delimiter}\n{value}\n{delimiter}")
-              else:
-                  out.append(f"{key}={value}")
-
-          Path("/tmp/memochat-548.env").write_text("\n".join(out) + "\n")
-          PY
-
-          cat /tmp/memochat-548.env >> "$GITHUB_ENV"
-          echo "✅ Exact build #548 configuration restored for this CI run"
-
-      # ═══════════════════════════════════════════════════
-      # 2️⃣ Inject secrets (from env above)
+      # Inject secrets (from env above — NOT from GitHub Secrets)
       # ═══════════════════════════════════════════════════
       - name: Inject google-services.json
         run: |
@@ -142,14 +150,12 @@ jobs:
         run: |
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/memochat-release.jks
           test -s android/app/memochat-release.jks
-
           cat > android/key.properties <<EOF
           storePassword=$KEYSTORE_PASSWORD
           keyPassword=$KEY_PASSWORD
           keyAlias=$KEY_ALIAS
           storeFile=app/memochat-release.jks
           EOF
-
           echo "✅ keystore + key.properties injected"
           ls -lh android/app/memochat-release.jks
 
@@ -159,15 +165,12 @@ jobs:
           cat > lib/core/config/secrets.dart <<EOF
           class Secrets {
             Secrets._();
-
             static const String livekitUrl = '$LIVEKIT_URL';
             static const String livekitApiKey = '$LIVEKIT_API_KEY';
             static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
-
             static const String nextcloudUrl = '$NEXTCLOUD_URL';
             static const String nextcloudUser = '$NEXTCLOUD_USER';
             static const String nextcloudPassword = '$NEXTCLOUD_PASSWORD';
-
             static const String firebaseProjectId = '$FIREBASE_PROJECT_ID';
             static const String firebaseStorageBucket = '$FIREBASE_STORAGE_BUCKET';
             static const String firebaseApiKey = '$FIREBASE_API_KEY';
@@ -176,7 +179,6 @@ jobs:
           }
           EOF
           echo "✅ secrets.dart injected"
-          wc -l lib/core/config/secrets.dart
 
       - name: Verify Android project
         run: |
@@ -188,7 +190,7 @@ jobs:
           echo "✅ All injected files verified"
 
       # ═══════════════════════════════════════════════════
-      # 3️⃣ Analysis & Tests
+      # Analysis & Tests
       # ═══════════════════════════════════════════════════
       - name: Install dependencies
         run: flutter pub get
@@ -208,7 +210,7 @@ jobs:
           retention-days: 7
 
       # ═══════════════════════════════════════════════════
-      # 4️⃣ Build
+      # Build
       # ═══════════════════════════════════════════════════
       - name: Build Universal APK
         run: flutter build apk --release --no-pub
@@ -235,7 +237,7 @@ jobs:
           echo "═══════════════════════════════════"
 
       # ═══════════════════════════════════════════════════
-      # 5️⃣ Upload
+      # Upload
       # ═══════════════════════════════════════════════════
       - name: Upload AAB
         uses: actions/upload-artifact@v4
@@ -268,7 +270,7 @@ jobs:
           path: build/app/outputs/flutter-apk/app-x86_64-release.apk
 
       # ═══════════════════════════════════════════════════
-      # 6️⃣ Release on tags
+      # Release on tags
       # ═══════════════════════════════════════════════════
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
