@@ -38,11 +38,15 @@ class _MemoChatAppState extends State<MemoChatApp> {
   @override
   void initState() {
     super.initState();
-    _startInitialization();
 
-    // Splash lifetime is visual only. It never waits for Firebase or services.
-    Timer(const Duration(milliseconds: 1100), () {
-      if (mounted) setState(() => _showSplash = false);
+    // Never perform plugin/platform-channel work before Flutter paints its
+    // first frame. A cold Android launch must always reach the Flutter UI.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startInitialization();
+      Timer(const Duration(milliseconds: 1100), () {
+        if (mounted) setState(() => _showSplash = false);
+      });
     });
   }
 
