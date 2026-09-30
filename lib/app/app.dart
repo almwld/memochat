@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../core/repositories/chat_repository.dart';
 import '../core/repositories/firebase_chat_repository.dart';
 import '../core/theme/app_theme.dart';
 import '../core/services/firebase_bootstrap.dart';
+import '../core/notifications/push_notification_service.dart';
+import '../features/chat/services/notification_service.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/auth/presentation/email_verification_screen.dart';
@@ -26,6 +29,10 @@ class _MemoChatAppState extends State<MemoChatApp> {
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _showSplash = true;
   bool _initializationStarted = false;
+  bool _notificationsStarted = false;
+  final PushNotificationService _pushNotifications = PushNotificationService(
+    localNotifications: NotificationService(),
+  );
 
   ChatRepository get _repository => FirebaseChatRepository();
 
@@ -66,6 +73,16 @@ class _MemoChatAppState extends State<MemoChatApp> {
     }
 
     if (!_firebaseReady || !mounted) return;
+
+    if (!_notificationsStarted) {
+      _notificationsStarted = true;
+      try {
+        await _pushNotifications.initialize();
+      } catch (error) {
+        _notificationsStarted = false;
+        debugPrint('notification initialization failed: $error');
+      }
+    }
 
     // User sync is secondary and can never delay the first frame or login UI.
     try {
