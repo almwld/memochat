@@ -135,6 +135,22 @@ jobs:
           test -f android/settings.gradle
           test -f android/build.gradle
 
+          # Current Firebase/Flutter plugins require Android API 23+ at runtime.
+          # Keep the generated Android project aligned with the resolved dependency floor.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          if "minSdkVersion" in s:
+              s = re.sub(r"minSdkVersion\s+\d+", "minSdkVersion 23", s, count=1)
+          elif "minSdk =" in s:
+              s = re.sub(r"minSdk\s*=\s*\d+", "minSdk = 23", s, count=1)
+          else:
+              raise SystemExit("android/app/build.gradle has no minSdk declaration")
+          p.write_text(s)
+          PY
+
           # Current plugins require compileSdk 35. Keep this as a build-time
           # compatibility adjustment so the customized repository source stays intact.
           python3 - <<'PY'
