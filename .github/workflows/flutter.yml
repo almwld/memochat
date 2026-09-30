@@ -178,10 +178,29 @@ jobs:
           from pathlib import Path
           p = Path('android/app/google-services.json')
           data = json.loads(p.read_text())
-          client = data.get('client', [])
-          if not client or client[0].get('client_info', {}).get('android_client_info', {}).get('package_name') != 'com.memo.app':
-              raise SystemExit('google-services.json package mismatch')
+          clients = data.get('client', [])
+          app = next(
+              (
+                  c for c in clients
+                  if c.get('client_info', {}).get('android_client_info', {}).get('package_name') == 'com.memo.app'
+              ),
+              None,
+          )
+          if app is None:
+              raise SystemExit('google-services.json package mismatch: com.memo.app')
+          oauth_clients = app.get('oauth_client', [])
+          android_clients = [
+              c for c in oauth_clients
+              if c.get('client_type') == 1
+              and c.get('android_info', {}).get('package_name') == 'com.memo.app'
+          ]
+          web_clients = [c for c in oauth_clients if c.get('client_type') == 3]
+          if not android_clients:
+              raise SystemExit('google-services.json is missing the Android OAuth client for com.memo.app')
+          if not web_clients:
+              raise SystemExit('google-services.json is missing the Web OAuth client (client_type: 3)')
           print('Firebase package verified: com.memo.app')
+          print('OAuth clients verified: Android + Web')
           PY
 
       - name: Install dependencies
