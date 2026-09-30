@@ -102,7 +102,7 @@ jobs:
           storePassword=$KEYSTORE_PASSWORD
           keyPassword=$KEY_PASSWORD
           keyAlias=memochat
-          storeFile=memochat-release.jks
+          storeFile=app/memochat-release.jks
           EOF
           python3 - <<'PY'
           from pathlib import Path
