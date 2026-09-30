@@ -6,7 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import '../../app/app.dart';
-import '../../features/calls/presentation/call_screen.dart';
+import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
 import 'notification_inbox.dart';
 import 'notification_models.dart';
@@ -67,13 +67,14 @@ class PushNotificationService {
     if (uid == null || navigator == null) return;
     final snap = await FirebaseFirestore.instance.collection('calls').doc(callId).get();
     final data = snap.data();
-    if (!snap.exists || data == null || data['receiverId'] != uid || data['status'] == 'ended') return;
+    if (!snap.exists || data == null || data['receiverId'] != uid) return;
+    final status = data['status']?.toString();
+    if (status != 'calling' && status != 'ringing') return;
     await _ringtone.stopIncomingCallRingtone();
-    navigator.push(MaterialPageRoute(builder: (_) => CallScreen(
-      chatId: data['chatId']?.toString() ?? '', otherUserId: data['callerId']?.toString() ?? '',
-      otherUserName: data['callerName']?.toString() ?? 'مستخدم', otherUserImage: data['callerPhotoUrl']?.toString(),
-      isVideo: data['isVideo'] == true, incomingCallId: callId,
-    )));
+    // Notification taps enter the same call state machine used by the
+    // foreground incoming-call UI. This prevents a second CallScreen
+    // implementation from creating a different call lifecycle.
+    await CallService().answerIncomingCallById(navigator.context, callId);
   }
 }
 
