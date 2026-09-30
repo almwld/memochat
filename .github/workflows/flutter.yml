@@ -126,93 +126,113 @@ jobs:
           cache: true
 
       # ═══════════════════════════════════════════════════
-      # Restore missing Android scaffolding
+      # Restore the known-good Android project baseline from cc2218c
       # ═══════════════════════════════════════════════════
       - name: Restore stable Android project configuration
         run: |
-          flutter create --platforms=android --no-pub .
-          test -f android/app/build.gradle
-          test -f android/settings.gradle
-          test -f android/build.gradle
+          flutter create --platforms=android --project-name memochat --org com.memo .
 
           python3 - <<'PY'
           from pathlib import Path
-          import re
-          path = Path("android/app/build.gradle")
-          s = path.read_text()
-
-          # Restore the known-good production application identity and Android SDK floor.
-          s = re.sub(r'namespace\\s*(?:=)?\\s*"[^"]+"', 'namespace = "com.memo.app"', s, count=1)
-
-          lines = s.splitlines()
-          out = []
-          found_compile = found_min = found_target = found_app = found_desugar = False
-
+          path = Path('android/app/build.gradle')
+          text = path.read_text()
+          text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
+          text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
+          lines = text.splitlines()
+          output = []
+          inserted_min = False
+          inserted_desugar = False
           for line in lines:
-              t = line.strip()
-              if t.startswith("compileSdkVersion") or t.startswith("compileSdk"):
-                  out.append("    compileSdk 35")
-                  found_compile = True
-              elif t.startswith("minSdkVersion") or t.startswith("minSdk"):
-                  out.append("        minSdk 23")
-                  found_min = True
-              elif t.startswith("targetSdkVersion") or t.startswith("targetSdk"):
-                  out.append("        targetSdk 35")
-                  found_target = True
-              elif t.startswith("applicationId"):
-                  out.append('        applicationId "com.memo.app"')
-                  found_app = True
-              elif t == "compileOptions {":
-                  out.append(line)
-                  out.append("        coreLibraryDesugaringEnabled true")
-                  found_desugar = True
-              else:
-                  out.append(line)
-
-          for idx, line in enumerate(out):
-              if line.strip() == "defaultConfig {":
-                  insert = idx + 1
-                  if not found_min:
-                      out.insert(insert, "        minSdk 23")
-                      insert += 1
-                      found_min = True
-                  if not found_target:
-                      out.insert(insert, "        targetSdk 35")
-                      insert += 1
-                      found_target = True
-                  if not found_app:
-                      out.insert(insert, '        applicationId "com.memo.app"')
-                      found_app = True
-                  break
-
-          if not found_compile:
-              for idx, line in enumerate(out):
-                  if line.strip() == "android {":
-                      out.insert(idx + 1, "    compileSdk 35")
-                      found_compile = True
+              stripped = line.strip()
+              if stripped.startswith('compileSdk'):
+                  output.append('    compileSdk 35')
+                  continue
+              if stripped.startswith('minSdk'):
+                  output.append('        minSdk 23')
+                  inserted_min = True
+                  continue
+              if stripped.startswith('applicationId'):
+                  output.append('        applicationId "com.memo.app"')
+                  continue
+              if stripped == 'compileOptions {':
+                  output.append(line)
+                  output.append('        coreLibraryDesugaringEnabled true')
+                  inserted_desugar = True
+                  continue
+              output.append(line)
+          if not inserted_min:
+              for i, line in enumerate(output):
+                  if line.strip() == 'defaultConfig {':
+                      output.insert(i + 1, '        minSdk 23')
+                      inserted_min = True
                       break
-
-          if not found_desugar:
-              raise SystemExit("compileOptions block missing")
-          if not all((found_compile, found_min, found_target, found_app)):
-              raise SystemExit("Android baseline restoration failed")
-
-          s = "\\n".join(out) + "\\n"
-          dep = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
-          if "com.android.tools:desugar_jdk_libs:2.1.4" not in s:
-              s = s.rstrip() + "\\n\\ndependencies {\\n" + dep + "\\n}\\n"
-          path.write_text(s)
+          if not inserted_desugar:
+              raise SystemExit('Could not locate compileOptions block')
+          if not inserted_min:
+              raise SystemExit('Could not configure minSdk')
+          text = '\n'.join(output) + '\n'
+          dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
+          if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
+              text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
+          path.write_text(text)
           PY
 
           mkdir -p android/app/src/main/kotlin/com/memo/app
           if [ -f android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt ]; then
-            sed 's/^package com\\.memo\\.memochat$/package com.memo.app/' android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
+            sed 's/^package com\.memo\.memochat$/package com.memo.app/' android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
             rm -rf android/app/src/main/kotlin/com/memo/memochat
           fi
 
-          grep -nE "namespace|compileSdk|minSdk|targetSdk|applicationId|coreLibraryDesugaring" android/app/build.gradle
-          grep -R -n "^package " android/app/src/main/kotlin || true
-          echo "Stable Android configuration restored."
+          grep -nE 'namespace|applicationId' android/app/build.gradle
+          grep -R -n '^package ' android/app/src/main/kotlin || true
+          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
+
+      - name: Prepare Android SDK 35
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "/usr/local/lib/android/sdk/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then echo "Android sdkmanager not found"; exit 1; fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Configure stable release signing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/build.gradle')
+          s = p.read_text()
+          if 'signingConfigs {' not in s:
+              signing_block = [
+                  '    def signingPropertiesFile = rootProject.file("key.properties")',
+                  '    def signingProperties = new Properties()',
+                  '    if (signingPropertiesFile.exists()) {',
+                  '        signingProperties.load(new FileInputStream(signingPropertiesFile))',
+                  '    }',
+                  '',
+                  '    signingConfigs {',
+                  '        release {',
+                  '            if (signingPropertiesFile.exists()) {',
+                  '                storeFile rootProject.file(signingProperties["storeFile"])',
+                  '                storePassword signingProperties["storePassword"]',
+                  '                keyAlias signingProperties["keyAlias"]',
+                  '                keyPassword signingProperties["keyPassword"]',
+                  '            }',
+                  '        }',
+                  '    }',
+              ]
+              s = s.replace('android {', 'android {\n' + '\n'.join(signing_block), 1)
+          if 'signingConfig signingConfigs.release' not in s:
+              s = s.replace(
+                  'buildTypes {',
+                  'buildTypes {\n        release {\n            signingConfig signingConfigs.release\n        }',
+                  1,
+              )
+          p.write_text(s)
+          PY
+          grep -nE 'signingConfigs|signingConfig|storeFile|keyAlias' android/app/build.gradle
+
       # Inject secrets (from env above — NOT from GitHub Secrets)
       # ═══════════════════════════════════════════════════
       - name: Inject google-services.json
