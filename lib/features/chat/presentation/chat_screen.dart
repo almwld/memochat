@@ -124,6 +124,13 @@ class _ChatScreenState extends State<ChatScreen> {
             );
           },
         ),
+        floatingActionButton: widget.onNewChat == null
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: widget.onNewChat,
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('محادثة جديدة'),
+              ),
       );
 
   List<Conversation> _filtered(List<Conversation> source) {
