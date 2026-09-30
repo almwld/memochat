@@ -7,6 +7,45 @@ class CommunitiesScreen extends StatelessWidget {
   final CommunityService? service;
   CommunityService get _service => service ?? CommunityService();
 
+  Future<void> _createChannel(BuildContext context) async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إنشاء قناة'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameController, maxLength: 80, decoration: const InputDecoration(labelText: 'اسم القناة')),
+            TextField(controller: descriptionController, maxLength: 300, decoration: const InputDecoration(labelText: 'الوصف')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('إنشاء')),
+        ],
+      ),
+    );
+    if (result == true) {
+      try {
+        await service.createChannel(
+          communityId: communityId,
+          name: nameController.text,
+          description: descriptionController.text,
+        );
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تعذر إنشاء القناة.')),
+          );
+        }
+      }
+    }
+    nameController.dispose();
+    descriptionController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,7 +142,16 @@ class CommunityDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(name)),
+      appBar: AppBar(
+        title: Text(name),
+        actions: [
+          IconButton(
+            tooltip: 'إنشاء قناة',
+            onPressed: () => _createChannel(context),
+            icon: const Icon(Icons.add_comment_rounded),
+          ),
+        ],
+      ),
       body: StreamBuilder(
         stream: service.watchChannels(communityId),
         builder: (context, snapshot) {
