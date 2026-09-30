@@ -87,6 +87,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
       final googleSignIn = GoogleSignIn(
         scopes: const <String>['email'],
+        serverClientId:
+            '448753275014-7hmiihl18tpi968v5b7gkejfl43c613r.apps.googleusercontent.com',
       );
       final googleUser = await googleSignIn.signIn();
 
@@ -133,8 +135,12 @@ class _AuthScreenState extends State<AuthScreen> {
       if (e.code == 'sign_in_canceled' || e.code == 'canceled') {
         return;
       }
+      debugPrint(
+        'Google Sign-In PlatformException: code=' + e.code +
+        ', message=' + (e.message ?? '') + ', details=' + e.details.toString(),
+      );
       setState(() {
-        _error = 'تعذر تسجيل الدخول بحساب Google. حاول مرة أخرى.';
+        _error = 'تعذر تسجيل الدخول بحساب Google [' + e.code + ']. حاول مرة أخرى.';
       });
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
@@ -196,9 +202,8 @@ class _AuthScreenState extends State<AuthScreen> {
         final name = _nameController.text.trim();
         final publicId = _publicId(user.uid);
 
-        // Keep the account signed in while email verification is completed.
-        await user.sendEmailVerification();
-
+        // Email verification is intentionally not part of the sign-up gate.
+        // The Firebase Auth session remains the source of truth for access.
         try {
           await user.updateDisplayName(name);
         } catch (_) {}
@@ -472,6 +477,8 @@ class _AuthScreenState extends State<AuthScreen> {
               if (_register) ...[
                 TextFormField(
                   controller: _nameController,
+                  style: TextStyle(color: dark ? Colors.white : const Color(0xFF172026)),
+                  cursorColor: scheme.primary,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
                     labelText: 'الاسم',
@@ -488,6 +495,8 @@ class _AuthScreenState extends State<AuthScreen> {
               ],
               TextFormField(
                 controller: _emailController,
+                style: TextStyle(color: dark ? Colors.white : const Color(0xFF172026)),
+                cursorColor: scheme.primary,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
@@ -504,6 +513,8 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 14),
               TextFormField(
                 controller: _passwordController,
+                style: TextStyle(color: dark ? Colors.white : const Color(0xFF172026)),
+                cursorColor: scheme.primary,
                 obscureText: true,
                 onFieldSubmitted: (_) => _submit(),
                 decoration: const InputDecoration(
@@ -521,6 +532,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _confirmPasswordController,
+                  style: TextStyle(color: dark ? Colors.white : const Color(0xFF172026)),
+                  cursorColor: scheme.primary,
                   obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'تأكيد كلمة المرور',
