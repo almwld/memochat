@@ -88,6 +88,55 @@ jobs:
           grep -R -n '^package ' android/app/src/main/kotlin || true
           grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
 
+      - name: Configure Release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "KEYSTORE_BASE64 secret is missing"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "KEYSTORE_PASSWORD secret is missing"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "KEY_PASSWORD secret is missing"; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/memochat-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=memochat
+          storeFile=memochat-release.jks
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/build.gradle')
+          s = p.read_text()
+          if 'signingConfigs {' not in s:
+              s = s.replace('android {', '''android {
+    def signingPropertiesFile = rootProject.file("key.properties")
+    def signingProperties = new Properties()
+    if (signingPropertiesFile.exists()) {
+        signingProperties.load(new FileInputStream(signingPropertiesFile))
+    }
+
+    signingConfigs {
+        release {
+            if (signingPropertiesFile.exists()) {
+                storeFile rootProject.file(signingProperties['storeFile'])
+                storePassword signingProperties['storePassword']
+                keyAlias signingProperties['keyAlias']
+                keyPassword signingProperties['keyPassword']
+            }
+        }
+    }''', 1)
+          if 'signingConfig signingConfigs.release' not in s:
+              s = s.replace('buildTypes {', '''buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }''', 1)
+          p.write_text(s)
+          PY
+          test -f android/app/memochat-release.jks
+          test -f android/key.properties
+          grep -nE 'signingConfigs|signingConfig|storeFile|keyAlias' android/app/build.gradle
+
       - name: Prepare Android SDK 35
         run: |
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
@@ -114,30 +163,21 @@ jobs:
 
       - name: Create google-services.json
         env:
-          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          test -n "$GOOGLE_SERVICES_JSON" || { echo "GOOGLE_SERVICES_JSON secret is missing"; exit 1; }
           mkdir -p android/app
-          cat > android/app/google-services.json << EOF
-          {
-            "project_info": {
-              "project_number": "448753275014",
-              "project_id": "memo-f97b5",
-              "storage_bucket": "memo-f97b5.firebasestorage.app"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
-                  "android_client_info": {"package_name": "com.memo.app"}
-                },
-                "oauth_client": [],
-                "api_key": [{"current_key": "$FIREBASE_ANDROID_API_KEY"}],
-                "services": {"appinvite_service": {"other_platform_oauth_client": []}}
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('android/app/google-services.json')
+          data = json.loads(p.read_text())
+          client = data.get('client', [])
+          if not client or client[0].get('client_info', {}).get('android_client_info', {}).get('package_name') != 'com.memo.app':
+              raise SystemExit('google-services.json package mismatch')
+          print('Firebase package verified: com.memo.app')
+          PY
 
       - name: Install dependencies
         run: flutter pub get
