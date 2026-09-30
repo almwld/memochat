@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../app/app.dart';
 import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
@@ -24,7 +23,7 @@ class PushNotificationService {
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
-    _localNotifications.setNotificationTapHandler((response) => _handleLocalTap(response.payload));
+    _localNotifications.setNotificationTapHandler((response) => _handleLocalTap(response?.payload));
     await _localNotifications.initialize();
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
