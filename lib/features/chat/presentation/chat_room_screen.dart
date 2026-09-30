@@ -120,6 +120,21 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
   }
 }
 
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) {
+    final value = name.trim();
+    final initial = value.isEmpty ? 'م' : value.characters.first;
+    return Container(
+      color: AppColors.primary.withOpacity(.12),
+      alignment: Alignment.center,
+      child: Text(initial, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
 class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObserver {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
@@ -850,7 +865,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         title: StreamBuilder<UserStatusModel?>(
             stream: _statusService.streamUserStatus(widget.otherUserId),
             builder: (context, snapshot) {
-              final status = snapshot.data;
+              final status = snapshot.hasError ? null : snapshot.data;
               final hasStoryImage =
                   status != null &&
                   status.stories.isNotEmpty &&
@@ -877,10 +892,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                             imageUrl: status.stories.first.url,
                             fit: BoxFit.cover,
                           )
-                        : image != null
+                        : image != null && image.trim().isNotEmpty
                             ? CachedNetworkImage(
-                                imageUrl: image,
+                                imageUrl: image.trim(),
                                 fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => _AvatarFallback(name: widget.otherUserName),
                               )
                             : Container(
                                 color: AppColors.primary.withOpacity(.12),
