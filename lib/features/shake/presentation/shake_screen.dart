@@ -160,7 +160,7 @@ class _ShakeScreenState extends State<ShakeScreen>
                       borderRadius: BorderRadius.circular(48),
                       boxShadow: [
                         BoxShadow(
-                          color: scheme.primary.withValues(alpha: .22),
+                          color: scheme.primary.withOpacity(.22),
                           blurRadius: 30,
                         ),
                       ],
