@@ -179,6 +179,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _sendVerificationEmail() async {
+    final user = _user;
+    if (user == null || user.email == null || user.email!.trim().isEmpty) {
+      _snack('لا يوجد بريد إلكتروني مرتبط بهذا الحساب.');
+      return;
+    }
+    if (user.emailVerified) {
+      _snack('بريدك الإلكتروني موثّق بالفعل.');
+      return;
+    }
+    try {
+      await user.sendEmailVerification();
+      if (mounted) _snack('تم إرسال رابط التحقق إلى بريدك الإلكتروني.');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _snack(e.code == 'too-many-requests'
+          ? 'تم إرسال طلبات كثيرة. حاول لاحقًا.'
+          : 'تعذر إرسال رابط التحقق.');
+    } catch (_) {
+      if (mounted) _snack('تعذر إرسال رابط التحقق.');
+    }
+  }
+
   Future<void> _confirmSignOut() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -289,6 +312,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text(user?.isAnonymous == true ? 'حساب مؤقت' : user?.email ?? 'حساب MemoChat'),
                 trailing: const Icon(Icons.edit_outlined),
                 onTap: _editProfile,
+              ),
+              ListTile(
+                leading: const PremiumIconTile(icon: AppIcons.notifications, size: 42, iconSize: 20),
+                title: Text(
+                  user?.emailVerified == true ? 'البريد الإلكتروني موثّق' : 'التحقق من البريد الإلكتروني',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(
+                  user?.emailVerified == true
+                      ? 'يمكنك استخدام الحساب دون أي خطوة إضافية.'
+                      : 'التحقق اختياري ولا يمنعك من استخدام التطبيق.',
+                ),
+                trailing: const Icon(Icons.verified_outlined),
+                onTap: _sendVerificationEmail,
               ),
               ListTile(
                 leading: const PremiumIconTile(icon: AppIcons.more, size: 42, iconSize: 20),
