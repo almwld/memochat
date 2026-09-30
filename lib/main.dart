@@ -5,6 +5,13 @@ import 'app/app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   runApp(const MemoChatApp());
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    } catch (error) {
+      debugPrint('FCM background handler registration failed: $error');
+    }
+  });
 }
