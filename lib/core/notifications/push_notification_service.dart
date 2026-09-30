@@ -82,7 +82,7 @@ class PushNotificationService {
     final status = data['status']?.toString();
     if (status != 'calling' && status != 'ringing') return;
     await _ringtone.stopIncomingCallRingtone();
-    await CallService().answerIncomingCallById(navigator.context, callId);
+    await CallService().handleIncomingCallById(navigator.context, callId);
   }
 }
 
