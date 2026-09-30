@@ -24,7 +24,7 @@ class PushNotificationService {
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
-    _localNotifications.setNotificationTapHandler(_handleLocalTap);
+    _localNotifications.setNotificationTapHandler((response) => _handleLocalTap(response.payload));
     await _localNotifications.initialize();
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
@@ -67,8 +67,7 @@ class PushNotificationService {
     await _inbox.markRead(notification.id);
     if (notification.callId != null) await _openIncomingCall(notification.callId!);
   }
-  Future<void> _handleLocalTap(NotificationResponse response) async {
-    final payload = response.payload;
+  Future<void> _handleLocalTap(String? payload) async {
     if (payload == null) return;
     final decoded = jsonDecode(payload);
     if (decoded is! Map) return;
