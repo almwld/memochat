@@ -147,8 +147,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
               : StreamBuilder<User?>(
                   stream: FirebaseAuth.instance.authStateChanges(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting ||
-                        !snapshot.hasData) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const _AuthLoadingScreen();
                     }
                     final user = snapshot.data;
