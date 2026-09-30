@@ -45,7 +45,30 @@ class _MemoChatAppState extends State<MemoChatApp>{
   @override Widget build(BuildContext context)=>MaterialApp(
     navigatorKey:memoNavigatorKey,title:'MemoChat',debugShowCheckedModeBanner:false,
     theme:AppTheme.light(),darkTheme:AppTheme.dark(),themeMode:_themeMode,locale:const Locale('ar'),
-    builder:(context,child)=>Directionality(textDirection:TextDirection.rtl,child:child??const SizedBox.shrink()),
+    builder:(context,child) {
+      ErrorWidget.builder = (details) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Material(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline_rounded, size: 52, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(height: 14),
+                  const Text('تعذر عرض هذه الشاشة', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  const Text('حدث خطأ غير متوقع. عد إلى الشاشة السابقة وحاول مرة أخرى.', textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return Directionality(textDirection:TextDirection.rtl,child:child??const SizedBox.shrink());
+    },
     home:_firebaseChecking
       ? const _FirebaseLoadingScreen()
       : !_firebaseReady
