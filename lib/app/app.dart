@@ -25,6 +25,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _showSplash = true;
   bool _initializationStarted = false;
+  bool _minimumSplashElapsed = false;
 
   ChatRepository get _repository => FirebaseChatRepository();
 
