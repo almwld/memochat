@@ -130,6 +130,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
   Timer? _pendingRefreshTimer;
   Timer? _typingClearTimer;
+  Timer? _roomLoadTimer;
   bool _otherTyping = false;
   List<MessageModel> _messages = [];
   final List<Map<String, dynamic>> _localMedia = [];
@@ -272,6 +273,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _initializeRoom() async {
+    _roomLoadTimer?.cancel();
+    _roomLoadTimer = Timer(const Duration(seconds: 15), () {
+      if (!mounted || !_loading) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'استغرق تجهيز المحادثة وقتاً أطول من المتوقع. تحقق من اتصال Firebase ثم أعد المحاولة.';
+      });
+    });
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
       if (mounted) setState(() { _loading = false; _loadError = 'يجب تسجيل الدخول لفتح المحادثة.'; });
@@ -329,6 +338,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   void _listen() {
+    _roomLoadTimer?.cancel();
     _chatSub = _firestore
         .collection('chats')
         .doc(widget.chatId)
@@ -375,6 +385,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         .snapshots()
         .listen((snapshot) {
       if (!mounted) return;
+      _roomLoadTimer?.cancel();
       _oldestMessageDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : _oldestMessageDocument;
       _hasMoreMessages = snapshot.docs.length >= 100;
       final liveMessages = <MessageModel>[];
@@ -808,6 +819,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
     _pendingRefreshTimer?.cancel();
     _typingClearTimer?.cancel();
+    _roomLoadTimer?.cancel();
     unawaited(_setTyping(false));
     _messagesSub?.cancel();
     _chatSub?.cancel();
