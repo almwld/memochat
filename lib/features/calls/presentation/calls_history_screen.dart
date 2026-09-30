@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'call_screen.dart';
+import '../../chat/presentation/chat_navigation.dart';
 
 class CallsHistoryScreen extends StatelessWidget {
   const CallsHistoryScreen({super.key});
@@ -61,14 +61,15 @@ class CallsHistoryScreen extends StatelessWidget {
                   subtitle: Text(video ? 'مكالمة فيديو • $status' : 'مكالمة صوتية • $status'),
                   trailing: IconButton(
                     tooltip: video ? 'اتصال فيديو' : 'اتصال صوتي',
-                    onPressed: otherId.isEmpty ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(
-                      chatId: data['chatId']?.toString() ?? '',
-                      otherUserId: otherId,
-                      otherUserName: name,
-                      otherUserImage: isOutgoing ? data['receiverPhotoUrl']?.toString() : data['callerPhotoUrl']?.toString(),
-                      isVideo: video,
-                      incomingCallId: null,
-                    ))),
+                    onPressed: otherId.isEmpty || (data['chatId']?.toString().trim().isEmpty ?? true)
+                        ? null
+                        : () => ChatNavigation.openCall(
+                            context,
+                            chatId: data['chatId'].toString(),
+                            userName: name,
+                            userId: otherId,
+                            isVideo: video,
+                          ),
                     icon: Icon(video ? Icons.videocam_rounded : Icons.call_rounded),
                   ),
                 ),
