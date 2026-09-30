@@ -193,13 +193,19 @@ jobs:
           retention-days: 7
 
       - name: Build Fat APK (universal)
-        run: flutter build apk --release --no-pub
+        env:
+          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
+        run: flutter build apk --release --no-pub --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY
 
       - name: Build Split APKs (per ABI)
-        run: flutter build apk --release --split-per-abi --no-pub
+        env:
+          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
+        run: flutter build apk --release --split-per-abi --no-pub --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY
 
       - name: Build App Bundle (production)
-        run: flutter build appbundle --release --no-pub
+        env:
+          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
+        run: flutter build appbundle --release --no-pub --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY
 
       - name: Show artifact sizes
         run: |
