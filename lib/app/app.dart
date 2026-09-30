@@ -25,7 +25,6 @@ class _MemoChatAppState extends State<MemoChatApp> {
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _showSplash = true;
   bool _initializationStarted = false;
-  bool _minimumSplashElapsed = false;
 
   ChatRepository get _repository => FirebaseChatRepository();
 
@@ -38,6 +37,12 @@ class _MemoChatAppState extends State<MemoChatApp> {
     Timer(const Duration(milliseconds: 1100), () {
       if (mounted) setState(() => _showSplash = false);
     });
+  }
+
+  void _markFirebaseReady() {
+    if (mounted && !_firebaseReady) {
+      setState(() => _firebaseReady = true);
+    }
   }
 
   void _startInitialization() {
@@ -137,7 +142,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
       home: _showSplash
           ? const MemoSplashScreen()
           : !_firebaseReady
-              ? const AuthScreen()
+              ? AuthScreen(onFirebaseReady: _markFirebaseReady)
               : StreamBuilder<User?>(
                   stream: FirebaseAuth.instance.authStateChanges(),
                   builder: (context, snapshot) {
