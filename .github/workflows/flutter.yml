@@ -169,7 +169,27 @@ jobs:
 
       - name: Inject release keystore
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/memochat-release.jks
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          raw = os.environ["KEYSTORE_BASE64"].strip()
+          if not raw:
+              raise SystemExit("KEYSTORE_BASE64 is empty")
+
+          # Keep the workflow value unchanged; tolerate missing Base64 padding only.
+          padding = "=" * ((4 - len(raw) % 4) % 4)
+          try:
+              decoded = base64.b64decode(raw + padding, validate=True)
+          except Exception as exc:
+              raise SystemExit(f"KEYSTORE_BASE64 is not valid Base64: {exc}")
+
+          if not decoded:
+              raise SystemExit("Decoded keystore is empty")
+
+          Path("android/app/memochat-release.jks").write_bytes(decoded)
+          PY
           test -s android/app/memochat-release.jks
           cat > android/key.properties <<EOF
           storePassword=$KEYSTORE_PASSWORD
