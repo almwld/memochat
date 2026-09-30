@@ -11,7 +11,6 @@ import '../core/theme/app_theme.dart';
 import '../core/services/firebase_bootstrap.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
-import '../features/auth/presentation/email_verification_screen.dart';
 import 'memo_splash_screen.dart';
 
 final GlobalKey<NavigatorState> memoNavigatorKey = GlobalKey<NavigatorState>();
@@ -152,9 +151,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
                     }
                     final user = snapshot.data;
                     if (user == null) return const AuthScreen();
-                    if (!user.emailVerified) {
-                      return EmailVerificationScreen(user: user);
-                    }
+                    // Email verification is not a navigation gate in MemoChat.
                     unawaited(_syncUser(user));
                     return HomeScreen(
                       repository: _repository,
