@@ -134,7 +134,28 @@ jobs:
           test -f android/app/build.gradle
           test -f android/settings.gradle
           test -f android/build.gradle
-          echo "✅ Android Gradle scaffolding restored"
+
+          # Current plugins require compileSdk 35. Keep this as a build-time
+          # compatibility adjustment so the customized repository source stays intact.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          if "compileSdk = 35" in s or "compileSdk 35" in s:
+              pass
+          elif "compileSdk =" in s:
+              import re
+              s = re.sub(r"compileSdk\s*=\s*\d+", "compileSdk = 35", s, count=1)
+          elif "compileSdk " in s:
+              import re
+              s = re.sub(r"compileSdk\s+\d+", "compileSdk 35", s, count=1)
+          else:
+              raise SystemExit("android/app/build.gradle has no compileSdk declaration")
+          p.write_text(s)
+          PY
+
+          grep -E "compileSdk" android/app/build.gradle
+          echo "✅ Android Gradle scaffolding restored (compileSdk 35)"
 
       # ═══════════════════════════════════════════════════
       # Inject secrets (from env above — NOT from GitHub Secrets)
