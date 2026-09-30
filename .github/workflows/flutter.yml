@@ -139,26 +139,6 @@ jobs:
           }
           EOF
 
-      - name: Create runtime config
-        env:
-          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_TOKEN_SERVER_URL: ${{ secrets.LIVEKIT_TOKEN_SERVER_URL }}
-          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: |
-          mkdir -p lib/core/config
-          cat > lib/core/config/secrets.dart << EOF
-          class Secrets {
-            Secrets._();
-            static const String livekitUrl = '$LIVEKIT_URL';
-            static const String livekitTokenServerUrl = '$LIVEKIT_TOKEN_SERVER_URL';
-            static const String firebaseProjectId = 'memo-f97b5';
-            static const String firebaseStorageBucket = 'memo-f97b5.firebasestorage.app';
-            static const String firebaseApiKey = '$FIREBASE_ANDROID_API_KEY';
-            static const String firebaseAppId = '1:448753275014:android:e4dedb02a3b10cce9f0107';
-            static const String androidPackageName = 'com.memo.app';
-          }
-          EOF
-
       - name: Install dependencies
         run: flutter pub get
 
@@ -180,8 +160,8 @@ jobs:
           rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
           dart run flutter_launcher_icons
 
-      - name: Format Dart sources
-        run: dart format lib/ test/
+      - name: Check Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib/ test/
 
       - name: Analyze
         run: flutter analyze --no-pub --no-fatal-warnings --no-fatal-infos
