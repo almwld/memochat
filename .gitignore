@@ -80,3 +80,15 @@ functions/.env
 __pycache__/
 *.pyc
 tool/__pycache__/
+
+# ═══════════════════════════════════════════════
+# Android secrets (لا ترفع)
+# ═══════════════════════════════════════════════
+android/app/google-services.json
+android/key.properties
+android/local.properties
+android/.gradle/
+android/app/*.jks
+android/app/*.keystore
+android/app/.cxx/
+android/.idea/
