@@ -19,11 +19,11 @@ class PushNotificationService {
   final FirebaseMessaging _messaging;
   final NotificationService _localNotifications;
   final NotificationInbox _inbox = NotificationInbox();
-  final RingtoneService _ringtone;
+  final RingtoneService _ringtone = ringtone ?? RingtoneService();
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
-    _localNotifications.setNotificationTapHandler((response) => _handleLocalTap(response?.payload));
+    _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
@@ -56,9 +56,7 @@ class PushNotificationService {
         payload: notification.encode(),
         playSound: notification.sound,
       );
-      if (notification.sound) {
-        await _ringtone.playMessageSound(vibrate: notification.vibration);
-      }
+      if (notification.sound) await _ringtone.playMessageSound(vibrate: notification.vibration);
     }
   }
   Future<void> _handleOpened(RemoteMessage message) async {
@@ -84,8 +82,6 @@ class PushNotificationService {
     final status = data['status']?.toString();
     if (status != 'calling' && status != 'ringing') return;
     await _ringtone.stopIncomingCallRingtone();
-    // Notification taps enter the canonical call state machine. The same
-    // accept transition is used by the foreground incoming-call surface.
     await CallService().answerIncomingCallById(navigator.context, callId);
   }
 }
@@ -101,10 +97,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
   final inbox = NotificationInbox();
   if (!await inbox.addNotification(notification)) return;
-  // Notification payloads are rendered by FCM while the app is backgrounded;
-  // data-only payloads need the same feature notification renderer used by
-  // foreground calls, so call actions and full-screen presentation stay
-  // consistent across lifecycle states.
   if (message.notification == null) {
     final local = NotificationService();
     await local.initialize(startCallCoordinator: false);
