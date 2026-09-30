@@ -377,10 +377,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (!mounted) return;
       _oldestMessageDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : _oldestMessageDocument;
       _hasMoreMessages = snapshot.docs.length >= 100;
-      final liveMessages = snapshot.docs
-          .map((doc) => MessageModel.fromFirestore(doc.id, doc.data()))
-          .where((m) => !_hiddenForCurrentUser(m.toFirestore()))
-          .toList();
+      final liveMessages = <MessageModel>[];
+      for (final doc in snapshot.docs) {
+        try {
+          final message = MessageModel.fromFirestore(doc.id, doc.data());
+          if (!_hiddenForCurrentUser(message.toFirestore())) {
+            liveMessages.add(message);
+          }
+        } catch (error, stackTrace) {
+          // One malformed legacy message must never blank the whole room.
+          debugPrint('Skipping malformed message ${doc.id}: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
       final liveIds = liveMessages.map((m) => m.id).toSet();
       final messages = <MessageModel>[...liveMessages, ..._olderMessages.where((m) => !liveIds.contains(m.id))];
       messages.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
