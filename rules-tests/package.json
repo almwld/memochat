@@ -3,10 +3,11 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "node firestore_rules_test.js"
+    "test": "firebase emulators:exec --only firestore --project demo-memochat-rules \"node firestore_rules_test.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",
-    "firebase": "12.19.0"
+    "firebase": "12.19.0",
+    "firebase-tools": "15.32.0"
   }
 }
