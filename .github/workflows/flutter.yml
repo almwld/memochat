@@ -76,6 +76,59 @@ jobs:
           echo "✅ Android Gradle scaffolding restored"
 
       # ═══════════════════════════════════════════════════
+      # 2️⃣ Restore exact build #548 test configuration
+      # ═══════════════════════════════════════════════════
+      - name: Restore build 548 test configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin 1b7d95ed373711ddc171623a6dcd8de8f3a375cb --depth=1
+          git show 1b7d95ed373711ddc171623a6dcd8de8f3a375cb:.github/workflows/flutter.yml > /tmp/flutter-548.yml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          text = Path("/tmp/flutter-548.yml").read_text()
+          env = text.split("\nenv:\n", 1)[1].split("\n\njobs:", 1)[0]
+          lines = env.splitlines()
+          values = {}
+          current = None
+          block = None
+
+          for line in lines:
+              if not line or line.startswith("  #"):
+                  continue
+              m = re.match(r"  ([A-Z0-9_]+):(?:[ ]?(.*))?$", line)
+              if m:
+                  current = m.group(1)
+                  value = m.group(2) or ""
+                  if value == "|":
+                      block = []
+                      values[current] = block
+                  else:
+                      values[current] = value.strip().strip("'").strip('"')
+                      block = None
+                  continue
+              if current and block is not None:
+                  block.append(line[4:] if line.startswith("    ") else line)
+
+          out = []
+          for key, value in values.items():
+              if isinstance(value, list):
+                  value = "\n".join(value)
+                  delimiter = "MEMOCHAT_548_END"
+                  out.append(f"{key}<<{delimiter}\n{value}\n{delimiter}")
+              else:
+                  out.append(f"{key}={value}")
+
+          Path("/tmp/memochat-548.env").write_text("\n".join(out) + "\n")
+          PY
+
+          cat /tmp/memochat-548.env >> "$GITHUB_ENV"
+          echo "✅ Exact build #548 configuration restored for this CI run"
+
+      # ═══════════════════════════════════════════════════
       # 2️⃣ Inject secrets (from env above)
       # ═══════════════════════════════════════════════════
       - name: Inject google-services.json
