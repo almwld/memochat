@@ -10,7 +10,7 @@ import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
 import 'notification_inbox.dart';
 import 'notification_models.dart';
-import 'notification_service.dart';
+import '../../features/chat/services/notification_service.dart';
 import 'ringtone_service.dart';
 
 class PushNotificationService {
@@ -40,11 +40,26 @@ class PushNotificationService {
     final notification = _parse(message);
     if (notification.senderId != null && notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
     if (!await _inbox.addNotification(notification)) return;
-    await _localNotifications.show(notification);
     if (notification.isCall) {
+      await _localNotifications.showIncomingCallNotification(
+        callerName: notification.title,
+        callId: notification.callId ?? notification.id,
+        isVideo: notification.type == NotificationType.incomingVideoCall ||
+            notification.type == NotificationType.missedVideoCall,
+      );
       await _ringtone.startIncomingCallRingtone(vibrate: notification.vibration);
-    } else if (notification.sound) {
-      await _ringtone.playMessageSound(vibrate: notification.vibration);
+    } else {
+      await _localNotifications.showTypedNotification(
+        type: notification.type.wireName,
+        title: notification.title,
+        body: notification.body,
+        data: notification.toJson(),
+        payload: notification.encode(),
+        playSound: notification.sound,
+      );
+      if (notification.sound) {
+        await _ringtone.playMessageSound(vibrate: notification.vibration);
+      }
     }
   }
   Future<void> _handleOpened(RemoteMessage message) async {
@@ -71,9 +86,8 @@ class PushNotificationService {
     final status = data['status']?.toString();
     if (status != 'calling' && status != 'ringing') return;
     await _ringtone.stopIncomingCallRingtone();
-    // Notification taps enter the same call state machine used by the
-    // foreground incoming-call UI. This prevents a second CallScreen
-    // implementation from creating a different call lifecycle.
+    // Notification taps enter the canonical call state machine. The same
+    // accept transition is used by the foreground incoming-call surface.
     await CallService().answerIncomingCallById(navigator.context, callId);
   }
 }
@@ -90,10 +104,28 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final inbox = NotificationInbox();
   if (!await inbox.addNotification(notification)) return;
   // Notification payloads are rendered by FCM while the app is backgrounded;
-  // data-only payloads need a local notification instead.
+  // data-only payloads need the same feature notification renderer used by
+  // foreground calls, so call actions and full-screen presentation stay
+  // consistent across lifecycle states.
   if (message.notification == null) {
     final local = NotificationService();
-    await local.initialize();
-    await local.show(notification);
+    await local.initialize(startCallCoordinator: false);
+    if (notification.isCall) {
+      await local.showIncomingCallNotification(
+        callerName: notification.title,
+        callId: notification.callId ?? notification.id,
+        isVideo: notification.type == NotificationType.incomingVideoCall ||
+            notification.type == NotificationType.missedVideoCall,
+      );
+    } else {
+      await local.showTypedNotification(
+        type: notification.type.wireName,
+        title: notification.title,
+        body: notification.body,
+        data: notification.toJson(),
+        payload: notification.encode(),
+        playSound: notification.sound,
+      );
+    }
   }
 }
