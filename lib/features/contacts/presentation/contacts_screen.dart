@@ -6,6 +6,7 @@ import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_room_screen.dart';
+import '../../communities/presentation/communities_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({required this.repository, super.key});
@@ -40,6 +41,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
     appBar: AppBar(
       title: const Text('تواصل', style: TextStyle(fontWeight: FontWeight.w900)),
       actions: [
+        IconButton(
+          tooltip: 'المجتمعات',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const CommunitiesScreen()),
+          ),
+          icon: const Icon(Icons.groups_rounded),
+        ),
         IconButton(
           tooltip: 'تحديث',
           onPressed: () { _loadBlocked(); setState(() {}); },
