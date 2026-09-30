@@ -238,6 +238,18 @@ service cloud.firestore {
         request.auth.uid in resource.data.participants;
     }
 
+    match /reports/{reportId} {
+      allow create: if signedIn() &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.targetUserId is string &&
+        request.resource.data.targetUserId != request.auth.uid &&
+        request.resource.data.reason is string &&
+        request.resource.data.reason.size() > 0 &&
+        request.resource.data.reason.size() <= 500 &&
+        request.resource.data.createdAt is timestamp;
+      allow read, update, delete: if false;
+    }
+
     match /conversations/{conversationId} {
       allow read, write: if false;
     }
