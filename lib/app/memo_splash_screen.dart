@@ -110,7 +110,7 @@ class _MemoSplashScreenState extends State<MemoSplashScreen>
             right: 0,
             bottom: 30,
             child: Text(
-              'MemoChat',
+              'MEMOCHAT',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context)
