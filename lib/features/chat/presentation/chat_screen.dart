@@ -4,6 +4,7 @@ import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
+import '../../shake/presentation/shake_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.repository, this.onNewChat, super.key});
@@ -25,6 +26,11 @@ class _ChatScreenState extends State<ChatScreen> {
         appBar: AppBar(
           title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
           actions: [
+            IconButton(
+              tooltip: 'رجّ للتعارف',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShakeScreen(repository: widget.repository))),
+              icon: const Icon(Icons.vibration_rounded),
+            ),
             IconButton(
               tooltip: 'بحث',
               onPressed: () => _searchFocus.requestFocus(),
