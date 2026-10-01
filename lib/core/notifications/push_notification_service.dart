@@ -46,7 +46,7 @@ class PushNotificationService {
     await FirebaseFirestore.instance
         .collection('users').doc(uid)
         .collection('private').doc('tokens')
-        .collection('fcm').doc(tokenId)
+        .collection('fcm').doc(tokenId.toString())
         .set({
           'token': normalized,
           'platform': 'android',
