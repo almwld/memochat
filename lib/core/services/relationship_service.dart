@@ -1,0 +1,3 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+class RelationshipService { final FirebaseFirestore db; final FirebaseAuth auth; RelationshipService({FirebaseFirestore? firestore,FirebaseAuth? firebaseAuth}):db=firestore??FirebaseFirestore.instance,auth=firebaseAuth??FirebaseAuth.instance; DocumentReference<Map<String,dynamic>> ref(String uid)=>db.collection('users').doc(auth.currentUser!.uid).collection('relationships').doc(uid); Future<void> set(String uid,{bool? blocked,bool? muted,bool? pinned})=>ref(uid).set({'uid':uid,if(blocked!=null)'blocked':blocked,if(muted!=null)'muted':muted,if(pinned!=null)'pinned':pinned,'updatedAt':FieldValue.serverTimestamp()},SetOptions(merge:true)); }
