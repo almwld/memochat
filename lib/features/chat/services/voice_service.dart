@@ -104,7 +104,7 @@ class VoiceService {
       fileName: result.fileName,
       fileMimeType: 'audio/mp4',
       audioDuration: _recordingDuration.inSeconds.toString(),
-      idempotencyKey: 'voice_' + user.uid + '_' + DateTime.now().millisecondsSinceEpoch.toString(),
+      idempotencyKey: 'voice_${user.uid}_${DateTime.now().millisecondsSinceEpoch}',
     );
 
     try {
