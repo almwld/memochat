@@ -25,12 +25,43 @@ class PushNotificationService {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
+    await _syncToken(await _messaging.getToken());
+    FirebaseMessaging.instance.onTokenRefresh.listen(_syncToken);
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
     final initial = await _messaging.getInitialMessage();
     if (initial != null) await _handleOpened(initial);
   }
-  Future<String?> getToken() => _messaging.getToken();
+  Future<String?> getToken() async {
+    final token = await _messaging.getToken();
+    await _syncToken(token);
+    return token;
+  }
+
+  Future<void> _syncToken(String? token) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final normalized = token?.trim() ?? '';
+    if (uid == null || uid.isEmpty || normalized.isEmpty) return;
+    final tokenId = _tokenId(normalized);
+    await FirebaseFirestore.instance
+        .collection('users').doc(uid)
+        .collection('private').doc('tokens')
+        .collection('fcm').doc(tokenId)
+        .set({
+          'token': normalized,
+          'platform': 'android',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+  }
+
+  int _tokenId(String value) {
+    var hash = 0x811c9dc5;
+    for (final unit in value.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return hash == 0 ? 1 : hash;
+  }
   AppNotification _parse(RemoteMessage message) => AppNotification.fromRemote(
     {...message.data, if (message.notification?.title != null) 'title': message.notification!.title, if (message.notification?.body != null) 'body': message.notification!.body},
     fallbackId: message.messageId,
