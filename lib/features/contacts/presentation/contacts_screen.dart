@@ -5,6 +5,7 @@ import '../../../core/privacy/privacy_service.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../../core/services/friend_request_service.dart';
 import '../../chat/presentation/chat_room_screen.dart';
 import '../../communities/presentation/communities_screen.dart';
 
@@ -18,6 +19,7 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   final _search = TextEditingController();
   final _privacy = PrivacyService();
+  final _friendRequests = FriendRequestService();
   Set<String> _blocked = <String>{};
 
   @override
@@ -47,6 +49,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
             MaterialPageRoute(builder: (_) => const CommunitiesScreen()),
           ),
           icon: const Icon(Icons.groups_rounded),
+        ),
+        IconButton(
+          tooltip: 'طلبات الصداقة',
+          onPressed: _showFriendRequests,
+          icon: const Icon(Icons.person_add_alt_1_rounded),
         ),
         IconButton(
           tooltip: 'تحديث',
@@ -127,6 +134,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     onSelected: (value) => _handleUserAction(value, user),
                     itemBuilder: (_) => const [
                       PopupMenuItem(value: 'message', child: Text('رسالة')),
+                      PopupMenuItem(value: 'friend', child: Text('إضافة إلى الأصدقاء')),
                       PopupMenuItem(value: 'block', child: Text('حظر')),
                       PopupMenuItem(value: 'report', child: Text('إبلاغ')),
                     ],
@@ -141,6 +149,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
   );
 
   Future<void> _handleUserAction(String value, ChatUser user) async {
+    if (value == 'friend') {
+      try {
+        await _friendRequests.send(recipientId: user.id, recipientName: user.displayName);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال طلب الصداقة.')));
+      } catch (_) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إرسال طلب الصداقة.')));
+      }
+      return;
+    }
     if (value == 'message') {
       await _startChat(user);
       return;
@@ -187,6 +204,66 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
     controller.dispose();
     return result?.isEmpty == true ? null : result;
+  }
+
+  Future<void> _showFriendRequests() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => StreamBuilder(
+        stream: _friendRequests.watchIncoming(),
+        builder: (context, snapshot) {
+          final docs = snapshot.data?.docs ?? const [];
+          if (docs.isEmpty) {
+            return const SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: Text('لا توجد طلبات صداقة جديدة.')),
+              ),
+            );
+          }
+          return SafeArea(
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              itemCount: docs.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final data = docs[index].data();
+                final id = docs[index].id;
+                final name = data['senderName']?.toString().trim();
+                final senderId = data['senderId']?.toString() ?? '';
+                return ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1_rounded)),
+                  title: Text(name?.isNotEmpty == true ? name! : 'طلب صداقة'),
+                  subtitle: Text(senderId),
+                  trailing: Wrap(
+                    children: [
+                      IconButton(
+                        tooltip: 'قبول',
+                        icon: const Icon(Icons.check_rounded),
+                        onPressed: () async {
+                          await _friendRequests.accept(id);
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                      ),
+                      IconButton(
+                        tooltip: 'رفض',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () async {
+                          await _friendRequests.reject(id);
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _startChat(ChatUser user) async {
