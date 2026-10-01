@@ -137,7 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final data = doc.data() ?? {};
     final name = TextEditingController(text: data['displayName']?.toString() ?? user.displayName ?? '');
-    final publicId = data['publicId']?.toString() ?? data['username']?.toString() ?? 'memo_${user.uid.substring(0, 8).toLowerCase()}';
+    final publicId = data['publicId']?.toString() ?? data['username']?.toString() ?? 'memo_${user!.uid.substring(0, 8).toLowerCase()}';
 
     if (!mounted) return;
 
@@ -333,7 +333,7 @@ class _AccountCard extends StatelessWidget {
                       Text(user?.displayName ?? 'مستخدم MemoChat', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
                       const SizedBox(height: 4),
                       if (user != null) FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        future: FirebaseFirestore.instance.collection('users').doc(user?.uid ?? '').get(),
+                        future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
                         builder: (context, snapshot) {
                           final data = snapshot.data?.data() ?? const <String, dynamic>{};
                           final id = data['publicId']?.toString() ?? data['username']?.toString() ?? 'memo_${user.uid.substring(0, 8).toLowerCase()}';
