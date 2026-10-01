@@ -85,6 +85,19 @@ class FirebaseChatRepository implements ChatRepository {
               final photos = Map<String, dynamic>.from(
                 data['participantPhotos'] as Map? ?? const {},
               );
+              // ChatService stores participant metadata under participantDetails.
+              // Read both schemas so every persisted chat remains visible here.
+              final details = Map<String, dynamic>.from(
+                data['participantDetails'] as Map? ?? const {},
+              );
+              final otherDetails = details[other] is Map
+                  ? Map<String, dynamic>.from(details[other] as Map)
+                  : const <String, dynamic>{};
+              final otherName = names[other]?.toString() ??
+                  otherDetails['name']?.toString() ??
+                  'مستخدم';
+              final otherPhoto = photos[other]?.toString() ??
+                  otherDetails['photoUrl']?.toString();
               final preview = data['lastMessage']?.toString() ?? '';
               final previewTime = data['updatedAt'];
               final previewDate = previewTime is Timestamp
@@ -95,8 +108,8 @@ class FirebaseChatRepository implements ChatRepository {
                 id: doc.id,
                 participant: ChatUser(
                   id: other,
-                  displayName: names[other]?.toString() ?? 'مستخدم',
-                  avatarUrl: photos[other]?.toString(),
+                  displayName: otherName,
+                  avatarUrl: otherPhoto,
                   isOnline: false,
                 ),
                 lastMessage: preview.isEmpty
