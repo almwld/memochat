@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +11,7 @@ import 'package:record/record.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/core/services/nextcloud_service.dart';
+import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
 import 'package:memochat/core/services/reliable_message_service.dart';
 import 'package:memochat/core/services/toast_service.dart';
 
@@ -109,57 +111,98 @@ class _ChatInputBarState extends State<ChatInputBar>
     }
   }
 
+  Future<void> _enqueueMedia({
+    required File file,
+    required String type,
+    required String folder,
+    required String preview,
+    String? fileName,
+    String? mimeType,
+    String? audioDuration,
+  }) async {
+    final size = await file.length();
+    await ChatMediaTransferService.instance.enqueue(
+      chatId: widget.chatId,
+      sourceFile: file,
+      type: type,
+      folder: folder,
+      preview: preview,
+      fileName: fileName,
+      fileSize: size.toString(),
+      mimeType: mimeType,
+      audioDuration: audioDuration,
+    );
+    ToastService.showInfo('تمت إضافة الوسائط للإرسال، وسيُستكمل الرفع تلقائيًا.');
+  }
+
   Future<void> _sendMedia({required ImageSource source}) async {
     if (_isSending) return;
     final picked = await _picker.pickImage(source: source, imageQuality: 85);
     if (picked == null) return;
     setState(() => _isSending = true);
     try {
-      final url = await _upload(File(picked.path), 'images');
-      if (url == null) throw Exception('upload_failed');
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('unauthenticated');
-      await _writeMediaMessage(user, {
-        'type': 'image',
-        'text': '📷 صورة',
-        'imageUrl': url,
-      });
-      widget.onSendImage?.call(url);
+      final file = File(picked.path);
+      await _enqueueMedia(
+        file: file,
+        type: 'image',
+        folder: 'images',
+        preview: '📷 صورة',
+        fileName: picked.name,
+        mimeType: 'image/jpeg',
+      );
+      widget.onSendImage?.call(picked.path);
     } catch (e) {
-      ToastService.showError('تعذر إرسال الصورة.');
-      debugPrint('Image send error: $e');
+      ToastService.showError('تعذر تجهيز الصورة للإرسال.');
+      debugPrint('Image enqueue error: $e');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
 
-  Future<void> _writeMediaMessage(User user, Map<String, dynamic> data) async {
-    final payload = <String, dynamic>{
-      'chatId': widget.chatId,
-      'senderId': user.uid,
-      'senderName': user.displayName ?? 'مستخدم',
-      'senderPhotoUrl': user.photoURL,
-      'timestamp': FieldValue.serverTimestamp(),
-      'isRead': false,
-      'isDelivered': false,
-      'isDeleted': false,
-      'reactions': <String, dynamic>{},
-      ...data,
-    };
-    final ref = _firestore
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .doc();
-    final batch = _firestore.batch();
-    batch.set(ref, payload);
-    batch.update(_firestore.collection('chats').doc(widget.chatId), {
-      'lastMessage': payload['text'],
-      'lastMessageTime': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': user.uid,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
+  Future<void> _sendVideo() async {
+    if (_isSending) return;
+    final picked = await _picker.pickVideo(source: ImageSource.gallery);
+    if (picked == null) return;
+    setState(() => _isSending = true);
+    try {
+      await _enqueueMedia(
+        file: File(picked.path),
+        type: 'video',
+        folder: 'videos',
+        preview: '🎬 فيديو',
+        fileName: picked.name,
+        mimeType: 'video/mp4',
+      );
+    } catch (e) {
+      ToastService.showError('تعذر تجهيز الفيديو للإرسال.');
+      debugPrint('Video enqueue error: $e');
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _sendPickedFile() async {
+    if (_isSending) return;
+    final result = await FilePicker.platform.pickFiles(withData: false);
+    final picked = result?.files.singleOrNull;
+    final path = picked?.path;
+    if (picked == null || path == null || path.isEmpty) return;
+    setState(() => _isSending = true);
+    try {
+      await _enqueueMedia(
+        file: File(path),
+        type: 'file',
+        folder: 'files',
+        preview: '📎 ملف',
+        fileName: picked.name,
+        mimeType: 'application/octet-stream',
+      );
+    } catch (e) {
+      ToastService.showError('تعذر تجهيز الملف للإرسال.');
+      debugPrint('File enqueue error: $e');
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   Future<void> _startRecording() async {
@@ -207,21 +250,23 @@ class _ChatInputBarState extends State<ChatInputBar>
     }
     setState(() => _isSending = true);
     try {
-      final url = await _upload(file, 'audio');
-      final user = _auth.currentUser;
-      if (url == null || user == null) throw Exception('audio_upload_failed');
-      await _writeMediaMessage(user, {
-        'type': 'audio',
-        'text': '🎵 رسالة صوتية',
-        'audioUrl': url,
-        'duration': _recordingDuration.inSeconds,
-      });
+      await _enqueueMedia(
+        file: file,
+        type: 'audio',
+        folder: 'audio',
+        preview: '🎵 رسالة صوتية',
+        fileName: 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        mimeType: 'audio/mp4',
+        audioDuration: _durationText(_recordingDuration),
+      );
     } catch (e) {
-      ToastService.showError('تعذر إرسال التسجيل الصوتي.');
-      debugPrint('Audio send error: $e');
+      ToastService.showError('تعذر تجهيز التسجيل الصوتي.');
+      debugPrint('Audio enqueue error: $e');
     } finally {
-      if (await file.exists()) await file.delete();
       if (mounted) setState(() => _isSending = false);
+      if (await file.exists()) {
+        try { await file.delete(); } catch (_) {}
+      }
     }
   }
 
