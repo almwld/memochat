@@ -20,6 +20,14 @@ class FriendRequestService {
   CollectionReference<Map<String, dynamic>> get _requests =>
       db.collection('friendRequests');
 
+  CollectionReference<Map<String, dynamic>> get _friendships =>
+      db.collection('friendships');
+
+  String _friendshipId(String a, String b) {
+    final ids = [a, b]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
   Future<String> send({
     required String recipientId,
     String? recipientName,
@@ -74,10 +82,23 @@ class FriendRequestService {
     if (data['state'] != FriendRequestState.pending.name) {
       throw StateError('Request is no longer pending');
     }
-    await ref.update({
-      'state': FriendRequestState.accepted.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'respondedAt': FieldValue.serverTimestamp(),
+    final senderId = data['senderId']?.toString();
+    if (senderId == null || senderId.isEmpty) {
+      throw StateError('Invalid friend request sender');
+    }
+    final friendship = _friendships.doc(_friendshipId(senderId, uid));
+    await db.runTransaction((transaction) async {
+      transaction.update(ref, {
+        'state': FriendRequestState.accepted.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'respondedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(friendship, {
+        'participants': [senderId, uid],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'status': 'active',
+      }, SetOptions(merge: true));
     });
   }
 
@@ -124,3 +145,32 @@ class FriendRequestService {
         .snapshots();
   }
 }
+
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchFriends() {
+    return _friendships
+        .where('participants', arrayContains: _uid)
+        .where('status', isEqualTo: 'active')
+        .snapshots();
+  }
+
+  Future<void> removeFriend(String otherUserId) async {
+    final uid = _uid;
+    final target = otherUserId.trim();
+    if (target.isEmpty || target == uid) return;
+    final ref = _friendships.doc(_friendshipId(uid, target));
+    final snap = await ref.get();
+    if (!snap.exists) return;
+    final participants = List<String>.from(
+      (snap.data()?['participants'] as List?)?.map((e) => e.toString()) ??
+          const <String>[],
+    );
+    if (!participants.contains(uid)) {
+      throw StateError('Not a friendship participant');
+    }
+    await ref.update({
+      'status': 'removed',
+      'updatedAt': FieldValue.serverTimestamp(),
+      'removedBy': uid,
+    });
+  }
