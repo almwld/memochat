@@ -117,28 +117,21 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _shell(Widget child, bool dark) => GestureDetector(
-      onLongPress: _options,
-      child: Container(
-          decoration: BoxDecoration(
-              color: widget.isMe
-                  ? AppColors.primary
-                  : (dark ? const Color(0xFF1A2540) : const Color(0xFFF9FCFB)),
-              borderRadius: widget.isFirstInChat
-                  ? BorderRadius.circular(18)
-                  : BorderRadius.circular(14),
-              border: !widget.isMe && !dark
-                  ? Border.all(color: const Color(0xFFC8DEDA), width: .8)
-                  : null,
-              boxShadow: !widget.isMe && !dark
-                  ? const [
-                      BoxShadow(
-                          color: Color(0x14000000),
-                          blurRadius: 4,
-                          offset: Offset(0, 1))
-                    ]
-                  : null),
-          child: child));
-
+        onLongPress: _options,
+        child: Container(
+            decoration: BoxDecoration(
+                color: widget.isMe
+                    ? AppColors.primary
+                    : (dark
+                        ? const Color(0xFF10201E)
+                        : const Color(0xFFFFFFFF)),
+                borderRadius: widget.isFirstInChat
+                    ? BorderRadius.circular(18)
+                    : BorderRadius.circular(14),
+                border: !widget.isMe && !dark
+                    ? Border.all(color: const Color(0xFFDCE5E3), width: .8)
+                    : null),
+            child: child));
   Widget _buildContent(String type, bool dark) {
     final m = widget.message;
     switch (type) {
