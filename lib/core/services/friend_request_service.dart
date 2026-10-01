@@ -154,6 +154,41 @@ class FriendRequestService {
     return _friendships.where('participants', arrayContains: _uid).snapshots();
   }
 
+  Stream<Set<String>> watchActiveFriendIds() {
+    return watchFriends().map((snapshot) {
+      final uid = _uid;
+      final ids = <String>{};
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['status']?.toString() != 'active') continue;
+        final participants = List<String>.from(
+          (data['participants'] as List?)
+                  ?.map((value) => value.toString()) ??
+              const <String>[],
+        );
+        final others = participants.where((id) => id != uid).toList(growable: false);
+        if (others.isNotEmpty && others.first.isNotEmpty) ids.add(others.first);
+      }
+      return ids;
+    });
+  }
+
+  Future<bool> isFriend(String otherUserId) async {
+    final uid = _uid;
+    final target = otherUserId.trim();
+    if (target.isEmpty || target == uid) return false;
+    final snap = await _friendships.doc(_friendshipId(uid, target)).get();
+    if (!snap.exists || snap.data()?['status']?.toString() != 'active') {
+      return false;
+    }
+    final participants = List<String>.from(
+      (snap.data()?['participants'] as List?)
+              ?.map((value) => value.toString()) ??
+          const <String>[],
+    );
+    return participants.contains(uid) && participants.contains(target);
+  }
+
   Future<void> removeFriend(String otherUserId) async {
     final uid = _uid;
     final target = otherUserId.trim();

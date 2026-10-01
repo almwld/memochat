@@ -1,4 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../../../features/chat/presentation/chat_room_screen.dart';
+import '../../../features/chat/services/call_service.dart';
 
 import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/services/notification_history_service.dart';
@@ -16,6 +21,54 @@ class NotificationCenterScreen extends StatefulWidget {
 class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final _inbox = NotificationInbox();
   final _history = NotificationHistoryService();
+
+  Future<void> _openNotification(Map<String, dynamic> data) async {
+    final route = data['route']?.toString() ?? '';
+    final callId = data['callId']?.toString() ?? '';
+    final chatId = data['chatId']?.toString() ?? '';
+    final senderId = data['senderId']?.toString() ?? '';
+
+    if (callId.isNotEmpty || route.startsWith('call:')) {
+      final id = callId.isNotEmpty ? callId : route.substring('call:'.length);
+      if (id.isNotEmpty && mounted) {
+        await CallService().handleIncomingCallById(context, id);
+      }
+      return;
+    }
+
+    if (chatId.isEmpty || senderId.isEmpty) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid == senderId) return;
+
+    final snap = await FirebaseFirestore.instance.collection('chats').doc(chatId).get();
+    if (!snap.exists || !mounted) return;
+    final chat = snap.data() ?? <String, dynamic>{};
+    final participants = List<String>.from(
+      (chat['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+    );
+    if (!participants.contains(uid) || !participants.contains(senderId)) return;
+
+    final details = Map<String, dynamic>.from(chat['participantDetails'] as Map? ?? const {});
+    final names = Map<String, dynamic>.from(chat['participantNames'] as Map? ?? const {});
+    final photos = Map<String, dynamic>.from(chat['participantPhotos'] as Map? ?? const {});
+    final senderDetails = details[senderId] is Map
+        ? Map<String, dynamic>.from(details[senderId] as Map)
+        : const <String, dynamic>{};
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatRoomScreen(
+          chatId: chatId,
+          otherUserId: senderId,
+          otherUserName: names[senderId]?.toString() ??
+              senderDetails['name']?.toString() ??
+              'مستخدم',
+          otherUserImage: photos[senderId]?.toString() ??
+              senderDetails['photoUrl']?.toString(),
+        ),
+      ),
+    );
+  }
 
   Future<void> _markAllRead() async {
     await _history.markAllRead();
@@ -108,6 +161,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                       subtitle: Text(data['body']?.toString() ?? ''),
                       onTap: () async {
                         await _history.markRead(doc.id);
+                        await _openNotification(data);
                       },
                     );
                   },

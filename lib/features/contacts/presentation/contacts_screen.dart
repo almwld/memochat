@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/models/chat_user.dart';
@@ -21,15 +23,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
   final _privacy = PrivacyService();
   final _friendRequests = FriendRequestService();
   Set<String> _blocked = <String>{};
+  Set<String> _friends = <String>{};
+  StreamSubscription<Set<String>>? _friendsSub;
 
   @override
   void initState() {
     super.initState();
     _loadBlocked();
+    _friendsSub = _friendRequests.watchActiveFriendIds().listen((ids) {
+      if (mounted) setState(() => _friends = ids);
+    }, onError: (_) {});
   }
 
   @override
-  void dispose() { _search.dispose(); super.dispose(); }
+  void dispose() { _friendsSub?.cancel(); _search.dispose(); super.dispose(); }
 
   Future<void> _loadBlocked() async {
     try {
@@ -132,11 +139,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   subtitle: Text(user.username?.isNotEmpty == true ? '@${user.username}' : (user.isOnline ? 'متصل الآن' : 'متاح للتواصل')),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) => _handleUserAction(value, user),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'message', child: Text('رسالة')),
-                      PopupMenuItem(value: 'friend', child: Text('إضافة إلى الأصدقاء')),
-                      PopupMenuItem(value: 'block', child: Text('حظر')),
-                      PopupMenuItem(value: 'report', child: Text('إبلاغ')),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'message', child: Text('رسالة')),
+                      if (_friends.contains(user.id))
+                        const PopupMenuItem(value: 'unfriend', child: Text('إزالة من الأصدقاء'))
+                      else
+                        const PopupMenuItem(value: 'friend', child: Text('إضافة إلى الأصدقاء')),
+                      const PopupMenuItem(value: 'block', child: Text('حظر')),
+                      const PopupMenuItem(value: 'report', child: Text('إبلاغ')),
                     ],
                   ),
                 ),
@@ -149,6 +159,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
   );
 
   Future<void> _handleUserAction(String value, ChatUser user) async {
+    if (value == 'unfriend') {
+      try {
+        await _friendRequests.removeFriend(user.id);
+        if (mounted) {
+          setState(() => _friends = {..._friends}..remove(user.id));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تمت إزالة الصديق.')),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تعذر إزالة الصديق.')),
+          );
+        }
+      }
+      return;
+    }
     if (value == 'friend') {
       try {
         await _friendRequests.send(recipientId: user.id, recipientName: user.displayName);
