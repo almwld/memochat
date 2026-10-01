@@ -58,7 +58,7 @@ class LiveKitService {
 
     Object? lastError;
     for (var attempt = 1; attempt <= 3; attempt++) {
-      final current = _room ??= Room();
+      final current = _room ??= Room(roomOptions: options);
       try {
         if (attempt > 1) {
           // Reuse the existing Room first so its lifecycle/listeners remain
@@ -81,7 +81,6 @@ class LiveKitService {
               url,
               token,
               connectOptions: connectOptions,
-              roomOptions: options,
             )
             .timeout(const Duration(seconds: 25));
         return current;
