@@ -49,12 +49,12 @@ abstract final class AppTheme {
           ),
         ),
       ),
-      textTheme: const TextTheme(
-        headlineSmall: AppTextStyles.title,
-        titleLarge: AppTextStyles.heading,
-        bodyLarge: AppTextStyles.body,
-        bodyMedium: AppTextStyles.bodySecondary,
-        bodySmall: AppTextStyles.caption,
+      textTheme: TextTheme(
+        headlineSmall: AppTextStyles.title.copyWith(color: dark ? Colors.white : AppColors.textPrimary),
+        titleLarge: AppTextStyles.heading.copyWith(color: dark ? Colors.white : AppColors.textPrimary),
+        bodyLarge: AppTextStyles.body.copyWith(color: dark ? Colors.white : AppColors.textPrimary),
+        bodyMedium: AppTextStyles.bodySecondary.copyWith(color: dark ? Colors.white70 : AppColors.textSecondary),
+        bodySmall: AppTextStyles.caption.copyWith(color: dark ? Colors.white60 : AppColors.textSecondary),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -67,27 +67,13 @@ abstract final class AppTheme {
           color: dark ? Colors.white : AppColors.primary,
           fontWeight: FontWeight.w700,
         ),
-        labelStyle: TextStyle(
-          color: dark ? Colors.white70 : const Color(0xFF455A64),
-          fontWeight: FontWeight.w600,
-        ),
-        floatingLabelStyle: TextStyle(
-          color: dark ? Colors.white : AppColors.primary,
-          fontWeight: FontWeight.w700,
-        ),
         hintStyle: TextStyle(
           color: dark ? Colors.white54 : const Color(0xFF607D8B),
         ),
-        // Text color is applied by TextField/TextFormField theme defaults below.
-        // Use the Theme's onSurface so dark inputs stay white.
-        
         prefixIconColor: dark ? Colors.white70 : const Color(0xFF607D8B),
         suffixIconColor: dark ? Colors.white70 : const Color(0xFF607D8B),
         fillColor: dark ? const Color(0xFF162039) : AppColors.surface,
-        // Explicitly force readable input text in dark mode across the app.
-        // Individual fields can still override this when a custom surface requires it.
-        errorStyle: TextStyle(fontWeight: FontWeight.w600),
-        enabledBorder:
+        errorStyle: const TextStyle(fontWeight: FontWeight.w600),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -98,10 +84,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: AppColors.primary,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
       cardTheme: CardTheme(
