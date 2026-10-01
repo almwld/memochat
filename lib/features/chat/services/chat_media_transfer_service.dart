@@ -288,12 +288,8 @@ class ChatMediaTransferService {
             if (!reachable) url = null;
           }
         }
-        // Nextcloud is optional. If it is not configured or share creation fails,
-        // transparently fall back to Firebase Storage so the message still gets delivered.
         if (url == null || url.isEmpty) {
-          debugPrint('⚠️ Nextcloud media delivery unavailable; using Firebase Storage fallback. error=${upload.error}');
-          url = await _firebaseUrl(job, file, id);
-          remotePath = 'firebase://chat_media/${job['chat_id']}/$type/$id/${job['file_name']}';
+          throw StateError(upload.error ?? 'تعذر تجهيز رابط Nextcloud للوسائط');
         }
       }
     }
@@ -333,6 +329,8 @@ class ChatMediaTransferService {
       'error': null,
       'updated_at': DateTime.now().millisecondsSinceEpoch,
     }, where: 'id = ?', whereArgs: [id]);
+    _cancelledIds.remove(id);
+    _activeCancelTokens.remove(id);
     try { await file.delete(); } catch (_) {}
   }
 
@@ -407,6 +405,8 @@ class ChatMediaTransferService {
   }
 
   Future<void> retry(String id) async {
+    _cancelledIds.remove(id);
+    _activeCancelTokens.remove(id);
     final db = await _database;
     final job = await getById(id);
     if (job == null) return;
