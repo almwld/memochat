@@ -17,6 +17,13 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  late final Stream<List<Conversation>> _conversationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _conversationsStream = widget.repository.watchConversations();
+  }
 
   @override
   void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
@@ -39,7 +46,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         body: StreamBuilder<List<Conversation>>(
-          stream: widget.repository.watchConversations(),
+          stream: _conversationsStream,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return _StateView(
