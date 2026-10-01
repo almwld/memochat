@@ -1,0 +1,2 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+class AdvancedChatService { final FirebaseFirestore db; AdvancedChatService({FirebaseFirestore? firestore}):db=firestore??FirebaseFirestore.instance; Future<void> setState(String chat,String message,String field,dynamic value) async { if(!{'deliveredAt','readAt','pinned','editedAt','deletedForEveryone'}.contains(field)) throw ArgumentError('Unsupported state'); await db.collection('chats').doc(chat).collection('messages').doc(message).update({field:value,'updatedAt':FieldValue.serverTimestamp()}); } }
