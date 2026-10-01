@@ -818,9 +818,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     try {
       await _chat.setDisappearingDuration(widget.chatId, selected);
       if (mounted) setState(() => _disappearingDurationSeconds = selected);
-      if (mounted) _showToast(selected == 0 ? 'تم إيقاف الرسائل المؤقتة' : 'تم ضبط الرسائل المؤقتة');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(selected == 0 ? 'تم إيقاف الرسائل المؤقتة' : 'تم ضبط الرسائل المؤقتة')));
     } catch (e) {
-      if (mounted) _showToast('تعذر تغيير إعداد الرسائل المؤقتة');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تغيير إعداد الرسائل المؤقتة')));
     }
   }
 
