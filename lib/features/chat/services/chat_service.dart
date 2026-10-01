@@ -82,6 +82,26 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
   Future<void> archiveChat(String chatId,bool archived)async{await _authorizedChat(chatId);await _chatRef(chatId).update({'isArchived':archived,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> pinChat(String chatId,bool pinned)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).update({'pinnedFor.$id':pinned,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> muteChat(String chatId,bool muted)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).update({'mutedFor.$id':muted,'updatedAt':FieldValue.serverTimestamp()});}
+  Future<int> deleteAllChatsForMe() async {
+    final uid = _uid();
+    final snapshot = await _firestore.collection('chats').where('participants', arrayContains: uid).limit(500).get();
+    if (snapshot.docs.isEmpty) return 0;
+    final batch = _firestore.batch();
+    var count = 0;
+    for (final chat in snapshot.docs) {
+      final data = chat.data();
+      final deletedFor = data['deletedFor'];
+      if (deletedFor is Map && deletedFor[uid] == true) continue;
+      batch.update(chat.reference, {
+        'deletedFor.$uid': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      count++;
+    }
+    if (count > 0) await batch.commit();
+    return count;
+  }
+
   Future<void> deleteChat(String chatId)async{await _authorizedChat(chatId);await _chatRef(chatId).update({'deletedFor.${_uid()}':true,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> deleteMessage(String chatId,String messageId)async{final id=_uid();await _authorizedChat(chatId);final ref=_chatRef(chatId).collection('messages').doc(messageId);final d=await ref.get();if(!d.exists||d.data()?['senderId']!=id)throw Exception('لا يمكن حذف الرسالة');await ref.update({'isDeleted':true,'type':'deleted','text':'تم حذف هذه الرسالة','deletedAt':FieldValue.serverTimestamp()});}
   Future<void> pinMessage(String chatId,String messageId,bool pinned)async{final id=_uid();await _authorizedChat(chatId);final ref=_chatRef(chatId).collection('messages').doc(messageId);final snap=await ref.get();if(!snap.exists)throw Exception('الرسالة غير موجودة');await ref.update({'isPinned':pinned,'pinnedAt':pinned?FieldValue.serverTimestamp():null,'pinnedBy':pinned?id:null});}
