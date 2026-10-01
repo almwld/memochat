@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/services/firebase_bootstrap.dart';
 
@@ -394,29 +395,12 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget _buildBrand(ThemeData theme, ColorScheme scheme) {
     return Column(
       children: [
-        Container(
-          width: 86,
-          height: 86,
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: scheme.primary,
-            borderRadius: BorderRadius.circular(26),
-            boxShadow: [
-              BoxShadow(
-                color: scheme.primary.withOpacity(.24),
-                blurRadius: 28,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Image.asset(
-            'assets/icon/icon_app.png',
+        SizedBox(
+          width: 96,
+          height: 96,
+          child: SvgPicture.asset(
+            'assets/icon/icon_app.svg',
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.forum_rounded,
-              color: Colors.white,
-              size: 46,
-            ),
           ),
         ),
         const SizedBox(height: 16),
