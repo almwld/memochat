@@ -33,11 +33,6 @@ class _ChatBackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final line = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
-      ..color = dark ? const Color(0x0EFFFFFF) : const Color(0x123D5B56);
-
     final dot = Paint()
       ..style = PaintingStyle.fill
       ..color = dark ? const Color(0x14FFFFFF) : const Color(0x183D5B56);
