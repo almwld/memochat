@@ -8,6 +8,7 @@ import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
 import 'notification_inbox.dart';
 import 'notification_models.dart';
+import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
 import 'ringtone_service.dart';
 
@@ -19,6 +20,7 @@ class PushNotificationService {
   final FirebaseMessaging _messaging;
   final NotificationService _localNotifications;
   final NotificationInbox _inbox = NotificationInbox();
+  final NotificationHistoryService _history = NotificationHistoryService();
   final RingtoneService _ringtone;
 
   Future<void> initialize() async {
@@ -70,6 +72,14 @@ class PushNotificationService {
     final notification = _parse(message);
     if (notification.senderId != null && notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
     if (!await _inbox.addNotification(notification)) return;
+    await _history.add(
+      notification.type.wireName,
+      notification.title,
+      notification.body,
+      route: notification.route,
+      data: notification.toJson(),
+      id: notification.id,
+    );
     if (notification.isCall) {
       await _localNotifications.showIncomingCallNotification(
         callerName: notification.title,
@@ -128,6 +138,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
   final inbox = NotificationInbox();
   if (!await inbox.addNotification(notification)) return;
+  await NotificationHistoryService().add(
+    notification.type.wireName,
+    notification.title,
+    notification.body,
+    route: notification.route,
+    data: notification.toJson(),
+    id: notification.id,
+  );
   if (message.notification == null) {
     final local = NotificationService();
     await local.initialize(startCallCoordinator: false);
