@@ -11,6 +11,11 @@ const {
   getDoc,
   setDoc,
   updateDoc,
+  collection,
+  query,
+  where,
+  limit,
+  getDocs,
 } = require('firebase/firestore');
 
 async function main() {
@@ -77,6 +82,20 @@ async function main() {
     );
     await assertFails(
       getDoc(doc(mallory, 'chats/chat-1/messages/message-1')),
+    );
+
+    await assertSucceeds(
+      getDocs(query(collection(alice, 'chats'), where('participants', 'array-contains', 'alice'), limit(10))),
+    );
+    await assertFails(
+      getDocs(query(collection(mallory, 'chats'), where('participants', 'array-contains', 'mallory'), limit(10))),
+    );
+
+    await assertSucceeds(
+      updateDoc(doc(alice, 'chats/chat-1'), { disappearingDurationSeconds: 86400 }),
+    );
+    await assertFails(
+      updateDoc(doc(mallory, 'chats/chat-1'), { disappearingDurationSeconds: 86400 }),
     );
 
     await assertSucceeds(
