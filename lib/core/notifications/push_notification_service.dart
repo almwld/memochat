@@ -44,16 +44,16 @@ class PushNotificationService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final normalized = token?.trim() ?? '';
     if (uid == null || uid.isEmpty || normalized.isEmpty) return;
-    final tokenId = _tokenId(normalized);
-    await FirebaseFirestore.instance
-        .collection('users').doc(uid)
-        .collection('private').doc('tokens')
-        .collection('fcm').doc(tokenId.toString())
-        .set({
-          'token': normalized,
-          'platform': 'android',
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('private')
+        .doc('tokens');
+    await ref.set({
+      'tokens': FieldValue.arrayUnion([normalized]),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'platform': 'android',
+    }, SetOptions(merge: true));
   }
 
   int _tokenId(String value) {
