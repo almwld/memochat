@@ -58,6 +58,15 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        labelStyle: TextStyle(
+          color: dark ? Colors.white70 : const Color(0xFF455A64),
+          fontWeight: FontWeight.w600,
+        ),
+        floatingLabelStyle: TextStyle(
+          color: dark ? Colors.white : AppColors.primary,
+          fontWeight: FontWeight.w700,
+        ),
         labelStyle: TextStyle(
           color: dark ? Colors.white70 : const Color(0xFF455A64),
           fontWeight: FontWeight.w600,
@@ -69,9 +78,16 @@ abstract final class AppTheme {
         hintStyle: TextStyle(
           color: dark ? Colors.white54 : const Color(0xFF607D8B),
         ),
+        // Text color is applied by TextField/TextFormField theme defaults below.
+        // Use the Theme's onSurface so dark inputs stay white.
+        
         prefixIconColor: dark ? Colors.white70 : const Color(0xFF607D8B),
         suffixIconColor: dark ? Colors.white70 : const Color(0xFF607D8B),
         fillColor: dark ? const Color(0xFF162039) : AppColors.surface,
+        // Explicitly force readable input text in dark mode across the app.
+        // Individual fields can still override this when a custom surface requires it.
+        errorStyle: TextStyle(fontWeight: FontWeight.w600),
+        enabledBorder:
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
