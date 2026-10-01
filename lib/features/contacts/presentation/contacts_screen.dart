@@ -213,7 +213,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       builder: (context) => StreamBuilder(
         stream: _friendRequests.watchIncoming(),
         builder: (context, snapshot) {
-          final docs = snapshot.data?.docs ?? const [];
+          final docs = (snapshot.data?.docs ?? const []).where((doc) => doc.data()['state'] == FriendRequestState.pending.name).toList(growable: false);
           if (docs.isEmpty) {
             return const SafeArea(
               child: Padding(
