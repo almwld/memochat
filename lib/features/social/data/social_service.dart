@@ -1,0 +1,24 @@
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../chat/services/nextcloud_service.dart';
+class SocialService{
+ SocialService({FirebaseFirestore? firestore,FirebaseAuth? auth,NextcloudService? media}):_db=firestore??FirebaseFirestore.instance,_auth=auth??FirebaseAuth.instance,_media=media??NextcloudService();
+ final FirebaseFirestore _db;final FirebaseAuth _auth;final NextcloudService _media;
+ String get _uid=>_auth.currentUser?.uid??'';void _authz(){if(_uid.isEmpty)throw StateError('يرجى تسجيل الدخول');}
+ CollectionReference<Map<String,dynamic>> _c(String n)=>_db.collection(n);
+ Stream<QuerySnapshot<Map<String,dynamic>>> posts()=>_c('socialPosts').orderBy('createdAt',descending:true).limit(50).snapshots();
+ Stream<QuerySnapshot<Map<String,dynamic>>> reels()=>_c('socialReels').orderBy('createdAt',descending:true).limit(50).snapshots();
+ Future<String> createPost({required String text,File? media,bool video=false})async{_authz();final body=text.trim();if(body.isEmpty&&media==null)throw ArgumentError('المنشور فارغ');if(body.length>5000)throw ArgumentError('المنشور طويل');final ref=_c('socialPosts').doc();String? url,type;if(media!=null){await _media.loadConfig();final r=await _media.uploadFile(file:media,path:'social/posts/'+_uid,fileName:ref.id+_ext(media.path));if(!r.success||(r.url??'').isEmpty)throw StateError(r.error??'تعذر رفع الوسائط');url=r.url;type=video?'video':'image';}await ref.set({'authorId':_uid,'text':body,'mediaUrl':url,'mediaType':type,'likesCount':0,'commentsCount':0,'sharesCount':0,'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});return ref.id;}
+ Future<String> createReel({required File video,String caption=''})async{_authz();final ref=_c('socialReels').doc();await _media.loadConfig();final r=await _media.uploadFile(file:video,path:'social/reels/'+_uid,fileName:ref.id+_ext(video.path));if(!r.success||(r.url??'').isEmpty)throw StateError(r.error??'تعذر رفع الريل');await ref.set({'authorId':_uid,'caption':caption.trim(),'videoUrl':r.url,'likesCount':0,'commentsCount':0,'sharesCount':0,'viewsCount':0,'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});return ref.id;}
+ Stream<DocumentSnapshot<Map<String,dynamic>>> like(String c,String id)=>_c(c).doc(id).collection('likes').doc(_uid).snapshots();
+ Future<void> toggleLike(String c,String id,bool liked)async{_authz();final content=_c(c).doc(id),ref=content.collection('likes').doc(_uid);await _db.runTransaction((tx)async{if(liked){tx.delete(ref);tx.update(content,{'likesCount':FieldValue.increment(-1)});}else{tx.set(ref,{'userId':_uid,'createdAt':FieldValue.serverTimestamp()});tx.update(content,{'likesCount':FieldValue.increment(1)});}});}
+ Stream<QuerySnapshot<Map<String,dynamic>>> comments(String c,String id)=>_c(c).doc(id).collection('comments').orderBy('createdAt',descending:true).limit(100).snapshots();
+ Future<void> comment(String c,String id,String text)async{_authz();final body=text.trim();if(body.isEmpty||body.length>1000)return;final content=_c(c).doc(id);await _db.runTransaction((tx)async{tx.set(content.collection('comments').doc(),{'userId':_uid,'text':body,'createdAt':FieldValue.serverTimestamp()});tx.update(content,{'commentsCount':FieldValue.increment(1)});});}
+ Future<void> share(String c,String id)async{_authz();await _c(c).doc(id).update({'sharesCount':FieldValue.increment(1)});}
+ Stream<DocumentSnapshot<Map<String,dynamic>>> saved(String id)=>_db.collection('users').doc(_uid).collection('savedSocial').doc(id).snapshots();
+ Future<void> toggleSave(String c,String id,bool saved)async{_authz();final r=_db.collection('users').doc(_uid).collection('savedSocial').doc(id);if(saved)await r.delete();else await r.set({'collection':c,'contentId':id,'savedAt':FieldValue.serverTimestamp()});}
+ Stream<DocumentSnapshot<Map<String,dynamic>>> following(String id)=>_db.collection('users').doc(_uid).collection('following').doc(id).snapshots();
+ Future<void> toggleFollow(String target,bool following)async{_authz();if(target.isEmpty||target==_uid)return;final a=_db.collection('users').doc(_uid).collection('following').doc(target),b=_db.collection('users').doc(target).collection('followers').doc(_uid),batch=_db.batch();if(following){batch.delete(a);batch.delete(b);}else{final d={'userId':_uid,'targetUserId':target,'createdAt':FieldValue.serverTimestamp()};batch.set(a,d);batch.set(b,d);}await batch.commit();}
+ String _ext(String p){final i=p.lastIndexOf('.');return i<0?'.bin':p.substring(i).replaceAll(RegExp(r'[^A-Za-z0-9.]'),'');}
+}

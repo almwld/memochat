@@ -8,6 +8,7 @@ import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../../advanced/presentation/advanced_hub_screen.dart';
+import '../../social/presentation/social_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -35,6 +36,7 @@ class _MainShellState extends State<MainShell> {
     _pages = [
       ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
       ContactsScreen(repository: widget.repository),
+      const SocialScreen(),
       DiscoverScreen(repository: widget.repository),
       const CallsScreen(),
       SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
@@ -72,6 +74,11 @@ class _MainShellState extends State<MainShell> {
                   iconSize: 21,
                 ),
                 label: 'تواصل',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.dynamic_feed_outlined, size: 22),
+                selectedIcon: Icon(Icons.dynamic_feed_rounded, size: 28),
+                label: 'Memo',
               ),
               NavigationDestination(
                 icon: AppIcon(AppIcons.search, size: 22),
