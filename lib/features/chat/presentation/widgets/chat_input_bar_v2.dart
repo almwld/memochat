@@ -265,7 +265,9 @@ class _ChatInputBarState extends State<ChatInputBar>
     } finally {
       if (mounted) setState(() => _isSending = false);
       if (await file.exists()) {
-        try { await file.delete(); } catch (_) {}
+        try {
+          await file.delete();
+        } catch (_) {}
       }
     }
   }
@@ -449,7 +451,7 @@ class _ChatInputBarState extends State<ChatInputBar>
               }),
               _attachment('file', 'ملف', () {
                 Navigator.pop(context);
-                _unawaited(_sendPickedFile());
+                unawaited(_sendPickedFile());
               }),
               _attachment('location', 'الموقع', () {
                 Navigator.pop(context);
