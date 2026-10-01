@@ -13,6 +13,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'package:memochat/firebase_options.dart';
+import '../../social/services/social_media_transfer_service.dart';
 import 'chat_service.dart';
 import 'nextcloud_service.dart';
 
@@ -27,6 +28,9 @@ void chatMediaTransferCallbackDispatcher() {
       final service = ChatMediaTransferService.instance;
       await service.initialize(startBackgroundWorker: false);
       await service.processPending();
+      final social = SocialMediaTransferService.instance;
+      await social.initialize(startWorker: false);
+      await social.processPending();
       return true;
     } catch (e) {
       debugPrint('media worker failed: $e');
