@@ -158,3 +158,33 @@ function notificationPayload(type, title, body, extra = {}) {
   };
 }
 
+
+
+// Canonical incoming-call delivery: Firestore is the source of truth and
+// this trigger is the single FCM producer for incoming calls.
+exports.notifyIncomingCall=onDocumentCreated('calls/{callId}',async event=>{
+  const snap=event.data;if(!snap)return;
+  const call=snap.data()||{};
+  const callId=event.params.callId;
+  const status=String(call.status||'');
+  if(!['calling','ringing'].includes(status))return;
+  const callerId=String(call.callerId||'');
+  const receiverId=String(call.receiverId||'');
+  const chatId=String(call.chatId||'');
+  if(!callerId||!receiverId||!chatId||callerId===receiverId)return;
+  const data={
+    type:'incoming_call',
+    callId,
+    chatId,
+    callerId,
+    receiverId,
+    callerName:String(call.callerName||'مستخدم'),
+    callerPhotoUrl:String(call.callerPhotoUrl||''),
+    isVideo:(call.isVideoCall===true||call.isVideo===true||String(call.callType||'')==='video')?'true':'false',
+    callType:String(call.callType||((call.isVideoCall===true||call.isVideo===true)?'video':'audio')),
+    title:String(call.callerName||'مكالمة واردة'),
+    body:String(call.isVideoCall===true||call.isVideo===true||String(call.callType||'')==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة'),
+  };
+  await archiveNotification(receiverId,{data});
+  await sendToUser(receiverId,{data});
+});
