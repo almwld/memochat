@@ -562,23 +562,60 @@ class _CallScreenState extends State<CallScreen> {
     ],
   );
 
-  Widget _errorPanel() => Center(child: Padding(padding: const EdgeInsets.all(24), child: Container(
+  Widget _errorPanel() => Center(
+    child: Padding(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(.58), borderRadius: BorderRadius.circular(28), border: Border.all(color: red.withOpacity(.25))),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 48),
-        const SizedBox(height: 14),
-        const Text('تعذر الاتصال', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 8),
-        Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, height: 1.5)),
-        const SizedBox(height: 20),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: connecting ? null : _retryConnection, icon: const Icon(Icons.refresh_rounded), label: Text(connecting ? 'جاري إعادة الاتصال...' : 'إعادة المحاولة'))),
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: ending ? null : end, icon: const Icon(Icons.close_rounded), label: const Text('العودة'))),
-      ]),
-    )),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(.58),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: red.withOpacity(.25)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 48),
+            const SizedBox(height: 14),
+            const Text(
+              'تعذر الاتصال',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: connecting ? null : _retryConnection,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(
+                  connecting ? 'جاري إعادة الاتصال...' : 'إعادة المحاولة',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: ending ? null : end,
+                icon: const Icon(Icons.close_rounded),
+                label: const Text('العودة'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
-
   Widget preview(VideoTrack t) => Container(
     width: 118,
     height: 176,
