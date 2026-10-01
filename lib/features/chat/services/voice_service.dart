@@ -22,6 +22,7 @@ class VoiceService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NextcloudService _nextcloud = NextcloudService();
+  final ChatService _chatService = ChatService();
 
   String? _recordingPath;
   bool _isRecording = false;
@@ -97,32 +98,15 @@ class VoiceService {
       throw StateError(result.error ?? 'فشل رفع التسجيل الصوتي إلى Nextcloud');
     }
 
-    final messageRef = _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .doc();
-
-    final now = FieldValue.serverTimestamp();
-    await messageRef.set({
-      'text': '🎤 رسالة صوتية',
-      'senderId': user.uid,
-      'senderName': user.displayName ?? 'مستخدم',
-      'timestamp': now,
-      'type': 'audio',
-      'audioUrl': result.url,
-      'mediaUrl': result.url,
-      'fileName': result.fileName,
-      'duration': _recordingDuration.inSeconds,
-      'isRead': false,
-      'readAt': null,
-    });
-
-    await _firestore.collection('chats').doc(chatId).update({
-      'lastMessage': '🎤 رسالة صوتية',
-      'lastMessageTime': now,
-      'updatedAt': now,
-    });
+    await _chatService.sendMessage(
+      chatId: chatId,
+      text: '🎤 رسالة صوتية',
+      audioUrl: result.url,
+      fileName: result.fileName,
+      fileMimeType: 'audio/mp4',
+      audioDuration: _recordingDuration.inSeconds.toString(),
+      idempotencyKey: 'voice_' + user.uid + '_' + DateTime.now().millisecondsSinceEpoch.toString(),
+    );
 
     try {
       await file.delete();
