@@ -29,8 +29,9 @@ class MessageBubble extends StatefulWidget {
   final Function(String)? onCallAgain;
   final bool isFirstInChat;
   final VoidCallback? onReplyPreviewTap;
+  final VoidCallback? onForward;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -690,6 +691,15 @@ class _MessageBubbleState extends State<MessageBubble> {
               ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () { Navigator.pop(context); widget.onEdit?.call(); }),
             if (widget.onPin != null)
               ListTile(leading: Icon((widget.message['isPinned'] == true) ? Icons.push_pin : Icons.push_pin_outlined), title: Text(widget.message['isPinned'] == true ? 'إلغاء تثبيت الرسالة' : 'تثبيت الرسالة'), onTap: () { Navigator.pop(context); widget.onPin?.call(); }),
+            if (widget.onForward != null)
+              ListTile(
+                leading: const Icon(Icons.forward_outlined),
+                title: const Text('إعادة توجيه'),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onForward?.call();
+                },
+              ),
             if (widget.onDeleteForMe != null)
               ListTile(leading: const Icon(Icons.delete_sweep_outlined), title: const Text('حذف لدي فقط'), onTap: () { Navigator.pop(context); widget.onDeleteForMe?.call(); }),
             if (widget.onDelete != null)
@@ -817,4 +827,4 @@ class _JustAudioMessagePlayerState extends State<JustAudioMessagePlayer> {
 }
 
 
-Future<void> _showForwardUnavailable(BuildContext context) async { if (!context.mounted) return; ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('إعادة التوجيه متاحة من المحادثة الحالية'))); }
+
