@@ -40,9 +40,23 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           path = Path('android/app/build.gradle')
+          if not path.exists():
+              path = Path('android/app/build.gradle.kts')
           text = path.read_text()
           text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
           text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
+          if path.suffix == '.kts':
+              import re
+              text = re.sub(r'compileSdk\s*=\s*[^\n]+', 'compileSdk = 35', text, count=1)
+              text = re.sub(r'minSdk\s*=\s*[^\n]+', 'minSdk = 23', text, count=1)
+              text = re.sub(r'targetSdk\s*=\s*[^\n]+', 'targetSdk = 35', text, count=1)
+              text = re.sub(r'applicationId\s*=\s*"[^"]+"', 'applicationId = "com.memo.app"', text, count=1)
+              if 'coreLibraryDesugaringEnabled = true' not in text:
+                  text = text.replace('compileOptions {', 'compileOptions {\n        coreLibraryDesugaringEnabled = true', 1)
+              if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
+                  text = text.rstrip() + '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+              path.write_text(text)
+              raise SystemExit(0)
           lines = text.splitlines()
           output = []
           inserted_min = False
