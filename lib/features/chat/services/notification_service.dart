@@ -654,7 +654,7 @@ class NotificationService {
         icon: 'ic_notification',
         color: const Color(0xFF0A8F83),
         actions: actions,
-        groupKey: chatId.isEmpty ? null : 'memochat_chat_${chatId}',
+        groupKey: chatId.isEmpty ? null : 'memochat_chat_$chatId',
       ),
       iOS: const DarwinNotificationDetails(
         presentAlert: true,
