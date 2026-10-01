@@ -150,7 +150,6 @@ class FriendRequestService {
   Stream<QuerySnapshot<Map<String, dynamic>>> watchFriends() {
     return _friendships
         .where('participants', arrayContains: _uid)
-        .where('status', isEqualTo: 'active')
         .snapshots();
   }
 
