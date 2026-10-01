@@ -449,7 +449,7 @@ class _ChatInputBarState extends State<ChatInputBar>
               }),
               _attachment('file', 'ملف', () {
                 Navigator.pop(context);
-                ToastService.showInfo('اختيار الملفات سيُفعّل عبر خدمة الملفات الموحدة.');
+                _unawaited(_sendPickedFile());
               }),
               _attachment('location', 'الموقع', () {
                 Navigator.pop(context);
