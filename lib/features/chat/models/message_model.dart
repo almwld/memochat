@@ -9,7 +9,7 @@ class MessageModel extends Equatable {
   final String? senderPhotoUrl, text;
   final Map<String, dynamic>? replyPreview;
   final MessageType type;
-  final Timestamp? timestamp, clientTimestamp, readAt, deliveredAt, editedAt, pinnedAt;
+  final Timestamp? timestamp, clientTimestamp, readAt, deliveredAt, editedAt, pinnedAt, expiresAt;
   final bool isRead, isDelivered, isEdited, isDeleted, isPinned;
   final MessageStatus status;
   final String? replyToId, idempotencyKey;
@@ -60,6 +60,7 @@ class MessageModel extends Equatable {
     this.deliveredAt,
     this.editedAt,
     this.pinnedAt,
+    this.expiresAt,
     this.isPinned = false,
     this.status = MessageStatus.sent,
   });
@@ -149,6 +150,7 @@ class MessageModel extends Equatable {
       deliveredAt: timestampOf(data['deliveredAt']),
       editedAt: timestampOf(data['editedAt']),
       pinnedAt: timestampOf(data['pinnedAt']),
+      expiresAt: timestampOf(data['expiresAt']),
       isPinned: data['isPinned'] == true,
     );
   }
@@ -191,6 +193,7 @@ class MessageModel extends Equatable {
         'deliveredAt': deliveredAt,
         'editedAt': editedAt,
         'pinnedAt': pinnedAt,
+        'expiresAt': expiresAt,
         'isPinned': isPinned,
       };
 
@@ -204,6 +207,7 @@ class MessageModel extends Equatable {
   bool get isCall => type == MessageType.call;
   bool get hasReactions => reactions?.isNotEmpty ?? false;
   bool get hasAttachments => attachments?.isNotEmpty ?? false;
+  bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!.toDate());
 
   @override
   List<Object?> get props => [
@@ -212,6 +216,6 @@ class MessageModel extends Equatable {
         replyToId, idempotencyKey, reactions, deletedFor, attachments, metadata,
         imageUrl, audioUrl, fileUrl, videoUrl, locationUrl, locationAddress,
         locationLat, locationLng, audioDuration, fileSize, fileName, fileMimeType,
-        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, status,
+        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, expiresAt, isPinned, status,
       ];
 }
