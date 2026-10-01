@@ -26,13 +26,20 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
   bool _loading = true;
   bool _error = false;
 
+  static AudioPlayer? _activePlayer;
+
   Color get _foreground {
     if (widget.isMe) return Colors.white;
-    return Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87;
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF53BDB0)
+        : const Color(0xFF0D8274);
   }
+
   Color get _muted {
-    if (widget.isMe) return Colors.white70;
-    return Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54;
+    if (widget.isMe) return Colors.white.withOpacity(.85);
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFD4E1DE)
+        : const Color(0xFF263238);
   }
 
   @override
@@ -63,6 +70,7 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
 
   @override
   void dispose() {
+    if (identical(_activePlayer, _player)) _activePlayer = null;
     _player.dispose();
     super.dispose();
   }
@@ -75,6 +83,11 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
     } else if (_player.playing) {
       await _player.pause();
     } else {
+      final previous = _activePlayer;
+      if (previous != null && !identical(previous, _player)) {
+        await previous.pause();
+      }
+      _activePlayer = _player;
       await _player.play();
     }
   }
