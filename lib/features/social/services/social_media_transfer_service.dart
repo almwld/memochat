@@ -70,14 +70,13 @@ class SocialMediaTransferService {
     await _database;
     if (startWorker && !_workerReady) {
       try {
-        await Workmanager().initialize(socialMediaTransferCallbackDispatcher, isInDebugMode: false);
-        _workerReady = true;
         await Workmanager().registerPeriodicTask(
           'memochat-social-media-periodic',
           socialMediaTransferTask,
           frequency: const Duration(minutes: 15),
           constraints: Constraints(networkType: NetworkType.connected),
         );
+        _workerReady = true;
       } catch (_) {}
     }
     unawaited(processPending());
