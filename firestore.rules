@@ -53,7 +53,8 @@ service cloud.firestore {
           'mutedFor',
           'typing',
           'typingUpdatedAt',
-          'deletedFor'
+          'deletedFor',
+          'disappearingDurationSeconds'
         ]);
 
       allow delete: if false;
