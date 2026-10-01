@@ -224,6 +224,10 @@ service cloud.firestore {
         allow read, write: if signedIn() && request.auth.uid == userId;
       }
 
+      match /private/tokens/fcm/{tokenId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+
       // User-scoped notification history, device state, relationships, mini-app state and sync queue.
       match /notificationHistory/{documentId} {
         allow read: if signedIn() && request.auth.uid == userId;
