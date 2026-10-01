@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CallSessionService {
-  final FirebaseFirestore db;
+  final FirebaseFirestore? _firestore;
 
-  CallSessionService({FirebaseFirestore? firestore})
-      : db = firestore ?? FirebaseFirestore.instance;
+  CallSessionService({FirebaseFirestore? firestore}) : _firestore = firestore;
+
+  FirebaseFirestore get db => _firestore ?? FirebaseFirestore.instance;
 
   static const allowedStatuses = {
     'calling',
