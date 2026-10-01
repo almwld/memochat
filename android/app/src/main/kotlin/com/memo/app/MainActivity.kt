@@ -13,6 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private val callAudioChannel = "com.memo.app/call_audio"
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
+    private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
 
     override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -38,6 +39,30 @@ class MainActivity : FlutterFragmentActivity() {
                         val volume = kotlin.math.round(normalized * max).toInt().coerceIn(0, max)
                         audio.setStreamVolume(AudioManager.STREAM_VOICE_CALL, volume, 0)
                         result.success(volume.toDouble() / max.toDouble())
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callForegroundServiceChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val intent = Intent(this, CallForegroundService::class.java).apply {
+                            action = CallForegroundService.ACTION_START
+                            putExtra(CallForegroundService.EXTRA_CALL_ID, call.argument<String>("callId"))
+                            putExtra(CallForegroundService.EXTRA_CALLER_NAME, call.argument<String>("callerName"))
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= 26) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
+                    }
+                    "stop" -> {
+                        stopService(Intent(this, CallForegroundService::class.java))
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }
