@@ -562,8 +562,7 @@ class _CallScreenState extends State<CallScreen> {
     ],
   );
 
-  Widget _errorPanel() => Positioned.fill(
-    child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Container(
+  Widget _errorPanel() => Center(child: Padding(padding: const EdgeInsets.all(24), child: Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(color: Colors.black.withOpacity(.58), borderRadius: BorderRadius.circular(28), border: Border.all(color: red.withOpacity(.25))),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -577,7 +576,7 @@ class _CallScreenState extends State<CallScreen> {
         const SizedBox(height: 8),
         SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: ending ? null : end, icon: const Icon(Icons.close_rounded), label: const Text('العودة'))),
       ]),
-    ))),
+    )),
   );
 
   Widget preview(VideoTrack t) => Container(
