@@ -21,6 +21,7 @@ class _ShakeScreenState extends State<ShakeScreen>
   bool _searching = false;
   bool _matched = false;
   bool _loadingUser = false;
+  bool _openingChat = false;
   String? _otherUserId;
   Map<String, dynamic>? _user;
   String _status = 'فعّل البحث ثم رجّ هاتفك للعثور على شخص يهتز معك';
@@ -83,8 +84,57 @@ class _ShakeScreenState extends State<ShakeScreen>
         _status = 'تم العثور على شخص يشاركك الرجّة';
       });
       _animation.stop();
+      await _openMatchedChat();
     } finally {
       _loadingUser = false;
+    }
+  }
+
+  Future<void> _openMatchedChat() async {
+    if (_openingChat || !mounted) return;
+    final id = _otherUserId;
+    final data = _user;
+    if (id == null || data == null) return;
+
+    _openingChat = true;
+    await _service.stopPresence();
+    try {
+      final rawName = data['displayName']?.toString().trim();
+      final name = rawName?.isNotEmpty == true ? rawName! : 'مستخدم';
+      final photo = data['photoUrl']?.toString() ?? data['photoURL']?.toString();
+      final chatId = await widget.repository.createConversation(
+        otherUserId: id,
+        otherUserName: name,
+        otherUserPhoto: photo,
+      );
+      if (!mounted) return;
+      final route = PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (_, animation, secondaryAnimation) => ChatRoomScreen(
+          chatId: chatId,
+          otherUserId: id,
+          otherUserName: name,
+          otherUserImage: photo,
+        ),
+        transitionsBuilder: (_, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+      await Navigator.of(context).pushReplacement(route);
+    } catch (error) {
+      _openingChat = false;
+      if (mounted) {
+        setState(() => _status = 'تم العثور على الشخص، لكن تعذر فتح المحادثة. حاول مرة أخرى.');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر فتح المحادثة: $error')));
+      }
     }
   }
 
@@ -97,23 +147,7 @@ class _ShakeScreenState extends State<ShakeScreen>
     final photo =
         data['photoUrl']?.toString() ?? data['photoURL']?.toString();
 
-    final chatId = await widget.repository.createConversation(
-      otherUserId: id,
-      otherUserName: name,
-      otherUserPhoto: photo,
-    );
-
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          chatId: chatId,
-          otherUserId: id,
-          otherUserName: name,
-          otherUserImage: photo,
-        ),
-      ),
-    );
+    await _openMatchedChat();
   }
 
   void _again() {
