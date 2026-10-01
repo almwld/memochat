@@ -146,7 +146,6 @@ class FriendRequestService {
   }
 }
 
-
   Stream<QuerySnapshot<Map<String, dynamic>>> watchFriends() {
     return _friendships
         .where('participants', arrayContains: _uid)
@@ -173,3 +172,4 @@ class FriendRequestService {
       'removedBy': uid,
     });
   }
+}
