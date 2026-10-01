@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'chat_service.dart';
 import 'nextcloud_service.dart';
 
 /// Records and plays chat voice messages.
@@ -19,7 +19,6 @@ class VoiceService {
 
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NextcloudService _nextcloud = NextcloudService();
   final ChatService _chatService = ChatService();
