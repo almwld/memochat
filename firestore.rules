@@ -289,6 +289,58 @@ service cloud.firestore {
       }
     }
 
+    // Stories and their per-user interactions.
+    match /statuses/{statusId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.expiresAt is timestamp;
+      allow update: if signedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+
+      match /views/{viewerId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() &&
+          viewerId == request.auth.uid &&
+          request.resource.data.userId == request.auth.uid;
+        allow delete: if false;
+      }
+
+      match /reactions/{reactionId} {
+        allow read: if signedIn();
+        allow create: if signedIn() &&
+          reactionId == request.auth.uid &&
+          request.resource.data.userId == request.auth.uid;
+        allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId;
+        allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      }
+
+      match /replies/{replyId} {
+        allow read: if signedIn();
+        allow create: if signedIn() &&
+          request.resource.data.userId == request.auth.uid;
+        allow update: if signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId;
+        allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Per-user saved document library.
+    match /document_library/{docId} {
+      allow read: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.ownerId == request.auth.uid &&
+        request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
     match /reports/{reportId} {
       allow create: if signedIn() &&
         request.resource.data.reporterId == request.auth.uid &&
