@@ -88,10 +88,16 @@ class _SocialScreenState extends State<SocialScreen>
           _Reels(service: service),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _compose,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('إنشاء'),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 86),
+        child: FloatingActionButton.extended(
+          heroTag: 'memo-community-create',
+          tooltip: 'إضافة منشور عام',
+          onPressed: _compose,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('إضافة منشور'),
+        ),
       ),
     );
   }
