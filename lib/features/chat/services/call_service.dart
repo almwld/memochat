@@ -1,9 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -70,32 +66,6 @@ class CallService {
   Stream<CallModel?> streamCall(String id) => _firestore.collection('calls').doc(id).snapshots().map((d) => d.exists ? CallModel.fromFirestore(d.id, d.data()!) : null);
   Future<void> _timeline({required String chatId, required String callId, required String text, required String status, required CallType type}) async { if (chatId.isEmpty) return; try { await _chat.sendSystemMessage(chatId: chatId, text: text, idempotencyKey: 'call_${callId}_$status', metadata: {'callId': callId, 'callType': type.name, 'status': status}); } catch (e) { debugPrint('call timeline: $e'); } }
   String _lockId(String a, String b) { final ids = [a,b]..sort(); return '${ids[0]}_${ids[1]}'; }
-  static const String _callNotificationEndpoint = String.fromEnvironment(
-    'BACKEND_URL',
-    defaultValue: 'https://miraculous-compassion-production-1d54.up.railway.app',
-  );
-
-  Future<void> _notifyIncomingCall({required String callId}) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('يجب تسجيل الدخول لإرسال إشعار المكالمة');
-    final token = await user.getIdToken();
-    if (token == null || token.isEmpty) {
-      throw Exception('تعذر الحصول على Firebase ID token لإشعار المكالمة');
-    }
-    final response = await http.post(
-      Uri.parse('$_callNotificationEndpoint/call-notification'),
-      headers: <String, String>{
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(<String, dynamic>{'callId': callId}),
-    ).timeout(const Duration(seconds: 12));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('فشل إرسال إشعار المكالمة: HTTP ${response.statusCode} ${response.body}');
-    }
-    debugPrint('📞 CALL NOTIFICATION SENT callId=$callId response=${response.statusCode}');
-  }
-
   Future<CallModel?> initiateCall({required String receiverId, required String receiverName, String? receiverPhotoUrl, required CallType type, required String chatId, String? idempotencyKey}) async {
     final uid = _uid();
     final user = _auth.currentUser!;
@@ -155,19 +125,7 @@ class CallService {
     final saved = await _retry(() => ref.get());
     if (!saved.exists) throw Exception('تعذر حفظ المكالمة');
     final call = CallModel.fromFirestore(id,saved.data()!);
-    // Firestore stores the canonical call, while Railway is the explicit
-    // FCM delivery bridge. There is no Firestore trigger in this deployment,
-    // so the notification request must happen here after the call is persisted.
-    try {
-      await _notifyIncomingCall(callId: id);
-    } catch (e) {
-      await _firestore.collection('calls').doc(id).update({
-        'status': 'failed',
-        'endedAt': FieldValue.serverTimestamp(),
-        'endedReason': 'notify_failed',
-      });
-      rethrow;
-    }
+    // The Firestore calls/{callId} trigger is the single incoming-call FCM producer.
     unawaited(_timeline(chatId:chatId,callId:id,text:type == CallType.video ? 'بدء مكالمة فيديو' : 'بدء مكالمة صوتية',status:CallStatus.calling.name,type:type));
     return call;
   }
