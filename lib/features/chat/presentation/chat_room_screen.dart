@@ -166,6 +166,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   DateTime? _lastSeen;
   bool _muted = false;
   bool _pinned = false;
+  int _disappearingDurationSeconds = 0;
   MessageModel? _replyingTo;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
       _firestore.collection('chats').doc(widget.chatId).collection('messages');
@@ -303,6 +304,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _hiddenForCurrentUser(Map<String, dynamic> data) {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return false;
+    final expiresAt = data['expiresAt'];
+    final expiry = expiresAt is Timestamp ? expiresAt.toDate() : (expiresAt is DateTime ? expiresAt : null);
+    if (expiry != null && DateTime.now().isAfter(expiry)) return true;
     final deletedFor = data['deletedFor'];
     return deletedFor is Map && deletedFor[uid] == true;
   }
@@ -389,6 +393,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       final mutedFor = data['mutedFor'];
       final pinnedFor = data['pinnedFor'];
       final typing = data['typing'];
+      final disappearing = (data['disappearingDurationSeconds'] as num?)?.toInt() ?? 0;
       final otherId = widget.otherUserId;
       final otherTyping = typing is Map && typing[otherId] == true;
       if (mounted && _otherTyping != otherTyping)
@@ -400,6 +405,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         _pinned = pinnedFor is Map && pinnedFor[uid] == true
             ? true
             : data['isPinned'] == true && pinnedFor is! Map;
+        _disappearingDurationSeconds = disappearing;
       });
     });
     _userSub = _firestore
@@ -793,6 +799,31 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     });
   }
 
+  Future<void> _setDisappearingDuration() async {
+    const options = <int, String>{0: 'إيقاف', 86400: '24 ساعة', 604800: '7 أيام', 2592000: '30 يوماً'};
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: options.entries.map((entry) => RadioListTile<int>(
+          value: entry.key,
+          groupValue: _disappearingDurationSeconds,
+          title: Text(entry.value),
+          subtitle: entry.key == 0 ? const Text('تبقى الرسائل حتى حذفها') : const Text('تختفي الرسائل الجديدة بعد المدة المحددة'),
+          onChanged: (value) => Navigator.pop(context, value),
+        )).toList()),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    try {
+      await _chat.setDisappearingDuration(widget.chatId, selected);
+      if (mounted) setState(() => _disappearingDurationSeconds = selected);
+      if (mounted) _showToast(selected == 0 ? 'تم إيقاف الرسائل المؤقتة' : 'تم ضبط الرسائل المؤقتة');
+    } catch (e) {
+      if (mounted) _showToast('تعذر تغيير إعداد الرسائل المؤقتة');
+    }
+  }
+
   Future<void> _toggleMute() async {
     try {
       await _chat.muteChat(widget.chatId, !_muted);
@@ -1073,12 +1104,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 if (value == 'mute') _toggleMute();
                 if (value == 'pin') _togglePin();
                 if (value == 'pinned') _showPinnedMessages();
+                if (value == 'disappearing') _setDisappearingDuration();
                 if (value == 'profile') _profile();
                 if (value == 'delete') _deleteChatForMe();
               },
               itemBuilder: (_) => [
                     const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
                     const PopupMenuItem(value: 'pinned', child: Text('الرسائل المثبتة')),
+                    PopupMenuItem(value: 'disappearing', child: Text(_disappearingDurationSeconds == 0 ? 'الرسائل المؤقتة' : 'الرسائل المؤقتة: مفعّلة')),
                     PopupMenuItem(value: 'mute', child: Text(_muted ? 'إلغاء كتم الإشعارات' : 'كتم الإشعارات')),
                     PopupMenuItem(value: 'pin', child: Text(_pinned ? 'إلغاء تثبيت المحادثة' : 'تثبيت المحادثة')),
                     const PopupMenuDivider(),
