@@ -26,26 +26,25 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
+  late final List<Widget> _pages;
 
   @override
-  Widget build(BuildContext context) {
-    final pages = <Widget>[
-      ChatScreen(
-        repository: widget.repository,
-        onNewChat: () => setState(() => _index = 1),
-      ),
+  void initState() {
+    super.initState();
+    _pages = [
+      ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
       ContactsScreen(repository: widget.repository),
       DiscoverScreen(repository: widget.repository),
       const CallsScreen(),
-      SettingsScreen(
-        onThemeModeChanged: widget.onThemeModeChanged,
-        onSignOut: widget.onSignOut,
-      ),
+      SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
     ];
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: _index, children: pages),
+      body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: ClipRRect(
