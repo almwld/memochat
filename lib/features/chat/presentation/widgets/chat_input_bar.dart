@@ -481,11 +481,16 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     if (_recording || _hasRecording) return _voiceBar(dark);
+
+    final fieldColor = dark ? const Color(0xFF202C33) : const Color(0xFFFFFFFF);
+    final barColor = dark ? const Color(0xFF111B21) : const Color(0xFFF0F2F5);
+    final iconColor = dark ? const Color(0xFF8696A0) : const Color(0xFF54656F);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Material(
-          color: Colors.transparent,
+          color: barColor,
           child: SafeArea(
             top: false,
             child: Padding(
@@ -494,16 +499,22 @@ class _ChatInputBarState extends State<ChatInputBar> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: Stack(
-                      alignment: AlignmentDirectional.centerStart,
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: dark ? const Color(0xFF121A29) : Colors.white,
-                            borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 46, maxHeight: 132),
+                      decoration: BoxDecoration(
+                        color: fieldColor,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            tooltip: 'ملصقات ورموز',
+                            onPressed: _sending ? null : () {},
+                            icon: Icon(Icons.emoji_emotions_outlined, color: iconColor),
+                            splashRadius: 21,
                           ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 46, maxHeight: 130),
+                          Expanded(
                             child: TextField(
                               controller: _controller,
                               focusNode: _focus,
@@ -511,41 +522,65 @@ class _ChatInputBarState extends State<ChatInputBar> {
                               maxLines: 5,
                               textDirection: TextDirection.rtl,
                               keyboardType: TextInputType.multiline,
-                              decoration: const InputDecoration(
+                              textInputAction: TextInputAction.newline,
+                              style: TextStyle(
+                                color: dark ? Colors.white : const Color(0xFF111B21),
+                                fontSize: 16,
+                                height: 1.25,
+                              ),
+                              decoration: InputDecoration(
                                 hintText: 'اكتب رسالة...',
+                                hintStyle: TextStyle(color: iconColor, fontSize: 15),
                                 border: InputBorder.none,
                                 isDense: true,
-                                contentPadding: EdgeInsetsDirectional.fromSTEB(44, 11, 4, 11),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 11),
                               ),
                             ),
                           ),
-                        ),
-                        PositionedDirectional(
-                          start: 2,
-                          child: IconButton(
-                            tooltip: 'إضافة',
+                          IconButton(
+                            tooltip: 'إرفاق',
                             onPressed: _sending ? null : _toggleAttachments,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                            icon: AnimatedRotation(
-                              turns: _attachments ? .125 : 0,
-                              duration: const Duration(milliseconds: 220),
-                              child: const Icon(Icons.add_rounded),
-                            ),
+                            icon: Icon(Icons.attach_file_rounded, color: iconColor),
+                            splashRadius: 21,
                           ),
-                        ),
-                      ],
+                          if (!_hasText)
+                            IconButton(
+                              tooltip: 'الكاميرا',
+                              onPressed: _sending ? null : () => _pickImage(ImageSource.camera),
+                              icon: Icon(Icons.camera_alt_outlined, color: iconColor),
+                              splashRadius: 21,
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 5),
-                  GestureDetector(
-                    onTap: _sending
-                        ? null
-                        : (_hasText ? _sendText : _startRecording),
-                    child: Icon(
-                      _hasText ? Icons.send_rounded : Icons.mic_rounded,
-                      color: _sending ? Colors.grey : AppColors.primary,
-                      size: 27,
+                  const SizedBox(width: 7),
+                  Semantics(
+                    button: true,
+                    label: _hasText ? 'إرسال' : 'تسجيل صوتي',
+                    child: GestureDetector(
+                      onTap: _sending ? null : (_hasText ? _sendText : _startRecording),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        width: 48,
+                        height: 48,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF00A884),
+                          shape: BoxShape.circle,
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 160),
+                          transitionBuilder: (child, animation) =>
+                              ScaleTransition(scale: animation, child: child),
+                          child: Icon(
+                            _hasText ? Icons.send_rounded : Icons.mic_rounded,
+                            key: ValueKey(_hasText),
+                            color: Colors.white,
+                            size: 23,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -561,15 +596,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
             axisAlignment: -1,
             child: FadeTransition(
               opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, -0.08),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-                ),
-                child: child,
-              ),
+              child: child,
             ),
           ),
           child: _attachments
