@@ -40,6 +40,33 @@ exports.createLiveKitToken = onCall(
       throw new HttpsError('permission-denied', 'هوية المشارك لا تطابق حساب Firebase');
     }
 
+    // LiveKit tokens are only issued for a real active call. The room name
+    // contract is call_<callId>, and the authenticated user must be one of
+    // the two participants stored by CallService.
+    const match = /^call_([A-Za-z0-9_-]+)$/.exec(roomName);
+    if (!match) {
+      throw new HttpsError('invalid-argument', 'roomName غير صالح');
+    }
+    const callId = match[1];
+    const callSnap = await admin.firestore().collection('calls').doc(callId).get();
+    if (!callSnap.exists) {
+      throw new HttpsError('not-found', 'المكالمة غير موجودة');
+    }
+    const call = callSnap.data() || {};
+    const callerId = String(call.callerId || '');
+    const receiverId = String(call.receiverId || '');
+    const storedRoom = String(call.liveKitRoomName || call.roomName || '');
+    const status = String(call.status || '');
+    if (participantIdentity !== callerId && participantIdentity !== receiverId) {
+      throw new HttpsError('permission-denied', 'ليس لديك صلاحية الانضمام إلى هذه المكالمة');
+    }
+    if (storedRoom !== roomName) {
+      throw new HttpsError('permission-denied', 'غرفة LiveKit لا تطابق المكالمة');
+    }
+    if (!['calling', 'ringing', 'connected'].includes(status)) {
+      throw new HttpsError('failed-precondition', 'المكالمة لم تعد نشطة');
+    }
+
     const apiKey = LIVEKIT_API_KEY.value();
     const apiSecret = LIVEKIT_API_SECRET.value();
     if (!apiKey || !apiSecret) {
