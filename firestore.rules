@@ -200,6 +200,35 @@ service cloud.firestore {
       match /private/{documentId} {
         allow read, write: if signedIn() && request.auth.uid == userId;
       }
+
+      // User-scoped notification history, device state, relationships, mini-app state and sync queue.
+      match /notificationHistory/{documentId} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create: if signedIn() && request.auth.uid == userId &&
+          request.resource.data.type is string &&
+          request.resource.data.title is string &&
+          request.resource.data.body is string;
+        allow update: if signedIn() && request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /devices/{deviceId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /relationships/{otherUserId} {
+        allow read, write: if signedIn() && request.auth.uid == userId &&
+          otherUserId != userId;
+      }
+
+      match /miniApps/{appId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /syncQueue/{queueId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
     }
 
 
