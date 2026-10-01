@@ -90,6 +90,34 @@ jobs:
           grep -R -n '^package ' android/app/src/main/kotlin || true
           grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
 
+      - name: Configure Google Services and Firebase OAuth
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          settings = Path('android/settings.gradle')
+          s = settings.read_text()
+          plugin = 'id "com.google.gms.google-services" version "4.4.2" apply false'
+          if plugin not in s:
+              marker = 'plugins {'
+              if marker not in s:
+                  raise SystemExit('android/settings.gradle has no plugins block')
+              s = s.replace(marker, marker + '\n    ' + plugin, 1)
+          settings.write_text(s)
+
+          app = Path('android/app/build.gradle')
+          s = app.read_text()
+          app_plugin = 'id "com.google.gms.google-services"'
+          if app_plugin not in s:
+              marker = 'plugins {'
+              if marker not in s:
+                  raise SystemExit('android/app/build.gradle has no plugins block')
+              s = s.replace(marker, marker + '\n    ' + app_plugin, 1)
+          app.write_text(s)
+          PY
+          grep -n "com.google.gms.google-services" android/settings.gradle android/app/build.gradle
+
       - name: Configure Release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
