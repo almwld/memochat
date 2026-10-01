@@ -5,6 +5,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
+import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../presentation/story_viewer_screen.dart';
 import '../presentation/add_status_screen.dart';
