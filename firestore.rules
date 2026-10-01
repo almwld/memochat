@@ -408,6 +408,14 @@ service cloud.firestore {
       }
     }
 
+    // Business profiles are keyed by the owner's UID and are publicly discoverable only to signed-in users.
+    match /businessProfiles/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
     match /businesses/{businessId} {
       allow read: if signedIn() && resource.data.active == true;
       allow create: if signedIn() &&
