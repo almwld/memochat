@@ -295,8 +295,15 @@ class _StatusAddTile extends StatelessWidget {
     borderRadius: BorderRadius.circular(18),
     child: SizedBox(width: 72, child: Column(children: [
       Container(width: 62, height: 62, decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primaryContainer), child: Icon(Icons.add_rounded, color: Theme.of(context).colorScheme.primary, size: 30)),
-      const SizedBox(height: 6), const Text('حالتي', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      const Text(
+        'حالتي',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+      ),
     ]),
+  ),
   );
 }
 
@@ -311,8 +318,15 @@ class _StatusTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: SizedBox(width: 72, child: Column(children: [
         Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)), child: CircleAvatar(radius: 29, backgroundImage: image.isEmpty ? null : NetworkImage(image), child: image.isEmpty ? Text(status.userName.characters.first) : null)),
-        const SizedBox(height: 6), Text(status.userName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        Text(
+          status.userName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+        ),
       ]),
-    );
+    ),
+  );
   }
 }
