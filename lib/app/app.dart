@@ -9,6 +9,9 @@ import '../core/repositories/chat_repository.dart';
 import '../core/repositories/firebase_chat_repository.dart';
 import '../core/theme/app_theme.dart';
 import '../core/services/firebase_bootstrap.dart';
+import '../core/services/identity_state_service.dart';
+import '../core/services/sync_coordinator.dart';
+import '../features/chat/services/chat_media_transfer_service.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import 'memo_splash_screen.dart';
@@ -26,6 +29,9 @@ class _MemoChatAppState extends State<MemoChatApp> {
   bool _showSplash = true;
   bool _initializationStarted = false;
   String? _lastSyncedUid;
+  final IdentityStateService _identity = IdentityStateService();
+  final MemoChatSyncCoordinator _syncCoordinator = MemoChatSyncCoordinator();
+  bool _lifecycleStarted = false;
   Stream<User?>? _authStream;
   ChatRepository? _repo;
 
@@ -70,6 +76,18 @@ class _MemoChatAppState extends State<MemoChatApp> {
 
     if (!_firebaseReady || !mounted) return;
 
+    if (!_lifecycleStarted) {
+      _lifecycleStarted = true;
+      unawaited(_syncCoordinator.initialize());
+      unawaited(ChatMediaTransferService.instance.initialize());
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_syncCoordinator.dispose());
+    unawaited(ChatMediaTransferService.instance.dispose());
+    super.dispose();
   }
 
   Future<void> _syncUser(User user) async {
@@ -81,14 +99,16 @@ class _MemoChatAppState extends State<MemoChatApp> {
       'username': id,
       'publicId': id,
       'photoUrl': user.photoURL ?? '',
-      'isOnline': true,
-      'lastSeen': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    await _identity.syncSession();
   }
 
   Future<void> _signOut() async {
-    if (Firebase.apps.isNotEmpty) await FirebaseAuth.instance.signOut();
+    if (Firebase.apps.isEmpty) return;
+    try {
+      await _identity.markOffline();
+    } catch (_) {}
+    await FirebaseAuth.instance.signOut();
   }
 
   void _setThemeMode(ThemeMode mode) {

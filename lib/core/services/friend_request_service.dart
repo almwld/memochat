@@ -103,6 +103,8 @@ class FriendRequestService {
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'status': 'active',
+          'requestId': requestId,
+          'memberIds': [senderId, uid],
         },
         SetOptions(merge: true),
       );

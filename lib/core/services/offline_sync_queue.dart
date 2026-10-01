@@ -10,6 +10,7 @@ class OfflineSyncQueue {
   final FirebaseFirestore db;
   Database? _localDb;
   Future<Database>? _opening;
+  Future<void>? _flushing;
 
   OfflineSyncQueue({FirebaseFirestore? firestore})
       : db = firestore ?? FirebaseFirestore.instance;
@@ -87,8 +88,17 @@ class OfflineSyncQueue {
     }
   }
 
-  Future<void> flush({String? uid, int limit = 50}) async {
+  Future<void> flush({String? uid, int limit = 50}) {
+    final active = _flushing;
+    if (active != null) return active;
+    final future = _flush(uid: uid, limit: limit);
+    _flushing = future;
+    return future.whenComplete(() => _flushing = null);
+  }
+
+  Future<void> _flush({String? uid, int limit = 50}) async {
     final database = await _database();
+    await recoverStaleProcessing(uid: uid);
     final now = DateTime.now().millisecondsSinceEpoch;
     final where = uid == null
         ? 'state = ? AND next_attempt_at <= ?'
@@ -165,6 +175,31 @@ class OfflineSyncQueue {
     } catch (_) {
       // Firestore SDK remains offline-capable; local delivery state is kept.
     }
+  }
+
+  Future<void> recoverStaleProcessing({
+    String? uid,
+    Duration staleAfter = const Duration(minutes: 5),
+  }) async {
+    final database = await _database();
+    final cutoff =
+        DateTime.now().subtract(staleAfter).millisecondsSinceEpoch;
+    final where = uid == null
+        ? 'state = ? AND updated_at < ?'
+        : 'state = ? AND updated_at < ? AND uid = ?';
+    final args = uid == null
+        ? <Object>['processing', cutoff]
+        : <Object>['processing', cutoff, uid];
+    await database.update(
+      'sync_queue',
+      {
+        'state': 'pending',
+        'next_attempt_at': DateTime.now().millisecondsSinceEpoch,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: where,
+      whereArgs: args,
+    );
   }
 
   Future<int> pendingCount({String? uid}) async {

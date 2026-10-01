@@ -39,6 +39,27 @@ class NotificationHistoryService {
     }, SetOptions(merge: true));
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> watch({int limit = 100}) {
+    final collection = ref;
+    if (collection == null) return const Stream.empty();
+    return collection
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> recent({
+    int limit = 100,
+  }) async {
+    final collection = ref;
+    if (collection == null) return const [];
+    final snapshot = await collection
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snapshot.docs;
+  }
+
   Future<void> markRead(String id) async {
     final collection = ref;
     if (collection == null) return;
@@ -46,5 +67,20 @@ class NotificationHistoryService {
       'read': true,
       'readAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> markAllRead() async {
+    final collection = ref;
+    if (collection == null) return;
+    final snapshot =
+        await collection.where('read', isEqualTo: false).limit(100).get();
+    final batch = db.batch();
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {
+        'read': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+    }
+    if (snapshot.docs.isNotEmpty) await batch.commit();
   }
 }

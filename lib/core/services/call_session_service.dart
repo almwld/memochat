@@ -1,2 +1,71 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-class CallSessionService { final FirebaseFirestore db; CallSessionService({FirebaseFirestore? firestore}):db=firestore??FirebaseFirestore.instance; Future<void> update(String id,Map<String,dynamic> patch) async { const a={'status','endedAt','acceptedAt','rejectedAt','connectedAt','muted','cameraEnabled','roomName'}; final p=<String,dynamic>{}; for(final e in patch.entries){if(a.contains(e.key))p[e.key]=e.value;} if(p.isNotEmpty){p['updatedAt']=FieldValue.serverTimestamp();await db.collection('calls').doc(id).update(p);}} Stream<DocumentSnapshot<Map<String,dynamic>>> watch(String id)=>db.collection('calls').doc(id).snapshots(); }
+
+class CallSessionService {
+  final FirebaseFirestore db;
+
+  CallSessionService({FirebaseFirestore? firestore})
+      : db = firestore ?? FirebaseFirestore.instance;
+
+  static const allowedStatuses = {
+    'calling',
+    'ringing',
+    'connected',
+    'ended',
+    'rejected',
+    'cancelled',
+    'missed',
+    'busy',
+    'failed',
+  };
+
+  static const terminalStatuses = {
+    'ended',
+    'rejected',
+    'cancelled',
+    'missed',
+    'busy',
+    'failed',
+  };
+
+  bool isTerminal(String status) => terminalStatuses.contains(status);
+
+  Future<void> update(String id, Map<String, dynamic> patch) async {
+    const allowed = {
+      'status',
+      'endedAt',
+      'acceptedAt',
+      'rejectedAt',
+      'connectedAt',
+      'muted',
+      'cameraEnabled',
+      'durationSeconds',
+      'endedReason',
+      'busyReason',
+      'metadata',
+    };
+    final data = <String, dynamic>{};
+    for (final entry in patch.entries) {
+      if (allowed.contains(entry.key)) data[entry.key] = entry.value;
+    }
+    final status = data['status']?.toString();
+    if (status != null && !allowedStatuses.contains(status)) {
+      throw ArgumentError('Unsupported call status: ' + status);
+    }
+    if (data.isEmpty) return;
+    data['updatedAt'] = FieldValue.serverTimestamp();
+    await db.collection('calls').doc(id).update(data);
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watch(String id) =>
+      db.collection('calls').doc(id).snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchForUser(
+    String uid, {
+    int limit = 20,
+  }) =>
+      db
+          .collection('calls')
+          .where('participants', arrayContains: uid)
+          .limit(limit)
+          .snapshots();
+}
