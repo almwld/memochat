@@ -53,6 +53,7 @@ class FriendRequestService {
     await ref.set({
       'senderId': senderId,
       'recipientId': target,
+      'senderName': auth.currentUser?.displayName,
       'recipientName': recipientName,
       'state': FriendRequestState.pending.name,
       'createdAt': FieldValue.serverTimestamp(),
@@ -114,16 +115,12 @@ class FriendRequestService {
   Stream<QuerySnapshot<Map<String, dynamic>>> watchIncoming() {
     return _requests
         .where('recipientId', isEqualTo: _uid)
-        .where('state', isEqualTo: FriendRequestState.pending.name)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchOutgoing() {
     return _requests
         .where('senderId', isEqualTo: _uid)
-        .where('state', isEqualTo: FriendRequestState.pending.name)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 }
