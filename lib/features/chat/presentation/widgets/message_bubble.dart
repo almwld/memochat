@@ -391,7 +391,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         ])),
       );
       if (action == null) return;
-      final file = await _downloadRemote();
+      final file = await downloadRemote();
       if (file == null) { _showFileError(); return; }
       if (action == 'open') {
         if (isPdf || isOffice) {
