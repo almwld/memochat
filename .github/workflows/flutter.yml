@@ -118,6 +118,41 @@ jobs:
           PY
           grep -n "com.google.gms.google-services" android/settings.gradle android/app/build.gradle
 
+      - name: Validate MemoChat release keystore
+        shell: bash
+        env:
+          MEMOCHAT_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          MEMOCHAT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          MEMOCHAT_KEY_ALIAS: memochat
+          MEMOCHAT_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$MEMOCHAT_KEYSTORE_BASE64" || { echo "❌ KEYSTORE_BASE64 secret is missing"; exit 1; }
+          test -n "$MEMOCHAT_KEYSTORE_PASSWORD" || { echo "❌ KEYSTORE_PASSWORD secret is missing"; exit 1; }
+          test -n "$MEMOCHAT_KEY_PASSWORD" || { echo "❌ KEY_PASSWORD secret is missing"; exit 1; }
+          rm -f android/app/memochat-release.jks /tmp/memochat-ks.txt /tmp/memochat-ks.err
+          if ! printf '%s' "$MEMOCHAT_KEYSTORE_BASE64" | base64 --decode > android/app/memochat-release.jks 2>/dev/null || ! test -s android/app/memochat-release.jks; then
+            rm -f android/app/memochat-release.jks
+            echo "❌ Invalid release keystore payload."
+            exit 1
+          fi
+          chmod 600 android/app/memochat-release.jks
+          echo "Decoded keystore SHA-256: $(sha256sum android/app/memochat-release.jks | awk '{print $1}')"
+          keytool -list -keystore android/app/memochat-release.jks -storepass "$MEMOCHAT_KEYSTORE_PASSWORD" >/tmp/memochat-ks.txt 2>/tmp/memochat-ks.err || {
+            echo "❌ Keystore password is invalid."
+            exit 1
+          }
+          grep -Eq "^[[:space:]]*$MEMOCHAT_KEY_ALIAS[[:space:]]*(,|$)" /tmp/memochat-ks.txt || {
+            echo "❌ Keystore alias is invalid: $MEMOCHAT_KEY_ALIAS"
+            exit 1
+          }
+          keytool -certreq -alias "$MEMOCHAT_KEY_ALIAS" -keystore android/app/memochat-release.jks -storepass "$MEMOCHAT_KEYSTORE_PASSWORD" -keypass "$MEMOCHAT_KEY_PASSWORD" -file android/app/.memochat.csr >/dev/null 2>&1 || {
+            echo "❌ Private-key password is invalid."
+            exit 1
+          }
+          rm -f android/app/.memochat.csr /tmp/memochat-ks.txt /tmp/memochat-ks.err
+          echo "✅ MemoChat release keystore validated."
+
       - name: Configure Release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
