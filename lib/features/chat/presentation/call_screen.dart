@@ -150,7 +150,8 @@ class _CallScreenState extends State<CallScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw StateError('يجب تسجيل الدخول');
-      if ((await Connectivity().checkConnectivity()) == ConnectivityResult.none) {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity.isEmpty || connectivity.every((item) => item == ConnectivityResult.none)) {
         throw StateError('لا يوجد اتصال بالإنترنت');
       }
 
@@ -508,89 +509,76 @@ class _CallScreenState extends State<CallScreen> {
   Widget build(BuildContext context) {
     final remote = swapped ? localTrack : remoteTrack;
     final local = swapped ? remoteTrack : localTrack;
-    final topStatus = error ??
-        (!online
-            ? 'لا يوجد اتصال بالإنترنت'
-            : !joined
-                ? (connecting ? 'جاري الاتصال...' : 'في انتظار قبول المكالمة...')
-                : connectionStatus == 'متصل'
-                    ? fmt(seconds)
-                    : connectionStatus);
-    final centerMessage = error ??
-        (!online
-            ? 'لا يوجد اتصال بالإنترنت'
-            : connecting
-                ? 'جاري الاتصال...'
-                : !joined
-                    ? 'في انتظار قبول المكالمة...'
-                    : '');
+    final status = error ??
+        (!online ? 'غير متصل' : !joined ? (connecting ? 'جاري الاتصال' : 'في انتظار الرد') : connectionStatus == 'متصل' ? fmt(seconds) : connectionStatus);
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
+      backgroundColor: const Color(0xFF071116),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF071116), Color(0xFF0A2025), Color(0xFF050B10)]),
+        ),
+        child: SafeArea(
+          child: Stack(children: [
             if (widget.isVideo && remote != null)
-              Positioned.fill(child: VideoTrackRenderer(remote))
+              Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(28), child: VideoTrackRenderer(remote)))
             else
-              Positioned.fill(child: waiting(centerMessage)),
+              Positioned.fill(child: waiting(centerMessageFor(status))),
+            Positioned(top: 12, left: 14, right: 14, child: _callHeader(status)),
             if (widget.isVideo && local != null)
-              PositionedDirectional(top: 68, end: 18, child: preview(local)),
+              PositionedDirectional(top: 82, end: 18, child: preview(local)),
             if (widget.isVideo && joined && remoteTrack == null)
               Positioned.fill(child: IgnorePointer(child: fallback())),
-            Positioned(top: 12, left: 12, right: 12, child: top(topStatus)),
-            if (error == null) Positioned(bottom: 18, left: 14, right: 14, child: controls()),
-            if (error != null)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(.94),
-                  padding: const EdgeInsets.fromLTRB(28, 40, 28, 28),
-                  child: SafeArea(
-                    child: Center(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.cloud_off_rounded, color: Colors.redAccent, size: 62),
-                            const SizedBox(height: 16),
-                            const Text('تعذر الاتصال', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 10),
-                            Text(error!, style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5), textAlign: TextAlign.center),
-                            const SizedBox(height: 10),
-                            const Text('تحقق من اتصال الإنترنت، ثم أعد المحاولة.', style: TextStyle(color: Colors.white54, fontSize: 13), textAlign: TextAlign.center),
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: connecting ? null : _retryConnection,
-                                icon: connecting
-                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : const Icon(Icons.refresh_rounded),
-                                label: Text(connecting ? 'جاري إعادة الاتصال...' : 'إعادة المحاولة'),
-                                style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: ending ? null : end,
-                                icon: const Icon(Icons.call_end_rounded),
-                                label: const Text('إنهاء المكالمة والعودة'),
-                                style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24), padding: const EdgeInsets.symmetric(vertical: 13)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+            if (error == null)
+              Positioned(left: 14, right: 14, bottom: 14, child: controls())
+            else
+              Positioned.fill(child: _errorPanel()),
+          ]),
         ),
       ),
     );
   }
+
+  String centerMessageFor(String status) => error ?? (!online ? 'تحقق من اتصال الإنترنت' : connecting ? 'جاري الاتصال...' : !joined ? 'في انتظار قبول المكالمة...' : status);
+
+  Widget _callHeader(String status) => Row(
+    children: [
+      Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: Colors.black.withOpacity(.34), borderRadius: BorderRadius.circular(22), border: Border.all(color: Colors.white.withOpacity(.10))),
+          child: Row(children: [
+            CircleAvatar(radius: 20, backgroundImage: widget.userImage?.trim().isNotEmpty == true ? NetworkImage(widget.userImage!.trim()) : null, child: widget.userImage?.trim().isNotEmpty == true ? null : const Icon(Icons.person_rounded)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.userName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              Text(status, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+            ])),
+            if (joined) Text(fmt(seconds), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      ),
+      const SizedBox(width: 8),
+      _iconButton(icon: Icons.call_end_rounded, onTap: end, color: red),
+    ],
+  );
+
+  Widget _errorPanel() => Positioned.fill(
+    child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(.58), borderRadius: BorderRadius.circular(28), border: Border.all(color: red.withOpacity(.25))),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 48),
+        const SizedBox(height: 14),
+        const Text('تعذر الاتصال', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, height: 1.5)),
+        const SizedBox(height: 20),
+        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: connecting ? null : _retryConnection, icon: const Icon(Icons.refresh_rounded), label: Text(connecting ? 'جاري إعادة الاتصال...' : 'إعادة المحاولة'))),
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: ending ? null : end, icon: const Icon(Icons.close_rounded), label: const Text('العودة'))),
+      ]),
+    ))),
+  );
 
   Widget preview(VideoTrack t) => Container(
     width: 118,
