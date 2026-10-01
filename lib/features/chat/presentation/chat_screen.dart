@@ -291,21 +291,38 @@ class _StateView extends StatelessWidget {
 class _StatusAddTile extends StatelessWidget {
   const _StatusAddTile({required this.onTap});
   final VoidCallback onTap;
-  @override Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(18),
-    child: SizedBox(width: 72, child: Column(children: [
-      Container(width: 62, height: 62, decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primaryContainer), child: Icon(Icons.add_rounded, color: Theme.of(context).colorScheme.primary, size: 30)),
-      const SizedBox(height: 6),
-      const Text(
-        'حالتي',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.primaryContainer,
+              ),
+              child: Icon(Icons.add_rounded, color: scheme.primary, size: 30),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'حالتي',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
       ),
-    ]),
-  ),
-  );
+    );
+  }
 }
 
 class _StatusTile extends StatelessWidget {
