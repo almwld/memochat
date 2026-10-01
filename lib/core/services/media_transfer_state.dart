@@ -1,0 +1,2 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+class MediaTransferState { final FirebaseFirestore db; MediaTransferState({FirebaseFirestore? firestore}):db=firestore??FirebaseFirestore.instance; Future<void> update(String chat,String message,{required String status,double? progress,String? error})=>db.collection('chats').doc(chat).collection('messages').doc(message).set({'uploadStatus':status,if(progress!=null)'uploadProgress':progress,if(error!=null)'uploadError':error,'updatedAt':FieldValue.serverTimestamp()},SetOptions(merge:true)); }
