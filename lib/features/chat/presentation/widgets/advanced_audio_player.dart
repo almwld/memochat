@@ -26,8 +26,14 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
   bool _loading = true;
   bool _error = false;
 
-  Color get _foreground => widget.isMe ? Colors.white : Colors.black87;
-  Color get _muted => widget.isMe ? Colors.white70 : Colors.black54;
+  Color get _foreground {
+    if (widget.isMe) return Colors.white;
+    return Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87;
+  }
+  Color get _muted {
+    if (widget.isMe) return Colors.white70;
+    return Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54;
+  }
 
   @override
   void initState() {
