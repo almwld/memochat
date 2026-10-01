@@ -7,6 +7,7 @@ import '../../chat/presentation/calls_screen.dart';
 import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
+import '../../advanced/presentation/advanced_hub_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -149,6 +150,18 @@ class DiscoverScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_left_rounded),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => ShakeScreen(repository: repository)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.chat, size: 48, iconSize: 23),
+              title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('غرف صوتية، Mini Apps، وملفات Business.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdvancedHubScreen()),
               ),
             ),
           ),
