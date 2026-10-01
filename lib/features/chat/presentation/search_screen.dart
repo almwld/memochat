@@ -70,8 +70,9 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final hasQuery = _controller.text.isNotEmpty;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: dark ? const Color(0xFF0B1121) : Colors.white,
       appBar: AppBar(
         title: const Text('بحث'),
         backgroundColor: AppColors.primary,
@@ -83,10 +84,10 @@ class _SearchScreenState extends State<SearchScreen> {
             controller: _controller,
             hint: 'ابحث عن محادثة...',
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            backgroundColor: Colors.white,
+            backgroundColor: dark ? const Color(0xFF162039) : Colors.white,
             borderColor: Colors.transparent,
-            textColor: Colors.black87,
-            hintColor: Colors.grey,
+            textColor: dark ? Colors.white : Colors.black87,
+            hintColor: dark ? Colors.white60 : Colors.grey,
             suffixIcon: hasQuery
                 ? IconButton(icon: const Icon(Icons.close, size: 18), onPressed: _controller.clear)
                 : null,
