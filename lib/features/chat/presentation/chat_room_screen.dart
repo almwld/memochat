@@ -221,6 +221,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
           ..addAll(retained)
           ..addAll(pending);
       });
+      _pendingRefreshTimer?.cancel();
+      if (pending.isNotEmpty) {
+        _pendingRefreshTimer = Timer.periodic(
+          const Duration(milliseconds: 800),
+          (_) async {
+            if (!mounted) return;
+            final jobs =
+                await ChatMediaTransferService.instance.pendingForChat(widget.chatId);
+            if (!mounted) return;
+            if (jobs.isEmpty) {
+              _pendingRefreshTimer?.cancel();
+              _pendingRefreshTimer = null;
+              await _loadPendingMedia();
+            } else {
+              await _loadPendingMedia();
+            }
+          },
+        );
+      }
     } catch (e) {
       debugPrint('pending media load: $e');
     }
