@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
 import 'package:memochat/core/theme/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
+import 'package:memochat/features/chat/models/chat_model.dart';
 import 'package:memochat/features/chat/models/status_model.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
 import 'package:memochat/features/chat/services/chat_reply_context.dart';
@@ -488,6 +489,95 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     if (value is String)
       return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
     return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  Future<void> _forwardMessage(MessageModel message) async {
+    if (message.id.isEmpty) return;
+    try {
+      final chats = await _chat.streamChats(limit: 100).first;
+      if (!mounted) return;
+      final destinations = chats.where((chat) => chat.id != widget.chatId).toList();
+      if (destinations.isEmpty) {
+        ToastService.showInfo('لا توجد محادثات أخرى لإعادة التوجيه إليها.');
+        return;
+      }
+      final selected = await showModalBottomSheet<ChatModel>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (context) {
+          final query = ValueNotifier<String>('');
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .72,
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 10),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text('إعادة توجيه إلى', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      onChanged: (value) => query.value = value.trim().toLowerCase(),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'ابحث عن محادثة...',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ValueListenableBuilder<String>(
+                      valueListenable: query,
+                      builder: (_, value, __) {
+                        final filtered = destinations.where((chat) {
+                          final name = chat.getDisplayName(_auth.currentUser?.uid ?? '');
+                          return value.isEmpty || name.toLowerCase().contains(value);
+                        }).toList();
+                        return ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 4),
+                          itemBuilder: (_, index) {
+                            final chat = filtered[index];
+                            final name = chat.getDisplayName(_auth.currentUser?.uid ?? '');
+                            final photo = chat.getDisplayPhoto(_auth.currentUser?.uid ?? '');
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: photo.trim().isEmpty ? null : NetworkImage(photo.trim()),
+                                child: photo.trim().isEmpty ? Text(name.isEmpty ? 'م' : name.characters.first) : null,
+                              ),
+                              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                              subtitle: chat.isGroup ? const Text('مجموعة') : null,
+                              trailing: const Icon(Icons.arrow_back_rounded),
+                              onTap: () => Navigator.pop(context, chat),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      if (selected == null || !mounted) return;
+      await _chat.forwardMessage(
+        sourceChatId: widget.chatId,
+        messageId: message.id,
+        destinationChatId: selected.id,
+      );
+      if (mounted) ToastService.showSuccess('تمت إعادة توجيه الرسالة');
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر إعادة توجيه الرسالة: $e');
+    }
   }
 
   Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(widget.chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
@@ -1057,6 +1147,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       onReply: model == null || model.id.isEmpty
                           ? null
                           : () => _startReply(model),
+                      onForward: model == null || model.id.isEmpty
+                          ? null
+                          : () => _forwardMessage(model),
                       onReplyPreviewTap: () {
                         final preview = message['replyPreview'];
                         final replyId = message['replyToId']?.toString() ?? (preview is Map ? preview['id']?.toString() : null);
