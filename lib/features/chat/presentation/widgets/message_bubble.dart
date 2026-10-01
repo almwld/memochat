@@ -40,20 +40,7 @@ class MessageBubble extends StatefulWidget {
 class _MessageBubbleState extends State<MessageBubble> {
   bool _isLocal(String path) => widget.message['isLocal'] == true || widget.message['isUploading'] == true || path.startsWith('file://') || (path.isNotEmpty && !path.startsWith('http') && File(path).existsSync());
 
-  String _formatMessageTime(dynamic value) {
-    if (value == null) return 'غير متوفر';
-    DateTime? date;
-    if (value is Timestamp) date = value.toDate();
-    if (value is DateTime) date = value;
-    if (value is String) date = DateTime.tryParse(value);
-    if (date == null) return 'غير متوفر';
-    final local = date.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    final dd = local.day.toString().padLeft(2, '0');
-    final mo = local.month.toString().padLeft(2, '0');
-    return '$dd/$mo/${local.year} $hh:$mm';
-  }
+
 
   Future<void> _sendToAnotherChat(File file) async {
     try {
@@ -375,7 +362,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         mime.contains('word') || mime.contains('spreadsheet') || mime.contains('presentation');
     final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
 
-    Future<File?> _downloadRemote() async {
+    Future<File?> downloadRemote() async {
       if (url.isEmpty || _isLocal(url)) return File(url.replaceFirst('file://', ''));
       try {
         final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
@@ -390,7 +377,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     }
 
 
-    Future<void> _documentActions() async {
+    Future<void> documentActions() async {
       if (url.isEmpty) return;
       final action = await showModalBottomSheet<String>(
         context: context,
@@ -455,7 +442,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         return;
       }
       if (isPdf || isOffice) {
-        await _documentActions();
+        await documentActions();
         return;
       }
       final target = Uri.tryParse(url);
@@ -807,11 +794,18 @@ class _JustAudioMessagePlayerState extends State<JustAudioMessagePlayer> {
           icon: Icon(playing ? Icons.pause_circle : Icons.play_circle),
           onPressed: () async {
             if (!ready) {
-              if (widget.local) await player.setFilePath(widget.url.replaceFirst('file://', ''));
-              else await player.setUrl(widget.url);
+              if (widget.local) {
+                await player.setFilePath(widget.url.replaceFirst('file://', ''));
+              } else {
+                await player.setUrl(widget.url);
+              }
               ready = true;
             }
-            if (playing) { await player.pause(); } else { await player.play(); }
+            if (playing) {
+              await player.pause();
+            } else {
+              await player.play();
+            }
           },
         );
       },
