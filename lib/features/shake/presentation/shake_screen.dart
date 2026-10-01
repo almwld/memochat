@@ -138,17 +138,6 @@ class _ShakeScreenState extends State<ShakeScreen>
     }
   }
 
-  Future<void> _message() async {
-    final id = _otherUserId;
-    final data = _user;
-    if (id == null || data == null) return;
-
-    final name = data['displayName']?.toString() ?? 'مستخدم';
-    final photo =
-        data['photoUrl']?.toString() ?? data['photoURL']?.toString();
-
-    await _openMatchedChat();
-  }
 
   void _again() {
     _service.stopPresence();
@@ -262,7 +251,7 @@ class _ShakeScreenState extends State<ShakeScreen>
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: _message,
+                      onPressed: _openMatchedChat,
                       icon: const Icon(Icons.chat_bubble_rounded),
                       label: const Text('ابدأ المحادثة'),
                     ),
