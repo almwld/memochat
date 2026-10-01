@@ -5,6 +5,9 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
+import '../services/status_service.dart';
+import '../presentation/story_viewer_screen.dart';
+import '../presentation/add_status_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.repository, this.onNewChat, super.key});
@@ -78,6 +81,35 @@ class _ChatScreenState extends State<ChatScreen> {
                         color: Colors.white,
                         icon: const Icon(Icons.add_rounded),
                       ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: StreamBuilder<List<UserStatusModel>>(
+                      stream: StatusService().streamActiveStatuses(),
+                      builder: (context, snapshot) {
+                        final statuses = snapshot.data ?? const <UserStatusModel>[];
+                        return SizedBox(
+                          height: 104,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: statuses.length + 1,
+                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return _StatusAddTile(onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddStatusScreen())));
+                              }
+                              final status = statuses[index - 1];
+                              return _StatusTile(
+                                status: status,
+                                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))),
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -252,4 +284,35 @@ class _StateView extends StatelessWidget {
           ),
         ),
       );
+}
+
+
+class _StatusAddTile extends StatelessWidget {
+  const _StatusAddTile({required this.onTap});
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(18),
+    child: SizedBox(width: 72, child: Column(children: [
+      Container(width: 62, height: 62, decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primaryContainer), child: Icon(Icons.add_rounded, color: Theme.of(context).colorScheme.primary, size: 30)),
+      const SizedBox(height: 6), const Text('حالتي', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+    ]),
+  );
+}
+
+class _StatusTile extends StatelessWidget {
+  const _StatusTile({required this.status, required this.onTap});
+  final UserStatusModel status;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final image = status.userImage?.trim() ?? '';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(width: 72, child: Column(children: [
+        Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)), child: CircleAvatar(radius: 29, backgroundImage: image.isEmpty ? null : NetworkImage(image), child: image.isEmpty ? Text(status.userName.characters.first) : null)),
+        const SizedBox(height: 6), Text(status.userName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
 }
