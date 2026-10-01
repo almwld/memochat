@@ -26,8 +26,11 @@ class _MemoChatAppState extends State<MemoChatApp> {
   bool _showSplash = true;
   bool _initializationStarted = false;
   String? _lastSyncedUid;
+  Stream<User?>? _authStream;
+  ChatRepository? _repo;
 
-  ChatRepository get _repository => FirebaseChatRepository();
+  ChatRepository get _repository => _repo ??= FirebaseChatRepository();
+  Stream<User?> get _authenticationStream => _authStream ??= FirebaseAuth.instance.authStateChanges();
 
   @override
   void initState() {
@@ -138,17 +141,19 @@ class _MemoChatAppState extends State<MemoChatApp> {
           : !_firebaseReady
               ? AuthScreen(onFirebaseReady: _markFirebaseReady)
               : StreamBuilder<User?>(
-                  stream: FirebaseAuth.instance.authStateChanges(),
+                  stream: _authenticationStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const _AuthLoadingScreen();
                     }
                     final user = snapshot.data;
                     if (user == null) return const AuthScreen();
-                    // authStateChanges is the sole navigation authority.
+                    // Auth is the sole session authority. Do not perform writes during build().
                     if (_lastSyncedUid != user.uid) {
                       _lastSyncedUid = user.uid;
-                      unawaited(_syncUser(user));
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && _lastSyncedUid == user.uid) unawaited(_syncUser(user));
+                      });
                     }
                     return HomeScreen(
                       repository: _repository,
