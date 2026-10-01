@@ -295,7 +295,7 @@ class ChatMediaTransferService {
     }
 
     if (_isCancelled(id)) throw MediaUploadCancelled();
-    if (url?.isEmpty ?? true) throw StateError('تعذر إنشاء رابط قابل للوصول للوسائط');
+    if (url.isEmpty) throw StateError('تعذر إنشاء رابط قابل للوصول للوسائط');
     await db.update('media_outbox', {
       'status': 'link_ready',
       'remote_path': remotePath,
