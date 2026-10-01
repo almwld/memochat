@@ -146,6 +146,48 @@ async function main() {
 
     await assertFails(deleteDoc(doc(mallory, 'notifications/n-1')));
 
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/notificationHistory/h-1'), {
+        type: 'message', title: 'Hello', body: 'Test', read: false,
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(alice, 'users/alice/notificationHistory/h-1'), {
+        read: true, readAt: 'server',
+      }),
+    );
+    await assertFails(
+      getDoc(doc(bob, 'users/alice/notificationHistory/h-1')),
+    );
+
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/devices/device-1'), {platform: 'android'}),
+    );
+    await assertFails(
+      setDoc(doc(bob, 'users/alice/devices/device-2'), {platform: 'android'}),
+    );
+
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/relationships/bob'), {blocked: true}),
+    );
+    await assertFails(
+      setDoc(doc(alice, 'users/alice/relationships/alice'), {blocked: true}),
+    );
+
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/miniApps/maps'), {state: {zoom: 5}}),
+    );
+    await assertFails(
+      getDoc(doc(bob, 'users/alice/miniApps/maps')),
+    );
+
+    await assertSucceeds(
+      setDoc(doc(alice, 'users/alice/syncQueue/job-1'), {state: 'pending'}),
+    );
+    await assertFails(
+      setDoc(doc(bob, 'users/alice/syncQueue/job-2'), {state: 'pending'}),
+    );
+
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const db = context.firestore();
       await setDoc(doc(db, 'communities/community-1'), {
