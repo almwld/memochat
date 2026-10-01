@@ -63,6 +63,22 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
   Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}){_uid();return _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit).snapshots().map((s)=>MessagePaginationResult(messages:s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList(),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit));}
   Future<MessagePaginationResult> getMoreMessages({required String chatId,required int limit,DocumentSnapshot? startAfter})async{await _authorizedChat(chatId);Query<Map<String,dynamic>> q=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();return MessagePaginationResult(messages:s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList(),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit);}
   Future<List<MessageModel>> searchMessages({required String chatId,required String query,int limit=200})async{await _authorizedChat(chatId);final needle=query.trim().toLowerCase();if(needle.isEmpty)return const [];final safeLimit=limit.clamp(20,500).toInt();final snapshot=await _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(safeLimit).get();return snapshot.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).where((m){final values=[m.text??'',m.senderName,m.fileName??'',m.fileMimeType??''];return values.any((v)=>v.toLowerCase().contains(needle));}).toList();}
+  Future<void> setDisappearingDuration(String chatId, int seconds) async {
+    await _authorizedChat(chatId);
+    const allowed = {0, 86400, 604800, 2592000};
+    if (!allowed.contains(seconds)) throw ArgumentError.value(seconds, 'seconds', 'مدة الرسائل المؤقتة غير صالحة');
+    await _chatRef(chatId).update({
+      'disappearingDurationSeconds': seconds,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Timestamp? _expiryFromChat(Map<String, dynamic>? data) {
+    final seconds = (data?['disappearingDurationSeconds'] as num?)?.toInt() ?? 0;
+    if (seconds <= 0) return null;
+    return Timestamp.fromDate(DateTime.now().add(Duration(seconds: seconds)));
+  }
+
   Future<void> archiveChat(String chatId,bool archived)async{await _authorizedChat(chatId);await _chatRef(chatId).update({'isArchived':archived,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> pinChat(String chatId,bool pinned)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).update({'pinnedFor.$id':pinned,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> muteChat(String chatId,bool muted)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).update({'mutedFor.$id':muted,'updatedAt':FieldValue.serverTimestamp()});}
