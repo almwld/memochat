@@ -345,8 +345,22 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildVideo(String path) {
-    if (path.isEmpty) return const SizedBox(width: 230, height: 100, child: Center(child: Text('تعذر تحميل الفيديو')));
-    return GestureDetector(onTap: () => showDialog<void>(context: context, builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path))), child: Container(width: 230, height: 160, decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(14)), child: const Center(child: Icon(Icons.play_circle_fill, color: Colors.white, size: 50))));
+    if (path.isEmpty) {
+      return const SizedBox(
+        width: 230,
+        height: 100,
+        child: Center(child: Text('تعذر تحميل الفيديو')),
+      );
+    }
+    return _InlineVideoPreview(
+      url: path,
+      isLocal: _isLocal(path),
+      onOpen: () => showDialog<void>(
+        context: context,
+        barrierColor: Colors.black87,
+        builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path)),
+      ),
+    );
   }
 
   Widget _buildFile(Map<String, dynamic> m, bool dark) {
@@ -750,6 +764,176 @@ class _DocumentWebViewDialogState extends State<_DocumentWebViewDialog> {
       ]),
     ),
   );
+}
+
+class _InlineVideoPreview extends StatefulWidget {
+  const _InlineVideoPreview({
+    required this.url,
+    required this.isLocal,
+    required this.onOpen,
+  });
+
+  final String url;
+  final bool isLocal;
+  final VoidCallback onOpen;
+
+  @override
+  State<_InlineVideoPreview> createState() => _InlineVideoPreviewState();
+}
+
+class _InlineVideoPreviewState extends State<_InlineVideoPreview> {
+  VideoPlayerController? _controller;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    final rawPath = widget.url.trim();
+    final localPath = rawPath.replaceFirst('file://', '');
+    try {
+      final controller = widget.isLocal
+          ? VideoPlayerController.file(File(localPath))
+          : VideoPlayerController.networkUrl(Uri.parse(rawPath));
+
+      _controller = controller;
+      await controller.initialize();
+      await controller.setLooping(false);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() => _loading = false);
+    } catch (error) {
+      await _controller?.dispose();
+      _controller = null;
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = error;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const width = 230.0;
+    const height = 160.0;
+
+    if (_loading) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: const SizedBox(
+          width: width,
+          height: height,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+      );
+    }
+
+    if (_error != null || _controller == null || !_controller!.value.isInitialized) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.video_file_outlined,
+                size: 34,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'تعذر تحميل الفيديو',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _loading = true;
+                    _error = null;
+                  });
+                  _initialize();
+                },
+                child: const Text('إعادة المحاولة'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final controller = _controller!;
+    return GestureDetector(
+      onTap: widget.onOpen,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              ColoredBox(
+                color: Colors.black,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: controller.value.aspectRatio > 0
+                        ? controller.value.aspectRatio
+                        : 16 / 9,
+                    child: VideoPlayer(controller),
+                  ),
+                ),
+              ),
+              ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: controller,
+                builder: (context, value, _) {
+                  final playing = value.isPlaying;
+                  return AnimatedOpacity(
+                    opacity: playing ? 0.0 : 1.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: IgnorePointer(
+                      ignoring: playing,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.black38,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 44,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _VideoViewer extends StatefulWidget {
