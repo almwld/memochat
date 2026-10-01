@@ -13,7 +13,9 @@ class FriendRequestService {
 
   String get _uid {
     final uid = auth.currentUser?.uid;
-    if (uid == null || uid.isEmpty) throw StateError('Authentication required');
+    if (uid == null || uid.isEmpty) {
+      throw StateError('Authentication required');
+    }
     return uid;
   }
 
@@ -86,6 +88,7 @@ class FriendRequestService {
     if (senderId == null || senderId.isEmpty) {
       throw StateError('Invalid friend request sender');
     }
+
     final friendship = _friendships.doc(_friendshipId(senderId, uid));
     await db.runTransaction((transaction) async {
       transaction.update(ref, {
@@ -93,12 +96,16 @@ class FriendRequestService {
         'updatedAt': FieldValue.serverTimestamp(),
         'respondedAt': FieldValue.serverTimestamp(),
       });
-      transaction.set(friendship, {
-        'participants': [senderId, uid],
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'status': 'active',
-      }, SetOptions(merge: true));
+      transaction.set(
+        friendship,
+        {
+          'participants': [senderId, uid],
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'status': 'active',
+        },
+        SetOptions(merge: true),
+      );
     });
   }
 
@@ -134,38 +141,35 @@ class FriendRequestService {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchIncoming() {
-    return _requests
-        .where('recipientId', isEqualTo: _uid)
-        .snapshots();
+    return _requests.where('recipientId', isEqualTo: _uid).snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchOutgoing() {
-    return _requests
-        .where('senderId', isEqualTo: _uid)
-        .snapshots();
+    return _requests.where('senderId', isEqualTo: _uid).snapshots();
   }
-}
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchFriends() {
-    return _friendships
-        .where('participants', arrayContains: _uid)
-        .snapshots();
+    return _friendships.where('participants', arrayContains: _uid).snapshots();
   }
 
   Future<void> removeFriend(String otherUserId) async {
     final uid = _uid;
     final target = otherUserId.trim();
     if (target.isEmpty || target == uid) return;
+
     final ref = _friendships.doc(_friendshipId(uid, target));
     final snap = await ref.get();
     if (!snap.exists) return;
+
     final participants = List<String>.from(
-      (snap.data()?['participants'] as List?)?.map((e) => e.toString()) ??
+      (snap.data()?['participants'] as List?)
+              ?.map((e) => e.toString()) ??
           const <String>[],
     );
     if (!participants.contains(uid)) {
       throw StateError('Not a friendship participant');
     }
+
     await ref.update({
       'status': 'removed',
       'updatedAt': FieldValue.serverTimestamp(),
