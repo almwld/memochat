@@ -33,7 +33,12 @@ jobs:
           cache: true
 
       - name: Generate Android platform files
-        run: flutter create --platforms=android --project-name memochat --org com.memo .
+        run: |
+          if [ -f android/app/src/main/AndroidManifest.xml ]; then
+            echo "Android platform is already part of the repository; preserving custom native integration."
+          else
+            flutter create --platforms=android --project-name memochat --org com.memo .
+          fi
 
       - name: Configure Android build
         run: |
