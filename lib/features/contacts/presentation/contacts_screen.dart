@@ -216,7 +216,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('الإبلاغ عن ' + name),
+        title: Text('الإبلاغ عن $name'),
         content: TextField(
           controller: controller,
           autofocus: true,
