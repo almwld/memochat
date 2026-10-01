@@ -288,8 +288,17 @@ class ChatMediaTransferService {
             if (!reachable) url = null;
           }
         }
+        // Nextcloud is preferred, but media delivery must not depend on a
+        // public-share service being available. Firebase Storage is the
+        // durable delivery fallback, matching the Sehatak production flow.
         if (url == null || url.isEmpty) {
-          throw StateError(upload.error ?? 'تعذر تجهيز رابط Nextcloud للوسائط');
+          debugPrint(
+            'Nextcloud media delivery unavailable; using Firebase Storage fallback. '
+            'error=${upload.error}',
+          );
+          url = await _firebaseUrl(job, file, id);
+          remotePath =
+              'firebase://chat_media/${job['chat_id']}/$type/${id}/${job['file_name']}';
         }
       }
     }
@@ -371,7 +380,7 @@ class ChatMediaTransferService {
     switch (type) {
       case 'image': return 'image/jpeg';
       case 'video': return 'video/mp4';
-      case 'audio': return 'audio/mpeg';
+      case 'audio': return 'audio/mp4';
       default: return 'application/octet-stream';
     }
   }
