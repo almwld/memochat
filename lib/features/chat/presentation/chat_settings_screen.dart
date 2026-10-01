@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/toast_service.dart';
+import '../services/chat_service.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key});
@@ -16,6 +17,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _darkMode = false, _notifications = true, _sound = true, _vibration = true;
   double _fontSize = 14.0;
   bool _saving = false;
+  final _chatService = ChatService();
 
   @override void initState() { super.initState(); _loadSettings(); }
 
@@ -65,7 +67,24 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   Widget _buildSection({required String title, required List<Widget> children}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[600]))), Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)), child: Column(children: children))]);
 
-  void _showDeleteConfirmation() {
-    showDialog(context: context, builder: (dialogContext) => AlertDialog(title: const Text('حذف جميع المحادثات'), content: const Text('هل أنت متأكد من حذف جميع المحادثات؟ هذا الإجراء لا يمكن التراجع عنه.'), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), TextButton(onPressed: () { Navigator.pop(dialogContext); ToastService.showSuccess('تم حذف جميع المحادثات'); }, style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('حذف الكل'))]));
+  Future<void> _showDeleteConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف جميع المحادثات'),
+        content: const Text('سيتم إخفاء جميع محادثاتك من هذا الجهاز/الحساب. لن تُحذف رسائل الطرف الآخر. هل تريد المتابعة؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('حذف الكل')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      final count = await _chatService.deleteAllChatsForMe();
+      if (mounted) ToastService.showSuccess(count == 0 ? 'لا توجد محادثات للحذف.' : 'تم إخفاء $count محادثة.');
+    } catch (_) {
+      if (mounted) ToastService.showError('تعذر حذف المحادثات حاليًا.');
+    }
   }
 }
