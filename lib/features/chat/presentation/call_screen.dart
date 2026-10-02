@@ -128,15 +128,20 @@ class _CallScreenState extends State<CallScreen> {
     await connect();
   }
 
-  String _friendlyCallError(Object value) {
+  String _friendlyCallError(Object value, {bool? permissionsGranted}) {
     final raw = value.toString().toLowerCase();
-    if (raw.contains('mediaconnectexception') || raw.contains('peerconnection') || raw.contains('ice connectivity')) {
+    if (raw.contains('mediaconnectexception') ||
+        raw.contains('peerconnection') ||
+        raw.contains('ice connectivity')) {
       return 'تعذر إنشاء اتصال المكالمة. تحقق من الإنترنت ثم أعد المحاولة.';
     }
     if (raw.contains('timeout') || raw.contains('timed out')) {
       return 'انتهت مهلة الاتصال. تحقق من جودة الإنترنت وحاول مرة أخرى.';
     }
     if (raw.contains('permission') || raw.contains('إذن')) {
+      if (permissionsGranted == true) {
+        return 'تعذر تشغيل الكاميرا أو الميكروفون داخل محرك المكالمة رغم أن أذونات Android مفعلة. أعد المحاولة.';
+      }
       return 'يلزم السماح بالميكروفون${widget.isVideo ? ' والكاميرا' : ''} لإجراء المكالمة.';
     }
     if (raw.contains('network') || raw.contains('socket')) {
@@ -374,8 +379,18 @@ class _CallScreenState extends State<CallScreen> {
       } catch (cleanupError) {
         debugPrint('CALL LIVEKIT CLEANUP $cleanupError');
       }
-      final friendly = _friendlyCallError(e);
-      debugPrint('CALL LIVEKIT $e');
+      final microphoneGranted = (await Permission.microphone.status).isGranted;
+      final cameraGranted =
+          !widget.isVideo || (await Permission.camera.status).isGranted;
+      final permissionsGranted = microphoneGranted && cameraGranted;
+      final friendly = _friendlyCallError(
+        e,
+        permissionsGranted: permissionsGranted,
+      );
+      debugPrint(
+        'CALL LIVEKIT $e permissionsGranted=$permissionsGranted '
+        'microphone=$microphoneGranted camera=$cameraGranted',
+      );
       if (mounted) {
         setState(() {
           connecting = false;
