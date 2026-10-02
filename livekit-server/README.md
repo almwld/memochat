@@ -54,3 +54,4 @@ npm start
 المستودع يحتوي على `index.js` في الجذر لأن بعض إعدادات Railway/Node تشغّل افتراضياً `node index.js`. هذا الملف يفوض التنفيذ إلى `livekit-token-server/server.js`.
 
 GitHub يحفظ الكود، بينما Railway يشغّل الخادم بشكل دائم. لا توجد مفاتيح LiveKit أو Firebase سرية داخل المستودع.
+# redeploy Fri Oct  2 07:59:15 +03 2026
