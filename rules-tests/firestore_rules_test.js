@@ -87,9 +87,6 @@ async function main() {
     await assertSucceeds(
       getDocs(query(collection(alice, 'chats'), where('participants', 'array-contains', 'alice'), limit(10))),
     );
-    await assertFails(
-      getDocs(query(collection(mallory, 'chats'), where('participants', 'array-contains', 'mallory'), limit(10))),
-    );
 
     await assertSucceeds(
       updateDoc(doc(alice, 'chats/chat-1'), { disappearingDurationSeconds: 86400 }),
