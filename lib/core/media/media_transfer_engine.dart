@@ -6,7 +6,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -296,7 +295,7 @@ class MediaTransferEngine {
 
   String _idempotencyId(String uid, MediaDestination destination, String scope, File file, String name, int timestamp) {
     final stat = file.statSync();
-    final seed = '${uid}|${destination.name}|${scope}|${name}|${stat.length}|${stat.modified.millisecondsSinceEpoch}|${timestamp}';
+    final seed = '${uid}|${destination.name}|${scope}|${name}|${stat.size}|${stat.modified.millisecondsSinceEpoch}|${timestamp}';
     return 'media_${seed.hashCode.abs()}_${timestamp}';
   }
 
