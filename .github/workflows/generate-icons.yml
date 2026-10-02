@@ -1,0 +1,53 @@
+name: Generate MemoChat launcher icon
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: launcher-icon-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: Rasterize and generate Android launcher icon
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      - name: Rasterize canonical SVG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
+          test -s assets/icon/icon_app.png
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Android launcher icons
+        run: dart run flutter_launcher_icons
+
+      - name: Commit generated icon assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/icon/icon_app.png android/app/src/main/res
+          if git diff --cached --quiet; then
+            echo "No launcher icon changes."
+            exit 0
+          fi
+          git commit -m "chore(ci): generate MemoChat launcher icon"
+          git push origin HEAD:main
