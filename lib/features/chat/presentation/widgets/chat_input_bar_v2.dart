@@ -10,7 +10,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
-import 'package:memochat/core/services/nextcloud_service.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
 import 'package:memochat/core/services/reliable_message_service.dart';
 import 'package:memochat/core/services/toast_service.dart';
@@ -41,7 +40,6 @@ class _ChatInputBarState extends State<ChatInputBar>
   final _recorder = AudioRecorder();
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
-  final _nextcloud = NextcloudService();
 
   Timer? _recordingTimer;
   Duration _recordingDuration = Duration.zero;
@@ -98,18 +96,6 @@ class _ChatInputBarState extends State<ChatInputBar>
     }
   }
 
-  Future<String?> _upload(File file, String folder) async {
-    try {
-      final result = await _nextcloud.uploadFile(
-        file: file,
-        path: 'chats/${widget.chatId}/$folder',
-      );
-      return result.success ? result.url : null;
-    } catch (e) {
-      debugPrint('Nextcloud upload error: $e');
-      return null;
-    }
-  }
 
   Future<void> _enqueueMedia({
     required File file,
