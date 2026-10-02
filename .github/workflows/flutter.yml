@@ -159,6 +159,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           test -n "$KEYSTORE_BASE64" || { echo "KEYSTORE_BASE64 secret is missing"; exit 1; }
           test -n "$KEYSTORE_PASSWORD" || { echo "KEYSTORE_PASSWORD secret is missing"; exit 1; }
           test -n "$KEY_PASSWORD" || { echo "KEY_PASSWORD secret is missing"; exit 1; }
@@ -171,35 +172,38 @@ jobs:
           EOF
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('android/app/build.gradle')
-          s = p.read_text()
-          if 'signingConfigs {' not in s:
-              signing_block = [
-                  '    def signingPropertiesFile = rootProject.file("key.properties")',
-                  '    def signingProperties = new Properties()',
-                  '    if (signingPropertiesFile.exists()) {',
-                  '        signingProperties.load(new FileInputStream(signingPropertiesFile))',
-                  '    }',
-                  '',
-                  '    signingConfigs {',
-                  '        release {',
-                  '            if (signingPropertiesFile.exists()) {',
-                  '                storeFile rootProject.file(signingProperties["storeFile"])',
-                  '                storePassword signingProperties["storePassword"]',
-                  '                keyAlias signingProperties["keyAlias"]',
-                  '                keyPassword signingProperties["keyPassword"]',
-                  '            }',
-                  '        }',
-                  '    }',
-              ]
-              s = s.replace('android {', 'android {\n' + '\n'.join(signing_block), 1)
-          if 'signingConfig signingConfigs.release' not in s:
-              s = s.replace(
-                  'buildTypes {',
-                  'buildTypes {\n        release {\n            signingConfig signingConfigs.release\n        }',
+
+          gradle = Path("android/app/build.gradle")
+          source = gradle.read_text()
+
+          if "signingConfigs {" not in source:
+              signing = """    signingConfigs {
+                  release {
+                      def propsFile = rootProject.file("key.properties")
+                      def props = new java.util.Properties()
+                      if (propsFile.exists()) {
+                          props.load(new java.io.FileInputStream(propsFile))
+                          storeFile rootProject.file(props["storeFile"])
+                          storePassword props["storePassword"]
+                          keyAlias props["keyAlias"]
+                          keyPassword props["keyPassword"]
+                      }
+                  }
+              }
+          """
+              source = source.replace("android {", "android {\n" + signing, 1)
+
+          if "signingConfig signingConfigs.release" not in source:
+              marker = "buildTypes {"
+              if marker not in source:
+                  raise SystemExit("buildTypes block not found in android/app/build.gradle")
+              source = source.replace(
+                  marker,
+                  marker + '\n        release {\n            signingConfig signingConfigs.release\n        }',
                   1,
               )
-          p.write_text(s)
+
+          gradle.write_text(source)
           PY
           test -f android/app/memochat-release.jks
           test -f android/key.properties
