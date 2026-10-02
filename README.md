@@ -17,3 +17,4 @@ Modern Flutter messaging application foundation.
 5. Push/local notifications
 6. Voice/video calls via LiveKit
 7. Offline synchronization and production hardening
+
