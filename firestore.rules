@@ -343,7 +343,7 @@ service cloud.firestore {
           (memberId == request.auth.uid || exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)));
         allow create: if signedIn() &&
           request.auth.uid == memberId &&
-          get(/databases/$(database)/documents/communities/$(communityId)).data.visibility == 'public';
+          getAfter(/databases/$(database)/documents/communities/$(communityId)).data.visibility == 'public';
         allow update: if signedIn() && resource.data.role == 'owner' && request.auth.uid == memberId;
         allow delete: if signedIn() && request.auth.uid == memberId;
       }
