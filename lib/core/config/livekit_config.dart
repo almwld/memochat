@@ -7,12 +7,12 @@ class LiveKitConfig {
 
   static const String serverUrl = String.fromEnvironment(
     'LIVEKIT_URL',
-    defaultValue: 'wss://platformmemochat-z73p6n5m.livekit.cloud',
+    defaultValue: 'wss://memo-2jv45qyl.livekit.cloud',
   );
 
   static const String tokenServerUrl = String.fromEnvironment(
     'LIVEKIT_TOKEN_SERVER_URL',
-    defaultValue: 'https://miraculous-compassion-production-1d54.up.railway.app',
+    defaultValue: 'https://memochat-production-451e.up.railway.app',
   );
 
   static const int connectionTimeoutSeconds = 25;
