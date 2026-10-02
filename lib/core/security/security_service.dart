@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:cryptography_flutter/cryptography_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Local security layer for sensitive device-side data.
@@ -22,13 +21,11 @@ class SecurityService {
       'تشفير الرسائل طرفًا لطرف: غير مفعّل بعد — لا يتم الادعاء بأنه E2EE.';
 
   Future<void> initialize() async {
-    FlutterCryptography.enable();
     _enabled = (await _storage.read(key: _enabledKey)) == '1';
     if (_enabled) await _ensureMasterKey();
   }
 
   Future<void> setMilitaryEncryptionEnabled(bool enabled) async {
-    FlutterCryptography.enable();
     if (enabled) await _ensureMasterKey();
     _enabled = enabled;
     await _storage.write(key: _enabledKey, value: enabled ? '1' : '0');
