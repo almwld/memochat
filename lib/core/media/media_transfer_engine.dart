@@ -396,7 +396,7 @@ class MediaTransferEngine {
   }
 
   Duration _backoff(int attempt) {
-    final seconds = (2 << (attempt - 1)).clamp(2, 900);
+    final seconds = (2 << (attempt - 1)).clamp(2, 900).toInt();
     return Duration(milliseconds: seconds * 1000 + (DateTime.now().microsecond % 1000));
   }
 
