@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function isChatParticipant(chatId) {
       return signedIn() &&
-        request.auth.uid in resource.data.participants;
+        request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
     }
 
     function isCallParty() {
@@ -31,7 +31,7 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read: if isChatParticipant(chatId);
+      allow read: if signedIn() && request.auth.uid in resource.data.participants;
 
       allow create: if signedIn() &&
         request.resource.data.participants is list &&
@@ -53,7 +53,8 @@ service cloud.firestore {
           'mutedFor',
           'typing',
           'typingUpdatedAt',
-          'deletedFor'
+          'deletedFor',
+          'disappearingDurationSeconds'
         ]);
 
       allow delete: if false;

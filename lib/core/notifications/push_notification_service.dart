@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,6 +11,7 @@ import 'notification_inbox.dart';
 import 'notification_models.dart';
 import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
+import '../../features/chat/presentation/chat_room_screen.dart';
 import 'ringtone_service.dart';
 
 class PushNotificationService {
@@ -103,7 +105,7 @@ class PushNotificationService {
   Future<void> _handleOpened(RemoteMessage message) async {
     final notification = _parse(message);
     await _inbox.markRead(notification.id);
-    if (notification.callId != null) await _openIncomingCall(notification.callId!);
+    await _openNotification(notification);
   }
   Future<void> _handleLocalTap(String? payload) async {
     if (payload == null) return;
@@ -111,8 +113,28 @@ class PushNotificationService {
     if (decoded is! Map) return;
     final notification = AppNotification.fromRemote(Map<String, dynamic>.from(decoded));
     await _ringtone.stopIncomingCallRingtone();
-    if (notification.callId != null) await _openIncomingCall(notification.callId!);
+    await _openNotification(notification);
   }
+  Future<void> _openNotification(AppNotification notification) async {
+    if (notification.callId != null) {
+      await _openIncomingCall(notification.callId!);
+      return;
+    }
+    final chatId = notification.chatId?.trim();
+    final senderId = notification.senderId?.trim();
+    final navigator = memoNavigatorKey.currentState;
+    if (chatId == null || chatId.isEmpty || senderId == null || senderId.isEmpty || navigator == null) return;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid == senderId) return;
+    await navigator.push(MaterialPageRoute(
+      builder: (_) => ChatRoomScreen(
+        chatId: chatId,
+        otherUserId: senderId,
+        otherUserName: notification.title.trim().isEmpty ? 'مستخدم MemoChat' : notification.title.trim(),
+      ),
+    ));
+  }
+
   Future<void> _openIncomingCall(String callId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final navigator = memoNavigatorKey.currentState;

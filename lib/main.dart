@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'app/app.dart';
+import 'core/security/security_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,7 @@ Future<void> main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     debugPrint('MemoChat: Firebase initialized successfully');
+    await SecurityService.instance.initialize();
   } catch (error, stackTrace) {
     debugPrint('MemoChat: Firebase initialization failed: $error');
     debugPrintStack(stackTrace: stackTrace);

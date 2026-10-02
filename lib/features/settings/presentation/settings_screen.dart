@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/security/security_service.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 
@@ -26,12 +27,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _typingKey = 'settings.typing';
   static const _onlineKey = 'settings.online';
   static const _themeKey = 'settings.theme';
+  static const _militaryEncryptionKey = 'settings.militaryEncryption';
 
   bool _notifications = true;
   bool _readReceipts = true;
   bool _typing = true;
   bool _online = true;
   ThemeMode _themeMode = ThemeMode.system;
+  bool _militaryEncryption = false;
   bool _loading = true;
 
   User? get _user => Firebase.apps.isEmpty ? null : FirebaseAuth.instance.currentUser;
@@ -51,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _readReceipts = prefs.getBool(_readReceiptsKey) ?? true;
       _typing = prefs.getBool(_typingKey) ?? true;
       _online = prefs.getBool(_onlineKey) ?? true;
+      _militaryEncryption = prefs.getBool(_militaryEncryptionKey) ?? false;
       _themeMode = mode == 'light'
           ? ThemeMode.light
           : mode == 'dark'
@@ -258,6 +262,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await _toggle(_onlineKey, v);
                   await _privacy('showOnline', v);
                 },
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const _SectionTitle('الأمان المتقدم'),
+          _CardGroup(
+            children: [
+              _SwitchRow(
+                icon: AppIcons.settings,
+                title: 'التشفير العسكري',
+                subtitle: 'تشفير محلي متقدم للبيانات الحساسة على الجهاز',
+                value: _militaryEncryption,
+                onChanged: (v) async {
+                  try {
+                    await SecurityService.instance.setMilitaryEncryptionEnabled(v);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool(_militaryEncryptionKey, v);
+                    if (!mounted) return;
+                    setState(() => _militaryEncryption = v);
+                    _snack(v ? 'تم تفعيل وضع التشفير العسكري.' : 'تم إيقاف وضع التشفير العسكري.');
+                  } catch (_) {
+                    if (mounted) _snack('تعذر تغيير وضع التشفير الآمن.');
+                  }
+                },
+              ),
+              ListTile(
+                leading: const PremiumIconTile(icon: AppIcons.settings, size: 42, iconSize: 20),
+                title: const Text('حالة حماية الرسائل', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(SecurityService.instance.endToEndEncryptionStatus),
+                trailing: const Icon(Icons.verified_user_outlined),
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('مركز الحماية'),
+                    content: const Text('الوضع العسكري يحمي الأسرار والبيانات المحلية باستخدام تخزين آمن وتشفير AEAD. تشفير الرسائل طرفًا لطرف عبر بروتوكول Signal يحتاج طبقة مفاتيح وأجهزة ومزامنة مستقلة، لذلك لا يتم الادعاء بأنه مفعّل في هذه المرحلة.'),
+                    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسنًا'))],
+                  ),
+                ),
               ),
             ],
           ),
