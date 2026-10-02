@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'chat_service.dart';
-import 'nextcloud_service.dart';
+import '../../../core/media/media_transfer_engine.dart';
 
 /// Records and plays chat voice messages.
 /// Chat media is stored in Nextcloud; Firestore stores only message metadata/URL.
@@ -20,7 +20,7 @@ class VoiceService {
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final NextcloudService _nextcloud = NextcloudService();
+  final _media = MediaTransferEngine.instance;
   final ChatService _chatService = ChatService();
 
   String? _recordingPath;
@@ -83,14 +83,14 @@ class VoiceService {
     final user = _auth.currentUser;
     if (user == null) throw StateError('يجب تسجيل الدخول لإرسال رسالة صوتية');
 
-    await _nextcloud.loadConfig();
-    final result = await _nextcloud.uploadFile(
+    final result = await _media.uploadNow(
       file: file,
-      path: 'memochat/chats/$chatId/audio',
+      destination: MediaDestination.voice,
+      type: 'audio',
+      folder: 'audio',
+      chatId: chatId,
       fileName: 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
-      onProgress: (sent, total) {
-        onProgress?.call();
-      },
+      mimeType: 'audio/mp4',
     );
 
     if (!result.success || result.url == null || result.url!.isEmpty) {
