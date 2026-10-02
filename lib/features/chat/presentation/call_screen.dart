@@ -275,16 +275,41 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> join(CallModel c, User user) async {
     if (joined || ending || (c.status != CallStatus.connected && widget.isOutgoing)) return;
     try {
-      // Request all required permissions in one batch to avoid Android
-      // PermissionManager rejecting a second request while the first is active.
-      final permissions = <Permission>[Permission.microphone];
-      if (widget.isVideo) permissions.add(Permission.camera);
-      final statuses = await permissions.request();
+      // Read the current Android permission state first. Requesting an
+      // already-granted permission again can race with Android's permission
+      // manager and incorrectly produce a denial on some devices.
+      final microphoneStatus = await Permission.microphone.status;
+      final cameraStatus =
+          widget.isVideo ? await Permission.camera.status : null;
 
-      if (widget.isVideo && !(statuses[Permission.camera]?.isGranted ?? false)) {
+      var microphoneGranted = microphoneStatus.isGranted;
+      var cameraGranted = !widget.isVideo || cameraStatus?.isGranted == true;
+
+      if (!microphoneGranted || !cameraGranted) {
+        final requested = <Permission>[];
+        if (!microphoneGranted) requested.add(Permission.microphone);
+        if (widget.isVideo && !cameraGranted) requested.add(Permission.camera);
+
+        if (requested.isNotEmpty) {
+          await requested.request();
+        }
+
+        // Re-read after the request instead of trusting the request result map.
+        // This handles Android OEM permission-manager state changes reliably.
+        microphoneGranted = (await Permission.microphone.status).isGranted;
+        cameraGranted = !widget.isVideo ||
+            (await Permission.camera.status).isGranted;
+      }
+
+      debugPrint(
+        'CALL PERMISSIONS microphone=$microphoneGranted '
+        'camera=$cameraGranted video=${widget.isVideo}',
+      );
+
+      if (!cameraGranted) {
         throw StateError('يرجى منح إذن الكاميرا من إعدادات التطبيق');
       }
-      if (!(statuses[Permission.microphone]?.isGranted ?? false)) {
+      if (!microphoneGranted) {
         throw StateError('يرجى منح إذن الميكروفون من إعدادات التطبيق');
       }
       final registry = ActiveCallRegistry.instance;
