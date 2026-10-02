@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'nextcloud_service.dart';
+import '../../../core/media/media_transfer_engine.dart';
 import '../models/status_model.dart';
 
 class StatusService {
@@ -13,7 +13,7 @@ class StatusService {
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
-  final NextcloudService _nextcloud = NextcloudService();
+  final _media = MediaTransferEngine.instance;
 
   CollectionReference<Map<String, dynamic>> get _statuses => _firestore.collection('statuses');
 
@@ -102,24 +102,20 @@ class StatusService {
     final user = _auth.currentUser;
     if (user == null) throw StateError('يجب تسجيل الدخول لإضافة حالة.');
 
-    await _nextcloud.loadConfig();
-    final extension = file.path.contains('.') ? file.path.split('.').last : 'bin';
-    final name = 'story_${DateTime.now().millisecondsSinceEpoch}.$extension';
-    final result = await _nextcloud.uploadFile(
+    final extension = file.path.contains('.') ? file.path.split('.').last.toLowerCase() : '';
+    final mediaType = type == 'video' ? 'video' : 'image';
+    final mimeType = mediaType == 'video' ? 'video/mp4' : 'image/jpeg';
+    final name = 'story_${DateTime.now().millisecondsSinceEpoch}.${extension}';
+    final result = await _media.uploadNow(
       file: file,
-      path: 'stories/${user.uid}',
+      destination: MediaDestination.status,
+      type: mediaType,
+      folder: 'status',
       fileName: name,
-      createShare: true,
+      mimeType: mimeType,
     );
     if (!result.success || result.url == null || result.url!.isEmpty) {
       throw StateError(result.error ?? 'تعذر رفع الحالة.');
-    }
-
-    // Do not publish the Firestore status until the Nextcloud public URL is
-    // reachable. This prevents broken media stories from becoming visible.
-    final verified = await _nextcloud.verifyPublicUrl(result.url!);
-    if (!verified) {
-      throw StateError('تعذر تجهيز الوسائط للنشر.');
     }
 
     return StoryItem(type: type, url: result.url!, duration: duration);
