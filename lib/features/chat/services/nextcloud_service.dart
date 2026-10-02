@@ -551,28 +551,14 @@ class NextcloudUploadResult {
       password = NextcloudConfig.password;
     }
 
-    // Persist a complete build-time configuration so subsequent launches
-    // continue to use the same local-first Secure Storage path.
-    if (baseUrl.isNotEmpty &&
-        username.isNotEmpty &&
-        password.isNotEmpty) {
-      await _storage.write(
-        key: 'memochat.nextcloud.base_url',
-        value: baseUrl,
-      );
-      await _storage.write(
-        key: 'memochat.nextcloud.username',
-        value: username,
-      );
-      await _storage.write(
-        key: 'memochat.nextcloud.app_password',
-        value: password,
-      );
+    // Persist a complete build-time configuration for subsequent launches.
+    if (baseUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty) {
+      await _storage.write(key: 'memochat.nextcloud.base_url', value: baseUrl);
+      await _storage.write(key: 'memochat.nextcloud.username', value: username);
+      await _storage.write(key: 'memochat.nextcloud.app_password', value: password);
     }
 
-    debugPrint(
-      '📡 NC config: baseUrl=$baseUrl user=$username hasPass=${password.isNotEmpty}',
-    );
+    debugPrint('📡 NC config: baseUrl=$baseUrl user=$username hasPass=${password.isNotEmpty}');
   }
 
   Future<void> updateConfig({
