@@ -31,7 +31,7 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read: if isChatParticipant(chatId);
+      // Authorize collection queries from the matched chat document itself.\n      allow read: if signedIn() &&\n        resource.data.participants is list &&\n        request.auth.uid in resource.data.participants;
 
       allow create: if signedIn() &&
         request.resource.data.participants is list &&
