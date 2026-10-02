@@ -54,6 +54,14 @@ android {
         }
     }
 
+    // Compress native JNI libraries inside APKs instead of storing them uncompressed.
+    // This materially reduces release APK size while preserving all native functionality.
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
     buildTypes {
         release {
             signingConfig keystorePropertiesFile.exists()
