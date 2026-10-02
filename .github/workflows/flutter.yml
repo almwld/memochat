@@ -127,11 +127,11 @@ jobs:
               app_path = Path('android/app/build.gradle.kts')
           app = app_path
           s = app.read_text()
-          app_plugin = 'id "com.google.gms.google-services"'
+          app_plugin = 'id("com.google.gms.google-services")' if app.suffix == '.kts' else 'id "com.google.gms.google-services"'
           if app_plugin not in s:
               marker = 'plugins {'
               if marker not in s:
-                  raise SystemExit('android/app/build.gradle has no plugins block')
+                  raise SystemExit(f'{app} has no plugins block')
               s = s.replace(marker, marker + '\n    ' + app_plugin, 1)
           app.write_text(s)
           PY
@@ -196,32 +196,58 @@ jobs:
           if not p.exists():
               p = Path('android/app/build.gradle.kts')
           s = p.read_text()
-          if 'signingConfigs {' not in s:
-              signing_block = [
-                  '    def signingPropertiesFile = rootProject.file("key.properties")',
-                  '    def signingProperties = new Properties()',
-                  '    if (signingPropertiesFile.exists()) {',
-                  '        signingProperties.load(new FileInputStream(signingPropertiesFile))',
-                  '    }',
-                  '',
-                  '    signingConfigs {',
-                  '        release {',
-                  '            if (signingPropertiesFile.exists()) {',
-                  '                storeFile rootProject.file(signingProperties["storeFile"])',
-                  '                storePassword signingProperties["storePassword"]',
-                  '                keyAlias signingProperties["keyAlias"]',
-                  '                keyPassword signingProperties["keyPassword"]',
-                  '            }',
-                  '        }',
-                  '    }',
-              ]
-              s = s.replace('android {', 'android {\n' + '\n'.join(signing_block), 1)
-          if 'signingConfig signingConfigs.release' not in s:
-              s = s.replace(
-                  'buildTypes {',
-                  'buildTypes {\n        release {\n            signingConfig signingConfigs.release\n        }',
-                  1,
-              )
+          if app.suffix == '.kts':
+              if 'signingConfigs {' not in s:
+                  block = '''    val signingPropertiesFile = rootProject.file("key.properties")
+              val signingProperties = java.util.Properties()
+              if (signingPropertiesFile.exists()) {
+                  signingProperties.load(java.io.FileInputStream(signingPropertiesFile))
+              }
+
+              signingConfigs {
+                  create("release") {
+                      if (signingPropertiesFile.exists()) {
+                          storeFile = rootProject.file(signingProperties["storeFile"] as String)
+                          storePassword = signingProperties["storePassword"] as String
+                          keyAlias = signingProperties["keyAlias"] as String
+                          keyPassword = signingProperties["keyPassword"] as String
+                      }
+                  }
+              }'''
+                  s = s.replace('android {', 'android {\n' + block, 1)
+              if 'signingConfig = signingConfigs.getByName("release")' not in s:
+                  s = s.replace(
+                      'buildTypes {',
+                      'buildTypes {\n        getByName("release") {\n            signingConfig = signingConfigs.getByName("release")\n        }',
+                      1,
+                  )
+          else:
+              if 'signingConfigs {' not in s:
+                  signing_block = [
+                      '    def signingPropertiesFile = rootProject.file("key.properties")',
+                      '    def signingProperties = new Properties()',
+                      '    if (signingPropertiesFile.exists()) {',
+                      '        signingProperties.load(new FileInputStream(signingPropertiesFile))',
+                      '    }',
+                      '',
+                      '    signingConfigs {',
+                      '        release {',
+                      '            if (signingPropertiesFile.exists()) {',
+                      '                storeFile rootProject.file(signingProperties["storeFile"])',
+                      '                storePassword signingProperties["storePassword"]',
+                      '                keyAlias signingProperties["keyAlias"]',
+                      '                keyPassword signingProperties["keyPassword"]',
+                      '            }',
+                      '        }',
+                      '    }',
+                  ]
+                  s = s.replace('android {', 'android {\n' + '\n'.join(signing_block), 1)
+              if 'signingConfig signingConfigs.release' not in s:
+                  s = s.replace(
+                      'buildTypes {',
+                      'buildTypes {\n        release {\n            signingConfig signingConfigs.release\n        }',
+                      1,
+                  )
           p.write_text(s)
           PY
           test -f android/app/memochat-release.jks
@@ -249,8 +275,12 @@ jobs:
           if not app.exists():
               app = Path('android/app/build.gradle.kts')
           text = app.read_text()
-          text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
-          text = re.sub(r'targetSdk(?:Version)?\s+[^\n]+', 'targetSdk 35', text, count=1)
+          if app.suffix == '.kts':
+              text = re.sub(r'compileSdk(?:\s*=)?\s*[^\n]+', 'compileSdk = 35', text, count=1)
+              text = re.sub(r'targetSdk(?:\s*=)?\s*[^\n]+', 'targetSdk = 35', text, count=1)
+          else:
+              text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
+              text = re.sub(r'targetSdk(?:Version)?\s+[^\n]+', 'targetSdk 35', text, count=1)
           app.write_text(text)
           print("Android app baseline: compileSdk=35, targetSdk=35")
           PY
