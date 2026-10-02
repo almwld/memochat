@@ -329,17 +329,41 @@ jobs:
       - name: Build Fat APK (universal)
         env:
           FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: flutter build apk --release --no-pub --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY
+          NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
+          NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
+          NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
+        run: |
+          flutter build apk --release --no-pub \
+            --dart-define=FIREBASE_ANDROID_API_KEY="$FIREBASE_ANDROID_API_KEY" \
+            --dart-define=NEXTCLOUD_URL="$NEXTCLOUD_URL" \
+            --dart-define=NEXTCLOUD_USER="$NEXTCLOUD_USER" \
+            --dart-define=NEXTCLOUD_PASSWORD="$NEXTCLOUD_PASSWORD"
 
       - name: Build Split APKs (per ABI)
         env:
           FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: flutter build apk --release --split-per-abi --no-pub --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY
+          NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
+          NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
+          NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
+        run: |
+          flutter build apk --release --split-per-abi --no-pub \
+            --dart-define=FIREBASE_ANDROID_API_KEY="$FIREBASE_ANDROID_API_KEY" \
+            --dart-define=NEXTCLOUD_URL="$NEXTCLOUD_URL" \
+            --dart-define=NEXTCLOUD_USER="$NEXTCLOUD_USER" \
+            --dart-define=NEXTCLOUD_PASSWORD="$NEXTCLOUD_PASSWORD"
 
       - name: Build App Bundle (production)
         env:
           FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: flutter build appbundle --release --no-pub --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY
+          NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
+          NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
+          NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
+        run: |
+          flutter build appbundle --release --no-pub \
+            --dart-define=FIREBASE_ANDROID_API_KEY="$FIREBASE_ANDROID_API_KEY" \
+            --dart-define=NEXTCLOUD_URL="$NEXTCLOUD_URL" \
+            --dart-define=NEXTCLOUD_USER="$NEXTCLOUD_USER" \
+            --dart-define=NEXTCLOUD_PASSWORD="$NEXTCLOUD_PASSWORD"
 
       - name: Show artifact sizes
         run: |
