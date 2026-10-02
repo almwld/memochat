@@ -39,7 +39,7 @@ class LiveKitService {
 
     final response = await http
         .post(
-          Uri.parse('\${LiveKitConfig.tokenServerUrl}/token'),
+          Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -54,7 +54,7 @@ class LiveKitService {
 
     if (response.statusCode != 200) {
       throw Exception(
-        'فشل طلب Token (\${response.statusCode}): \${response.body}',
+        'فشل طلب Token (${response.statusCode}): ${response.body}',
       );
     }
 
