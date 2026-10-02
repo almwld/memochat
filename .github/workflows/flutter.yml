@@ -37,11 +37,13 @@ jobs:
 
       - name: Configure Android build
         run: |
+          APP_GRADLE="android/app/build.gradle"
+          if [ ! -f "$APP_GRADLE" ]; then APP_GRADLE="android/app/build.gradle.kts"; fi
+          export APP_GRADLE
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('android/app/build.gradle')
-          if not path.exists():
-              path = Path('android/app/build.gradle.kts')
+          import os
+          path = Path(os.environ['APP_GRADLE'])
           text = path.read_text()
           text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
           text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
@@ -100,9 +102,9 @@ jobs:
             sed 's/^package com\.memo\.memochat$/package com.memo.app/' android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
             rm -rf android/app/src/main/kotlin/com/memo/memochat
           fi
-          grep -nE 'namespace|applicationId' android/app/build.gradle
+          grep -nE 'namespace|applicationId' "$APP_GRADLE"
           grep -R -n '^package ' android/app/src/main/kotlin || true
-          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
+          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' "$APP_GRADLE"
 
       - name: Configure Google Services and Firebase OAuth
         run: |
@@ -120,7 +122,10 @@ jobs:
               s = s.replace(marker, marker + '\n    ' + plugin, 1)
           settings.write_text(s)
 
-          app = Path('android/app/build.gradle')
+          app_path = Path('android/app/build.gradle')
+          if not app_path.exists():
+              app_path = Path('android/app/build.gradle.kts')
+          app = app_path
           s = app.read_text()
           app_plugin = 'id "com.google.gms.google-services"'
           if app_plugin not in s:
@@ -130,7 +135,9 @@ jobs:
               s = s.replace(marker, marker + '\n    ' + app_plugin, 1)
           app.write_text(s)
           PY
-          grep -n "com.google.gms.google-services" android/settings.gradle android/app/build.gradle
+          APP_GRADLE="android/app/build.gradle"
+          if [ ! -f "$APP_GRADLE" ]; then APP_GRADLE="android/app/build.gradle.kts"; fi
+          grep -n "com.google.gms.google-services" android/settings.gradle "$APP_GRADLE"
 
       - name: Validate MemoChat release keystore
         shell: bash
@@ -186,6 +193,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path('android/app/build.gradle')
+          if not p.exists():
+              p = Path('android/app/build.gradle.kts')
           s = p.read_text()
           if 'signingConfigs {' not in s:
               signing_block = [
@@ -217,7 +226,9 @@ jobs:
           PY
           test -f android/app/memochat-release.jks
           test -f android/key.properties
-          grep -nE 'signingConfigs|signingConfig|storeFile|keyAlias' android/app/build.gradle
+          APP_GRADLE="android/app/build.gradle"
+          if [ ! -f "$APP_GRADLE" ]; then APP_GRADLE="android/app/build.gradle.kts"; fi
+          grep -nE 'signingConfigs|signingConfig|storeFile|keyAlias' "$APP_GRADLE"
 
       - name: Prepare Android SDK 35
         run: |
@@ -235,13 +246,17 @@ jobs:
           from pathlib import Path
           import re
           app = Path('android/app/build.gradle')
+          if not app.exists():
+              app = Path('android/app/build.gradle.kts')
           text = app.read_text()
           text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
           text = re.sub(r'targetSdk(?:Version)?\s+[^\n]+', 'targetSdk 35', text, count=1)
           app.write_text(text)
           print("Android app baseline: compileSdk=35, targetSdk=35")
           PY
-          grep -nE 'compileSdk|targetSdk|minSdk' android/app/build.gradle
+          APP_GRADLE="android/app/build.gradle"
+          if [ ! -f "$APP_GRADLE" ]; then APP_GRADLE="android/app/build.gradle.kts"; fi
+          grep -nE 'compileSdk|targetSdk|minSdk' "$APP_GRADLE"
 
       - name: Create google-services.json
         env:
