@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/repositories/chat_repository.dart';
 import '../core/repositories/firebase_chat_repository.dart';
@@ -25,6 +26,9 @@ class MemoChatApp extends StatefulWidget {
 }
 
 class _MemoChatAppState extends State<MemoChatApp> {
+  static const _splashLastShownKey = 'memo_splash_last_shown_at_ms';
+  static const _splashInterval = Duration(hours: 12);
+
   ThemeMode _themeMode = ThemeMode.system;
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _showSplash = true;
@@ -43,11 +47,36 @@ class _MemoChatAppState extends State<MemoChatApp> {
   void initState() {
     super.initState();
     _startInitialization();
+    unawaited(_initializeSplash());
+  }
 
-    // Splash lifetime is visual only. It never waits for Firebase or services.
-    Timer(const Duration(milliseconds: 1100), () {
-      if (mounted) setState(() => _showSplash = false);
-    });
+  Future<void> _initializeSplash() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final lastShownMs = preferences.getInt(_splashLastShownKey);
+      final now = DateTime.now();
+      final shouldShow = lastShownMs == null ||
+          now.difference(DateTime.fromMillisecondsSinceEpoch(lastShownMs)) >= _splashInterval;
+
+      if (!shouldShow) {
+        if (mounted) setState(() => _showSplash = false);
+        return;
+      }
+
+      await preferences.setInt(_splashLastShownKey, now.millisecondsSinceEpoch);
+      if (!mounted) return;
+
+      Timer(const Duration(milliseconds: 1100), () {
+        if (mounted) setState(() => _showSplash = false);
+      });
+    } catch (error) {
+      debugPrint('Splash schedule check failed: $error');
+      if (mounted) {
+        Timer(const Duration(milliseconds: 1100), () {
+          if (mounted) setState(() => _showSplash = false);
+        });
+      }
+    }
   }
 
   void _markFirebaseReady() {
@@ -170,7 +199,6 @@ class _MemoChatAppState extends State<MemoChatApp> {
                     }
                     final user = snapshot.data;
                     if (user == null) return const AuthScreen();
-                    // Auth is the sole session authority. Do not perform writes during build().
                     if (_lastSyncedUid != user.uid) {
                       _lastSyncedUid = user.uid;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
