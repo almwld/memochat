@@ -87,6 +87,22 @@ abstract final class AppTheme {
           borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 12,
+        backgroundColor: dark ? const Color(0xFF153A36) : AppColors.primary,
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+          height: 1.35,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        width: 520,
+      ),
       cardTheme: CardTheme(
         elevation: 0,
         margin: EdgeInsets.zero,
