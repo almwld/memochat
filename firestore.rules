@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function isChatParticipant(chatId) {
       return signedIn() &&
-        request.auth.uid in resource.data.participants;
+        request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
     }
 
     function isCallParty() {
