@@ -12,8 +12,7 @@ import '../core/theme/app_theme.dart';
 import '../core/services/firebase_bootstrap.dart';
 import '../core/services/identity_state_service.dart';
 import '../core/services/sync_coordinator.dart';
-import '../features/chat/services/chat_media_transfer_service.dart';
-import '../features/social/services/social_media_transfer_service.dart';
+import '../core/media/media_transfer_engine.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import 'memo_splash_screen.dart';
@@ -109,15 +108,14 @@ class _MemoChatAppState extends State<MemoChatApp> {
     if (!_lifecycleStarted) {
       _lifecycleStarted = true;
       unawaited(_syncCoordinator.initialize());
-      unawaited(ChatMediaTransferService.instance.initialize());
-      unawaited(SocialMediaTransferService.instance.initialize());
+      unawaited(MediaTransferEngine.instance.initialize());
     }
   }
 
   @override
   void dispose() {
     unawaited(_syncCoordinator.dispose());
-    unawaited(ChatMediaTransferService.instance.dispose());
+    unawaited(MediaTransferEngine.instance.dispose());
     super.dispose();
   }
 
