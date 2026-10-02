@@ -25,7 +25,7 @@ env:
 
   # Nextcloud
   NEXTCLOUD_URL: 'https://noa.it.tabdigital.cloud'
-  NEXTCLOUD_USER: 'Binobaeid@gmail.com'
+  NEXTCLOUD_USER: 'flexymid3@gmail.com'
   NEXTCLOUD_PASSWORD: '10.10.10.1010.10.10.10'
 
   # Firebase
