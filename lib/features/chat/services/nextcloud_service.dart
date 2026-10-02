@@ -155,6 +155,7 @@ class NextcloudService {
     required File file,
     required String path,
     String? fileName,
+    String? mimeType,
     void Function(int, int)? onProgress,
     bool createShare = true,
     CancelToken? cancelToken,
@@ -181,7 +182,7 @@ class NextcloudService {
         options: Options(
           headers: {
             'Authorization': 'Basic ${_authToken()}',
-            'Content-Type': 'application/octet-stream',
+            'Content-Type': mimeType?.trim().isNotEmpty == true ? mimeType!.trim() : 'application/octet-stream',
             'Content-Length': fileLength.toString(),
           },
           contentType: 'application/octet-stream',
