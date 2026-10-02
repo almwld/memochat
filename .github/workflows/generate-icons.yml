@@ -32,7 +32,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y librsvg2-bin
           rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
+          cp assets/icon/icon_app.png assets/icon/ic_launcher.png
           test -s assets/icon/icon_app.png
+          test -s assets/icon/ic_launcher.png
 
       - name: Install dependencies
         run: flutter pub get
@@ -44,7 +46,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/icon/icon_app.png android/app/src/main/res
+          git add assets/icon/icon_app.png assets/icon/ic_launcher.png android/app/src/main/res
           if git diff --cached --quiet; then
             echo "No launcher icon changes."
             exit 0
