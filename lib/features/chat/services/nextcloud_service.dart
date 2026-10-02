@@ -135,18 +135,27 @@ class NextcloudService {
       if (part.isEmpty) continue;
       current = current.isEmpty ? part : '$current/$part';
       debugPrint('📁 MKCOL: $current');
-      final response = await _dio.request<void>(
-        _davUrl(current),
-        options: Options(
-          method: 'MKCOL',
-          headers: {'Authorization': 'Basic ${_authToken()}'},
-          validateStatus: (status) => status != null,
-        ),
-      );
-      final status = response.statusCode ?? 0;
-      debugPrint('📁 MKCOL response: $status');
-      if (status != 201 && status != 405) {
-        throw StateError('فشل إنشاء مجلد الوسائط في Nextcloud: HTTP $status');
+      var lastStatus = 0;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        final response = await _dio.request<void>(
+          _davUrl(current),
+          options: Options(
+            method: 'MKCOL',
+            headers: {'Authorization': 'Basic ${_authToken()}'},
+            validateStatus: (status) => status != null,
+          ),
+        );
+        lastStatus = response.statusCode ?? 0;
+        debugPrint('📁 MKCOL response: $lastStatus attempt=$attempt');
+        if (lastStatus == 201 || lastStatus == 405) break;
+        if (![502, 503, 504].contains(lastStatus) || attempt == 3) break;
+        await Future<void>.delayed(Duration(seconds: attempt * 2));
+      }
+      if (lastStatus != 201 && lastStatus != 405) {
+        final detail = lastStatus == 503
+            ? 'خادم Nextcloud غير متاح مؤقتاً (HTTP 503)'
+            : 'فشل إنشاء مجلد الوسائط في Nextcloud: HTTP $lastStatus';
+        throw StateError(detail);
       }
     }
   }
@@ -176,21 +185,29 @@ class NextcloudService {
 
       await _ensureDirectories(logicalDirectory);
 
-      final response = await _dio.put<void>(
-        davUrl,
-        data: file.openRead(),
-        options: Options(
-          headers: {
-            'Authorization': 'Basic ${_authToken()}',
-            'Content-Type': mimeType?.trim().isNotEmpty == true ? mimeType!.trim() : 'application/octet-stream',
-            'Content-Length': fileLength.toString(),
-          },
-          contentType: 'application/octet-stream',
-          validateStatus: (status) => status != null,
-        ),
-        onSendProgress: onProgress,
-      );
-      final status = response.statusCode ?? 0;
+      Response<void>? response;
+      var status = 0;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        response = await _dio.put<void>(
+          davUrl,
+          data: file.openRead(),
+          options: Options(
+            headers: {
+              'Authorization': 'Basic ${_authToken()}',
+              'Content-Type': mimeType?.trim().isNotEmpty == true ? mimeType!.trim() : 'application/octet-stream',
+              'Content-Length': fileLength.toString(),
+            },
+            contentType: 'application/octet-stream',
+            validateStatus: (status) => status != null,
+          ),
+          onSendProgress: onProgress,
+          cancelToken: cancelToken,
+        );
+        status = response.statusCode ?? 0;
+        debugPrint('📤 PUT status: $status attempt=$attempt');
+        if ([201, 204].contains(status) || ![502, 503, 504].contains(status) || attempt == 3) break;
+        await Future<void>.delayed(Duration(seconds: attempt * 2));
+      }
       debugPrint('📤 PUT status: $status');
       if (status != 201 && status != 204) {
         return NextcloudUploadResult(success: false, path: remotePath, fileName: name, error: 'فشل رفع الملف إلى Nextcloud: HTTP $status');
