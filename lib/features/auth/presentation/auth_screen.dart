@@ -86,11 +86,12 @@ class _AuthScreenState extends State<AuthScreen> {
         return;
       }
 
-      // google-services.json supplies the Android OAuth client and the
-      // Web OAuth client (client_type: 3). Keep the OAuth source of truth
-      // in the Firebase configuration instead of duplicating a client ID.
+      // Use the Firebase Web OAuth client as the server client ID so the
+      // Google credential contains the correct audience for Firebase.
       final googleSignIn = GoogleSignIn(
         scopes: const <String>['email'],
+        serverClientId:
+            '448753275014-7hmiihl18tpi968v5b7gkejfl43c613r.apps.googleusercontent.com',
       );
       final googleUser = await googleSignIn.signIn();
 
