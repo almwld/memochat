@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -33,30 +32,45 @@ class LiveKitService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول قبل إجراء المكالمة');
 
-    final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
-        .httpsCallable(
-      'createLiveKitToken',
-      options: HttpsCallableOptions(
-        timeout: const Duration(seconds: 15),
-      ),
-    );
+    final idToken = await user.getIdToken();
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('تعذر الحصول على رمز Firebase');
+    }
 
-    final result = await callable.call(<String, dynamic>{
-      'roomName': roomName,
-      'participantName': participantName,
-      'participantIdentity': user.uid,
-    });
+    final response = await http
+        .post(
+          Uri.parse('\${LiveKitConfig.tokenServerUrl}/token'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: jsonEncode({
+            'identity': user.uid,
+            'roomName': roomName,
+            'participantName': participantName,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
 
-    final raw = result.data;
+    if (response.statusCode != 200) {
+      throw Exception(
+        'فشل طلب Token (\${response.statusCode}): \${response.body}',
+      );
+    }
+
+    final raw = jsonDecode(response.body);
     if (raw is! Map) throw Exception('بيانات LiveKit غير صالحة');
+
     final payload = Map<String, dynamic>.from(raw);
     if (payload['success'] != true) {
       throw Exception(
         payload['message']?.toString() ?? 'تعذر إنشاء توكن LiveKit',
       );
     }
+
     final data = payload['data'];
     if (data is! Map) throw Exception('بيانات LiveKit غير صالحة');
+
     final value = Map<String, dynamic>.from(data);
     if ((value['token']?.toString() ?? '').isEmpty) {
       throw Exception('توكن LiveKit فارغ');
@@ -64,6 +78,7 @@ class LiveKitService {
     if ((value['url']?.toString() ?? '').isEmpty) {
       throw Exception('رابط LiveKit فارغ');
     }
+
     return value;
   }
 
