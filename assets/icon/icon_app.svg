@@ -1,15 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
   <title>MemoChat</title>
-  <desc>MemoChat application icon with two white conversation bubbles on a teal rounded square.</desc>
+  <desc>Two clean overlapping white chat bubbles on a teal rounded-square background.</desc>
 
-  <rect x="0" y="0" width="500" height="500" rx="145" fill="#0D8274"/>
+  <rect width="500" height="500" rx="145" fill="#0D8274"/>
 
-  <!-- Primary conversation bubble -->
-  <path fill="#FFFFFF" d="M125 145c0-16.57 13.43-30 30-30h150c16.57 0 30 13.43 30 30v105c0 16.57-13.43 30-30 30h-82l-58 55v-55h-10c-16.57 0-30-13.43-30-30V145z"/>
+  <path
+    fill="#FFFFFF"
+    d="M180 135h90a25 25 0 0 1 25 25v70a25 25 0 0 1-25 25h-70l-45 45v-45a25 25 0 0 1-25-25v-70a25 25 0 0 1 25-25h25Z"
+  />
 
-  <!-- Secondary conversation bubble -->
-  <path fill="#FFFFFF" d="M215 205h130c16.57 0 30 13.43 30 30v105c0 16.57-13.43 30-30 30h-72l-48 45v-45h-10c-16.57 0-30-13.43-30-30v-28h30v-77c0-11.05-4.02-21.16-10.68-29z"/>
-
-  <!-- Teal separation keeps both bubbles visibly distinct without opacity. -->
-  <path fill="#0D8274" d="M215 235h100v18H215z"/>
+  <path
+    fill="#FFFFFF"
+    d="M318 168a28 28 0 0 1 28 28v166l-44-44h-82a28 28 0 0 1-28-28v-13h101a24 24 0 0 0 24-24v-85Z"
+  />
 </svg>
