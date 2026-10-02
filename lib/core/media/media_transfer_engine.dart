@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -66,7 +67,7 @@ class MediaTransferEngine {
     _db = await openDatabase(
       p.join(await getDatabasesPath(), 'memochat_media_outbox.db'),
       version: 2,
-      onCreate: (db, _) async => _createSchema(db),
+      onCreate: (db, _) async { await _createSchema(db); await _migrateLegacyQueues(db); },
       onUpgrade: (db, old, _) async {
         if (old < 2) {
           await _addColumn(db, 'next_retry_at', 'INTEGER');
@@ -108,6 +109,81 @@ class MediaTransferEngine {
     ''');
     await db.execute('CREATE INDEX idx_media_status ON media_outbox(status, next_retry_at, created_at)');
     await db.execute('CREATE INDEX idx_media_chat ON media_outbox(chat_id, created_at)');
+  }
+
+  Future<void> _migrateLegacyQueues(Database db) async {
+    await db.execute('CREATE TABLE IF NOT EXISTS media_migrations (name TEXT PRIMARY KEY, completed_at INTEGER NOT NULL)');
+    final done = await db.query('media_migrations', where: 'name = ?', whereArgs: ['legacy_outboxes_v1'], limit: 1);
+    if (done.isNotEmpty) return;
+
+    Future<void> migrateChat() async {
+      final legacyPath = p.join(await getDatabasesPath(), 'memochat_chat_outbox.db');
+      if (!await File(legacyPath).exists()) return;
+      Database? legacy;
+      try {
+        legacy = await openDatabase(legacyPath, readOnly: true);
+        final rows = await legacy.query('media_outbox', where: "status != 'sent'");
+        for (final row in rows) {
+          final local = row['local_path']?.toString() ?? '';
+          if (local.isEmpty || !await File(local).exists()) continue;
+          final id = row['id']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final exists = await db.query('media_outbox', where: 'id = ?', whereArgs: [id], limit: 1);
+          if (exists.isNotEmpty) continue;
+          final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+          if (uid.isEmpty) continue;
+          await db.insert('media_outbox', {
+            'id': id, 'uid': uid, 'destination': row['type'] == 'audio' ? 'voice' : 'chat',
+            'chat_id': row['chat_id'], 'local_path': local, 'type': row['type'] ?? 'file',
+            'folder': row['folder'] ?? 'files', 'caption': row['preview'] ?? '',
+            'preview': row['preview'] ?? '', 'file_name': row['file_name'] ?? p.basename(local),
+            'file_size': int.tryParse(row['file_size']?.toString() ?? '') ?? await File(local).length(),
+            'mime_type': row['mime_type'], 'audio_duration': row['audio_duration'],
+            'status': 'queued', 'progress': row['progress'] ?? 0.0, 'attempts': row['attempts'] ?? 0,
+            'client_timestamp': row['client_timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+            'created_at': row['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
+      } finally {
+        await legacy?.close();
+      }
+    }
+
+    Future<void> migrateSocial() async {
+      final legacyPath = p.join(await getDatabasesPath(), 'memochat_social_outbox.db');
+      if (!await File(legacyPath).exists()) return;
+      Database? legacy;
+      try {
+        legacy = await openDatabase(legacyPath, readOnly: true);
+        final rows = await legacy.query('social_outbox', where: "status != 'sent'");
+        for (final row in rows) {
+          final local = row['local_path']?.toString() ?? '';
+          final id = row['id']?.toString() ?? '';
+          if (local.isEmpty || id.isEmpty || !await File(local).exists()) continue;
+          final exists = await db.query('media_outbox', where: 'id = ?', whereArgs: [id], limit: 1);
+          if (exists.isNotEmpty) continue;
+          final collection = row['collection_name']?.toString() ?? 'socialPosts';
+          await db.insert('media_outbox', {
+            'id': id, 'uid': row['uid'], 'destination': collection == 'socialReels' ? 'socialReel' : 'socialPost',
+            'collection_name': collection, 'local_path': local, 'type': row['type'] ?? 'image',
+            'folder': collection, 'caption': row['caption'] ?? '', 'preview': row['caption'] ?? '',
+            'file_name': row['file_name'] ?? p.basename(local),
+            'file_size': await File(local).length(), 'mime_type': row['mime_type'],
+            'status': 'queued', 'progress': row['progress'] ?? 0.0, 'attempts': row['attempts'] ?? 0,
+            'client_timestamp': row['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
+            'created_at': row['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
+      } finally {
+        await legacy?.close();
+      }
+    }
+
+    await migrateChat();
+    await migrateSocial();
+    await db.insert('media_migrations', {'name': 'legacy_outboxes_v1', 'completed_at': DateTime.now().millisecondsSinceEpoch});
   }
 
   Future<void> _addColumn(Database db, String name, String definition) async {
