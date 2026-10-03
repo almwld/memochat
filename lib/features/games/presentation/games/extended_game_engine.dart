@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../services/game_leaderboard_service.dart';
+import '../../services/game_achievement_service.dart';
 
 class ExtendedGameConfig {
   final String title,instruction;
@@ -19,7 +21,7 @@ class _ExtendedGameEngineState extends State<ExtendedGameEngine>{
   @override void initState(){super.initState();_shuffle();}
   void _shuffle(){_options=List.of(widget.config.options)..shuffle(_r);}
   void _start(){setState(()=>_started=true);_timer=Timer.periodic(const Duration(seconds:1),(_){if(!mounted||_paused)return;if(_seconds<=1)_finish();else setState(()=>_seconds--);});}
-  void _finish(){_timer?.cancel();if(mounted)setState(()=>_finished=true);}
+  Future<void> _finish() async { _timer?.cancel(); try { await GameLeaderboardService.instance.submitScore(gameId: widget.config.title, score: _score); if (_score >= 10) await GameAchievementService.instance.unlock('score_10_${widget.config.title}'); } catch (_) {} if(mounted)setState(()=>_finished=true); }
   void _answer(String v){if(!_started||_paused||_finished)return;final ok=v==widget.config.options[widget.config.correctIndex];setState((){if(ok)_score+=2;_round++;_seconds=max(0,_seconds-1);});if(_seconds==0)_finish();else _shuffle();}
   void _replay(){_timer?.cancel();setState((){_seconds=45;_score=0;_round=1;_started=false;_paused=false;_finished=false;_shuffle();});}
   @override void dispose(){_timer?.cancel();super.dispose();}
