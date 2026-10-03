@@ -1,4 +1,4 @@
-import '../classic_game_engine.dart';
+import 'classic_game_engine.dart';
 
 class SpeedMathGame extends ClassicGameEngine {
   SpeedMathGame({super.key}) : super(config: const ClassicGameConfig(
