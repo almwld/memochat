@@ -7,39 +7,134 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/advanced_features_service.dart';
 import '../../../core/services/mini_app_state_service.dart';
 import '../../chat/services/livekit_service.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/premium_ui.dart';
 
 class AdvancedHubScreen extends StatelessWidget {
   const AdvancedHubScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      ('غرف صوتية', 'انضم إلى نقاشات صوتية مباشرة أو أنشئ غرفة.', Icons.mic_rounded, const VoiceRoomsScreen()),
-      ('Mini Apps', 'أدوات صغيرة داخل MemoChat بدون مغادرة التطبيق.', Icons.apps_rounded, const MiniAppsScreen()),
-      ('Business', 'ملف نشاط تجاري احترافي قابل للاكتشاف.', Icons.storefront_rounded, const BusinessScreen()),
+    final liveItems = [
+      ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded, const VoiceRoomsScreen(), const Color(0xFF0A8F83)),
+      ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded, const BusinessScreen(), const Color(0xFF7B4DFF)),
+    ];
+    final productivityItems = [
+      ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded, const MiniAppsScreen(), const Color(0xFFEA7B24)),
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900))),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final item = items[i];
-          return Card(
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(14),
-              leading: CircleAvatar(radius: 26, child: Icon(item.$3)),
-              title: Text(item.$1, style: const TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(item.$2)),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.$4)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+        children: [
+          const PremiumHero(
+            icon: AppIcons.more,
+            title: 'وسّع تجربة MemoChat',
+            subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع مزامنة وحماية أفضل.',
+          ),
+          const SizedBox(height: 18),
+          const _AdvancedSectionTitle(icon: Icons.bolt_rounded, title: 'تجارب حية'),
+          const SizedBox(height: 8),
+          _AdvancedFeatureGrid(items: liveItems),
+          const SizedBox(height: 20),
+          const _AdvancedSectionTitle(icon: Icons.auto_awesome_rounded, title: 'إنتاجية داخلية'),
+          const SizedBox(height: 8),
+          _AdvancedFeatureGrid(items: productivityItems),
+          const SizedBox(height: 18),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.verified_user_outlined, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('مصمم للعمل مع LiveKit وFirestore والمزامنة المحلية دون مغادرة التطبيق.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4))),
+                ],
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
+}
+
+class _AdvancedFeatureGrid extends StatelessWidget {
+  const _AdvancedFeatureGrid({required this.items});
+  final List<(String, String, IconData, Widget, Color)> items;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680 ? 2 : 1;
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              mainAxisExtent: 142,
+            ),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return _AdvancedFeatureCard(
+                title: item.$1,
+                subtitle: item.$2,
+                icon: item.$3,
+                color: item.$5,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.$4)),
+              );
+            },
+          );
+        },
+      );
+}
+
+class _AdvancedFeatureCard extends StatelessWidget {
+  const _AdvancedFeatureCard({required this.title, required this.subtitle, required this.icon, required this.color, required this.onTap});
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(17)),
+                  child: Icon(icon, color: color, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const SizedBox(height: 5),
+                  Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.3, fontSize: 12)),
+                ])),
+                Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _AdvancedSectionTitle extends StatelessWidget {
+  const _AdvancedSectionTitle({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+  @override
+  Widget build(BuildContext context) => Row(children: [Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))]);
 }
 
 class VoiceRoomsScreen extends StatefulWidget {
