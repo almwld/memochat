@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../data/social_service.dart';
 import 'reels_screen.dart';
+import '../../../core/widgets/user_name.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key, this.service});
@@ -130,7 +131,7 @@ class _Post extends StatelessWidget {
         children: [
           ListTile(
             leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
-            title: Text(data['authorId']?.toString() ?? 'مستخدم Memo', style: const TextStyle(fontWeight: FontWeight.w800)),
+            title: UserName(userId: data['authorId']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: const Text('منشور على Memo'),
           ),
           if (url.isNotEmpty)
