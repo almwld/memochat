@@ -1058,13 +1058,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       backgroundColor: dark ? const Color(0xFF0B1121) : const Color(0xFFE3F1EF),
       appBar: AppBar(
         elevation: 0,
-        leading: _selectionMode ? IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection) : null,
-        title: _selectionMode ? Text('${_selectedMessageIds.length} محددة') : null,
+        leading: _selectionMode
+            ? IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection)
+            : BackButton(color: dark ? null : AppColors.primary),
         backgroundColor: dark ? const Color(0xFF101827) : const Color(0xFFF7FBFA),
         foregroundColor: dark ? null : AppColors.primary,
-        leading: BackButton(color: dark ? null : AppColors.primary),
         titleSpacing: 0,
-        title: StreamBuilder<UserStatusModel?>(
+        title: _selectionMode
+            ? Text('${_selectedMessageIds.length} محددة')
+            : StreamBuilder<UserStatusModel?>(
             stream: _statusService.streamUserStatus(widget.otherUserId),
             builder: (context, snapshot) {
               final status = snapshot.hasError ? null : snapshot.data;
