@@ -30,6 +30,44 @@ class ChatService {
   }
   Stream<List<ChatModel>> streamChats({int limit=50})=>_firestore.collection('chats').where('participants',arrayContains:_uid()).limit(limit).snapshots().map((s){final uid=currentUserId;final list=s.docs.map((d)=>ChatModel.fromFirestore(d.id,d.data())).where((c){final data=s.docs.firstWhere((d)=>d.id==c.id).data();final deletedFor=data['deletedFor'];return uid==null||deletedFor is! Map||deletedFor[uid]!=true;}).toList();list.sort((a,b)=>(b.updatedAt??Timestamp(0,0)).compareTo(a.updatedAt??Timestamp(0,0)));return list;});
   Future<List<ChatModel>> getMoreChats({required int limit,DocumentSnapshot? startAfter})async{Query<Map<String,dynamic>> q=_firestore.collection('chats').where('participants',arrayContains:_uid()).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();final uid=currentUserId;return s.docs.where((d){final deletedFor=d.data()['deletedFor'];return uid==null||deletedFor is! Map||deletedFor[uid]!=true;}).map((d)=>ChatModel.fromFirestore(d.id,d.data())).toList();}
+  Future<String> createGroupChat({required String name, required List<String> memberIds, required Map<String, Map<String, dynamic>> memberDetails}) async {
+    final owner = _uid();
+    final cleanName = name.trim();
+    final members = <String>{owner, ...memberIds.where((id) => id.trim().isNotEmpty && id != owner)}.toList();
+    if (cleanName.isEmpty) throw ArgumentError('اسم المجموعة فارغ');
+    if (members.length < 2) throw ArgumentError('أضف عضوًا واحدًا على الأقل');
+    final ref = _firestore.collection('chats').doc();
+    final details = <String, dynamic>{};
+    for (final id in members) {
+      final supplied = memberDetails[id] ?? <String, dynamic>{};
+      details[id] = {
+        'name': supplied['name']?.toString() ?? 'مستخدم',
+        'photoUrl': supplied['photoUrl']?.toString(),
+      };
+    }
+    final roles = <String, dynamic>{owner: 'owner'};
+    for (final id in members) { if (id != owner) roles[id] = 'member'; }
+    final unread = <String, dynamic>{for (final id in members) id: 0};
+    await ref.set({
+      'participants': members.toList(),
+      'participantDetails': details,
+      'memberRoles': roles,
+      'lastMessage': '',
+      'lastMessageTime': null,
+      'lastMessageSenderId': null,
+      'unreadCount': unread,
+      'isGroup': true,
+      'groupName': cleanName,
+      'groupPhoto': '',
+      'isArchived': false,
+      'isPinned': false,
+      'isMuted': false,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    return ref.id;
+  }
+
   Future<String> createChat({required String userId,required String userName,required String currentUserName,String? userImage,String? currentUserImage,String? idempotencyKey})async{final id=_uid();if(userId.isEmpty||userId==id)throw Exception('معرّف المستخدم الآخر غير صالح');final existing=await _firestore.collection('chats').where('participants',arrayContains:id).get();for(final d in existing.docs){final p=List<String>.from(d.data()['participants']??const []);if(p.length==2&&p.contains(userId)&&d.data()['isGroup']!=true)return d.id;}final ref=_firestore.collection('chats').doc();await ref.set({'participants':[id,userId],'participantDetails':{id:{'name':currentUserName,'photoUrl':currentUserImage},userId:{'name':userName,'photoUrl':userImage}},'lastMessage':'','lastMessageTime':null,'lastMessageSenderId':null,'unreadCount':{id:0,userId:0},'isGroup':false,'isArchived':false,'isPinned':false,'isMuted':false,'pinnedFor':{id:false,userId:false},'mutedFor':{id:false,userId:false},'typing':{id:false,userId:false},'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp(),if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});return ref.id;}
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration})async{
     final id=_uid();final user=_auth.currentUser!;final chat=await _authorizedChat(chatId);await SignalSessionManager.instance.ensureReady();
