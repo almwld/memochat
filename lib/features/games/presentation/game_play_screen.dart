@@ -85,9 +85,14 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title), centerTitle: true),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: _gameBody(),
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              child: _gameBody(),
+            ),
+            const _QuickGameChatBar(),
+          ],
         ),
       ),
     );
@@ -353,4 +358,100 @@ class _GridPainter extends CustomPainter {
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+
+class _QuickGameChatBar extends StatefulWidget {
+  const _QuickGameChatBar();
+
+  @override
+  State<_QuickGameChatBar> createState() => _QuickGameChatBarState();
+}
+
+class _QuickGameChatBarState extends State<_QuickGameChatBar> {
+  bool _open = false;
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            boxShadow: const [
+              BoxShadow(blurRadius: 18, offset: Offset(0, 6), spreadRadius: 1),
+            ],
+          ),
+          child: _open
+              ? Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'إغلاق المحادثة السريعة',
+                      onPressed: () => setState(() {
+                        _open = false;
+                        _controller.clear();
+                      }),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        textDirection: TextDirection.rtl,
+                        textInputAction: TextInputAction.send,
+                        decoration: const InputDecoration(
+                          hintText: 'رسالة سريعة داخل اللعبة…',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onSubmitted: (_) => _send(),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'إرسال',
+                      onPressed: _send,
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                )
+              : InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => setState(() => _open = true),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Text('محادثة سريعة'),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  void _send() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    _controller.clear();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), duration: const Duration(milliseconds: 700)),
+    );
+  }
 }
