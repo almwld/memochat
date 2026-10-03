@@ -1,4 +1,4 @@
-import '../classic_game_engine.dart';
+import 'classic_game_engine.dart';
 
 class QuizBattleGame extends ClassicGameEngine {
   QuizBattleGame({super.key}) : super(config: const ClassicGameConfig(
