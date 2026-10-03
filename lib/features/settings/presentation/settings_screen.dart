@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../../core/notifications/notification_inbox.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -21,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final _inbox = NotificationInbox();
   static const _notificationsKey = 'settings.notifications';
   static const _readReceiptsKey = 'settings.readReceipts';
   static const _typingKey = 'settings.typing';
@@ -228,6 +231,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: 'الرسائل والمكالمات والتنبيهات',
                 value: _notifications,
                 onChanged: (v) => _toggle(_notificationsKey, v),
+              ),
+              FutureBuilder<int>(
+                future: _inbox.unreadCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return ListTile(
+                    leading: const PremiumIconTile(icon: AppIcons.notifications, size: 42, iconSize: 20),
+                    title: const Text('مركز الإشعارات', style: TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text(count > 0 ? '$count إشعار غير مقروء' : 'لا توجد إشعارات غير مقروءة'),
+                    trailing: count > 0
+                        ? Badge(label: Text(count > 99 ? '99+' : '$count'), child: const Icon(Icons.chevron_left_rounded))
+                        : const Icon(Icons.chevron_left_rounded),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationCenterScreen())),
+                  );
+                },
               ),
               _SwitchRow(
                 icon: AppIcons.message,

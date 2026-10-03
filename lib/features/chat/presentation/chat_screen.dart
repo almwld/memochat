@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
+import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
@@ -21,22 +23,66 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  final _inbox = NotificationInbox();
   late final Stream<List<Conversation>> _conversationsStream;
+  late Future<int> _unreadNotifications;
 
   @override
   void initState() {
     super.initState();
     _conversationsStream = widget.repository.watchConversations();
+    _unreadNotifications = _inbox.unreadCount();
   }
 
   @override
   void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+    );
+    if (mounted) setState(() => _unreadNotifications = _inbox.unreadCount());
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
           actions: [
+            FutureBuilder<int>(
+              future: _unreadNotifications,
+              builder: (context, snapshot) {
+                final count = snapshot.data ?? 0;
+                return IconButton(
+                  tooltip: 'الإشعارات${count > 0 ? ' ($count)' : ''}',
+                  onPressed: _openNotifications,
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.notifications_outlined),
+                      if (count > 0)
+                        PositionedDirectional(
+                          top: -5,
+                          end: -6,
+                          child: Container(
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.error,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 9, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
             IconButton(
               tooltip: 'رجّ للتعارف',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShakeScreen(repository: widget.repository))),
