@@ -219,13 +219,15 @@ class SignalSessionManager {
     final key = address.getName() + ':' + address.getDeviceId().toString();
     final previous = _queues[key] ?? Future<void>.value();
     final gate = Completer<void>();
-    _queues[key] = previous.then((_) => gate.future);
+    final current = previous.then((_) => gate.future);
+    _queues[key] = current;
 
     try {
+      await previous;
       return await operation();
     } finally {
       gate.complete();
-      if (identical(_queues[key], gate.future)) {
+      if (identical(_queues[key], current)) {
         _queues.remove(key);
       }
     }
