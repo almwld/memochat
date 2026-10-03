@@ -13,6 +13,8 @@ import '../core/services/firebase_bootstrap.dart';
 import '../core/services/identity_state_service.dart';
 import '../core/services/sync_coordinator.dart';
 import '../core/media/media_transfer_engine.dart';
+import '../core/notifications/push_notification_service.dart';
+import '../features/chat/services/notification_service.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import 'memo_splash_screen.dart';
@@ -34,6 +36,9 @@ class _MemoChatAppState extends State<MemoChatApp>
   bool _showSplash = true;
   bool _initializationStarted = false;
   String? _lastSyncedUid;
+  String? _pushInitializedUid;
+  PushNotificationService? _pushNotifications;
+  final NotificationService _localNotifications = NotificationService();
   final IdentityStateService _identity = IdentityStateService();
   final MemoChatSyncCoordinator _syncCoordinator = MemoChatSyncCoordinator();
   bool _lifecycleStarted = false;
@@ -134,6 +139,23 @@ class _MemoChatAppState extends State<MemoChatApp>
     super.dispose();
   }
 
+  Future<void> _initializePushNotifications(User user) async {
+    if (_pushInitializedUid == user.uid) return;
+    _pushInitializedUid = user.uid;
+    final service = PushNotificationService(
+      localNotifications: _localNotifications,
+    );
+    _pushNotifications = service;
+    try {
+      await service.initialize().timeout(const Duration(seconds: 15));
+      debugPrint('MemoChat: FCM initialized for uid=${user.uid}');
+    } catch (error, stackTrace) {
+      if (_pushInitializedUid == user.uid) _pushInitializedUid = null;
+      debugPrint('MemoChat: FCM initialization failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
   Future<void> _syncUser(User user) async {
     final id = 'memo_' + user.uid.substring(0, 8).toLowerCase();
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
@@ -215,7 +237,9 @@ class _MemoChatAppState extends State<MemoChatApp>
                     if (_lastSyncedUid != user.uid) {
                       _lastSyncedUid = user.uid;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && _lastSyncedUid == user.uid) unawaited(_syncUser(user));
+                        if (!mounted || _lastSyncedUid != user.uid) return;
+                        unawaited(_syncUser(user));
+                        unawaited(_initializePushNotifications(user));
                       });
                     }
                     return HomeScreen(
