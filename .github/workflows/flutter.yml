@@ -140,14 +140,14 @@ jobs:
           from pathlib import Path
           settings = Path('android/settings.gradle')
           text = settings.read_text()
-          plugin = '    id "com.google.gms.google-services" version "4.4.2" apply false\\n'
+          plugin = '    id "com.google.gms.google-services" version "4.4.2" apply false\n'
           if 'com.google.gms.google-services' not in text:
-              text = text.replace('plugins {\\n', 'plugins {\\n' + plugin, 1)
+              text = text.replace('plugins {\n', 'plugins {\n' + plugin, 1)
               settings.write_text(text)
           app = Path('android/app/build.gradle')
           text = app.read_text()
           if 'id "com.google.gms.google-services"' not in text:
-              text = text.replace('    id "dev.flutter.flutter-gradle-plugin"\\n', '    id "dev.flutter.flutter-gradle-plugin"\\n    id "com.google.gms.google-services"\\n', 1)
+              text = text.replace('    id "dev.flutter.flutter-gradle-plugin"\n', '    id "dev.flutter.flutter-gradle-plugin"\n    id "com.google.gms.google-services"\n', 1)
               app.write_text(text)
           PY
           grep -q 'com.google.gms.google-services' android/settings.gradle
