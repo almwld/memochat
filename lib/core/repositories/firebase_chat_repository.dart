@@ -63,9 +63,6 @@ class FirebaseChatRepository implements ChatRepository {
     final pair = <String>[_uid, otherId]..sort();
     final stableId = 'dm_${pair[0]}_${pair[1]}';
     final stableRef = _chats().doc(stableId);
-    final existing = await stableRef.get();
-    if (existing.exists) return existing.id;
-
     final me = FirebaseAuth.instance.currentUser;
     try {
       await stableRef.set({
