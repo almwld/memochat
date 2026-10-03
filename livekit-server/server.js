@@ -439,13 +439,14 @@ app.post('/call-notification', async (req, res) => {
 // Firestore -> FCM: New chat message listener
 // ============================================================
 function buildMessagePayload(opts) {
-  var preview = String(opts.messageText || '').slice(0, 120);
+  var encrypted = opts.encrypted === true;
+  var preview = encrypted ? 'لديك رسالة جديدة في الدردشة' : String(opts.messageText || '').slice(0, 120);
   return {
     token: opts.fcmToken,
     // Notification + data is intentional for chat messages: Android can render
     // the message in the system tray while the data payload preserves chat routing.
     notification: {
-      title: String(opts.senderName || 'رسالة جديدة'),
+      title: encrypted ? 'رسالة جديدة' : String(opts.senderName || 'رسالة جديدة'),
       body: preview || 'لديك رسالة جديدة في الدردشة',
     },
     data: {
@@ -453,18 +454,18 @@ function buildMessagePayload(opts) {
       chatId: String(opts.chatId || ''),
       messageId: String(opts.messageId || ''),
       senderId: String(opts.senderId || ''),
-      senderName: String(opts.senderName || 'user'),
-      senderPhotoUrl: String(opts.senderPhotoUrl || ''),
-      messageType: String(opts.messageType || 'text'),
-      imageUrl: String(opts.imageUrl || ''),
-      videoUrl: String(opts.videoUrl || ''),
-      audioUrl: String(opts.audioUrl || ''),
-      fileUrl: String(opts.fileUrl || ''),
-      fileName: String(opts.fileName || ''),
-      fileMimeType: String(opts.fileMimeType || ''),
-      fileSize: String(opts.fileSize || ''),
-      body: preview,
-      title: String(opts.senderName || 'رسالة جديدة'),
+      senderName: encrypted ? 'user' : String(opts.senderName || 'user'),
+      senderPhotoUrl: encrypted ? '' : String(opts.senderPhotoUrl || ''),
+      messageType: encrypted ? 'encrypted' : String(opts.messageType || 'text'),
+      imageUrl: encrypted ? '' : String(opts.imageUrl || ''),
+      videoUrl: encrypted ? '' : String(opts.videoUrl || ''),
+      audioUrl: encrypted ? '' : String(opts.audioUrl || ''),
+      fileUrl: encrypted ? '' : String(opts.fileUrl || ''),
+      fileName: encrypted ? '' : String(opts.fileName || ''),
+      fileMimeType: encrypted ? '' : String(opts.fileMimeType || ''),
+      fileSize: encrypted ? '' : String(opts.fileSize || ''),
+      body: encrypted ? '' : preview,
+      title: encrypted ? 'رسالة جديدة' : String(opts.senderName || 'رسالة جديدة'),
       chatType: String(opts.chatType || 'direct'),
       timestamp: String(Date.now())
     },
@@ -499,20 +500,23 @@ async function handleNewMessage(change) {
     var senderId = String(msg.senderId || '');
     if (!senderId) { console.warn('[msg] no senderId id=' + messageId); return; }
 
-    var senderName = String(msg.senderName || msg.senderDisplayName || '');
-    var senderPhotoUrl = String(msg.senderPhotoUrl || msg.senderAvatar || '');
-    var messageType = String(msg.type || 'text');
-    var imageUrl = String(msg.imageUrl || '');
-    var videoUrl = String(msg.videoUrl || '');
-    var audioUrl = String(msg.audioUrl || '');
-    var fileUrl = String(msg.fileUrl || '');
-    var fileName = String(msg.fileName || '');
-    var fileMimeType = String(msg.fileMimeType || msg.fileType || '');
-    var fileSize = String(msg.fileSize || '');
+    var encryptedMessage = msg.e2eePayloads && typeof msg.e2eePayloads === 'object';
+    var senderName = encryptedMessage ? 'user' : String(msg.senderName || msg.senderDisplayName || '');
+    var senderPhotoUrl = encryptedMessage ? '' : String(msg.senderPhotoUrl || msg.senderAvatar || '');
+    var messageType = encryptedMessage ? 'encrypted' : String(msg.type || 'text');
+    var imageUrl = encryptedMessage ? '' : String(msg.imageUrl || '');
+    var videoUrl = encryptedMessage ? '' : String(msg.videoUrl || '');
+    var audioUrl = encryptedMessage ? '' : String(msg.audioUrl || '');
+    var fileUrl = encryptedMessage ? '' : String(msg.fileUrl || '');
+    var fileName = encryptedMessage ? '' : String(msg.fileName || '');
+    var fileMimeType = encryptedMessage ? '' : String(msg.fileMimeType || msg.fileType || '');
+    var fileSize = encryptedMessage ? '' : String(msg.fileSize || '');
     var messageText = '';
-    if (typeof msg.text === 'string') messageText = msg.text;
-    else if (typeof msg.message === 'string') messageText = msg.message;
-    else if (typeof msg.content === 'string') messageText = msg.content;
+    if (!encryptedMessage) {
+      if (typeof msg.text === 'string') messageText = msg.text;
+      else if (typeof msg.message === 'string') messageText = msg.message;
+      else if (typeof msg.content === 'string') messageText = msg.content;
+    }
 
     var chatSnap = await db.collection('chats').doc(chatId).get();
     if (!chatSnap.exists) { console.warn('[msg] chat missing id=' + chatId); return; }
@@ -578,7 +582,8 @@ async function handleNewMessage(change) {
           fileUrl: fileUrl,
           fileName: fileName,
           fileMimeType: fileMimeType,
-          fileSize: fileSize
+          fileSize: fileSize,
+          encrypted: encryptedMessage
         });
 
         try {
