@@ -85,7 +85,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
           _remoteUid = other;
           _currentTurn = game.currentTurn;
           _gameStartedAt = game.startedAt;
-          _durationMinutes = game.timeLimit == GameTimeLimit.five ? 5 : game.timeLimit == GameTimeLimit.ten ? 10 : game.timeLimit == GameTimeLimit.fifteen ? 15 : null;
+          _durationMinutes = game.timeLimit == GameTimeLimit.fiveMinutes ? 5 : game.timeLimit == GameTimeLimit.tenMinutes ? 10 : game.timeLimit == GameTimeLimit.fifteenMinutes ? 15 : null;
           final rawScore = game.scores[other ?? ''];
           if (rawScore is num && other != uid) {
             // Keep the opponent score available without replacing the local score.
@@ -205,7 +205,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       case GameType.truthDare: return _truthDareGame();
       case GameType.guessSong: return _choiceGame('خمن الأغنية', ['🎵 أغنية عربية','🎸 أغنية روك','🎹 أغنية كلاسيكية','🥁 أغنية شعبية']);
       case GameType.memoryMatch: return _memoryGame();
-      case GameType.triviaChallenge: return _choiceGame('Trivia Challenge', ['المحيط الهادئ','المريخ','الأمازون','جبال الألب']);
+      case GameType.trivia: return _choiceGame('Trivia Challenge', ['المحيط الهادئ','المريخ','الأمازون','جبال الألب']);
       case GameType.quickTap: return _quickTapGame();
       case GameType.wouldYouRather: return _choiceGame('ماذا تفضل؟', ['السفر عبر الزمن','قراءة الأفكار','الطيران','التنفس تحت الماء']);
       case GameType.speedMath: return _speedMathGame();
