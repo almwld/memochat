@@ -12,7 +12,7 @@ class MessageModel extends Equatable {
   final Map<String, dynamic>? replyPreview;
   final MessageType type;
   final Timestamp? timestamp, clientTimestamp, readAt, deliveredAt, editedAt, pinnedAt;
-  final bool isRead, isDelivered, isEdited, isDeleted, isPinned;
+  final bool isRead, isDelivered, isEdited, isDeleted, isPinned, isStarred;
   final MessageStatus status;
   final String? replyToId, idempotencyKey;
   final MessageModel? replyTo;
@@ -67,6 +67,7 @@ class MessageModel extends Equatable {
     this.editedAt,
     this.pinnedAt,
     this.isPinned = false,
+    this.isStarred = false,
     this.status = MessageStatus.sent,
   });
 
@@ -160,6 +161,7 @@ class MessageModel extends Equatable {
       editedAt: timestampOf(data['editedAt']),
       pinnedAt: timestampOf(data['pinnedAt']),
       isPinned: data['isPinned'] == true,
+      isStarred: data['isStarred'] == true,
     );
   }
 
@@ -205,6 +207,7 @@ class MessageModel extends Equatable {
         'editedAt': editedAt,
         'pinnedAt': pinnedAt,
         'isPinned': isPinned,
+        'isStarred': isStarred,
       };
 
   bool get isImage => type == MessageType.image;
@@ -226,6 +229,6 @@ class MessageModel extends Equatable {
         replyToId, idempotencyKey, reactions, deletedFor, attachments, metadata,
         imageUrl, audioUrl, fileUrl, videoUrl, locationUrl, locationAddress,
         locationLat, locationLng, audioDuration, fileSize, fileName, fileMimeType,
-        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, status,
+        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, isStarred, status,
       ];
 }

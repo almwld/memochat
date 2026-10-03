@@ -17,6 +17,7 @@ import 'package:memochat/features/chat/services/status_service.dart';
 import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/message_search_screen.dart';
+import 'package:memochat/features/chat/presentation/starred_messages_screen.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
@@ -168,6 +169,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   DateTime? _lastSeen;
   bool _muted = false;
   bool _pinned = false;
+  bool _starredLoading = false;
   String _wallpaper = 'default';
   double _fontSize = 14.0;
   final _chatPrefs = ChatPreferencesService();
@@ -603,6 +605,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     } catch (e) {
       if (mounted) ToastService.showError('تعذر إعادة توجيه الرسالة: $e');
     }
+  }
+
+  Future<void> _toggleMessageStar(MessageModel message) async {
+    if (_starredLoading) return;
+    setState(() => _starredLoading = true);
+    try {
+      await _chat.starMessage(widget.chatId, message.id, !message.isStarred);
+      if (mounted) ToastService.showSuccess(message.isStarred ? 'أزيلت من المفضلة' : 'حُفظت في المفضلة');
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر حفظ الرسالة: $e');
+    } finally {
+      if (mounted) setState(() => _starredLoading = false);
+    }
+  }
+
+  Future<void> _showStarredMessages() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredMessagesScreen(chatId: widget.chatId)));
   }
 
   Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(widget.chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
@@ -1098,6 +1117,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 if (value == 'mute') _toggleMute();
                 if (value == 'pin') _togglePin();
                 if (value == 'pinned') _showPinnedMessages();
+                if (value == 'starred') _showStarredMessages();
                 if (value == 'profile') _profile();
                 if (value == 'delete') _deleteChatForMe();
                 if (value == 'settings') _openChatSettings();
@@ -1106,6 +1126,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                     const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
                     const PopupMenuItem(value: 'settings', child: Text('تخصيص المحادثة')),
                     const PopupMenuItem(value: 'pinned', child: Text('الرسائل المثبتة')),
+                    const PopupMenuItem(value: 'starred', child: Text('الرسائل المحفوظة')),
                     PopupMenuItem(value: 'mute', child: Text(_muted ? 'إلغاء كتم الإشعارات' : 'كتم الإشعارات')),
                     PopupMenuItem(value: 'pin', child: Text(_pinned ? 'إلغاء تثبيت المحادثة' : 'تثبيت المحادثة')),
                     const PopupMenuDivider(),
@@ -1192,6 +1213,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       onPin: model == null || model.id.isEmpty
                           ? null
                           : () => _toggleMessagePin(model),
+                      onStar: model == null || model.id.isEmpty
+                          ? null
+                          : () => _toggleMessageStar(model),
                       onCallAgain: (_) => _call(false),
                       fontSize: _fontSize,
                       onReaction: remote && messageId != null

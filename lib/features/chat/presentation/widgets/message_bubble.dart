@@ -30,9 +30,10 @@ class MessageBubble extends StatefulWidget {
   final bool isFirstInChat;
   final VoidCallback? onReplyPreviewTap;
   final VoidCallback? onForward;
+  final VoidCallback? onStar;
   final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.fontSize = 14});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -684,6 +685,8 @@ class _MessageBubbleState extends State<MessageBubble> {
               ),
             if (widget.onEdit != null && widget.message['isDeleted'] != true && (widget.message['text']?.toString().trim() ?? '').isNotEmpty)
               ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () { Navigator.pop(context); widget.onEdit?.call(); }),
+            if (widget.onStar != null)
+              ListTile(leading: Icon(widget.message['isStarred'] == true ? Icons.star : Icons.star_border), title: Text(widget.message['isStarred'] == true ? 'إزالة من المفضلة' : 'حفظ في المفضلة'), onTap: () { Navigator.pop(context); widget.onStar?.call(); }),
             if (widget.onPin != null)
               ListTile(leading: Icon((widget.message['isPinned'] == true) ? Icons.push_pin : Icons.push_pin_outlined), title: Text(widget.message['isPinned'] == true ? 'إلغاء تثبيت الرسالة' : 'تثبيت الرسالة'), onTap: () { Navigator.pop(context); widget.onPin?.call(); }),
             if (widget.onForward != null)
