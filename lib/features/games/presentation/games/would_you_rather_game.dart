@@ -1,4 +1,4 @@
-import '../classic_game_engine.dart';
+import 'classic_game_engine.dart';
 
 class WouldYouRatherGame extends ClassicGameEngine {
   WouldYouRatherGame({super.key}) : super(config: const ClassicGameConfig(
