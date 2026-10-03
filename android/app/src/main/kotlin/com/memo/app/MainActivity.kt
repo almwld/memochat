@@ -14,6 +14,8 @@ class MainActivity : FlutterFragmentActivity() {
     private val callAudioChannel = "com.memo.app/call_audio"
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
     private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
+    private val quickActionsChannel = "com.memo.app/quick_actions"
+    private var pendingQuickAction: String? = null
 
     override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -68,6 +70,18 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, quickActionsChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getPendingAction" -> {
+                        val action = pendingQuickAction
+                        pendingQuickAction = null
+                        result.success(action)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, fullScreenChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -107,6 +121,7 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        pendingQuickAction = quickActionFromIntent(intent)
         super.onCreate(savedInstanceState)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -118,5 +133,23 @@ class MainActivity : FlutterFragmentActivity() {
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingQuickAction = quickActionFromIntent(intent)
+    }
+
+    private fun quickActionFromIntent(intent: Intent?): String? {
+        val data = intent?.data?.toString() ?: return null
+        return when (data) {
+            "memochat://quick/chat" -> "chat"
+            "memochat://quick/compose" -> "compose"
+            "memochat://quick/calls" -> "calls"
+            "memochat://quick/social" -> "social"
+            "memochat://quick/contacts" -> "contacts"
+            else -> null
+        }
     }
 }
