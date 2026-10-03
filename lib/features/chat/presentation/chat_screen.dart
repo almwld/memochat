@@ -232,8 +232,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(child: _buildFolderBar()),
-                SliverToBoxAdapter(child: _buildConversationFilters()),
+                SliverToBoxAdapter(child: _buildCategoryBar()),
                 if (filtered.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
@@ -318,21 +317,99 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _buildFolderBar() => FutureBuilder<List<ChatFolder>>(
+  Widget _buildCategoryBar() => FutureBuilder<List<ChatFolder>>(
     future: _folderService.getFolders(),
     builder: (context, snapshot) {
       final folders = snapshot.data ?? const <ChatFolder>[];
-      return SizedBox(height: 48, child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10), scrollDirection: Axis.horizontal,
-        itemCount: folders.length + 3, separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) {
-          if (index == 0) return ChoiceChip(label: const Text('كل المحادثات'), selected: _activeFolder == null, onSelected: (_) => setState(() => _activeFolder = null));
-          if (index == 1) return ActionChip(avatar: const Icon(Icons.tune, size: 17), label: const Text('المجلدات'), onPressed: _openFolders);
-          if (index == 2) return FilterChip(avatar: const Icon(Icons.archive_outlined, size: 17), label: const Text('المؤرشفة'), selected: _showArchived, onSelected: (value) => setState(() => _showArchived = value));
-          final folder = folders[index - 3];
-          return ChoiceChip(label: Text(folder.name), selected: _activeFolder?.id == folder.id, onSelected: (_) => setState(() => _activeFolder = folder));
-        },
-      ));
+      final items = <Widget>[
+        ChoiceChip(
+          label: const Text('كل البحث'),
+          selected: _conversationFilter == _ConversationFilter.all &&
+              !_showArchived &&
+              _activeFolder == null &&
+              _search.text.trim().isEmpty,
+          onSelected: (_) => setState(() {
+            _search.clear();
+            _conversationFilter = _ConversationFilter.all;
+            _showArchived = false;
+            _activeFolder = null;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('المحادثات'),
+          selected: _conversationFilter == _ConversationFilter.all &&
+              !_showArchived &&
+              _activeFolder == null,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.all;
+            _showArchived = false;
+            _activeFolder = null;
+          }),
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.tune, size: 17),
+          label: const Text('المجلدات'),
+          onPressed: _openFolders,
+        ),
+        FilterChip(
+          avatar: const Icon(Icons.archive_outlined, size: 17),
+          label: const Text('المؤرشفة'),
+          selected: _showArchived,
+          onSelected: (value) => setState(() {
+            _showArchived = value;
+            if (value) _activeFolder = null;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('الكل'),
+          selected: _conversationFilter == _ConversationFilter.all &&
+              !_showArchived &&
+              _activeFolder == null,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.all;
+            _showArchived = false;
+            _activeFolder = null;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('غير مقروءة'),
+          selected: _conversationFilter == _ConversationFilter.unread,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.unread;
+            _showArchived = false;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('متصلون'),
+          selected: _conversationFilter == _ConversationFilter.online,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.online;
+            _showArchived = false;
+          }),
+        ),
+        ...folders.map(
+          (folder) => ChoiceChip(
+            label: Text(folder.name),
+            selected: _activeFolder?.id == folder.id,
+            onSelected: (_) => setState(() {
+              _activeFolder = folder;
+              _showArchived = false;
+            }),
+          ),
+        ),
+      ];
+
+      return SizedBox(
+        height: 52,
+        child: ListView.separated(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (_, index) => items[index],
+        ),
+      );
     },
   );
 
@@ -349,7 +426,6 @@ class _ChatScreenState extends State<ChatScreen> {
         _ConversationFilter.unread => item.unreadCount > 0,
         _ConversationFilter.online => item.participant.isOnline,
       };
-      final matchesArchive = _showArchived ? item.isArchived : !item.isArchived;
       return matchesSearch && matchesArchive && matchesFilter && matchesFolder;
     }).toList();
   }
