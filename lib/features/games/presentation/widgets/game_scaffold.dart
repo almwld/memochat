@@ -90,7 +90,7 @@ class _GameScaffoldState extends State<GameScaffold> {
         widget.progressTotal != null &&
         widget.progressTotal! > 0;
     final progress = hasProgress
-        ? (widget.progress! / widget.progressTotal!).clamp(0.0, 1.0)
+        ? (widget.progress! / widget.progressTotal!).clamp(0.0, 1.0).toDouble()
         : null;
 
     return Scaffold(
