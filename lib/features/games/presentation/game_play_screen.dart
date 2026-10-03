@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 
 import '../models/game.dart';
@@ -298,7 +299,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     const Text('اضغط الزر أكبر عدد ممكن خلال 10 ثوانٍ.'),
     const SizedBox(height: 20),
     Text('$_quickTaps', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900)),
-    _action('اضغط!', () => _point(value: 1)),
+    _action('اضغط!', () => setState(() { _quickTaps++; score++; })),
   ]);
 
   Widget _speedMathGame() {
