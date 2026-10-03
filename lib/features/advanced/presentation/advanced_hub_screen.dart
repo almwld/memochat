@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/advanced_features_service.dart';
+import '../../../core/services/mini_app_state_service.dart';
 import '../../chat/services/livekit_service.dart';
 
 class AdvancedHubScreen extends StatelessWidget {
@@ -239,7 +242,9 @@ class QuickNotesScreen extends StatefulWidget {
 
 class _QuickNotesScreenState extends State<QuickNotesScreen> {
   final _controller = TextEditingController();
+  final _cloudState = MiniAppStateService();
   bool _loaded = false;
+  bool _cloudSynced = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -247,13 +252,36 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _controller.text = prefs.getString('mini_notes') ?? '';
+    if (Firebase.apps.isNotEmpty && FirebaseAuth.instance.currentUser != null) {
+      try {
+        final cloud = await _cloudState.load('quick_notes');
+        final cloudText = cloud?['text']?.toString();
+        if (cloudText != null && cloudText.isNotEmpty) _controller.text = cloudText;
+        _cloudSynced = cloud != null;
+      } catch (_) {
+        // Local notes remain available when the account or network is offline.
+      }
+    }
     if (mounted) setState(() => _loaded = true);
   }
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mini_notes', _controller.text);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحفظ محلياً')));
+    var message = 'تم الحفظ محلياً';
+    if (Firebase.apps.isNotEmpty && FirebaseAuth.instance.currentUser != null) {
+      try {
+        await _cloudState.save('quick_notes', {'text': _controller.text});
+        _cloudSynced = true;
+        message = 'تم الحفظ محلياً ومزامنته سحابياً';
+      } catch (_) {
+        message = 'تم الحفظ محلياً؛ ستتم المزامنة عند توفر الاتصال';
+      }
+    }
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
@@ -266,7 +294,19 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
     ]),
     body: Padding(
       padding: const EdgeInsets.all(16),
-      child: TextField(controller: _controller, enabled: _loaded, maxLines: null, expands: true, decoration: const InputDecoration(hintText: 'اكتب ملاحظتك...')),
+      child: Column(
+        children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              _cloudSynced ? 'مزامنة سحابية مفعّلة' : 'حفظ محلي آمن',
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(child: TextField(controller: _controller, enabled: _loaded, maxLines: null, expands: true, decoration: const InputDecoration(hintText: 'اكتب ملاحظتك...'))),
+        ],
+      ),
     ),
   );
 }
