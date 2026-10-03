@@ -115,7 +115,16 @@ class CallService {
         throw StateError('لديك مكالمة نشطة بالفعل');
       }
     }
-    final id = idempotencyKey ?? _firestore.collection('calls').doc().id; final ref = _firestore.collection('calls').doc(id); final lockRef = _firestore.collection('callLocks').doc(_lockId(uid, receiverId)); final room = 'call_$id';
+    var id = (idempotencyKey ?? _firestore.collection('calls').doc().id).trim();
+    // Idempotency keys are logical call ids, not LiveKit room names. Normalize
+    // legacy keys so we never create call_call_<id> room names.
+    while (id.startsWith('call_')) {
+      id = id.substring('call_'.length);
+    }
+    if (id.isEmpty) id = _firestore.collection('calls').doc().id;
+    final ref = _firestore.collection('calls').doc(id);
+    final lockRef = _firestore.collection('callLocks').doc(_lockId(uid, receiverId));
+    final room = 'call_$id';
     await _retry(() => _firestore.runTransaction((tx) async {
       final existingCall = await tx.get(ref); if (existingCall.exists) return;
       tx.set(lockRef, {'participants':[uid,receiverId],'activeCallId':id,'status':CallStatus.calling.name,'updatedAt':FieldValue.serverTimestamp()});
