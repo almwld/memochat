@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/game.dart';
+import 'package:memochat/features/games/models/game.dart';
 
 class GameCard extends StatelessWidget {
   final GameDefinition game; final int index; final VoidCallback onTap;
