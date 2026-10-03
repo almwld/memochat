@@ -1,2 +1,2 @@
 import 'package:flutter/material.dart';
-class GameProgressBar extends StatelessWidget { final int value,total; const GameProgressBar({super.key,required this.value,required this.total}); @override Widget build(BuildContext context){final p=total<=0?0.0:(value/total).clamp(0.0,1.0);return LinearProgressIndicator(value:p,minHeight:6,borderRadius:BorderRadius.circular(8));} }
+class GameProgressBar extends StatelessWidget { final int value,total; const GameProgressBar({super.key,required this.value,required this.total}); @override Widget build(BuildContext context){final p=total<=0?0.0:(value/total).clamp(0.0,1.0).toDouble();return LinearProgressIndicator(value:p,minHeight:6,borderRadius:BorderRadius.circular(8));} }
