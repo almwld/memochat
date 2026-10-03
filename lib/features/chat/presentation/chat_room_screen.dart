@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
 import 'package:memochat/core/theme/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
@@ -166,10 +167,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _loading = true;
   String? _loadError;
   bool _online = false;
+  bool get _selectionMode => _selectedMessageIds.isNotEmpty;
   DateTime? _lastSeen;
   bool _muted = false;
   bool _pinned = false;
   bool _starredLoading = false;
+  final Set<String> _selectedMessageIds = <String>{};
   String _wallpaper = 'default';
   double _fontSize = 14.0;
   final _chatPrefs = ChatPreferencesService();
@@ -607,6 +610,44 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
   }
 
+  void _toggleMessageSelection(String id) {
+    setState(() {
+      if (_selectedMessageIds.contains(id)) {
+        _selectedMessageIds.remove(id);
+      } else {
+        _selectedMessageIds.add(id);
+      }
+    });
+  }
+
+  List<MessageModel> _selectedModels() =>
+      _messages.where((m) => _selectedMessageIds.contains(m.id)).toList();
+
+  Future<void> _deleteSelectedMessages() async {
+    for (final message in _selectedModels()) {
+      try { await _chat.deleteMessage(widget.chatId, message.id); } catch (_) {}
+    }
+    if (mounted) setState(() => _selectedMessageIds.clear());
+  }
+
+  Future<void> _copySelectedMessages() async {
+    final text = _selectedModels().map((m) => m.text?.trim()).whereType<String>().where((v) => v.isNotEmpty).join('\n');
+    if (text.isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) ToastService.showSuccess('تم نسخ الرسائل المحددة');
+    }
+    if (mounted) setState(() => _selectedMessageIds.clear());
+  }
+
+  Future<void> _starSelectedMessages() async {
+    for (final message in _selectedModels()) {
+      try { await _chat.starMessage(widget.chatId, message.id, true); } catch (_) {}
+    }
+    if (mounted) setState(() => _selectedMessageIds.clear());
+  }
+
+  void _clearSelection() => setState(() => _selectedMessageIds.clear());
+
   Future<void> _toggleMessageStar(MessageModel message) async {
     if (_starredLoading) return;
     setState(() => _starredLoading = true);
@@ -1011,6 +1052,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       backgroundColor: dark ? const Color(0xFF0B1121) : const Color(0xFFE3F1EF),
       appBar: AppBar(
         elevation: 0,
+        leading: _selectionMode ? IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection) : null,
+        title: _selectionMode ? Text('${_selectedMessageIds.length} محددة') : null,
         backgroundColor: dark ? const Color(0xFF101827) : const Color(0xFFF7FBFA),
         foregroundColor: dark ? null : AppColors.primary,
         leading: BackButton(color: dark ? null : AppColors.primary),
@@ -1095,7 +1138,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
               ]);
             },
           ),
-        actions: [
+        actions: _selectionMode ? [
+          IconButton(tooltip: 'نسخ', onPressed: _copySelectedMessages, icon: const Icon(Icons.copy_outlined)),
+          IconButton(tooltip: 'حفظ', onPressed: _starSelectedMessages, icon: const Icon(Icons.star_border)),
+          IconButton(tooltip: 'حذف', onPressed: _deleteSelectedMessages, icon: const Icon(Icons.delete_outline)),
+        ] : [
           IconButton(
               onPressed: _searchMessages,
               tooltip: 'البحث داخل الرسائل',
@@ -1217,6 +1264,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                           ? null
                           : () => _toggleMessageStar(model),
                       onCallAgain: (_) => _call(false),
+                      onSelect: model == null || model.id.isEmpty ? null : () => _toggleMessageSelection(model.id),
                       fontSize: _fontSize,
                       onReaction: remote && messageId != null
                           ? (emoji) => _chat.addReaction(
