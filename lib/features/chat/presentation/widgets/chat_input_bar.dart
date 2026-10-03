@@ -17,6 +17,7 @@ import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
 import 'package:memochat/features/chat/services/reliable_message_service.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
+import 'package:memochat/features/games/presentation/games_screen.dart';
 
 class ChatInputBar extends StatefulWidget {
   final String chatId;
@@ -610,6 +611,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 contentPadding: const EdgeInsets.symmetric(vertical: 11),
                               ),
                             ),
+                          ),
+                          IconButton(
+                            tooltip: 'الألعاب',
+                            onPressed: _sending ? null : () => showGamesSheet(context, chatId: widget.chatId),
+                            icon: Icon(Icons.sports_esports_outlined, color: iconColor),
+                            splashRadius: 21,
                           ),
                           IconButton(
                             tooltip: 'إرفاق',
