@@ -36,6 +36,7 @@ class _ChatScreenState extends State<ChatScreen> {
   late final Stream<List<Conversation>> _conversationsStream;
   late Future<int> _unreadNotifications;
   _ConversationFilter _conversationFilter = _ConversationFilter.all;
+  bool _showArchived = false;
   final _folderService = ChatFolderService();
   ChatFolder? _activeFolder;
   StreamSubscription<Uri>? _inviteSubscription;
@@ -253,6 +254,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         return _ConversationCard(
                           conversation: item,
                           onMarkUnread: () => widget.repository.markAsUnread(item.id),
+                          onArchive: () => _toggleArchive(item),
                           onFolder: () => _assignChatToFolder(item.id),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
@@ -311,6 +313,11 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Future<void> _toggleArchive(Conversation item) async {
+    await ChatService().archiveChat(item.id, !item.isArchived);
+    if (mounted) setState(() {});
+  }
+
   Widget _buildFolderBar() => FutureBuilder<List<ChatFolder>>(
     future: _folderService.getFolders(),
     builder: (context, snapshot) {
@@ -334,6 +341,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final name = item.participant.displayName.toLowerCase();
       final text = item.lastMessage?.text.toLowerCase() ?? '';
       final matchesSearch = query.isEmpty || name.contains(query) || text.contains(query);
+      final matchesArchive = _showArchived ? item.isArchived : !item.isArchived;
       final matchesFolder = _activeFolder == null || _activeFolder!.chatIds.contains(item.id);
       final matchesFilter = switch (_conversationFilter) {
         _ConversationFilter.all => true,
@@ -373,10 +381,11 @@ class _ChatScreenState extends State<ChatScreen> {
 enum _ConversationFilter { all, unread, online }
 
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread, required this.onFolder});
+  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread, required this.onArchive, required this.onFolder});
   final Conversation conversation;
   final VoidCallback onTap;
   final Future<void> Function() onMarkUnread;
+  final Future<void> Function() onArchive;
   final VoidCallback onFolder;
 
   @override
@@ -389,6 +398,7 @@ class _ConversationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         onLongPress: onMarkUnread,
+        onSecondaryTap: (_) => onArchive(),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
           child: Row(
@@ -443,7 +453,14 @@ class _ConversationCard extends StatelessWidget {
                   ),
                 )
               else
-                IconButton(onPressed: onFolder, tooltip: 'مجلد', icon: Icon(Icons.folder_outlined, color: scheme.onSurfaceVariant)),
+                PopupMenuButton<String>(
+                  onSelected: (value) { if (value == 'archive') onArchive(); if (value == 'folder') onFolder(); },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'archive', child: Text(conversation.isArchived ? 'إلغاء الأرشفة' : 'أرشفة')),
+                    const PopupMenuItem(value: 'folder', child: Text('مجلد')),
+                  ],
+                  icon: Icon(Icons.more_horiz_rounded, color: scheme.onSurfaceVariant),
+                ),
             ],
           ),
         ),
