@@ -49,15 +49,7 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
 
   Future<void> _loadState() async {
     try {
-      final uid = widget.service;
-      // Streams in the action bar keep these states live; this initial read
-      // prevents a visible false state on first frame.
       if (!mounted) return;
-      setState(() {
-        _liked = false;
-        _saved = false;
-        _following = false;
-      });
     } catch (_) {}
   }
 
@@ -188,24 +180,49 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
           Positioned(
             right: 12,
             bottom: MediaQuery.paddingOf(context).bottom + 116,
-            child: ReelActions(
-              service: widget.service,
-              id: widget.id,
-              data: widget.data,
-              liked: _liked,
-              saved: _saved,
-              following: _following,
-              onLike: _like,
-              onComment: () => showCommentSheet(context, widget.service, widget.id),
-              onShare: () => widget.service.shareReel(widget.id),
-              onSave: () => widget.service.toggleSave('socialReels', widget.id, _saved),
-              onFollow: author.isEmpty ? null : () => widget.service.toggleFollow(author, _following),
-              onMore: () => showReelEditDialog(
-                context: context,
-                service: widget.service,
-                id: widget.id,
-                data: widget.data,
-              ),
+            child: StreamBuilder(
+              stream: widget.service.watchLike('socialReels', widget.id),
+              builder: (context, likeSnap) {
+                final liked = likeSnap.data?.exists == true;
+                return StreamBuilder(
+                  stream: widget.service.watchSaved(widget.id),
+                  builder: (context, saveSnap) {
+                    final saved = saveSnap.data?.exists == true;
+                    return StreamBuilder(
+                      stream: author.isEmpty ? null : widget.service.watchFollowing(author),
+                      builder: (context, followSnap) {
+                        final following = followSnap.data?.exists == true;
+                        return StreamBuilder<int>(
+                          stream: widget.service.watchLikesCount(widget.id),
+                          initialData: (widget.data['likesCount'] as num?)?.toInt() ?? 0,
+                          builder: (context, countSnap) {
+                            final data = {...widget.data, 'likesCount': countSnap.data ?? 0};
+                            return ReelActions(
+                              service: widget.service,
+                              id: widget.id,
+                              data: data,
+                              liked: liked,
+                              saved: saved,
+                              following: following,
+                              onLike: _like,
+                              onComment: () => showCommentSheet(context, widget.service, widget.id),
+                              onShare: () => widget.service.shareReel(widget.id),
+                              onSave: () => widget.service.toggleSave('socialReels', widget.id, saved),
+                              onFollow: author.isEmpty ? null : () => widget.service.toggleFollow(author, following),
+                              onMore: () => showReelEditDialog(
+                                context: context,
+                                service: widget.service,
+                                id: widget.id,
+                                data: widget.data,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                );
+              },
             ),
           ),
           Positioned(
