@@ -85,6 +85,11 @@ class SignalSessionManager {
     };
   }
 
+  Future<void> ensureReady() async {
+    await initialize();
+    await publishPublicBundle();
+  }
+
   Future<void> publishPublicBundle() async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
