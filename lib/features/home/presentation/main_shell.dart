@@ -9,6 +9,7 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../../advanced/presentation/advanced_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
+import '../../../core/services/quick_action_service.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -26,8 +27,14 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _consumeQuickAction();
   late final List<Widget> _pages;
 
   @override
