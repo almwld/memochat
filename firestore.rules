@@ -377,8 +377,14 @@ service cloud.firestore {
         request.resource.data.name.size() >= 2 &&
         request.resource.data.name.size() <= 80;
       allow update: if signedIn() &&
-        resource.data.ownerId == request.auth.uid &&
-        request.resource.data.ownerId == resource.data.ownerId;
+        request.resource.data.ownerId == resource.data.ownerId &&
+        (
+          resource.data.ownerId == request.auth.uid ||
+          (
+            exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['membersCount', 'updatedAt'])
+          )
+        );
       allow delete: if false;
 
       match /members/{memberId} {
