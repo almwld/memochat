@@ -217,7 +217,7 @@ class SignalSessionManager {
     Future<T> Function() operation,
   ) async {
     final key = address.getName() + ':' + address.getDeviceId().toString();
-    final previous = _queues[key] ?? Future<void>.value();
+    final previous = (_queues[key] ?? Future<void>.value()).catchError((_) {});
     final gate = Completer<void>();
     final current = previous.then((_) => gate.future);
     _queues[key] = current;
