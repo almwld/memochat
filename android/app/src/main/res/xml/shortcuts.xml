@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="compose"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="رسالة"
+        android:shortcutLongLabel="إنشاء رسالة جديدة">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.memo.app"
+            android:targetClass="com.memo.app.MainActivity"
+            android:data="memochat://quick/compose" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="chat"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="محادثات"
+        android:shortcutLongLabel="فتح المحادثات">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.memo.app"
+            android:targetClass="com.memo.app.MainActivity"
+            android:data="memochat://quick/chat" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="calls"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="مكالمات"
+        android:shortcutLongLabel="فتح المكالمات">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.memo.app"
+            android:targetClass="com.memo.app.MainActivity"
+            android:data="memochat://quick/calls" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="social"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="Memo"
+        android:shortcutLongLabel="فتح Memo والريلز">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.memo.app"
+            android:targetClass="com.memo.app.MainActivity"
+            android:data="memochat://quick/social" />
+    </shortcut>
+</shortcuts>
