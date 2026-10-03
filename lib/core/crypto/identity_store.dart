@@ -45,7 +45,7 @@ class MemoSignalIdentityStore implements IdentityKeyStore {
 
   String _trustedKey(SignalProtocolAddress address) {
     final name = base64UrlEncode(utf8.encode(address.getName()));
-    return '$_trustedPrefix$name.\$\{address.getDeviceId()\}';
+    return '$_trustedPrefix$name.${address.getDeviceId()}';
   }
 
   @override
@@ -109,14 +109,4 @@ class MemoSignalIdentityStore implements IdentityKeyStore {
     return identity.getPublicKey().getFingerprint();
   }
 
-  Future<Uint8List> exportEncryptedIdentity() async {
-    final identity = await _identity();
-    final registrationId = await _registrationId();
-    final payload = jsonEncode({
-      'version': 1,
-      'registrationId': registrationId,
-      'identity': base64Encode(identity.serialize()),
-    });
-    return Uint8List.fromList(utf8.encode(payload));
-  }
 }
