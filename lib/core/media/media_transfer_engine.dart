@@ -402,7 +402,6 @@ class MediaTransferEngine {
   Future<void> _process(Map<String, dynamic> job) async {
     final id = job['id'].toString();
     final file = File(job['local_path'].toString());
-    if (!await file.exists()) throw StateError('النسخة المحلية للملف لم تعد موجودة');
     if (_cancelled.contains(id)) throw MediaUploadCancelled();
 
     final db = await _database;
@@ -415,6 +414,9 @@ class MediaTransferEngine {
       // the publication instead of uploading the same media again.
       readyUrl = existingUrl;
     } else {
+      if (!await file.exists()) {
+        throw StateError('النسخة المحلية للملف لم تعد موجودة');
+      }
       final result = await _upload(
         id: id,
         file: file,
