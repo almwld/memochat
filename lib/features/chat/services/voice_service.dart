@@ -79,6 +79,9 @@ class VoiceService {
 
     final file = File(recordedPath);
     if (!await file.exists()) throw StateError('تعذر إنشاء ملف التسجيل الصوتي');
+    final fileLength = await file.length();
+    if (fileLength <= 0) throw StateError('ملف التسجيل الصوتي فارغ');
+    final capturedDuration = _recordingDuration;
 
     final user = _auth.currentUser;
     if (user == null) throw StateError('يجب تسجيل الدخول لإرسال رسالة صوتية');
@@ -103,7 +106,7 @@ class VoiceService {
       audioUrl: result.url,
       fileName: result.fileName,
       fileMimeType: 'audio/mp4',
-      audioDuration: _recordingDuration.inSeconds.toString(),
+      audioDuration: capturedDuration.inSeconds.toString(),
       idempotencyKey: 'voice_${user.uid}_${DateTime.now().millisecondsSinceEpoch}',
     );
 
