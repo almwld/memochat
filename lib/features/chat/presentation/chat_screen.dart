@@ -43,7 +43,6 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _conversationsStream = widget.repository.watchConversations();
-    _loadActiveFolder();
     _inviteSubscription = InviteHandler.instance.links.listen(_handleInvite);
     _unreadNotifications = _inbox.unreadCount();
   }
@@ -67,12 +66,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() { _inviteSubscription?.cancel(); _search.dispose(); _searchFocus.dispose(); super.dispose(); }
-
-  Future<void> _loadActiveFolder() async {
-    final folders = await _folderService.getFolders();
-    if (!mounted || folders.isEmpty) return;
-    setState(() => _activeFolder = folders.first);
-  }
 
   Future<void> _openFolders() async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FoldersManagerScreen()));
@@ -242,6 +235,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         return _ConversationCard(
                           conversation: item,
                           onMarkUnread: () => widget.repository.markAsUnread(item.id),
+                          onFolder: () => _assignChatToFolder(item.id),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => ChatRoomScreen(
@@ -268,6 +262,36 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: const Text('محادثة جديدة'),
               ),
       );
+
+  Future<void> _assignChatToFolder(String chatId) async {
+    final folders = await _folderService.getFolders();
+    if (!mounted || folders.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أنشئ مجلدًا أولًا')));
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('تنظيم المحادثة', style: TextStyle(fontWeight: FontWeight.w800))),
+          for (final folder in folders)
+            FutureBuilder<bool>(
+              future: Future.value(folder.chatIds.contains(chatId)),
+              builder: (_, snap) => CheckboxListTile(
+                value: snap.data ?? false,
+                title: Text(folder.name),
+                onChanged: (value) async {
+                  await _folderService.setChatInFolder(folder.id, chatId, value == true);
+                  if (context.mounted) Navigator.pop(context);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
 
   Widget _buildFolderBar() => FutureBuilder<List<ChatFolder>>(
     future: _folderService.getFolders(),
@@ -331,10 +355,11 @@ class _ChatScreenState extends State<ChatScreen> {
 enum _ConversationFilter { all, unread, online }
 
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread});
+  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread, required this.onFolder});
   final Conversation conversation;
   final VoidCallback onTap;
   final Future<void> Function() onMarkUnread;
+  final VoidCallback onFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -400,7 +425,7 @@ class _ConversationCard extends StatelessWidget {
                   ),
                 )
               else
-                Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+                IconButton(onPressed: onFolder, tooltip: 'مجلد', icon: Icon(Icons.folder_outlined, color: scheme.onSurfaceVariant)),
             ],
           ),
         ),
