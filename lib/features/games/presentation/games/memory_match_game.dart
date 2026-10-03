@@ -1,4 +1,4 @@
-import '../classic_game_engine.dart';
+import 'classic_game_engine.dart';
 
 class MemoryMatchGame extends ClassicGameEngine {
   MemoryMatchGame({super.key}) : super(config: const ClassicGameConfig(
