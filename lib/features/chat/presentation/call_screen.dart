@@ -187,8 +187,18 @@ class _CallScreenState extends State<CallScreen> {
       }
 
       callId = c.id;
-      final rn = c.liveKitRoomName?.trim();
-      roomName = rn != null && rn.isNotEmpty ? rn : 'call_${c.id}';
+      // The token backend has one canonical room contract: call_<callId>.
+      // Never trust a legacy/malformed roomName persisted in an older call doc.
+      final canonicalRoomName = 'call_undefined';
+      final storedRoomName = c.liveKitRoomName?.trim();
+      if (storedRoomName != null &&
+          storedRoomName.isNotEmpty &&
+          storedRoomName != canonicalRoomName) {
+        debugPrint(
+          'CALL ROOM NORMALIZED stored=$storedRoomName canonical=$canonicalRoomName',
+        );
+      }
+      roomName = canonicalRoomName;
       ActiveCallRegistry.instance.register(c.id);
 
       callSub = calls.streamCall(c.id).listen(
@@ -312,9 +322,17 @@ class _CallScreenState extends State<CallScreen> {
       );
 
       if (!cameraGranted) {
+        final status = await Permission.camera.status;
+        if (status.isPermanentlyDenied || status.isRestricted) {
+          await openAppSettings();
+        }
         throw StateError('يرجى منح إذن الكاميرا من إعدادات التطبيق');
       }
       if (!microphoneGranted) {
+        final status = await Permission.microphone.status;
+        if (status.isPermanentlyDenied || status.isRestricted) {
+          await openAppSettings();
+        }
         throw StateError('يرجى منح إذن الميكروفون من إعدادات التطبيق');
       }
       final registry = ActiveCallRegistry.instance;
