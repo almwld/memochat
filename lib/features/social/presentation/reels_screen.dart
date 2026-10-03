@@ -32,7 +32,11 @@ class _ReelsScreenState extends State<ReelsScreen> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snapshot.data!.docs;
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data();
+          return data['isPublished'] != false ||
+              data['authorId']?.toString() == widget.service.currentUserId;
+        }).toList();
         if (docs.isEmpty) {
           return const Center(child: Text('لا توجد ريلز بعد. كن أول من ينشر ريلًا.'));
         }
