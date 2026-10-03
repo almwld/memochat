@@ -23,7 +23,7 @@ class GameRoomScreen extends StatelessWidget {
           final joined = uid != null && game.players.contains(uid);
           if (game.status == GameStatus.playing || game.status == GameStatus.ended) {
             final definition = game.type.name == 'xo' ? 'إكس أو' : 'لعبة ${game.type.name}';
-            return GamePlayScreen(type: game.type, title: definition);
+            return GamePlayScreen(type: game.type, title: definition, chatId: chatId);
           }
           return Scaffold(
             appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true),
