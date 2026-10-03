@@ -358,9 +358,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
     try {
       final ref = _firestore.collection('chats').doc(widget.chatId);
-      final snapshot = await ref.get();
-      if (snapshot.exists) {
-        final data = snapshot.data() ?? <String, dynamic>{};
+      DocumentSnapshot<Map<String, dynamic>>? snapshot;
+      try {
+        snapshot = await ref.get();
+      } on FirebaseException catch (e) {
+        // A stale route can point at a document the current rules reject.
+        // Do not strand the user on an error screen; resolve the canonical DM.
+        debugPrint('chat document read failed: ${e.code}');
+      }
+      if (snapshot?.exists == true) {
+        final data = snapshot!.data() ?? <String, dynamic>{};
         final participants = (data['participants'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
         if (!participants.contains(uid)) {
           if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
@@ -371,7 +378,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       }
 
       // Some legacy entry points can provide a stale/in-memory conversation id.
-      // Re-create the canonical Firebase chat and replace the stale route.
+      // Resolve the stable direct-chat document instead of trusting the stale id.
       final newChatId = await _chat.createChat(
         userId: widget.otherUserId,
         userName: widget.otherUserName.trim().isEmpty ? 'مستخدم' : widget.otherUserName.trim(),
