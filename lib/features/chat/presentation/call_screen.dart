@@ -10,6 +10,7 @@ import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
 import 'package:memochat/features/chat/services/livekit_service.dart';
+import 'package:memochat/core/config/livekit_config.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
 
 class CallScreen extends StatefulWidget {
