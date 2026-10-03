@@ -194,6 +194,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         final item = filtered[index];
                         return _ConversationCard(
                           conversation: item,
+                          onMarkUnread: () => widget.repository.markAsUnread(item.id),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => ChatRoomScreen(
@@ -265,9 +266,10 @@ class _ChatScreenState extends State<ChatScreen> {
 enum _ConversationFilter { all, unread, online }
 
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.conversation, required this.onTap});
+  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread});
   final Conversation conversation;
   final VoidCallback onTap;
+  final Future<void> Function() onMarkUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -278,6 +280,7 @@ class _ConversationCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
+        onLongPress: onMarkUnread,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
           child: Row(

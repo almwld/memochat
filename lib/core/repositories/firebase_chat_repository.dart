@@ -201,6 +201,20 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   @override
+  Future<void> markAsUnread(String conversationId) async {
+    if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
+    final ref = _chats().doc(conversationId);
+    final snapshot = await ref.get();
+    if (!snapshot.exists) throw StateError('المحادثة غير موجودة');
+    final participants = List<String>.from((snapshot.data()?['participants'] as List?)?.map((e) => e.toString()) ?? const []);
+    if (!participants.contains(_uid)) throw StateError('ليس لديك صلاحية لهذه المحادثة');
+    await ref.update({
+      'unreadCount.$_uid': FieldValue.increment(1),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
   Future<ChatMessage> sendMessage({
     required String conversationId,
     required String text,
