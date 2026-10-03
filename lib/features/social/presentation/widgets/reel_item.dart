@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -102,13 +103,47 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     });
   }
 
-  Future<void> _like() async {
+  bool _isTransientFirestoreError(Object error) {
+    return error is FirebaseException &&
+        (error.code == 'unavailable' ||
+            error.code == 'deadline-exceeded' ||
+            error.code == 'aborted');
+  }
+
+  Future<void> _runInteraction(
+    Future<void> Function() action, {
+    String message = 'تعذر تنفيذ العملية حالياً.',
+  }) async {
     try {
-      await widget.service.toggleLike(widget.id);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الإعجاب: $e')));
+      await action();
+    } catch (error) {
+      // Keep offline reels quiet while Firestore is temporarily unavailable.
+      if (_isTransientFirestoreError(error) || !mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
+
+  Future<void> _like() => _runInteraction(
+        () => widget.service.toggleLike(widget.id),
+        message: 'تعذر الإعجاب حالياً.',
+      );
+
+  Future<void> _save() => _runInteraction(
+        () => widget.service.toggleSave('socialReels', widget.id, _saved),
+        message: 'تعذر حفظ الريل حالياً.',
+      );
+
+  Future<void> _follow(String author, bool following) => _runInteraction(
+        () => widget.service.toggleFollow(author, following),
+        message: 'تعذر تحديث المتابعة حالياً.',
+      );
+
+  Future<void> _share() => _runInteraction(
+        () => widget.service.shareReel(widget.id),
+        message: 'تعذر مشاركة الريل حالياً.',
+      );
 
   Future<void> _doubleLike() async {
     setState(() => _showHeart = true);
@@ -208,9 +243,9 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
                               onComment: widget.data['commentsEnabled'] == false
                                   ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('التعليقات متوقفة لهذا الريل.')))
                                   : () => showCommentSheet(context, widget.service, widget.id),
-                              onShare: () => widget.service.shareReel(widget.id),
-                              onSave: () => widget.service.toggleSave('socialReels', widget.id, saved),
-                              onFollow: author.isEmpty ? null : () => widget.service.toggleFollow(author, following),
+                              onShare: _share,
+                              onSave: _save,
+                              onFollow: author.isEmpty ? null : () => _follow(author, following),
                               onMore: () => showReelEditDialog(
                                 context: context,
                                 service: widget.service,
