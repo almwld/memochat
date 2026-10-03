@@ -167,6 +167,7 @@ class FirebaseChatRepository implements ChatRepository {
                         isMine: data['lastMessageSenderId'] == _uid,
                       ),
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
+                isArchived: data['isArchived'] == true,
               );
             }).toList());
   }
