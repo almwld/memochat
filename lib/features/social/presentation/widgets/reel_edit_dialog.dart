@@ -92,9 +92,34 @@ Future<void> showReelEditDialog({
             ListTile(
               leading: const Icon(Icons.flag_outlined),
               title: const Text('إبلاغ'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(sheet);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('سيتم إضافة نموذج الإبلاغ في المرحلة التالية.')));
+                final reason = TextEditingController();
+                final submit = await showDialog<bool>(
+                  context: context,
+                  builder: (dialog) => AlertDialog(
+                    title: const Text('إبلاغ عن الريل'),
+                    content: TextField(
+                      controller: reason,
+                      maxLength: 500,
+                      maxLines: 4,
+                      decoration: const InputDecoration(hintText: 'اكتب سبب الإبلاغ'),
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
+                      FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('إرسال')),
+                    ],
+                  ),
+                );
+                if (submit == true && reason.text.trim().isNotEmpty) {
+                  try {
+                    await service.reportReel(id, reason.text);
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ.')));
+                  } catch (e) {
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال البلاغ: $e')));
+                  }
+                }
+                reason.dispose();
               },
             ),
           ],
