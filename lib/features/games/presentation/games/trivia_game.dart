@@ -1,4 +1,4 @@
-import '../classic_game_engine.dart';
+import 'classic_game_engine.dart';
 
 class TriviaGame extends ClassicGameEngine {
   TriviaGame({super.key}) : super(config: const ClassicGameConfig(
