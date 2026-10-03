@@ -15,7 +15,7 @@ class ExtendedGamesBody extends StatefulWidget {
 
 class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTickerProviderStateMixin {
   final _r = Random();
-  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 240))..repeat(reverse: true);
   int score = 0, round = 1, target = 0;
   String feedback = 'ابدأ الجولة';
   String? gameId;
@@ -57,7 +57,7 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
   void _win([int points = 2, String text = 'رائع! ✨']) {
     setState(() { score += points; feedback = text; });
     _sync(state: {'action': 'score', 'value': points});
-    Future.delayed(const Duration(milliseconds: 500), () { if (mounted) setState(_newRound); });
+    Future.delayed(const Duration(milliseconds: 220), () { if (mounted) setState(_newRound); });
   }
 
   Widget _tile(Widget child, VoidCallback tap, int i) => AnimatedBuilder(
@@ -143,7 +143,7 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
   Widget _word() {
     const words=['نجمة','بحر','صحة','لعبة','مغامرة'];
     final w=words[(round-1)%words.length];
-    final chars=w.characters.toList()..shuffle(_r);
+    final chars=w.runes.map(String.fromCharCode).toList()..shuffle(_r);
     return Column(children:[_head(),const SizedBox(height:18),
       Text(chars.join(' • '),style:const TextStyle(fontSize:27,fontWeight:FontWeight.w900)),
       const SizedBox(height:18),_tile(const Center(child:Text('حل الكلمة',style:TextStyle(fontWeight:FontWeight.w800))),()=>_win(2,'الكلمة: $w'),1)]);
