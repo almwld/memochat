@@ -110,17 +110,6 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(18),
         ),
       ),
-      navigationBarTheme: NavigationBarThemeData(
-        height: 72,
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.primary.withOpacity(0.14),
-        labelTextStyle: WidgetStatePropertyAll(AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
-      ),
-      cardTheme: CardTheme(
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
     );
   }
 }
