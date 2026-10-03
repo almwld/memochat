@@ -430,30 +430,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }).toList();
   }
 
-  Widget _buildConversationFilters() {
-    const labels = <_ConversationFilter, String>{
-      _ConversationFilter.all: 'الكل',
-      _ConversationFilter.unread: 'غير مقروءة',
-      _ConversationFilter.online: 'متصلون الآن',
-    };
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        scrollDirection: Axis.horizontal,
-        itemCount: labels.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filter = labels.keys.elementAt(index);
-          return ChoiceChip(
-            label: Text(labels[filter]!),
-            selected: _conversationFilter == filter,
-            onSelected: (_) => setState(() => _conversationFilter = filter),
-          );
-        },
-      ),
-    );
-  }
 }
 
 enum _ConversationFilter { all, unread, online }
