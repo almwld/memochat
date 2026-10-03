@@ -298,6 +298,11 @@ class _CallScreenState extends State<CallScreen> {
       final cameraStatus =
           widget.isVideo ? await Permission.camera.status : null;
 
+      debugPrint(
+        'CALL PERMISSION PRECHECK microphone=${microphoneStatus.name} '
+        'camera=${cameraStatus?.name ?? 'not_required'} video=${widget.isVideo}',
+      );
+
       var microphoneGranted = microphoneStatus.isGranted;
       var cameraGranted = !widget.isVideo || cameraStatus?.isGranted == true;
 
