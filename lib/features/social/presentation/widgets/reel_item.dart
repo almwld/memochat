@@ -205,7 +205,9 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
                               saved: saved,
                               following: following,
                               onLike: _like,
-                              onComment: () => showCommentSheet(context, widget.service, widget.id),
+                              onComment: widget.data['commentsEnabled'] == false
+                                  ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('التعليقات متوقفة لهذا الريل.')))
+                                  : () => showCommentSheet(context, widget.service, widget.id),
                               onShare: () => widget.service.shareReel(widget.id),
                               onSave: () => widget.service.toggleSave('socialReels', widget.id, saved),
                               onFollow: author.isEmpty ? null : () => widget.service.toggleFollow(author, following),
