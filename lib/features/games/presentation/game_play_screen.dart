@@ -4,8 +4,11 @@ import 'dart:math';
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/game.dart';
+import '../models/game_session.dart';
+import '../services/game_service.dart';
 import '../../chat/services/chat_service.dart';
 
 class GamePlayScreen extends StatefulWidget {
@@ -29,6 +32,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   int _quickTaps = 0;
   int _reactionTarget = 0;
   Timer? _timer;
+  StreamSubscription<GameSession?>? _gameSubscription;
+  String? _gameId;
+  String? _remoteUid;
   int _seconds = 30;
   int _mathA = 7, _mathB = 5;
   String _mathOp = '+';
@@ -48,11 +54,36 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   void initState() {
     super.initState();
     _newRound();
+    _resolveGameSession();
+  }
+
+  Future<void> _resolveGameSession() async {
+    // The room owns the game document; gameplay remains usable if no active session is found.
+    // We only subscribe after locating the latest game for this chat.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('chats').doc(widget.chatId).collection('games')
+          .where('type', isEqualTo: widget.type.name)
+          .orderBy('createdAt', descending: true)
+          .limit(1).get();
+      if (snap.docs.isEmpty || !mounted) return;
+      _gameId = snap.docs.first.id;
+      _gameSubscription = GameService.instance.watchGame(widget.chatId, _gameId!).listen((game) {
+        if (!mounted || game == null) return;
+        final other = game.players.where((id) => id != uid).cast<String?>().firstOrNull;
+        if (other != _remoteUid) setState(() => _remoteUid = other);
+      });
+    } catch (_) {
+      // Local gameplay must not be blocked by a missing/older Firestore index.
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _gameSubscription?.cancel();
     super.dispose();
   }
 
