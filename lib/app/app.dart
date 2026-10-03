@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../core/repositories/in_memory_chat_repository.dart';
 import '../core/theme/app_theme.dart';
-import '../features/home/presentation/home_screen.dart';
+import '../features/home/presentation/main_shell.dart';
 
 final GlobalKey<NavigatorState> memoNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -47,14 +47,20 @@ class _MemoChatAppState extends State<MemoChatApp> {
       navigatorKey: memoNavigatorKey,
       title: 'MemoChat',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('ar'),
+      supportedLocales: const [Locale('ar'), Locale('en')],
       theme: AppTheme.light(),
+      builder: (context, child) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: !_ready
           ? const Scaffold(
               body: Center(
                 child: CircularProgressIndicator(color: Color(0xFF0A8F83)),
               ),
             )
-          : HomeScreen(repository: repository),
+          : const MainShell(),
     );
   }
 }

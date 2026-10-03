@@ -6,13 +6,15 @@ import 'package:flutter/material.dart';
 import 'chat_room_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.initialTab = 0, this.showSections = true});
+  final int initialTab;
+  final bool showSections;
   @override State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
-  int _tab = 0;
+  late int _tab = widget.initialTab;
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _chats() {
     if (Firebase.apps.isEmpty) return const Stream.empty();
@@ -29,19 +31,22 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: dark ? const Color(0xFF0B1121) : const Color(0xFFF7FAFA),
       appBar: AppBar(
-        title: const Text('الدردشة', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(
+          _tab == 0 ? 'المحادثات' : (_tab == 1 ? 'المكالمات' : 'تواصل'),
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
         centerTitle: true, backgroundColor: const Color(0xFF0A8F83), foregroundColor: Colors.white,
-        bottom: PreferredSize(
+        bottom: widget.showSections ? PreferredSize(
           preferredSize: const Size.fromHeight(58),
           child: Container(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 10), height: 48,
             decoration: BoxDecoration(color: dark ? const Color(0xFF162039) : Colors.white, borderRadius: BorderRadius.circular(16)),
             child: Row(children: [_tabButton('المحادثات', 0), _tabButton('المكالمات', 1), _tabButton('تواصل', 2)]),
           ),
-        ),
+        ) : null,
       ),
       body: _tab == 0 ? _conversations(dark) : (_tab == 1 ? _calls() : _contacts(dark)),
-      floatingActionButton: _tab == 0
+      floatingActionButton: widget.showSections && _tab == 0
           ? FloatingActionButton(
               backgroundColor: const Color(0xFF0A8F83),
               onPressed: () => setState(() => _tab = 2),
