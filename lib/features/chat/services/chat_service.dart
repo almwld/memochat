@@ -133,7 +133,54 @@ class ChatService {
     return ref.id;
   }
 
-  Future<String> createChat({required String userId,required String userName,required String currentUserName,String? userImage,String? currentUserImage,String? idempotencyKey})async{final id=_uid();if(userId.isEmpty||userId==id)throw Exception('معرّف المستخدم الآخر غير صالح');final existing=await _firestore.collection('chats').where('participants',arrayContains:id).get();for(final d in existing.docs){final p=List<String>.from(d.data()['participants']??const []);if(p.length==2&&p.contains(userId)&&d.data()['isGroup']!=true)return d.id;}final ref=_firestore.collection('chats').doc();await ref.set({'participants':[id,userId],'participantDetails':{id:{'name':currentUserName,'photoUrl':currentUserImage},userId:{'name':userName,'photoUrl':userImage}},'lastMessage':'','lastMessageTime':null,'lastMessageSenderId':null,'unreadCount':{id:0,userId:0},'isGroup':false,'isArchived':false,'isPinned':false,'isMuted':false,'pinnedFor':{id:false,userId:false},'mutedFor':{id:false,userId:false},'typing':{id:false,userId:false},'createdAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp(),if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});return ref.id;}
+  Future<String> createChat({required String userId,required String userName,required String currentUserName,String? userImage,String? currentUserImage,String? idempotencyKey}) async {
+    final id = _uid();
+    final other = userId.trim();
+    if (other.isEmpty || other == id) throw Exception('معرّف المستخدم الآخر غير صالح');
+
+    final pair = <String>[id, other]..sort();
+    final chatId = 'dm_${pair[0]}_${pair[1]}';
+    final ref = _chatRef(chatId);
+    final existing = await ref.get();
+    if (existing.exists) return chatId;
+
+    try {
+      await ref.set({
+        'participants': [id, other],
+        'participantDetails': {
+          id: {'name': currentUserName.trim().isEmpty ? 'مستخدم' : currentUserName.trim(), 'photoUrl': currentUserImage},
+          other: {'name': userName.trim().isEmpty ? 'مستخدم' : userName.trim(), 'photoUrl': userImage},
+        },
+        'lastMessage': '',
+        'lastMessageTime': null,
+        'lastMessageSenderId': null,
+        'unreadCount': {id: 0, other: 0},
+        'isGroup': false,
+        'isArchived': false,
+        'isPinned': false,
+        'isMuted': false,
+        'pinnedFor': {id: false, other: false},
+        'mutedFor': {id: false, other: false},
+        'typing': {id: false, other: false},
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (idempotencyKey?.isNotEmpty == true) 'idempotencyKey': idempotencyKey,
+      });
+      return chatId;
+    } on FirebaseException catch (e) {
+      if (e.code == 'already-exists') return chatId;
+      // Preserve compatibility with older random-id direct chats.
+      if (e.code == 'permission-denied') {
+        final existingChats = await _firestore.collection('chats').where('participants', arrayContains: id).limit(100).get();
+        for (final d in existingChats.docs) {
+          final p = List<String>.from(d.data()['participants'] ?? const []);
+          if (p.length == 2 && p.contains(other) && d.data()['isGroup'] != true) return d.id;
+        }
+      }
+      rethrow;
+    }
+  }
+
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration})async{
     final id=_uid();final user=_auth.currentUser!;final chat=await _authorizedChat(chatId);await SignalSessionManager.instance.ensureReady();
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
