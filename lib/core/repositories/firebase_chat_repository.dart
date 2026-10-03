@@ -55,40 +55,49 @@ class FirebaseChatRepository implements ChatRepository {
   @override
   Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
-    final ids = [_uid, otherUserId]..sort();
-    final me = FirebaseAuth.instance.currentUser;
-    final chatId = ids.join('_');
-    final ref = _chats().doc(chatId);
-    final existing = await ref.get();
-    if (existing.exists) {
-      final existingParticipants = List<String>.from(
-        (existing.data()?['participants'] as List?)?.map((e) => e.toString()) ?? const [],
-      );
-      if (existingParticipants.length == 2 &&
-          existingParticipants.contains(_uid) &&
-          existingParticipants.contains(otherUserId)) {
-        return chatId;
-      }
-      throw StateError('معرّف المحادثة مستخدم لمستخدمين مختلفين');
+    final otherId = otherUserId.trim();
+    if (otherId.isEmpty || otherId == _uid) {
+      throw StateError('معرّف المستخدم الآخر غير صالح');
     }
 
+    // Do not call get() on the deterministic chat id: Firestore rules only
+    // allow reads of existing chats, so a missing-document get() is rejected.
+    // Query the authenticated user's existing chats, then reuse an exact pair.
+    final existingChats = await _chats()
+        .where('participants', arrayContains: _uid)
+        .get();
+    for (final doc in existingChats.docs) {
+      final participants = List<String>.from(
+        (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+      );
+      if (participants.length == 2 &&
+          participants.contains(_uid) &&
+          participants.contains(otherId)) {
+        return doc.id;
+      }
+    }
+
+    // A fresh random document is safely creatable under the current rules and
+    // avoids collisions/UID-derived document IDs.
+    final ref = _chats().doc();
+    final me = FirebaseAuth.instance.currentUser;
     await ref.set({
-      'participants': ids,
+      'participants': [_uid, otherId],
       'participantNames': {
-        _uid: me?.displayName ?? 'مستخدم',
-        otherUserId: otherUserName,
+        _uid: me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
+        otherId: otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
       },
       'participantPhotos': {
         _uid: me?.photoURL ?? '',
-        otherUserId: otherUserPhoto ?? '',
+        otherId: otherUserPhoto ?? '',
       },
       'participantDetails': {
         _uid: {
-          'name': me?.displayName ?? 'مستخدم',
+          'name': me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
           'photoUrl': me?.photoURL ?? '',
         },
-        otherUserId: {
-          'name': otherUserName,
+        otherId: {
+          'name': otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
           'photoUrl': otherUserPhoto ?? '',
         },
       },
@@ -96,11 +105,11 @@ class FirebaseChatRepository implements ChatRepository {
       'isArchived': false,
       'isPinned': false,
       'isMuted': false,
-      'unreadCount': {_uid: 0, otherUserId: 0},
+      'unreadCount': {_uid: 0, otherId: 0},
       'updatedAt': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
     });
-    return chatId;
+    return ref.id;
   }
 
   @override
