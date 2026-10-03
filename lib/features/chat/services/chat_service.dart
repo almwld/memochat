@@ -141,9 +141,6 @@ class ChatService {
     final pair = <String>[id, other]..sort();
     final chatId = 'dm_${pair[0]}_${pair[1]}';
     final ref = _chatRef(chatId);
-    final existing = await ref.get();
-    if (existing.exists) return chatId;
-
     try {
       await ref.set({
         'participants': [id, other],
