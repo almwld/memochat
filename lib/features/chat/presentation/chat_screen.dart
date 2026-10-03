@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
@@ -8,6 +11,8 @@ import 'chat_room_screen.dart';
 import '../../../core/models/chat_folder.dart';
 import '../../../core/services/chat_folder_service.dart';
 import 'folders_manager_screen.dart';
+import '../../../core/deeplink/invite_handler.dart';
+import '../services/chat_service.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../models/status_model.dart';
@@ -32,17 +37,36 @@ class _ChatScreenState extends State<ChatScreen> {
   _ConversationFilter _conversationFilter = _ConversationFilter.all;
   final _folderService = ChatFolderService();
   ChatFolder? _activeFolder;
+  StreamSubscription<Uri>? _inviteSubscription;
 
   @override
   void initState() {
     super.initState();
     _conversationsStream = widget.repository.watchConversations();
     _loadActiveFolder();
+    _inviteSubscription = InviteHandler.instance.links.listen(_handleInvite);
     _unreadNotifications = _inbox.unreadCount();
   }
 
+  Future<void> _handleInvite(Uri uri) async {
+    if (!mounted) return;
+    final link = uri.toString();
+    final join = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('دعوة إلى مجموعة'), content: const Text('هل تريد الانضمام إلى المجموعة عبر هذا الرابط؟'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('انضمام'))]));
+    if (join != true) return;
+    try {
+      final id = await ChatService().joinByInviteLink(link);
+      final snap = await FirebaseFirestore.instance.collection('chats').doc(id).get();
+      final data = snap.data() ?? const <String,dynamic>{};
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final participants = List<String>.from(data['participants'] as List? ?? const []);
+      final other = participants.firstWhere((v) => v != uid, orElse: () => '');
+      if (!mounted || other.isEmpty) return;
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(chatId: id, otherUserId: other, otherUserName: data['groupName']?.toString() ?? 'مجموعة', isGroup: true)));
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الانضمام: ' + e.toString()))); }
+  }
+
   @override
-  void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
+  void dispose() { _inviteSubscription?.cancel(); _search.dispose(); _searchFocus.dispose(); super.dispose(); }
 
   Future<void> _loadActiveFolder() async {
     final folders = await _folderService.getFolders();

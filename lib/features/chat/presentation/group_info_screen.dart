@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
+import 'package:share_plus/share_plus.dart';
 
 class GroupInfoScreen extends StatefulWidget {
   const GroupInfoScreen({super.key, required this.chatId});
@@ -52,6 +53,23 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             const SizedBox(height: 10),
             Center(child: Text(data['groupName']?.toString() ?? 'مجموعة', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
             const SizedBox(height: 22),
+            if (canManage)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    try {
+                      final link = await _service.generateInviteLink(widget.chatId);
+                      await Share.share(link, subject: 'دعوة إلى مجموعة MemoChat');
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                    }
+                  },
+                  icon: const Icon(Icons.link),
+                  label: const Text('إنشاء رابط دعوة'),
+                ),
+              ),
+            const SizedBox(height: 14),
             Text('الأعضاء (' + participants.length.toString() + ')', style: const TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             for (final id in participants)

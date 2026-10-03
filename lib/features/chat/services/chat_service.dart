@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/crypto/signal_session_manager.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,6 +31,41 @@ class ChatService {
   }
   Stream<List<ChatModel>> streamChats({int limit=50})=>_firestore.collection('chats').where('participants',arrayContains:_uid()).limit(limit).snapshots().map((s){final uid=currentUserId;final list=s.docs.map((d)=>ChatModel.fromFirestore(d.id,d.data())).where((c){final data=s.docs.firstWhere((d)=>d.id==c.id).data();final deletedFor=data['deletedFor'];return uid==null||deletedFor is! Map||deletedFor[uid]!=true;}).toList();list.sort((a,b)=>(b.updatedAt??Timestamp(0,0)).compareTo(a.updatedAt??Timestamp(0,0)));return list;});
   Future<List<ChatModel>> getMoreChats({required int limit,DocumentSnapshot? startAfter})async{Query<Map<String,dynamic>> q=_firestore.collection('chats').where('participants',arrayContains:_uid()).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();final uid=currentUserId;return s.docs.where((d){final deletedFor=d.data()['deletedFor'];return uid==null||deletedFor is! Map||deletedFor[uid]!=true;}).map((d)=>ChatModel.fromFirestore(d.id,d.data())).toList();}
+  Future<String> generateInviteLink(String chatId) async {
+    final uid=_uid(); final chat=await _authorizedChat(chatId); final data=chat.data() ?? {};
+    if (data['isGroup'] != true) throw Exception('روابط الدعوة متاحة للمجموعات فقط');
+    final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {});
+    if (roles[uid] != 'owner' && roles[uid] != 'admin') throw Exception('لا تملك صلاحية إنشاء رابط دعوة');
+    var code=data['inviteCode']?.toString().trim() ?? '';
+    if (code.isEmpty) {
+      const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+      final random=Random.secure();
+      code=List.generate(12, (_) => chars[random.nextInt(chars.length)]).join();
+      await _chatRef(chatId).update({'inviteCode':code,'updatedAt':FieldValue.serverTimestamp()});
+    }
+    return 'memochat://group/invite?code=' + Uri.encodeComponent(code);
+  }
+
+  Future<String> joinByInviteLink(String link) async {
+    final uri=Uri.tryParse(link); final code=uri?.queryParameters['code'] ?? '';
+    if (code.isEmpty) throw Exception('رابط الدعوة غير صالح');
+    final uid=_uid();
+    final query=await _firestore.collection('chats').where('inviteCode',isEqualTo:code).limit(1).get();
+    if (query.docs.isEmpty) throw Exception('رابط الدعوة منتهي أو غير موجود');
+    final ref=query.docs.first.reference; final data=query.docs.first.data();
+    if (data['isGroup'] != true) throw Exception('الرابط ليس لمجموعة');
+    final participants=List<String>.from(data['participants'] as List? ?? const []);
+    if (participants.contains(uid)) return ref.id;
+    final user=_auth.currentUser;
+    participants.add(uid);
+    final details=Map<String,dynamic>.from(data['participantDetails'] as Map? ?? const {});
+    details[uid]={'name':user?.displayName ?? 'مستخدم','photoUrl':user?.photoURL};
+    final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {})..[uid]='member';
+    final unread=Map<String,dynamic>.from(data['unreadCount'] as Map? ?? const {})..[uid]=0;
+    await ref.update({'participants':participants,'participantDetails':details,'memberRoles':roles,'unreadCount':unread,'updatedAt':FieldValue.serverTimestamp()});
+    return ref.id;
+  }
+
   Future<void> promoteToAdmin(String chatId, String memberId) async {
     final uid=_uid(); final chat=await _authorizedChat(chatId); final data=chat.data() ?? {};
     final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {});
