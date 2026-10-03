@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/game.dart';
 import '../../chat/services/chat_service.dart';
@@ -374,12 +375,14 @@ class _QuickGameChatBar extends StatefulWidget {
 class _QuickGameChatBarState extends State<_QuickGameChatBar>
     with SingleTickerProviderStateMixin {
   bool _open = false;
+  Timer? _bubbleTimer;
   final TextEditingController _controller = TextEditingController();
   late final AnimationController _animation =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
 
   @override
   void dispose() {
+    _bubbleTimer?.cancel();
     _animation.dispose();
     _controller.dispose();
     super.dispose();
@@ -399,23 +402,75 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return IgnorePointer(
-      ignoring: false,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: AnimatedBuilder(
-            animation: _animation,
-            builder: (context, child) => Opacity(
-              opacity: .78 + (_animation.value * .22),
-              child: Transform.translate(
-                offset: Offset(0, 10 * (1 - _animation.value)),
-                child: child,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ephemeralBubbles(scheme),
+              const SizedBox(height: 8),
+              AnimatedBuilder(
+                animation: _animation,
+                builder: (context, child) => Opacity(
+                  opacity: .78 + (_animation.value * .22),
+                  child: Transform.translate(
+                    offset: Offset(0, 10 * (1 - _animation.value)),
+                    child: child,
+                  ),
+                ),
+                child: _open ? _inputBar(scheme) : _bubble(scheme),
               ),
-            ),
-            child: _open ? _inputBar(scheme) : _bubble(scheme),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _ephemeralBubbles(ColorScheme scheme) {
+    return StreamBuilder<MessagePaginationResult>(
+      stream: ChatService().streamMessages(widget.chatId, limit: 12),
+      builder: (context, snapshot) {
+        final messages = snapshot.data?.messages ?? const [];
+        final now = DateTime.now();
+        final visible = messages.where((m) {
+          if (m.metadata?['kind']?.toString() != 'game_quick_chat') return false;
+          final stamp = m.timestamp?.toDate() ?? now;
+          return now.difference(stamp).inSeconds < 6;
+        }).take(3).toList();
+        if (visible.isEmpty) return const SizedBox.shrink();
+        _bubbleTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+          if (mounted) setState(() {});
+        });
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: visible.map((m) {
+            final mine = m.senderId == uid;
+            return Align(
+              alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+              child: Container(
+                margin: const EdgeInsets.only(top: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                constraints: const BoxConstraints(maxWidth: 280),
+                decoration: BoxDecoration(
+                  color: scheme.surface.withOpacity(.55),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: scheme.onSurface.withOpacity(.10)),
+                ),
+                child: Text(
+                  m.text ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(fontSize: 13, color: scheme.onSurface.withOpacity(.78)),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
