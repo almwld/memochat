@@ -1,4 +1,4 @@
-import '../extended_game_engine.dart';
+import 'extended_game_engine.dart';
 
 class PatternTapGame extends ExtendedGameEngine {
   PatternTapGame({super.key}) : super(config: const ExtendedGameConfig(
