@@ -44,6 +44,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   final Set<int> _memoryMatched = {};
   String _remoteAction = '';
   int _remoteScore = 0;
+  String? _currentTurn;
+  DateTime? _gameStartedAt;
+  int? _durationMinutes;
   final List<String> _sudoku = [
     '1','2','3','4',
     '3','4','1','2',
@@ -80,6 +83,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         if (!mounted) return;
         setState(() {
           _remoteUid = other;
+          _currentTurn = game.currentTurn;
+          _gameStartedAt = game.startedAt;
+          _durationMinutes = game.timeLimit == GameTimeLimit.five ? 5 : game.timeLimit == GameTimeLimit.ten ? 10 : game.timeLimit == GameTimeLimit.fifteen ? 15 : null;
           final rawScore = game.scores[other ?? ''];
           if (rawScore is num && other != uid) {
             // Keep the opponent score available without replacing the local score.
@@ -135,16 +141,33 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     }
   }
 
-  Future<void> _syncGameState(Map<String, dynamic> state) async {
+  bool get _isMyTurn {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return _currentTurn == null || _currentTurn == uid;
+  }
+
+  Future<void> _syncGameState(Map<String, dynamic> state, {String? nextTurn}) async {
     final id = _gameId;
-    if (id == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || uid == null) return;
     try {
-      await GameService.instance.updateGame(
+      await GameService.instance.updatePlayerState(
         chatId: widget.chatId,
         gameId: id,
-        data: {'state': state, 'scores': {FirebaseAuth.instance.currentUser?.uid ?? 'local': score}},
+        uid: uid,
+        state: state,
+        score: score,
+        currentTurn: nextTurn,
       );
     } catch (_) {}
+  }
+
+  bool _guardTurn() {
+    if (_isMyTurn) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('انتظر دور اللاعب الآخر')),
+    );
+    return false;
   }
 
   void _point({int value = 1}) {
@@ -197,6 +220,8 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           Text('النقاط: $score', style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (_currentTurn != null) Text(_isMyTurn ? 'دورك الآن' : 'دور اللاعب الآخر', style: const TextStyle(fontSize: 12)),
+          if (_durationMinutes != null && _gameStartedAt != null) Text('المدة: $_durationMinutes دقيقة', style: const TextStyle(fontSize: 11)),
           if (_remoteUid != null) Text('نقاط اللاعب الآخر: $_remoteScore', style: const TextStyle(fontSize: 12)),
           const SizedBox(height: 18),
         ],
@@ -222,9 +247,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         itemCount: 9, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3),
         itemBuilder: (_, i) => InkWell(
-          onTap: _xo[i].isNotEmpty || winner.isNotEmpty ? null : () {
+          onTap: _xo[i].isNotEmpty || winner.isNotEmpty || !_isMyTurn ? null : () {
             setState(() => _xo[i] = i.isEven ? 'X' : 'O');
-            _syncGameState({'xo': _xo, 'step': _step});
+            _syncGameState({'xo': List<String>.from(_xo), 'step': _step}, nextTurn: _remoteUid);
           },
           child: Container(
             margin: const EdgeInsets.all(4),
@@ -281,10 +306,10 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Column(children: [
       _header('Dice Roll'),
       Text('🎲 $value', style: const TextStyle(fontSize: 64)),
-      _action('ارمِ النرد', () => setState(() {
+      _action('ارمِ النرد', () { if (!_guardTurn()) return; setState(() {
         _step = _random.nextInt(6);
         score += _step + 1;
-      })),
+      }); _syncGameState({'dice': _step + 1, 'action': 'dice'}, nextTurn: _remoteUid); }),
     ]);
   }
 
@@ -311,12 +336,13 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       textDirection: TextDirection.rtl,
       decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'اكتب كلمتك'),
       onSubmitted: (v) {
+        if (!_guardTurn()) return;
         if (v.trim().isEmpty) return;
         final last = _word.characters.last;
         if (v.trim().startsWith(last)) {
           _point(value: 2);
           setState(() => _word = v.trim());
-          _syncGameState({'word': _word, 'step': _step});
+          _syncGameState({'word': _word, 'step': _step}, nextTurn: _remoteUid);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يجب أن تبدأ الكلمة بالحرف الأخير.')));
         }
@@ -342,7 +368,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     const Text('اختر إجابة لتسجيل نقطة.'),
     const SizedBox(height: 16),
     ...options.map((e) => Padding(padding: const EdgeInsets.only(bottom: 10),
-      child: _action(e, () => _point(value: 1)))),
+      child: _action(e, () { if (!_guardTurn()) return; _point(value: 1); _syncGameState({'action': 'choice', 'choice': e}, nextTurn: _remoteUid); }))),
   ]);
 
   Widget _memoryGame() {
@@ -380,7 +406,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     const Text('اضغط الزر أكبر عدد ممكن خلال 10 ثوانٍ.'),
     const SizedBox(height: 20),
     Text('$_quickTaps', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900)),
-    _action('اضغط!', () => setState(() { _quickTaps++; score++; })),
+    _action('اضغط!', () { if (!_guardTurn()) return; setState(() { _quickTaps++; score++; }); _syncGameState({'action': 'quick_tap', 'taps': _quickTaps}, nextTurn: _remoteUid); }),
   ]);
 
   Widget _speedMathGame() {
