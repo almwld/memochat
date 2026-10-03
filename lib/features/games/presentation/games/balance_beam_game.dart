@@ -1,4 +1,4 @@
-import '../extended_game_engine.dart';
+import 'extended_game_engine.dart';
 
 class BalanceBeamGame extends ExtendedGameEngine {
   BalanceBeamGame({super.key}) : super(config: const ExtendedGameConfig(
