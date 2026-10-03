@@ -1089,6 +1089,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       body: Column(children: [
         Expanded(
             child: ChatBackground(
+                scrollController: _scrollController,
                 child: Stack(children: [
           if (_loadError != null)
             Center(
