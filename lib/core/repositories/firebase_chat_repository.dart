@@ -56,60 +56,53 @@ class FirebaseChatRepository implements ChatRepository {
   Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
     final otherId = otherUserId.trim();
-    if (otherId.isEmpty || otherId == _uid) {
-      throw StateError('معرّف المستخدم الآخر غير صالح');
-    }
+    if (otherId.isEmpty || otherId == _uid) throw StateError('معرّف المستخدم الآخر غير صالح');
 
-    // Do not call get() on the deterministic chat id: Firestore rules only
-    // allow reads of existing chats, so a missing-document get() is rejected.
-    // Query the authenticated user's existing chats, then reuse an exact pair.
-    final existingChats = await _chats()
-        .where('participants', arrayContains: _uid)
-        .get();
-    for (final doc in existingChats.docs) {
-      final participants = List<String>.from(
-        (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
-      );
-      if (participants.length == 2 &&
-          participants.contains(_uid) &&
-          participants.contains(otherId)) {
-        return doc.id;
-      }
-    }
+    // Use a stable pair id for new DMs. This avoids relying on a collection
+    // query that can be rejected by a restrictive Firestore deployment.
+    final pair = <String>[_uid, otherId]..sort();
+    final stableId = 'dm_${pair[0]}_${pair[1]}';
+    final stableRef = _chats().doc(stableId);
+    final existing = await stableRef.get();
+    if (existing.exists) return existing.id;
 
-    // A fresh random document is safely creatable under the current rules and
-    // avoids collisions/UID-derived document IDs.
-    final ref = _chats().doc();
     final me = FirebaseAuth.instance.currentUser;
-    await ref.set({
-      'participants': [_uid, otherId],
-      'participantNames': {
-        _uid: me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
-        otherId: otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
-      },
-      'participantPhotos': {
-        _uid: me?.photoURL ?? '',
-        otherId: otherUserPhoto ?? '',
-      },
-      'participantDetails': {
-        _uid: {
-          'name': me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
-          'photoUrl': me?.photoURL ?? '',
+    try {
+      await stableRef.set({
+        'participants': [_uid, otherId],
+        'participantNames': {
+          _uid: me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
+          otherId: otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
         },
-        otherId: {
-          'name': otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
-          'photoUrl': otherUserPhoto ?? '',
+        'participantPhotos': {
+          _uid: me?.photoURL ?? '',
+          otherId: otherUserPhoto ?? '',
         },
-      },
-      'isGroup': false,
-      'isArchived': false,
-      'isPinned': false,
-      'isMuted': false,
-      'unreadCount': {_uid: 0, otherId: 0},
-      'updatedAt': FieldValue.serverTimestamp(),
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return ref.id;
+        'participantDetails': {
+          _uid: {'name': me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم', 'photoUrl': me?.photoURL ?? ''},
+          otherId: {'name': otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم', 'photoUrl': otherUserPhoto ?? ''},
+        },
+        'isGroup': false,
+        'isArchived': false,
+        'isPinned': false,
+        'isMuted': false,
+        'unreadCount': {_uid: 0, otherId: 0},
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return stableId;
+    } on FirebaseException catch (e) {
+      // A legacy/random DM may already exist. Fall back to the old lookup
+      // before surfacing the write error.
+      if (e.code == 'permission-denied' || e.code == 'already-exists') {
+        final existingChats = await _chats().where('participants', arrayContains: _uid).limit(100).get();
+        for (final doc in existingChats.docs) {
+          final participants = List<String>.from((doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const []);
+          if (participants.length == 2 && participants.contains(otherId)) return doc.id;
+        }
+      }
+      rethrow;
+    }
   }
 
   @override
