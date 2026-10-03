@@ -190,7 +190,7 @@ class _CallScreenState extends State<CallScreen> {
       callId = c.id;
       // The token backend has one canonical room contract: call_<callId>.
       // Never trust a legacy/malformed roomName persisted in an older call doc.
-      final canonicalRoomName = 'call_undefined';
+      final canonicalRoomName = LiveKitConfig.canonicalRoomName(c.id);
       final storedRoomName = c.liveKitRoomName?.trim();
       if (storedRoomName != null &&
           storedRoomName.isNotEmpty &&
