@@ -439,7 +439,11 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
           final stamp = m.timestamp?.toDate() ?? now;
           return now.difference(stamp).inSeconds < 6;
         }).take(3).toList();
-        if (visible.isEmpty) return const SizedBox.shrink();
+        if (visible.isEmpty) {
+          _bubbleTimer?.cancel();
+          _bubbleTimer = null;
+          return const SizedBox.shrink();
+        }
         _bubbleTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
           if (mounted) setState(() {});
         });
