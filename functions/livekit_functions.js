@@ -100,3 +100,77 @@ exports.createLiveKitToken = onCall(
     };
   },
 );
+
+
+// Voice-room token endpoint. Voice rooms use a separate namespace from
+// one-to-one calls and therefore must not be forced through calls/{callId}.
+exports.createVoiceRoomToken = onCall(
+  {
+    region: 'us-central1',
+    secrets: [LIVEKIT_API_KEY, LIVEKIT_API_SECRET],
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    const uid = requireAuth(request);
+    const roomId = requiredText(request.data?.roomId, 'roomId', 128);
+    const roomName = requiredText(request.data?.roomName, 'roomName', 200);
+    const participantName = requiredText(
+      request.data?.participantName || uid,
+      'participantName',
+      120,
+    );
+
+    if (!/^memo_voice_[A-Za-z0-9_-]+$/.test(roomName)) {
+      throw new HttpsError('invalid-argument', 'اسم غرفة الصوت غير صالح');
+    }
+
+    const roomSnap = await admin.firestore().collection('voiceRooms').doc(roomId).get();
+    if (!roomSnap.exists) {
+      throw new HttpsError('not-found', 'غرفة الصوت غير موجودة');
+    }
+    const room = roomSnap.data() || {};
+    if (room.active !== true) {
+      throw new HttpsError('failed-precondition', 'غرفة الصوت غير نشطة');
+    }
+    if (String(room.roomName || '') !== roomName) {
+      throw new HttpsError('permission-denied', 'غرفة LiveKit لا تطابق غرفة الصوت');
+    }
+
+    const memberSnap = await admin.firestore()
+      .collection('voiceRooms').doc(roomId)
+      .collection('members').doc(uid).get();
+    if (!memberSnap.exists) {
+      throw new HttpsError('permission-denied', 'يجب الانضمام إلى غرفة الصوت أولاً');
+    }
+
+    const apiKey = LIVEKIT_API_KEY.value();
+    const apiSecret = LIVEKIT_API_SECRET.value();
+    if (!apiKey || !apiSecret) {
+      throw new HttpsError('failed-precondition', 'إعدادات LiveKit غير مكتملة على الخادم');
+    }
+
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity: uid,
+      name: participantName,
+      ttl: '2h',
+    });
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    return {
+      success: true,
+      data: {
+        token: await token.toJwt(),
+        url: 'wss://memo-2jv45qyl.livekit.cloud',
+        roomName,
+        participantIdentity: uid,
+        participantName,
+      },
+    };
+  },
+);
