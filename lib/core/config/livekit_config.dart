@@ -28,9 +28,15 @@ class LiveKitConfig {
       serverUrl.startsWith('wss://') && tokenServerUrl.startsWith('https://');
 
   static String canonicalRoomName(String callId) {
-    final id = callId.trim();
+    var id = callId.trim();
     if (id.isEmpty) throw ArgumentError('callId is required');
-    return id.startsWith('call_') ? id : 'call_$id';
+    // Legacy callers sometimes persisted/passed call_call_<id>. Collapse all
+    // duplicate prefixes before producing the single canonical room name.
+    while (id.startsWith('call_')) {
+      id = id.substring('call_'.length);
+    }
+    if (id.isEmpty) throw ArgumentError('callId is required');
+    return 'call_$id';
   }
 
   static String normalizeRoomName(String roomName) {
