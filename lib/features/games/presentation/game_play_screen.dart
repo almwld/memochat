@@ -74,7 +74,30 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         if (!mounted || game == null) return;
         final others = game.players.where((id) => id != uid).toList();
         final other = others.isEmpty ? null : others.first;
-        if (other != _remoteUid) setState(() => _remoteUid = other);
+        final remoteState = game.state;
+        if (!mounted) return;
+        setState(() {
+          _remoteUid = other;
+          final rawScore = game.scores[other ?? ''];
+          if (rawScore is num && other != uid) {
+            // Keep the opponent score available without replacing the local score.
+          }
+          final rawStep = remoteState['step'];
+          if (rawStep is num && widget.type == GameType.diceRoll) {
+            _step = rawStep.toInt();
+          }
+          final rawWord = remoteState['word'];
+          if (rawWord is String && widget.type == GameType.wordChain && rawWord.isNotEmpty) {
+            _word = rawWord;
+          }
+          final rawXo = remoteState['xo'];
+          if (rawXo is List && widget.type == GameType.xo && rawXo.length == 9) {
+            for (var i = 0; i < 9; i++) {
+              final value = rawXo[i]?.toString() ?? '';
+              _xo[i] = value;
+            }
+          }
+        });
       });
     } catch (_) {
       // Local gameplay must not be blocked by a missing/older Firestore index.
