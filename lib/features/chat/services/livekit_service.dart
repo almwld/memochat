@@ -38,7 +38,13 @@ class LiveKitService {
     }
 
     final canonicalRoom = LiveKitConfig.normalizeRoomName(roomName);
-    if (!RegExp(r'^call_[A-Za-z0-9_-]+          Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
+    if (!RegExp(r'^call_[A-Za-z0-9_-]+$').hasMatch(canonicalRoom)) {
+      throw StateError('اسم غرفة المكالمة غير صالح');
+    }
+
+    final response = await http
+        .post(
+          Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -50,7 +56,6 @@ class LiveKitService {
           }),
         )
         .timeout(const Duration(seconds: 15));
-
     if (response.statusCode != 200) {
       throw Exception(
         'فشل طلب Token (${response.statusCode}): ${response.body}',
