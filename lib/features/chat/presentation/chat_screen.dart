@@ -26,6 +26,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _inbox = NotificationInbox();
   late final Stream<List<Conversation>> _conversationsStream;
   late Future<int> _unreadNotifications;
+  _ConversationFilter _conversationFilter = _ConversationFilter.all;
 
   @override
   void initState() {
@@ -173,6 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
+                SliverToBoxAdapter(child: _buildConversationFilters()),
                 if (filtered.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
@@ -221,14 +223,46 @@ class _ChatScreenState extends State<ChatScreen> {
 
   List<Conversation> _filtered(List<Conversation> source) {
     final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return source;
     return source.where((item) {
       final name = item.participant.displayName.toLowerCase();
       final text = item.lastMessage?.text.toLowerCase() ?? '';
-      return name.contains(query) || text.contains(query);
+      final matchesSearch = query.isEmpty || name.contains(query) || text.contains(query);
+      final matchesFilter = switch (_conversationFilter) {
+        _ConversationFilter.all => true,
+        _ConversationFilter.unread => item.unreadCount > 0,
+        _ConversationFilter.online => item.participant.isOnline,
+      };
+      return matchesSearch && matchesFilter;
     }).toList();
   }
+
+  Widget _buildConversationFilters() {
+    const labels = <_ConversationFilter, String>{
+      _ConversationFilter.all: 'الكل',
+      _ConversationFilter.unread: 'غير مقروءة',
+      _ConversationFilter.online: 'متصلون الآن',
+    };
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        scrollDirection: Axis.horizontal,
+        itemCount: labels.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final filter = labels.keys.elementAt(index);
+          return ChoiceChip(
+            label: Text(labels[filter]!),
+            selected: _conversationFilter == filter,
+            onSelected: (_) => setState(() => _conversationFilter = filter),
+          );
+        },
+      ),
+    );
+  }
 }
+
+enum _ConversationFilter { all, unread, online }
 
 class _ConversationCard extends StatelessWidget {
   const _ConversationCard({required this.conversation, required this.onTap});
