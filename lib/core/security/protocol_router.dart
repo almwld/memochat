@@ -39,7 +39,7 @@ class ProtocolRouter {
     final handler = _handlers[protocol];
     if (handler == null) {
       throw StateError(
-        'Protocol $\{protocol.name\} is enabled but has no registered handler.',
+        'Protocol ' + protocol.name + ' is enabled but has no registered handler.',
       );
     }
 
@@ -56,7 +56,7 @@ class ProtocolRouter {
     final handler = _handlers[protocol];
     if (handler == null) {
       throw StateError(
-        'Protocol $\{protocol.name\} is enabled but has no registered handler.',
+        'Protocol ' + protocol.name + ' is enabled but has no registered handler.',
       );
     }
 
