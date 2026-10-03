@@ -98,16 +98,36 @@ class SignalSessionManager {
     );
   }
 
-  Future<SessionCipher> cipherFor(String remoteUid, {int deviceId = 1}) async {
+  Future<SessionCipher> cipherFor(
+    String remoteUid, {
+    int deviceId = 1,
+  }) async {
     await initialize();
+    final address = SignalProtocolAddress(remoteUid, deviceId);
+    return _withAddressLock(address, () async {
+      final bundle = await _loadBundle(remoteUid, deviceId);
+      await _ensureSession(address, bundle);
+      return SessionCipher(
+        sessionStore,
+        preKeyStore,
+        signedPreKeyStore,
+        identityStore,
+        address,
+      );
+    });
+  }
 
+  Future<PreKeyBundle> _loadBundle(
+    String remoteUid,
+    int deviceId,
+  ) async {
     final remote = await _firestore.collection('users').doc(remoteUid).get();
     final data = remote.data()?['signal'];
     if (data is! Map) {
       throw StateError('حزمة Signal للمستلم غير متاحة');
     }
 
-    final bundle = PreKeyBundle(
+    return PreKeyBundle(
       _intValue(data['registrationId']),
       _intValue(data['deviceId'], fallback: deviceId),
       _nullableInt(data['preKeyId']),
@@ -117,17 +137,6 @@ class SignalSessionManager {
       _decodeBytes(data['signedPreKeySignature']),
       IdentityKey.fromBytes(_decodeBytes(data['identityKey']), 0),
     );
-
-    final address = SignalProtocolAddress(remoteUid, deviceId);
-    await _ensureSession(address, bundle);
-
-    return SessionCipher(
-      sessionStore,
-      preKeyStore,
-      signedPreKeyStore,
-      identityStore,
-      address,
-    );
   }
 
   Future<void> _ensureSession(
@@ -135,18 +144,14 @@ class SignalSessionManager {
     PreKeyBundle bundle,
   ) async {
     if (await sessionStore.containsSession(address)) return;
-
-    await _withAddressLock(address, () async {
-      if (await sessionStore.containsSession(address)) return;
-      final builder = SessionBuilder(
-        sessionStore,
-        preKeyStore,
-        signedPreKeyStore,
-        identityStore,
-        address,
-      );
-      await builder.processPreKeyBundle(bundle);
-    });
+    final builder = SessionBuilder(
+      sessionStore,
+      preKeyStore,
+      signedPreKeyStore,
+      identityStore,
+      address,
+    );
+    await builder.processPreKeyBundle(bundle);
   }
 
   Future<Uint8List> encryptFor(
@@ -156,7 +161,15 @@ class SignalSessionManager {
   }) async {
     final address = SignalProtocolAddress(remoteUid, deviceId);
     return _withAddressLock(address, () async {
-      final cipher = await cipherFor(remoteUid, deviceId: deviceId);
+      final bundle = await _loadBundle(remoteUid, deviceId);
+      await _ensureSession(address, bundle);
+      final cipher = SessionCipher(
+        sessionStore,
+        preKeyStore,
+        signedPreKeyStore,
+        identityStore,
+        address,
+      );
       final message = await cipher.encrypt(Uint8List.fromList(plaintext));
       return message.serialize();
     });
