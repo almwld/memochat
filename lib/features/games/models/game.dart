@@ -4,6 +4,13 @@ enum GameType {
   xo, quizBattle, emojiReaction, diceRoll, drawGuess, wordChain, truthDare,
   guessSong, memoryMatch, trivia, quickTap, wouldYouRather, speedMath,
   movieQuiz, sudokuDuel,
+  colorRush, higherLower, numberGuess, wordScramble, emojiMemory, patternTap,
+  oddOneOut, fourInRow, dotsAndBoxes, reactionRace, cardFlip, treasureHunt,
+  mazeRunner, stackTower, targetHit, bubblePop, colorMatch, shapeMatch,
+  sequenceRecall, fastChoice, trueFalse, flagQuiz, animalQuiz, foodQuiz,
+  geographyQuiz, scienceQuiz, historyQuiz, languageQuiz, riddleRush,
+  anagramBattle, mathDuel, codeBreaker, lightSwitch, connectPairs,
+  wordGuess, picturePuzzle, balanceBeam, rocketRace, galaxyCatch, rhythmTap,
 }
 
 enum GameStatus { waiting, playing, ended }
