@@ -26,16 +26,20 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
+    var fontSize = prefs.getDouble('font_size') ?? 14.0;
+    var wallpaper = 'default';
+    if (widget.chatId != null && widget.chatId!.isNotEmpty) {
+      fontSize = await _chatPrefs.getFontSize(widget.chatId!) ?? fontSize;
+      wallpaper = await _chatPrefs.getWallpaper(widget.chatId!) ?? 'default';
+    }
+    if (!mounted) return;
     setState(() {
       _darkMode = prefs.getBool('dark_mode') ?? false;
       _notifications = prefs.getBool('notifications') ?? true;
       _sound = prefs.getBool('sound') ?? true;
       _vibration = prefs.getBool('vibration') ?? true;
-      _fontSize = prefs.getDouble('font_size') ?? 14.0;
-      if (widget.chatId != null && widget.chatId!.isNotEmpty) {
-        _fontSize = await _chatPrefs.getFontSize(widget.chatId!) ?? _fontSize;
-        _wallpaper = await _chatPrefs.getWallpaper(widget.chatId!) ?? 'default';
-      }
+      _fontSize = fontSize;
+      _wallpaper = wallpaper;
     });
   }
 
