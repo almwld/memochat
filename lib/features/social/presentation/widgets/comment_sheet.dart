@@ -26,7 +26,7 @@ Future<void> showCommentSheet(BuildContext context, SocialService service, Strin
                       final doc = docs[i];
                       final data = doc.data();
                       final user = data['userName']?.toString() ?? data['userId']?.toString() ?? 'مستخدم';
-                      final mine = data['userId']?.toString() == serviceUserId(service);
+                      final mine = data['userId']?.toString() == service.currentUserId;
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundImage: (data['userPhoto']?.toString().isNotEmpty ?? false)
@@ -70,8 +70,3 @@ Future<void> showCommentSheet(BuildContext context, SocialService service, Strin
   input.dispose();
 }
 
-String serviceUserId(SocialService service) {
-  // The service intentionally keeps auth encapsulated; this helper only
-  // exists for UI compatibility. Ownership is also enforced by Firestore.
-  return '';
-}
