@@ -409,7 +409,8 @@ class MediaTransferEngine {
     String? readyUrl;
     final existingUrl = job['remote_url']?.toString();
     final existingStatus = job['status']?.toString();
-    if (existingStatus == 'link_ready' && existingUrl != null && existingUrl.isNotEmpty) {
+    if (existingUrl != null && existingUrl.isNotEmpty &&
+        existingStatus != 'sent') {
       // The upload already completed. If Firestore publication failed, retry only
       // the publication instead of uploading the same media again.
       readyUrl = existingUrl;
