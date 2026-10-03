@@ -74,6 +74,100 @@ class SocialService {
     );
   }
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchPostLike(String postId) =>
+      _c('socialPosts').doc(postId).collection('likes').doc(_uid).snapshots();
+
+  Stream<int> watchPostLikesCount(String postId) =>
+      _c('socialPosts').doc(postId).snapshots().map(
+        (s) => (s.data()?['likesCount'] as num?)?.toInt() ?? 0,
+      );
+
+  Future<void> togglePostLike(String postId) async {
+    _authz();
+    final post = _c('socialPosts').doc(postId);
+    final like = post.collection('likes').doc(_uid);
+    final existing = await like.get();
+    await _db.runTransaction((tx) async {
+      if (existing.exists) {
+        tx.delete(like);
+        tx.update(post, {
+          'likesCount': FieldValue.increment(-1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        tx.set(like, {'userId': _uid, 'likedAt': FieldValue.serverTimestamp()});
+        tx.update(post, {
+          'likesCount': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchPostComments(String postId) =>
+      _c('socialPosts').doc(postId).collection('comments').orderBy('createdAt').limit(100).snapshots();
+
+  Future<void> addPostComment(String postId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.isEmpty || body.length > 1000) {
+      throw ArgumentError('التعليق يجب أن يكون بين 1 و1000 حرف');
+    }
+    final post = _c('socialPosts').doc(postId);
+    await _db.runTransaction((tx) async {
+      tx.set(post.collection('comments').doc(), {
+        'userId': _uid,
+        'userName': _auth.currentUser?.displayName?.trim().isNotEmpty == true
+            ? _auth.currentUser!.displayName!.trim()
+            : 'مستخدم Memo',
+        'userPhoto': _auth.currentUser?.photoURL ?? '',
+        'text': body,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      tx.update(post, {
+        'commentsCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Future<void> recordPostShare(String postId) async {
+    _authz();
+    await _c('socialPosts').doc(postId).update({
+      'sharesCount': FieldValue.increment(1),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> sharePost(String postId) async {
+    _authz();
+    final snap = await _c('socialPosts').doc(postId).get();
+    final data = snap.data() ?? <String, dynamic>{};
+    final text = data['text']?.toString().trim() ?? '';
+    final url = data['mediaUrl']?.toString().trim() ?? '';
+    final payload = [text, url].where((v) => v.isNotEmpty).join('\n');
+    if (payload.isEmpty) throw StateError('محتوى المنشور غير متاح');
+    await Share.share(payload);
+    await recordPostShare(postId);
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchPostSaved(String postId) =>
+      _db.collection('users').doc(_uid).collection('savedSocial').doc(postId).snapshots();
+
+  Future<void> togglePostSave(String postId, bool saved) async {
+    _authz();
+    final ref = _db.collection('users').doc(_uid).collection('savedSocial').doc(postId);
+    if (saved) {
+      await ref.delete();
+    } else {
+      await ref.set({
+        'collection': 'socialPosts',
+        'contentId': postId,
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchLike(String collection, String contentId) {
     _authz();
     return _c(collection).doc(contentId).collection('likes').doc(_uid).snapshots();
