@@ -5,6 +5,9 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
+import '../../../core/models/chat_folder.dart';
+import '../../../core/services/chat_folder_service.dart';
+import 'folders_manager_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../models/status_model.dart';
@@ -27,16 +30,30 @@ class _ChatScreenState extends State<ChatScreen> {
   late final Stream<List<Conversation>> _conversationsStream;
   late Future<int> _unreadNotifications;
   _ConversationFilter _conversationFilter = _ConversationFilter.all;
+  final _folderService = ChatFolderService();
+  ChatFolder? _activeFolder;
 
   @override
   void initState() {
     super.initState();
     _conversationsStream = widget.repository.watchConversations();
+    _loadActiveFolder();
     _unreadNotifications = _inbox.unreadCount();
   }
 
   @override
   void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
+
+  Future<void> _loadActiveFolder() async {
+    final folders = await _folderService.getFolders();
+    if (!mounted || folders.isEmpty) return;
+    setState(() => _activeFolder = folders.first);
+  }
+
+  Future<void> _openFolders() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FoldersManagerScreen()));
+    await _loadActiveFolder();
+  }
 
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
@@ -174,6 +191,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
+                SliverToBoxAdapter(child: _buildFolderBar()),
                 SliverToBoxAdapter(child: _buildConversationFilters()),
                 if (filtered.isEmpty)
                   const SliverFillRemaining(
@@ -222,18 +240,36 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
       );
 
+  Widget _buildFolderBar() => FutureBuilder<List<ChatFolder>>(
+    future: _folderService.getFolders(),
+    builder: (context, snapshot) {
+      final folders = snapshot.data ?? const <ChatFolder>[];
+      return SizedBox(height: 48, child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10), scrollDirection: Axis.horizontal,
+        itemCount: folders.length + 2, separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, index) {
+          if (index == 0) return ChoiceChip(label: const Text('كل المحادثات'), selected: _activeFolder == null, onSelected: (_) => setState(() => _activeFolder = null));
+          if (index == 1) return ActionChip(avatar: const Icon(Icons.tune, size: 17), label: const Text('المجلدات'), onPressed: _openFolders);
+          final folder = folders[index - 2];
+          return ChoiceChip(label: Text(folder.name), selected: _activeFolder?.id == folder.id, onSelected: (_) => setState(() => _activeFolder = folder));
+        },
+      ));
+    },
+  );
+
   List<Conversation> _filtered(List<Conversation> source) {
     final query = _search.text.trim().toLowerCase();
     return source.where((item) {
       final name = item.participant.displayName.toLowerCase();
       final text = item.lastMessage?.text.toLowerCase() ?? '';
       final matchesSearch = query.isEmpty || name.contains(query) || text.contains(query);
+      final matchesFolder = _activeFolder == null || _activeFolder!.chatIds.contains(item.id);
       final matchesFilter = switch (_conversationFilter) {
         _ConversationFilter.all => true,
         _ConversationFilter.unread => item.unreadCount > 0,
         _ConversationFilter.online => item.participant.isOnline,
       };
-      return matchesSearch && matchesFilter;
+      return matchesSearch && matchesFilter && matchesFolder;
     }).toList();
   }
 
