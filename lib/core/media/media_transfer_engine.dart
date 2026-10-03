@@ -553,9 +553,21 @@ class MediaTransferEngine {
     final caption = job['caption']?.toString() ?? '';
     final data = collection == 'socialReels'
         ? <String, dynamic>{
-            'authorId': uid, 'caption': caption, 'videoUrl': url,
-            'likesCount': 0, 'commentsCount': 0, 'sharesCount': 0, 'viewsCount': 0,
-            'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp(),
+            'authorId': uid,
+            'authorName': FirebaseAuth.instance.currentUser?.displayName ?? 'مستخدم Memo',
+            'authorPhoto': FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            'caption': caption,
+            'videoUrl': url,
+            'thumbnailUrl': '',
+            'likesCount': 0,
+            'commentsCount': 0,
+            'sharesCount': 0,
+            'viewsCount': 0,
+            'isPublished': true,
+            'commentsEnabled': true,
+            'isPinned': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           }
         : <String, dynamic>{
             'authorId': uid, 'text': caption, 'mediaUrl': url, 'mediaType': job['type'].toString(),
