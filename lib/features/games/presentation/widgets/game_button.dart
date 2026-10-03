@@ -1,0 +1,2 @@
+import 'package:flutter/material.dart';
+class GameButton extends StatelessWidget { final String label; final VoidCallback? onPressed; final IconData? icon; const GameButton({super.key,required this.label,this.onPressed,this.icon}); @override Widget build(BuildContext context)=>SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:onPressed,icon:Icon(icon??Icons.touch_app_rounded),label:Padding(padding:const EdgeInsets.symmetric(vertical:13),child:Text(label,style:const TextStyle(fontWeight:FontWeight.w800)))); }
