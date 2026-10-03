@@ -107,11 +107,13 @@ class FirebaseChatRepository implements ChatRepository {
   Stream<List<Conversation>> watchConversations() {
     if (_uid.isEmpty) return const Stream.empty();
 
+    // Do not require a Firestore composite index for the conversation list.
+    // Older chats may also lack updatedAt, so sorting is done locally below.
     return _chats()
         .where('participants', arrayContains: _uid)
-        .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) {
+        .map((snapshot) {
+          final conversations = snapshot.docs.map((doc) {
               final data = doc.data();
               final ids = List<String>.from(
                 (data['participants'] as List?)
@@ -169,7 +171,15 @@ class FirebaseChatRepository implements ChatRepository {
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
                 isArchived: data['isArchived'] == true,
               );
-            }).toList());
+            }).toList();
+
+          conversations.sort((a, b) {
+            final aTime = a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          });
+          return conversations;
+        });
   }
 
   @override
