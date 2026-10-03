@@ -179,41 +179,35 @@ class LiveKitService {
 
     final response = await http
         .post(
-          Uri.parse(
-            'https://us-central1-memo-f97b5.cloudfunctions.net/createVoiceRoomToken',
-          ),
+          Uri.parse('${LiveKitConfig.tokenServerUrl}/voice-token'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + idToken,
+            'Authorization': 'Bearer $idToken',
           },
           body: jsonEncode({
-            'data': {
-              'roomId': roomId,
-              'roomName': canonicalRoom,
-              'participantName': name,
-            },
+            'roomId': roomId,
+            'roomName': canonicalRoom,
+            'participantName': name,
           }),
         )
         .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception(
-        'فشل طلب Token لغرفة الصوت (' + response.statusCode.toString() + '): ' + response.body,
+        'فشل طلب Token لغرفة الصوت (${response.statusCode}): ${response.body}',
       );
     }
 
     final raw = jsonDecode(response.body);
-    if (raw is! Map) throw Exception('استجابة Cloud Function غير صالحة');
+    if (raw is! Map) throw Exception('استجابة خادم غرفة الصوت غير صالحة');
     final envelope = Map<String, dynamic>.from(raw);
     final data = envelope['data'];
     if (data is! Map) {
-      final error = envelope['error'];
       throw Exception(
-        error is Map
-            ? (error['message']?.toString() ?? 'تعذر إنشاء توكن غرفة الصوت')
-            : 'تعذر إنشاء توكن غرفة الصوت',
+        envelope['message']?.toString() ?? 'تعذر إنشاء توكن غرفة الصوت',
       );
     }
+
     final value = Map<String, dynamic>.from(data);
     final token = value['token']?.toString() ?? '';
     final url = value['url']?.toString() ?? '';
