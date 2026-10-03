@@ -5,11 +5,13 @@ import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 
 import '../models/game.dart';
+import '../../chat/services/chat_service.dart';
 
 class GamePlayScreen extends StatefulWidget {
   final GameType type;
   final String title;
-  const GamePlayScreen({super.key, required this.type, required this.title});
+  final String chatId;
+  const GamePlayScreen({super.key, required this.type, required this.title, required this.chatId});
 
   @override
   State<GamePlayScreen> createState() => _GamePlayScreenState();
@@ -91,7 +93,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               child: _gameBody(),
             ),
-            const _QuickGameChatBar(),
+            _QuickGameChatBar(chatId: widget.chatId),
           ],
         ),
       ),
@@ -362,7 +364,8 @@ class _GridPainter extends CustomPainter {
 
 
 class _QuickGameChatBar extends StatefulWidget {
-  const _QuickGameChatBar();
+  final String chatId;
+  const _QuickGameChatBar({required this.chatId});
 
   @override
   State<_QuickGameChatBar> createState() => _QuickGameChatBarState();
@@ -483,17 +486,22 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
         ),
       );
 
-  void _send() {
+  Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        duration: const Duration(milliseconds: 700),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    try {
+      await ChatService().sendMessage(
+        chatId: widget.chatId,
+        text: text,
+        metadata: const {'kind': 'game_quick_chat'},
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إرسال الرسالة السريعة')),
+      );
+    }
   }
 }
