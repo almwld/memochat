@@ -110,9 +110,22 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     }
   }
 
+  Future<void> _syncGameState(Map<String, dynamic> state) async {
+    final id = _gameId;
+    if (id == null) return;
+    try {
+      await GameService.instance.updateGame(
+        chatId: widget.chatId,
+        gameId: id,
+        data: {'state': state, 'scores': {FirebaseAuth.instance.currentUser?.uid ?? 'local': score}},
+      );
+    } catch (_) {}
+  }
+
   void _point({int value = 1}) {
     if (!mounted) return;
     setState(() => score += value);
+    _syncGameState({'score': score, 'step': _step});
   }
 
   @override
@@ -185,6 +198,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         itemBuilder: (_, i) => InkWell(
           onTap: _xo[i].isNotEmpty || winner.isNotEmpty ? null : () {
             setState(() => _xo[i] = i.isEven ? 'X' : 'O');
+            _syncGameState({'xo': _xo, 'step': _step});
           },
           child: Container(
             margin: const EdgeInsets.all(4),
@@ -276,6 +290,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         if (v.trim().startsWith(last)) {
           _point(value: 2);
           setState(() => _word = v.trim());
+          _syncGameState({'word': _word, 'step': _step});
         } else {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يجب أن تبدأ الكلمة بالحرف الأخير.')));
         }
