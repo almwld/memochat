@@ -92,7 +92,7 @@ exports.createLiveKitToken = onCall(
       success: true,
       data: {
         token: jwt,
-        url: 'wss://platformmemochat-z73p6n5m.livekit.cloud',
+        url: 'wss://memo-2jv45qyl.livekit.cloud',
         roomName,
         participantIdentity,
         participantName,
