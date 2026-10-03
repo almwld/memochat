@@ -42,6 +42,8 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   final List<int> _memory = [];
   final Set<int> _memoryOpen = {};
   final Set<int> _memoryMatched = {};
+  String _remoteAction = '';
+  int _remoteScore = 0;
   final List<String> _sudoku = [
     '1','2','3','4',
     '3','4','1','2',
@@ -148,7 +150,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   void _point({int value = 1}) {
     if (!mounted) return;
     setState(() => score += value);
-    _syncGameState({'score': score, 'step': _step});
+    _syncGameState({'action': 'score', 'score': score, 'step': _step});
   }
 
   @override
@@ -195,6 +197,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           Text('النقاط: $score', style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (_remoteUid != null) Text('نقاط اللاعب الآخر: $_remoteScore', style: const TextStyle(fontSize: 12)),
           const SizedBox(height: 18),
         ],
       );
