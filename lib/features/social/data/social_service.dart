@@ -189,6 +189,22 @@ class SocialService {
   Future<void> pinReel(String reelId, bool pinned) async =>
       _ownerUpdate(reelId, {'isPinned': pinned});
 
+  Future<void> reportReel(String reelId, String reason) async {
+    _authz();
+    final snap = await _c('socialReels').doc(reelId).get();
+    final target = snap.data()?['authorId']?.toString() ?? '';
+    if (target.isEmpty || target == _uid) throw StateError('لا يمكن الإبلاغ عن هذا الريل');
+    final body = reason.trim();
+    if (body.isEmpty || body.length > 500) throw ArgumentError('سبب الإبلاغ غير صالح');
+    await _db.collection('reports').add({
+      'reporterId': _uid,
+      'targetUserId': target,
+      'reelId': reelId,
+      'reason': body,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> recordView(String reelId) async {
     _authz();
     await _c('socialReels').doc(reelId).update({
