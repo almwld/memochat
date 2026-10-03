@@ -20,6 +20,7 @@ class SocialService {
   final SocialMediaTransferService _media;
 
   String get _uid => _auth.currentUser?.uid ?? '';
+  String get currentUserId => _uid;
 
   void _authz() {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
