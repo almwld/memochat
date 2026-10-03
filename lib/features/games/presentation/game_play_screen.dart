@@ -72,7 +72,8 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       _gameId = snap.docs.first.id;
       _gameSubscription = GameService.instance.watchGame(widget.chatId, _gameId!).listen((game) {
         if (!mounted || game == null) return;
-        final other = game.players.where((id) => id != uid).cast<String?>().firstOrNull;
+        final others = game.players.where((id) => id != uid).toList();
+        final other = others.isEmpty ? null : others.first;
         if (other != _remoteUid) setState(() => _remoteUid = other);
       });
     } catch (_) {
