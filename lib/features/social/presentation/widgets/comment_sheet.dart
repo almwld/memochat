@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/social_service.dart';
 
 Future<void> showCommentSheet(BuildContext context, SocialService service, String reelId) async {
@@ -25,16 +26,21 @@ Future<void> showCommentSheet(BuildContext context, SocialService service, Strin
                     itemBuilder: (_, i) {
                       final doc = docs[i];
                       final data = doc.data();
-                      final user = data['userName']?.toString() ?? data['userId']?.toString() ?? 'مستخدم';
-                      final mine = data['userId']?.toString() == service.currentUserId;
+                      final storedName = data['userName']?.toString().trim() ?? '';
+                      final userId = data['userId']?.toString().trim() ?? '';
+                      final mine = userId == service.currentUserId;
                       return ListTile(
+                        // Older comments may only contain userId; resolve the
+                        // profile once at render time instead of exposing the UID.
+                        title: storedName.isNotEmpty
+                            ? Text(storedName)
+                            : _CommentAuthorName(userId: userId),
                         leading: CircleAvatar(
                           backgroundImage: (data['userPhoto']?.toString().isNotEmpty ?? false)
                               ? NetworkImage(data['userPhoto'].toString())
                               : null,
                           child: (data['userPhoto']?.toString().isNotEmpty ?? false) ? null : const Icon(Icons.person),
                         ),
-                        title: Text(user),
                         subtitle: Text(data['text']?.toString() ?? ''),
                         trailing: mine ? IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => service.deleteComment(reelId, doc.id)) : null,
                       );
@@ -69,4 +75,24 @@ Future<void> showCommentSheet(BuildContext context, SocialService service, Strin
   );
   input.dispose();
 }
+class _CommentAuthorName extends StatelessWidget {
+  const _CommentAuthorName({required this.userId});
 
+  final String userId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (userId.isEmpty) return const Text('مستخدم');
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data();
+        final name = data?['displayName']?.toString().trim() ??
+            data?['username']?.toString().trim() ??
+            data?['publicId']?.toString().trim() ??
+            '';
+        return Text(name.isNotEmpty ? name : 'مستخدم');
+      },
+    );
+  }
+}
