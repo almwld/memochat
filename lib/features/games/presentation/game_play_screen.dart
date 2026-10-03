@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/game.dart';
 import '../models/game_session.dart';
 import '../services/game_service.dart';
+import 'extended_games_body.dart';
 import '../../chat/services/chat_service.dart';
 
 class GamePlayScreen extends StatefulWidget {
@@ -195,6 +196,21 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Widget _gameBody() {
+    const extended = {
+      GameType.colorRush, GameType.higherLower, GameType.numberGuess, GameType.wordScramble,
+      GameType.emojiMemory, GameType.patternTap, GameType.oddOneOut, GameType.fourInRow,
+      GameType.dotsAndBoxes, GameType.reactionRace, GameType.cardFlip, GameType.treasureHunt,
+      GameType.mazeRunner, GameType.stackTower, GameType.targetHit, GameType.bubblePop,
+      GameType.colorMatch, GameType.shapeMatch, GameType.sequenceRecall, GameType.fastChoice,
+      GameType.trueFalse, GameType.flagQuiz, GameType.animalQuiz, GameType.foodQuiz,
+      GameType.geographyQuiz, GameType.scienceQuiz, GameType.historyQuiz, GameType.languageQuiz,
+      GameType.riddleRush, GameType.anagramBattle, GameType.mathDuel, GameType.codeBreaker,
+      GameType.lightSwitch, GameType.connectPairs, GameType.wordGuess, GameType.picturePuzzle,
+      GameType.balanceBeam, GameType.rocketRace, GameType.galaxyCatch, GameType.rhythmTap,
+    };
+    if (extended.contains(widget.type)) {
+      return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
+    }
     switch (widget.type) {
       case GameType.xo: return _xoGame();
       case GameType.quizBattle: return _quizGame();
