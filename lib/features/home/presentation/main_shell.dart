@@ -11,7 +11,7 @@ import '../../shake/presentation/shake_screen.dart';
 import '../../advanced/presentation/advanced_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
 import '../../../core/services/quick_action_service.dart';
-import '../../../core/crypto/payload_crypto_service.dart';
+import '../../../core/crypto/signal_session_manager.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -51,7 +51,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   Future<void> _prepareE2EE() async {
     try {
-      await PayloadCryptoService.instance.ensureReady();
+      await SignalSessionManager.instance.ensureReady();
     } catch (_) {
       // Encryption setup must never delay or block the visible UI.
     }
