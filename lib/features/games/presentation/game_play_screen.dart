@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/game.dart';
 import '../models/game_session.dart';
 import '../services/game_service.dart';
+import '../services/game_state_persistence.dart';
 import 'extended_games_body.dart';
 import '../../chat/services/chat_service.dart';
 
@@ -23,6 +24,7 @@ class GamePlayScreen extends StatefulWidget {
 
 class _GamePlayScreenState extends State<GamePlayScreen> {
   int score = 0;
+  int _bestScore = 0;
   int _step = 0;
   bool _done = false;
   final _random = Random();
@@ -59,7 +61,28 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   void initState() {
     super.initState();
     _newRound();
+    _restoreProgress();
     _resolveGameSession();
+  }
+
+  Future<void> _restoreProgress() async {
+    try {
+      final saved = await GameStatePersistence.instance.read(widget.type.name);
+      if (!mounted || saved == null) return;
+      final best = saved['bestScore'];
+      if (best is num) setState(() => _bestScore = best.toInt());
+    } catch (_) {}
+  }
+
+  Future<void> _persistProgress() async {
+    if (score > _bestScore) _bestScore = score;
+    try {
+      await GameStatePersistence.instance.save(
+        gameId: widget.type.name,
+        bestScore: _bestScore,
+        lastScore: score,
+      );
+    } catch (_) {}
   }
 
   Future<void> _resolveGameSession() async {
@@ -174,6 +197,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     if (!mounted) return;
     setState(() => score += value);
     _syncGameState({'action': 'score', 'score': score, 'step': _step});
+    _persistProgress();
   }
 
   @override
@@ -235,7 +259,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
           Text(subtitle, textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          Text('النقاط: $score', style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text('النقاط: $score  •  أفضل: $_bestScore', style: const TextStyle(fontWeight: FontWeight.w700)),
           if (_currentTurn != null) Text(_isMyTurn ? 'دورك الآن' : 'دور اللاعب الآخر', style: const TextStyle(fontSize: 12)),
           if (_durationMinutes != null && _gameStartedAt != null) Text('المدة: $_durationMinutes دقيقة', style: const TextStyle(fontSize: 11)),
           if (_remoteUid != null) Text('نقاط اللاعب الآخر: $_remoteScore', style: const TextStyle(fontSize: 12)),
