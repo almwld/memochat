@@ -19,6 +19,7 @@ import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../presentation/story_viewer_screen.dart';
 import '../presentation/add_status_screen.dart';
+import 'create_group_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.repository, this.onNewChat, super.key});
@@ -45,6 +46,23 @@ class _ChatScreenState extends State<ChatScreen> {
     _conversationsStream = widget.repository.watchConversations();
     _inviteSubscription = InviteHandler.instance.links.listen(_handleInvite);
     _unreadNotifications = _inbox.unreadCount();
+    unawaited(_loadActiveFolder());
+  }
+
+  Future<void> _loadActiveFolder() async {
+    final folders = await _folderService.getFolders();
+    if (!mounted) return;
+    if (_activeFolder != null &&
+        !folders.any((folder) => folder.id == _activeFolder!.id)) {
+      setState(() => _activeFolder = null);
+    }
+  }
+
+  Future<void> _openCreateGroup() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _handleInvite(Uri uri) async {
