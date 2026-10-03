@@ -50,7 +50,7 @@ class _GamesScreenState extends State<GamesScreen> {
 Future<void> showGamesSheet(BuildContext context,{required String chatId}) async {
   await showModalBottomSheet<void>(
     context:context,isScrollControlled:true,showDragHandle:false,backgroundColor:Colors.transparent,
-    sheetAnimationStyle:const AnimationStyle(duration:Duration(milliseconds:280),reverseDuration:Duration(milliseconds:220)),
+    sheetAnimationStyle:AnimationStyle(duration:Duration(milliseconds:280),reverseDuration:Duration(milliseconds:220)),
     builder:(_)=>DraggableScrollableSheet(initialChildSize:.82,minChildSize:.55,maxChildSize:.95,expand:false,builder:(_,controller)=>ClipRRect(borderRadius:const BorderRadius.vertical(top:Radius.circular(28)),child:Material(color:Theme.of(context).scaffoldBackgroundColor,child:GamesScreen(chatId:chatId)))),
   );
 }
