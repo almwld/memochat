@@ -151,6 +151,8 @@ class _MessageBubbleState extends State<MessageBubble> {
         return _withStatus(_buildCall(m, dark));
       case 'location':
         return _withStatus(_buildLocation(m, dark));
+      case 'contact':
+        return _withStatus(_buildContact(m, dark));
       case 'system':
         return _buildSystem(m);
       default:
@@ -519,6 +521,29 @@ class _MessageBubbleState extends State<MessageBubble> {
     final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
     final ic = missed ? Colors.red : incoming ? Colors.green : Colors.blue;
     return _shell(Padding(padding: const EdgeInsets.all(10), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 48, height: 48, decoration: BoxDecoration(color: ic.withOpacity(.15), shape: BoxShape.circle), child: Icon(icon, color: ic, size: 24)), const SizedBox(width: 12), Flexible(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)), if (duration.isNotEmpty) ...[const SizedBox(height: 3), Text(duration, style: TextStyle(color: tc.withOpacity(.7), fontSize: 11))]])), const SizedBox(width: 12), InkWell(borderRadius: BorderRadius.circular(20), onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'), child: Padding(padding: const EdgeInsets.all(6), child: Icon(video ? Icons.videocam : Icons.call, color: tc, size: 20)))])), dark);
+  }
+
+  Widget _buildContact(Map<String, dynamic> m, bool dark) {
+    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
+    final name = meta['contactName']?.toString().trim().isNotEmpty == true ? meta['contactName'].toString() : 'جهة اتصال';
+    final phone = meta['contactPhone']?.toString().trim() ?? '';
+    final email = meta['contactEmail']?.toString().trim() ?? '';
+    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
+    return _shell(Padding(
+      padding: const EdgeInsets.all(12),
+      child: SizedBox(
+        width: 250,
+        child: Row(children: [
+          CircleAvatar(backgroundColor: widget.isMe ? Colors.white24 : AppColors.primary.withOpacity(.12), child: Icon(Icons.person, color: widget.isMe ? Colors.white : AppColors.primary)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc, fontWeight: FontWeight.w800)),
+            if (phone.isNotEmpty) Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.75), fontSize: 12)),
+            if (email.isNotEmpty) Text(email, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.65), fontSize: 11)),
+          ])),
+        ]),
+      ),
+    ), dark);
   }
 
   Widget _buildLocation(Map<String, dynamic> m, bool dark) {

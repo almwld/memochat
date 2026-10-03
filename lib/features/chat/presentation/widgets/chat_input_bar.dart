@@ -5,6 +5,8 @@ import 'package:image_editor_plus/image_editor_plus.dart';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -151,6 +153,58 @@ class _ChatInputBarState extends State<ChatInputBar> {
       size: _formatBytes(await file.length()),
       mime: isVideo ? 'video/mp4' : 'image/jpeg',
     );
+  }
+
+  Future<void> _pickContact() async {
+    if (_sending) return;
+    final granted = await FlutterContacts.requestPermission(readonly: true);
+    if (!granted || !mounted) {
+      ToastService.showError('لم يتم السماح بالوصول إلى جهات الاتصال.');
+      return;
+    }
+    final contacts = await FlutterContacts.getContacts(withProperties: true);
+    if (!mounted || contacts.isEmpty) {
+      ToastService.showError('لا توجد جهات اتصال متاحة.');
+      return;
+    }
+    final selected = await showModalBottomSheet<Contact>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * .7,
+          child: ListView.builder(
+            itemCount: contacts.length,
+            itemBuilder: (_, index) {
+              final c = contacts[index];
+              final phone = c.phones.isNotEmpty ? c.phones.first.number : '';
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                title: Text(c.displayName.isEmpty ? 'جهة اتصال' : c.displayName),
+                subtitle: Text(phone.isEmpty ? 'بدون رقم هاتف' : phone),
+                onTap: () => Navigator.pop(ctx, c),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    final name = selected.displayName.trim().isEmpty ? 'جهة اتصال' : selected.displayName.trim();
+    final phone = selected.phones.isNotEmpty ? selected.phones.first.number.trim() : '';
+    final email = selected.emails.isNotEmpty ? selected.emails.first.address.trim() : '';
+    try {
+      await ChatService().sendMessage(
+        chatId: widget.chatId,
+        text: name,
+        metadata: {'kind': 'contact', 'contactName': name, 'contactPhone': phone, 'contactEmail': email},
+        replyToId: widget.replyToId,
+      );
+      if (mounted) setState(() => _attachments = false);
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر إرسال جهة الاتصال.');
+      debugPrint('contact send: $e');
+    }
   }
 
   Future<void> _sendText() async {
@@ -720,6 +774,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           _mediaItem(Icons.photo_library_outlined, 'المعرض', () => _pickImage(ImageSource.gallery)),
           _mediaItem(Icons.video_library, 'فيديو', _pickVideo),
           _mediaItem(Icons.attach_file, 'ملف', _pickFile),
+          _mediaItem(Icons.contacts_outlined, 'جهة اتصال', _pickContact),
           _mediaItem(Icons.location_on_outlined, 'موقعي', () {
             setState(() => _attachments = false);
             widget.onShareLocation?.call();
