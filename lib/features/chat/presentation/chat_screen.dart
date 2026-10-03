@@ -399,7 +399,6 @@ class _ConversationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         onLongPress: onMarkUnread,
-        onSecondaryTap: (_) => onArchive(),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
           child: Row(
