@@ -10,6 +10,7 @@ import '../models/game_session.dart';
 import '../services/game_service.dart';
 import '../services/game_state_persistence.dart';
 import 'extended_games_body.dart';
+import 'game_factory.dart';
 import 'games/xo_game.dart';
 import 'games/quiz_battle_game.dart';
 import 'games/emoji_reaction_game.dart';
@@ -235,6 +236,8 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Widget _gameBody() {
+    final dedicated = DedicatedGameFactory.build(widget.type);
+    if (dedicated != null) return dedicated;
     const extended = {
       GameType.colorRush, GameType.higherLower, GameType.numberGuess, GameType.wordScramble,
       GameType.emojiMemory, GameType.patternTap, GameType.oddOneOut, GameType.fourInRow,
