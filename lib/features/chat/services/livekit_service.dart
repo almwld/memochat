@@ -38,8 +38,7 @@ class LiveKitService {
     }
 
     final canonicalRoom = LiveKitConfig.normalizeRoomName(roomName);
-    if (!RegExp(r'^call_[A-Za-z0-9_-]+
-          Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
+    if (!RegExp(r'^call_[A-Za-z0-9_-]+          Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
@@ -343,11 +342,6 @@ class LiveKitService {
   }
 }
 ).hasMatch(canonicalRoom)) {
-      throw StateError('اسم غرفة المكالمة غير صالح');
-    }
-
-    final response = await http
-        .post(
           Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
           headers: {
             'Content-Type': 'application/json',
@@ -355,7 +349,7 @@ class LiveKitService {
           },
           body: jsonEncode({
             'identity': user.uid,
-            'roomName': roomName,
+            'roomName': canonicalRoom,
             'participantName': participantName,
           }),
         )
@@ -429,6 +423,7 @@ class LiveKitService {
               url,
               token,
               connectOptions: connectOptions,
+              roomOptions: options,
             )
             .timeout(const Duration(seconds: 25));
         return current;
@@ -458,6 +453,7 @@ class LiveKitService {
   }
 
   Future<Room> connectRoom({required String roomName, String? participantName}) async {
+    roomName = LiveKitConfig.normalizeRoomName(roomName);
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('يجب تسجيل الدخول قبل إجراء المكالمة');
@@ -488,7 +484,7 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
-    final result = await connectRoom(roomName: roomName, participantName: callerName);
+    final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
     try {
