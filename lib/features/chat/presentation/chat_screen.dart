@@ -349,7 +349,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _ConversationFilter.unread => item.unreadCount > 0,
         _ConversationFilter.online => item.participant.isOnline,
       };
-      return matchesSearch && matchesFilter && matchesFolder;
+      final matchesArchive = _showArchived ? item.isArchived : !item.isArchived;
+      return matchesSearch && matchesArchive && matchesFilter && matchesFolder;
     }).toList();
   }
 
