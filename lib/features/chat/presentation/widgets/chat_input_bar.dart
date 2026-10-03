@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:image_editor_plus/image_editor_plus.dart';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -257,16 +259,34 @@ class _ChatInputBarState extends State<ChatInputBar> {
     }
   }
 
+  Future<File> _editImageFile(File source) async {
+    final data = await source.readAsBytes();
+    if (!mounted) return source;
+    final edited = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ImageEditor(image: data)),
+    );
+    if (edited is! Uint8List || edited.isEmpty) return source;
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/edited_${DateTime.now().microsecondsSinceEpoch}.jpg';
+    final output = File(path);
+    await output.writeAsBytes(edited, flush: true);
+    return output;
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     if (source == ImageSource.gallery) {
       final xs = await _picker.pickMultiImage(imageQuality: 90);
       for (final x in xs) {
-        await _sendMedia(File(x.path), type: 'image', folder: 'images', preview: '📷 صورة');
+        final edited = await _editImageFile(File(x.path));
+        await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
       }
       return;
     }
     final x = await _picker.pickImage(source: source, imageQuality: 90);
-    if (x != null) await _sendMedia(File(x.path), type: 'image', folder: 'images', preview: '📷 صورة');
+    if (x != null) {
+      final edited = await _editImageFile(File(x.path));
+      await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
+    }
   }
 
   Future<void> _pickVideo() async {
