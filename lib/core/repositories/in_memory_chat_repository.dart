@@ -64,4 +64,8 @@ class InMemoryChatRepository implements ChatRepository {
     _messageController.add(List.unmodifiable(_messages));
     return message;
   }
+  @override
+  Future<void> markAsUnread(String conversationId) async {
+    _conversationController.add(<Conversation>[_conversation]);
+  }
 }
