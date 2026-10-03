@@ -1,4 +1,4 @@
-import '../extended_game_engine.dart';
+import 'extended_game_engine.dart';
 
 class TreasureHuntGame extends ExtendedGameEngine {
   TreasureHuntGame({super.key}) : super(config: const ExtendedGameConfig(
