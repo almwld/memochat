@@ -130,8 +130,8 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
         message: 'تعذر الإعجاب حالياً.',
       );
 
-  Future<void> _save() => _runInteraction(
-        () => widget.service.toggleSave('socialReels', widget.id, _saved),
+  Future<void> _save(bool saved) => _runInteraction(
+        () => widget.service.toggleSave('socialReels', widget.id, saved),
         message: 'تعذر حفظ الريل حالياً.',
       );
 
@@ -244,7 +244,7 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
                                   ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('التعليقات متوقفة لهذا الريل.')))
                                   : () => showCommentSheet(context, widget.service, widget.id),
                               onShare: _share,
-                              onSave: _save,
+                              onSave: () => _save(saved),
                               onFollow: author.isEmpty ? null : () => _follow(author, following),
                               onMore: () => showReelEditDialog(
                                 context: context,
