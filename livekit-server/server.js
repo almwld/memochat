@@ -300,6 +300,80 @@ app.post('/token', async (req, res) => {
   }
 });
 
+
+// Voice-room token endpoint. Voice rooms are persisted under voiceRooms/{roomId}
+// and are intentionally isolated from one-to-one calls/{callId}.
+app.post('/voice-token', async (req, res) => {
+  try {
+    const decodedToken = await verifyFirebaseUser(req);
+    const roomId = String(req.body?.roomId || '').trim();
+    const roomName = String(req.body?.roomName || '').trim();
+    const participantName = String(req.body?.participantName || decodedToken.name || 'مستخدم').trim();
+
+    if (!roomId || !roomName) {
+      return res.status(400).json({ success: false, message: 'roomId و roomName مطلوبان' });
+    }
+    if (!/^memo_voice_[A-Za-z0-9_-]+$/.test(roomName)) {
+      return res.status(400).json({ success: false, message: 'اسم غرفة الصوت غير صالح' });
+    }
+
+    const roomSnapshot = await db.collection('voiceRooms').doc(roomId).get();
+    if (!roomSnapshot.exists) {
+      return res.status(404).json({ success: false, message: 'غرفة الصوت غير موجودة' });
+    }
+    const room = roomSnapshot.data() || {};
+    if (room.active !== true) {
+      return res.status(409).json({ success: false, message: 'غرفة الصوت مغلقة' });
+    }
+    if (String(room.roomName || '') !== roomName) {
+      return res.status(403).json({ success: false, message: 'اسم LiveKit لا يطابق غرفة الصوت' });
+    }
+
+    const memberSnapshot = await db.collection('voiceRooms').doc(roomId)
+      .collection('members').doc(decodedToken.uid).get();
+    if (!memberSnapshot.exists) {
+      return res.status(403).json({ success: false, message: 'انضم إلى الغرفة أولاً' });
+    }
+
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+    if (!apiKey || !apiSecret || !LIVEKIT_URL) {
+      return res.status(500).json({ success: false, message: 'إعدادات LiveKit غير مكتملة' });
+    }
+
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity: decodedToken.uid,
+      name: participantName.slice(0, 120),
+      ttl: '2h',
+    });
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        token: await token.toJwt(),
+        url: LIVEKIT_URL,
+        roomName,
+        participantIdentity: decodedToken.uid,
+        participantName: participantName.slice(0, 120),
+      },
+    });
+  } catch (error) {
+    const status = Number(error.statusCode) || 500;
+    console.error('Voice token error:', error.message || error);
+    return res.status(status).json({
+      success: false,
+      message: error.message || 'تعذر إنشاء توكن غرفة الصوت',
+    });
+  }
+});
+
 // Production incoming-call notification endpoint.
 // Flutter creates the canonical calls/{callId} document, then calls this endpoint.
 // Railway verifies the caller and sends FCM directly, so Firebase Cloud Functions/Blaze are not required.
