@@ -24,7 +24,8 @@ class MemoChatApp extends StatefulWidget {
   @override State<MemoChatApp> createState() => _MemoChatAppState();
 }
 
-class _MemoChatAppState extends State<MemoChatApp> {
+class _MemoChatAppState extends State<MemoChatApp>
+    with WidgetsBindingObserver {
   static const _splashLastShownKey = 'memo_splash_last_shown_at_ms';
   static const _splashInterval = Duration(hours: 12);
 
@@ -45,6 +46,7 @@ class _MemoChatAppState extends State<MemoChatApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startInitialization();
     unawaited(_initializeSplash());
   }
@@ -113,7 +115,20 @@ class _MemoChatAppState extends State<MemoChatApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (Firebase.apps.isEmpty) {
+      _initializationStarted = false;
+      _firebaseReady = false;
+      _startInitialization();
+    } else if (mounted && !_firebaseReady) {
+      setState(() => _firebaseReady = true);
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_syncCoordinator.dispose());
     unawaited(MediaTransferEngine.instance.dispose());
     super.dispose();
