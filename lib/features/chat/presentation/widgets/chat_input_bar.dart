@@ -152,7 +152,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       preview: isVideo ? '🎬 فيديو' : '📷 صورة',
       name: file.path.split(Platform.pathSeparator).last,
       size: _formatBytes(await file.length()),
-      mime: isVideo ? 'video/mp4' : 'image/jpeg',
+      mime: isVideo ? 'video/mp4' : _imageMime(file.path),
     );
   }
 
@@ -281,6 +281,15 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   String pBasename(String path) => path.split(Platform.pathSeparator).last;
+
+  String _imageMime(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic';
+    return 'image/jpeg';
+  }
 
   Future<void> _sendMedia(
     File file, {
