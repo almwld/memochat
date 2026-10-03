@@ -107,6 +107,11 @@ class _ChatScreenState extends State<ChatScreen> {
               icon: const Icon(Icons.vibration_rounded),
             ),
             IconButton(
+              tooltip: 'مجموعة جديدة',
+              onPressed: _openCreateGroup,
+              icon: const Icon(Icons.group_add_outlined),
+            ),
+            IconButton(
               tooltip: 'بحث',
               onPressed: () => _searchFocus.requestFocus(),
               icon: const AppIcon(AppIcons.search, size: 23),
