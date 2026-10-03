@@ -73,7 +73,21 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       if (widget.chatId != null && widget.chatId!.isNotEmpty)
         _buildSection(title: 'تخصيص هذه المحادثة', children: [
           ListTile(leading: const Icon(Icons.wallpaper_outlined, color: AppColors.primary), title: const Text('خلفية المحادثة'), subtitle: Text(_wallpaperLabel(_wallpaper)), onTap: _chooseWallpaper),
-          ListTile(leading: const Icon(Icons.text_fields, color: AppColors.primary), title: const Text('حجم الخط لهذه المحادثة'), subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'), trailing: SizedBox(width: 150, child: Slider(min: 10, max: 24, divisions: 14, value: _fontSize, onChanged: (v) => setState(() => _fontSize = v))),
+          ListTile(
+            leading: const Icon(Icons.text_fields, color: AppColors.primary),
+            title: const Text('حجم الخط لهذه المحادثة'),
+            subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'),
+            trailing: SizedBox(
+              width: 150,
+              child: Slider(
+                min: 10,
+                max: 24,
+                divisions: 14,
+                value: _fontSize,
+                onChanged: (v) => setState(() => _fontSize = v),
+              ),
+            ),
+          ),
         ]),
       _buildSection(title: 'الإشعارات', children: [
         SwitchListTile(title: const Text('الإشعارات'), subtitle: const Text('تفعيل إشعارات الدردشة'), value: _notifications, onChanged: (v) => setState(() => _notifications = v), activeColor: AppColors.primary),
