@@ -19,6 +19,7 @@ import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/message_search_screen.dart';
 import 'package:memochat/features/chat/presentation/starred_messages_screen.dart';
+import 'package:memochat/features/chat/presentation/group_info_screen.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
@@ -698,6 +699,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             isOutgoing: true)));
   }
 
+  Future<void> _openGroupInfo() async {
+    if (!widget.isGroup) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoScreen(chatId: widget.chatId)));
+  }
+
   void _profile() {
     if (widget.otherUserName.trim().isEmpty) return;
     showModalBottomSheet<void>(context: context, builder: (_) => ListTile(title: Text(widget.otherUserName), subtitle: Text(widget.otherUserId), leading: CircleAvatar(backgroundImage: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? NetworkImage((widget.otherUserImage ?? widget.groupImage)!) : null, child: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? null : const Icon(Icons.person_rounded))));
@@ -1166,11 +1172,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 if (value == 'pinned') _showPinnedMessages();
                 if (value == 'starred') _showStarredMessages();
                 if (value == 'profile') _profile();
+                if (value == 'groupInfo') _openGroupInfo();
                 if (value == 'delete') _deleteChatForMe();
                 if (value == 'settings') _openChatSettings();
               },
               itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
+                    if (widget.isGroup) const PopupMenuItem(value: 'groupInfo', child: Text('معلومات المجموعة')),
+                    if (!widget.isGroup) const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
                     const PopupMenuItem(value: 'settings', child: Text('تخصيص المحادثة')),
                     const PopupMenuItem(value: 'pinned', child: Text('الرسائل المثبتة')),
                     const PopupMenuItem(value: 'starred', child: Text('الرسائل المحفوظة')),
