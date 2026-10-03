@@ -29,17 +29,12 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _consumeQuickAction();
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pages = [
       ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
       ContactsScreen(repository: widget.repository),
@@ -48,6 +43,33 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       const CallsScreen(),
       SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
     ];
+    _consumeQuickAction();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _consumeQuickAction();
+  }
+
+  Future<void> _consumeQuickAction() async {
+    final action = await QuickActionService.consume();
+    if (!mounted || action == null) return;
+    final nextIndex = switch (action) {
+      'chat' || 'compose' => 0,
+      'contacts' => 1,
+      'social' => 2,
+      'calls' => 4,
+      _ => null,
+    };
+    if (nextIndex != null && nextIndex != _index) {
+      setState(() => _index = nextIndex);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
