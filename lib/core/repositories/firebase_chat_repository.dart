@@ -58,7 +58,48 @@ class FirebaseChatRepository implements ChatRepository {
     final ids = [_uid, otherUserId]..sort();
     final me = FirebaseAuth.instance.currentUser;
     final chatId = ids.join('_');
-    await _chats().doc(chatId).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'participantDetails': {_uid: {'name': me?.displayName ?? 'مستخدم', 'photoUrl': me?.photoURL ?? ''}, otherUserId: {'name': otherUserName, 'photoUrl': otherUserPhoto ?? ''}}, 'isGroup': false, 'isArchived': false, 'isPinned': false, 'isMuted': false, 'unreadCount': {_uid: 0, otherUserId: 0}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+    final ref = _chats().doc(chatId);
+    final existing = await ref.get();
+    if (existing.exists) {
+      final existingParticipants = List<String>.from(
+        (existing.data()?['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+      );
+      if (existingParticipants.length == 2 &&
+          existingParticipants.contains(_uid) &&
+          existingParticipants.contains(otherUserId)) {
+        return chatId;
+      }
+      throw StateError('معرّف المحادثة مستخدم لمستخدمين مختلفين');
+    }
+
+    await ref.set({
+      'participants': ids,
+      'participantNames': {
+        _uid: me?.displayName ?? 'مستخدم',
+        otherUserId: otherUserName,
+      },
+      'participantPhotos': {
+        _uid: me?.photoURL ?? '',
+        otherUserId: otherUserPhoto ?? '',
+      },
+      'participantDetails': {
+        _uid: {
+          'name': me?.displayName ?? 'مستخدم',
+          'photoUrl': me?.photoURL ?? '',
+        },
+        otherUserId: {
+          'name': otherUserName,
+          'photoUrl': otherUserPhoto ?? '',
+        },
+      },
+      'isGroup': false,
+      'isArchived': false,
+      'isPinned': false,
+      'isMuted': false,
+      'unreadCount': {_uid: 0, otherUserId: 0},
+      'updatedAt': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
     return chatId;
   }
 
