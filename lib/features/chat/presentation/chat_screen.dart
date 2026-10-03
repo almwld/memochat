@@ -324,11 +324,12 @@ class _ChatScreenState extends State<ChatScreen> {
       final folders = snapshot.data ?? const <ChatFolder>[];
       return SizedBox(height: 48, child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10), scrollDirection: Axis.horizontal,
-        itemCount: folders.length + 2, separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemCount: folders.length + 3, separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, index) {
           if (index == 0) return ChoiceChip(label: const Text('كل المحادثات'), selected: _activeFolder == null, onSelected: (_) => setState(() => _activeFolder = null));
           if (index == 1) return ActionChip(avatar: const Icon(Icons.tune, size: 17), label: const Text('المجلدات'), onPressed: _openFolders);
-          final folder = folders[index - 2];
+          if (index == 2) return FilterChip(avatar: const Icon(Icons.archive_outlined, size: 17), label: const Text('المؤرشفة'), selected: _showArchived, onSelected: (value) => setState(() => _showArchived = value));
+          final folder = folders[index - 3];
           return ChoiceChip(label: Text(folder.name), selected: _activeFolder?.id == folder.id, onSelected: (_) => setState(() => _activeFolder = folder));
         },
       ));
