@@ -352,7 +352,16 @@ app.post('/call-notification', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Receiver not found', requestId });
     }
     const receiver = receiverSnapshot.data() || {};
-    const fcmTokens = [...(Array.isArray(receiver.fcmTokens) ? receiver.fcmTokens : []), receiver.fcmToken]
+    // Canonical Flutter path: users/{uid}/private/tokens.tokens
+    // Keep root fields as a legacy compatibility fallback.
+    const tokenSnapshot = await db.collection('users').doc(receiverId)
+      .collection('private').doc('tokens').get();
+    const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
+    const fcmTokens = [
+      ...(Array.isArray(tokenData.tokens) ? tokenData.tokens : []),
+      ...(Array.isArray(receiver.fcmTokens) ? receiver.fcmTokens : []),
+      receiver.fcmToken,
+    ]
       .map((value) => String(value || '').trim())
       .filter(Boolean)
       .filter((value, index, all) => all.indexOf(value) === index);
@@ -534,12 +543,22 @@ async function handleNewMessage(change) {
         continue;
       }
       var user = userSnap.data() || {};
-      var fcmTokens = (Array.isArray(user.fcmTokens) ? user.fcmTokens : [])
+      // Canonical Flutter path: users/{uid}/private/tokens.tokens
+      // Keep root fields as a legacy compatibility fallback.
+      var tokenSnap = await db.collection('users').doc(receiverId)
+        .collection('private').doc('tokens').get();
+      var tokenData = tokenSnap.exists ? (tokenSnap.data() || {}) : {};
+      var fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
+        .concat(Array.isArray(user.fcmTokens) ? user.fcmTokens : [])
         .concat([user.fcmToken])
         .map(function(value) { return String(value || '').trim(); })
         .filter(Boolean)
         .filter(function(value, index, all) { return all.indexOf(value) === index; });
-      if (!fcmTokens.length) continue;
+      if (!fcmTokens.length) {
+        console.warn('[msg] no FCM token for receiver=' + receiverId +
+          ' (checked users/{uid}/private/tokens and legacy root fields)');
+        continue;
+      }
 
       for (var ti = 0; ti < fcmTokens.length; ti++) {
         var fcmToken = fcmTokens[ti];
