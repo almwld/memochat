@@ -9,6 +9,7 @@ import '../../../core/services/mini_app_state_service.dart';
 import '../../chat/services/livekit_service.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../communities/presentation/communities_screen.dart';
 
 class AdvancedHubScreen extends StatelessWidget {
   const AdvancedHubScreen({super.key});
@@ -17,6 +18,7 @@ class AdvancedHubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final liveItems = [
       ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded, const VoiceRoomsScreen(), const Color(0xFF0A8F83)),
+      ('المجتمعات', 'قنوات منظمة للنقاش، الأعضاء والمحتوى المشترك.', Icons.groups_rounded, const CommunitiesScreen(), const Color(0xFF1677C8)),
       ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded, const BusinessScreen(), const Color(0xFF7B4DFF)),
     ];
     final productivityItems = [
