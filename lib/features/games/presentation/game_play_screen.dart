@@ -10,6 +10,22 @@ import '../models/game_session.dart';
 import '../services/game_service.dart';
 import '../services/game_state_persistence.dart';
 import 'extended_games_body.dart';
+import 'games/xo_game.dart';
+import 'games/quiz_battle_game.dart';
+import 'games/emoji_reaction_game.dart';
+import 'games/dice_roll_game.dart';
+import 'games/draw_guess_game.dart';
+import 'games/word_chain_game.dart';
+import 'games/truth_dare_game.dart';
+import 'games/guess_song_game.dart';
+import 'games/memory_match_game.dart';
+import 'games/trivia_game.dart';
+import 'games/quick_tap_game.dart';
+import 'games/would_you_rather_game.dart';
+import 'games/speed_math_game.dart';
+import 'games/movie_quiz_game.dart';
+import 'games/sudoku_duel_game.dart';
+
 import '../../chat/services/chat_service.dart';
 
 class GamePlayScreen extends StatefulWidget {
@@ -235,21 +251,21 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
     }
     switch (widget.type) {
-      case GameType.xo: return _xoGame();
-      case GameType.quizBattle: return _quizGame();
-      case GameType.emojiReaction: return _reactionGame();
-      case GameType.diceRoll: return _diceGame();
-      case GameType.drawGuess: return _drawGame();
-      case GameType.wordChain: return _wordGame();
-      case GameType.truthDare: return _truthDareGame();
-      case GameType.guessSong: return _choiceGame('خمن الأغنية', ['🎵 أغنية عربية','🎸 أغنية روك','🎹 أغنية كلاسيكية','🥁 أغنية شعبية']);
-      case GameType.memoryMatch: return _memoryGame();
-      case GameType.trivia: return _choiceGame('Trivia Challenge', ['المحيط الهادئ','المريخ','الأمازون','جبال الألب']);
-      case GameType.quickTap: return _quickTapGame();
-      case GameType.wouldYouRather: return _choiceGame('ماذا تفضل؟', ['السفر عبر الزمن','قراءة الأفكار','الطيران','التنفس تحت الماء']);
-      case GameType.speedMath: return _speedMathGame();
-      case GameType.movieQuiz: return _choiceGame('Movie Quiz', ['Inception','Interstellar','Avatar','The Matrix']);
-      case GameType.sudokuDuel: return _sudokuGame();
+      case GameType.xo: return XoGame(key: ValueKey(widget.chatId));
+      case GameType.quizBattle: return QuizBattleGame(key: ValueKey(widget.chatId));
+      case GameType.emojiReaction: return EmojiReactionGame(key: ValueKey(widget.chatId));
+      case GameType.diceRoll: return DiceRollGame(key: ValueKey(widget.chatId));
+      case GameType.drawGuess: return DrawGuessGame(key: ValueKey(widget.chatId));
+      case GameType.wordChain: return WordChainGame(key: ValueKey(widget.chatId));
+      case GameType.truthDare: return TruthDareGame(key: ValueKey(widget.chatId));
+      case GameType.guessSong: return GuessSongGame(key: ValueKey(widget.chatId));
+      case GameType.memoryMatch: return MemoryMatchGame(key: ValueKey(widget.chatId));
+      case GameType.trivia: return TriviaGame(key: ValueKey(widget.chatId));
+      case GameType.quickTap: return QuickTapGame(key: ValueKey(widget.chatId));
+      case GameType.wouldYouRather: return WouldYouRatherGame(key: ValueKey(widget.chatId));
+      case GameType.speedMath: return SpeedMathGame(key: ValueKey(widget.chatId));
+      case GameType.movieQuiz: return MovieQuizGame(key: ValueKey(widget.chatId));
+      case GameType.sudokuDuel: return SudokuDuelGame(key: ValueKey(widget.chatId));
       default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
     }
   }
