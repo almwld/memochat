@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubble.dart';
+import 'package:memochat/features/chat/presentation/widgets/media_viewer.dart';
 
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
@@ -346,7 +347,15 @@ class _MessageBubbleState extends State<MessageBubble> {
     final local = _isLocal(path);
     final cleanPath = path.replaceFirst('file://', '');
     final image = local ? Image.file(File(cleanPath), fit: BoxFit.contain) : CachedNetworkImage(imageUrl: path, fit: BoxFit.contain);
-    return GestureDetector(onTap: () => showDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: InteractiveViewer(child: image))), child: ClipRRect(borderRadius: BorderRadius.circular(14), child: local ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover) : CachedNetworkImage(imageUrl: path, width: 230, height: 230, fit: BoxFit.cover, placeholder: (_, __) => const SizedBox(width: 230, height: 230, child: Center(child: CircularProgressIndicator(strokeWidth: 2))), errorWidget: (_, __, ___) => const SizedBox(width: 230, height: 230, child: Center(child: Icon(Icons.broken_image))))));
+    return GestureDetector(
+      onTap: () async {
+        if (!local && path.startsWith('http')) {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MediaViewer(mediaUrl: path, mediaType: 'image')));
+        } else if (mounted) {
+          await showDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: InteractiveViewer(child: image)));
+        }
+      },
+      child: ClipRRect(borderRadius: BorderRadius.circular(14), child: local ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover) : CachedNetworkImage(imageUrl: path, width: 230, height: 230, fit: BoxFit.cover, placeholder: (_, __) => const SizedBox(width: 230, height: 230, child: Center(child: CircularProgressIndicator(strokeWidth: 2))), errorWidget: (_, __, ___) => const SizedBox(width: 230, height: 230, child: Center(child: Icon(Icons.broken_image))))));
   }
 
   Widget _buildVideo(String path) {
