@@ -14,7 +14,7 @@ class MemoSignalSessionStore implements SessionStore {
 
   String _key(SignalProtocolAddress address) {
     final name = base64UrlEncode(utf8.encode(address.getName()));
-    return '$_prefix$name.\$\{address.getDeviceId()\}';
+    return '$_prefix$name.${address.getDeviceId()}';
   }
 
   @override
