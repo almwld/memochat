@@ -368,90 +368,132 @@ class _QuickGameChatBar extends StatefulWidget {
   State<_QuickGameChatBar> createState() => _QuickGameChatBarState();
 }
 
-class _QuickGameChatBarState extends State<_QuickGameChatBar> {
+class _QuickGameChatBarState extends State<_QuickGameChatBar>
+    with SingleTickerProviderStateMixin {
   bool _open = false;
   final TextEditingController _controller = TextEditingController();
+  late final AnimationController _animation =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
 
   @override
   void dispose() {
+    _animation.dispose();
     _controller.dispose();
     super.dispose();
   }
 
+  void _toggle() {
+    setState(() => _open = !_open);
+    if (_open) {
+      _animation.forward();
+    } else {
+      _controller.clear();
+      _animation.reverse();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-            boxShadow: const [
-              BoxShadow(blurRadius: 18, offset: Offset(0, 6), spreadRadius: 1),
-            ],
+    final scheme = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      ignoring: false,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) => Opacity(
+              opacity: .78 + (_animation.value * .22),
+              child: Transform.translate(
+                offset: Offset(0, 10 * (1 - _animation.value)),
+                child: child,
+              ),
+            ),
+            child: _open ? _inputBar(scheme) : _bubble(scheme),
           ),
-          child: _open
-              ? Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'إغلاق المحادثة السريعة',
-                      onPressed: () => setState(() {
-                        _open = false;
-                        _controller.clear();
-                      }),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        textDirection: TextDirection.rtl,
-                        textInputAction: TextInputAction.send,
-                        decoration: const InputDecoration(
-                          hintText: 'رسالة سريعة داخل اللعبة…',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        onSubmitted: (_) => _send(),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'إرسال',
-                      onPressed: _send,
-                      icon: const Icon(Icons.send_rounded),
-                    ),
-                  ],
-                )
-              : InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: () => setState(() => _open = true),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chat_bubble_outline_rounded, size: 20),
-                        SizedBox(width: 8),
-                        Text('محادثة سريعة'),
-                      ],
-                    ),
-                  ),
-                ),
         ),
       ),
     );
   }
 
+  Widget _bubble(ColorScheme scheme) => Material(
+        color: scheme.surface.withOpacity(.42),
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: _toggle,
+          child: Container(
+            height: 42,
+            width: 46,
+            decoration: BoxDecoration(
+              color: scheme.surface.withOpacity(.28),
+              shape: BoxShape.circle,
+              border: Border.all(color: scheme.onSurface.withOpacity(.16)),
+            ),
+            child: Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 20,
+              color: scheme.onSurface.withOpacity(.70),
+            ),
+          ),
+        ),
+      );
+
+  Widget _inputBar(ColorScheme scheme) => Material(
+        color: scheme.surface.withOpacity(.90),
+        elevation: 8,
+        borderRadius: BorderRadius.circular(26),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 430, minHeight: 52),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: scheme.outline.withOpacity(.22)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'إغلاق المحادثة السريعة',
+                onPressed: _toggle,
+                icon: const Icon(Icons.close_rounded),
+              ),
+              Expanded(
+                child: TextField(
+                  autofocus: true,
+                  controller: _controller,
+                  textDirection: TextDirection.rtl,
+                  textInputAction: TextInputAction.send,
+                  maxLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'رسالة سريعة…',
+                    hintStyle: TextStyle(color: scheme.onSurface.withOpacity(.52)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                  onSubmitted: (_) => _send(),
+                ),
+              ),
+              IconButton(
+                tooltip: 'إرسال',
+                onPressed: _send,
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ],
+          ),
+        ),
+      );
+
   void _send() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
+    FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text), duration: const Duration(milliseconds: 700)),
+      SnackBar(
+        content: Text(text),
+        duration: const Duration(milliseconds: 700),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }
