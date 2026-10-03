@@ -1,38 +1,1359 @@
-// ignore_for_file: prefer_interpolation_to_compose_strings
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../../../core/offline/pending_message_queue.dart';
-import '../../../core/media/nextcloud_media_service.dart';
-import '../../calls/presentation/call_screen.dart';
+import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
+import 'package:memochat/core/theme/app_colors.dart';
+import 'package:memochat/features/chat/models/message_model.dart';
+import 'package:memochat/features/chat/models/chat_model.dart';
+import 'package:memochat/features/chat/models/status_model.dart';
+import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
+import 'package:memochat/features/chat/services/chat_reply_context.dart';
+import 'package:memochat/features/chat/services/chat_service.dart';
+import 'package:memochat/features/chat/services/toast_service.dart';
+import 'package:memochat/features/chat/services/notification_service.dart';
+import 'package:memochat/features/chat/services/status_service.dart';
+import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
+import 'package:memochat/features/chat/presentation/call_screen.dart';
+import 'package:memochat/features/chat/presentation/message_search_screen.dart';
+import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
+import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
+import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
+import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
 
 class ChatRoomScreen extends StatefulWidget {
-  const ChatRoomScreen({super.key,required this.chatId,required this.otherUserId,required this.otherUserName,this.otherUserImage});
-  final String chatId,otherUserId,otherUserName; final String? otherUserImage;
-  @override State<ChatRoomScreen> createState()=>_ChatRoomScreenState();
+  final String chatId;
+  final String otherUserId;
+  final String otherUserName;
+  final String? otherUserImage;
+  final bool isGroup;
+  final String? groupImage;
+  final String? lastMessage;
+  const ChatRoomScreen(
+      {super.key,
+      required this.chatId,
+      required this.otherUserId,
+      required this.otherUserName,
+      this.otherUserImage,
+      this.isGroup = false,
+      this.groupImage,
+      this.lastMessage});
+  @override
+  State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
-class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObserver{
-  final _pending=PendingMessageQueue();
-  final _text=TextEditingController();final _scroll=ScrollController();final _db=FirebaseFirestore.instance;final _media=const NextcloudMediaService();Timer? _typingTimer;bool _typing=false,_uploading=false;Map<String,dynamic>? _reply;
-  String get _uid=>FirebaseAuth.instance.currentUser?.uid??'';
-  CollectionReference<Map<String,dynamic>> get _messages=>_db.collection('chats').doc(widget.chatId).collection('messages');
-  Future<void> _flushPending() async {await _pending.flush((message) async {final ref=_messages.doc(message.id);await ref.set({'chatId':widget.chatId,'senderId':_uid,'senderName':FirebaseAuth.instance.currentUser?.displayName??'مستخدم','text':message.text,'type':'text','status':'sent','timestamp':Timestamp.fromDate(message.createdAt),'clientTimestamp':message.createdAt.microsecondsSinceEpoch});});}
-  @override void initState(){super.initState();WidgetsBinding.instance.addObserver(this);_text.addListener(_onText);_flushPending();}
-  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)_flushPending();}
-  void _onText(){if(_text.text.isNotEmpty&&!_typing)_setTyping(true);_typingTimer?.cancel();_typingTimer=Timer(const Duration(seconds:2),()=>_setTyping(false));}
-  Future<void> _setTyping(bool value)async{if(_typing==value)return;if(mounted)setState(()=>_typing=value);try{await _db.collection('chats').doc(widget.chatId).set({'typing.$_uid':value},SetOptions(merge:true));}catch(_){}}
-  Future<void> _send()async{final text=_text.text.trim();if(text.isEmpty)return;final ref=_messages.doc();_text.clear();final data={'chatId':widget.chatId,'senderId':_uid,'senderName':FirebaseAuth.instance.currentUser?.displayName??'مستخدم','senderPhotoUrl':FirebaseAuth.instance.currentUser?.photoURL??'','text':text,'type':'text','status':'sent','isRead':false,'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'replyToId':_reply?['id'],'replyPreview':_reply};setState(()=>_reply=null);try{await ref.set(data);await _db.collection('chats').doc(widget.chatId).set({'lastMessage':text,'lastMessageSenderId':_uid,'updatedAt':FieldValue.serverTimestamp()},SetOptions(merge:true));}catch(_){await _pending.enqueue(PendingMessage(id:ref.id,conversationId:widget.chatId,text:text,createdAt:DateTime.now()));if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ الرسالة وستُرسل عند عودة الاتصال')));}}
-  Future<void> _pickFile()async{if(_uploading)return;final result=await FilePicker.platform.pickFiles(withData:true);if(result==null||result.files.isEmpty)return;final file=result.files.first;final bytes=file.bytes;if(bytes==null)return;final mime=_mime(file.extension);setState(()=>_uploading=true);try{final uploaded=await _media.upload(bytes:bytes,filename:file.name,mimeType:mime,chatId:widget.chatId);final ref=_messages.doc();final type=mime.startsWith('image/')?'image':mime.startsWith('video/')?'video':mime.startsWith('audio/')?'audio':'file';await ref.set({'chatId':widget.chatId,'senderId':_uid,'senderName':FirebaseAuth.instance.currentUser?.displayName??'مستخدم','text':type=='file'?file.name:'','type':type,'status':'sent','timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'fileUrl':uploaded.url,'fileName':file.name,'fileMimeType':mime,'fileSize':bytes.length,'isRead':false});await _db.collection('chats').doc(widget.chatId).set({'lastMessage':type=='image'?'📷 صورة':type=='video'?'🎬 فيديو':type=='audio'?'🎤 صوت':'📎 '+file.name,'lastMessageSenderId':_uid,'updatedAt':FieldValue.serverTimestamp()},SetOptions(merge:true));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('فشل الرفع: $e')));}finally{if(mounted)setState(()=>_uploading=false);}}
-  String _mime(String? ext){switch((ext??'').toLowerCase()){case 'jpg':case 'jpeg':return 'image/jpeg';case 'png':return 'image/png';case 'webp':return 'image/webp';case 'mp4':return 'video/mp4';case 'mov':return 'video/quicktime';case 'mp3':return 'audio/mpeg';case 'm4a':return 'audio/mp4';default:return 'application/octet-stream';}}
-  void _call(bool video)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>CallScreen(chatId:widget.chatId,otherUserId:widget.otherUserId,otherUserName:widget.otherUserName,otherUserImage:widget.otherUserImage,isVideo:video)));
-  @override void dispose(){WidgetsBinding.instance.removeObserver(this);_typingTimer?.cancel();_text.dispose();_scroll.dispose();super.dispose();}
-  @override Widget build(BuildContext context){final dark=Theme.of(context).brightness==Brightness.dark;return Scaffold(backgroundColor:dark?const Color(0xFF0B1121):const Color(0xFFF4F7F7),appBar:AppBar(backgroundColor:const Color(0xFF0A8F83),foregroundColor:Colors.white,titleSpacing:0,title:Row(children:[CircleAvatar(radius:21,backgroundImage:widget.otherUserImage?.isNotEmpty==true?NetworkImage(widget.otherUserImage!):null,child:widget.otherUserImage?.isNotEmpty==true?null:const Icon(Icons.person)),const SizedBox(width:10),Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(widget.otherUserName,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w700)),_statusText()])]),actions:[IconButton(onPressed:()=>_call(false),icon:const Icon(Icons.call_outlined)),IconButton(onPressed:()=>_call(true),icon:const Icon(Icons.videocam_outlined))]),body:Column(children:[Expanded(child:_messagesView(dark)),_composer(dark)]));}
-  Widget _statusText()=>StreamBuilder<DocumentSnapshot<Map<String,dynamic>>>(stream:_db.collection('users').doc(widget.otherUserId).snapshots(),builder:(context,s){final d=s.data?.data()??{};return Text(d['isOnline']==true?'متصل الآن':'غير متصل',style:const TextStyle(fontSize:11,color:Colors.white70));});
-  Widget _messagesView(bool dark)=>StreamBuilder<QuerySnapshot<Map<String,dynamic>>>(stream:_messages.orderBy('timestamp',descending:true).limit(200).snapshots(),builder:(context,s){if(s.hasError)return Center(child:Text('تعذر تحميل الرسائل: '+s.error.toString()));if(!s.hasData)return const Center(child:CircularProgressIndicator(color:Color(0xFF0A8F83)));final docs=s.data!.docs;if(_uid.isNotEmpty){for(final doc in docs){final d=doc.data();if(d['senderId']!=_uid&&d['status']!='read'){doc.reference.update({'status':'read','readAt':FieldValue.serverTimestamp()}).catchError((_){ });}}}return ListView.builder(controller:_scroll,padding:const EdgeInsets.fromLTRB(12,16,12,12),reverse:true,itemCount:docs.length,itemBuilder:(context,i)=>_bubble(docs[i],dark));});
-  Widget _bubble(DocumentSnapshot<Map<String,dynamic>> doc,bool dark){final d=doc.data()??{};final mine=d['senderId']==_uid;final type=d['type']?.toString()??'text';final url=d['fileUrl']?.toString();return GestureDetector(onLongPress:()=>setState(()=>_reply={'id':doc.id,'senderName':d['senderName']??'مستخدم','text':d['text']??'مرفق'}),child:Align(alignment:mine?AlignmentDirectional.centerEnd:AlignmentDirectional.centerStart,child:Container(constraints:const BoxConstraints(maxWidth:320),margin:const EdgeInsets.only(bottom:6),padding:const EdgeInsets.symmetric(horizontal:13,vertical:9),decoration:BoxDecoration(color:mine?const Color(0xFF0A8F83):(dark?const Color(0xFF162039):Colors.white),borderRadius:BorderRadius.only(topLeft:const Radius.circular(18),topRight:const Radius.circular(18),bottomLeft:Radius.circular(mine?18:4),bottomRight:Radius.circular(mine?4:18))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[if(d['replyPreview'] is Map)_replyBox(d,mine),if(type=='image'&&url!=null)ClipRRect(borderRadius:BorderRadius.circular(14),child:Image.network(url,width:260,height:220,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.broken_image,color:Colors.white70,size:48))),if(type=='video'||type=='audio'||type=='file')ListTile(contentPadding:EdgeInsets.zero,leading:Icon(type=='video'?Icons.play_circle_fill:type=='audio'?Icons.audiotrack:Icons.insert_drive_file,color:mine?Colors.white:const Color(0xFF0A8F83),size:36),title:Text(d['fileName']?.toString()??d['text']?.toString()??'مرفق',maxLines:2,overflow:TextOverflow.ellipsis,style:TextStyle(color:mine?Colors.white:(dark?Colors.white:Colors.black87))),onTap:()=>showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('رابط الوسائط'),content:SelectableText(url??'')))),if(type=='text')Text(d['text']?.toString()??'',style:TextStyle(color:mine?Colors.white:(dark?Colors.white:Colors.black87),fontSize:15)),const SizedBox(height:3),Row(mainAxisSize:MainAxisSize.min,children:[Text(_time(d['timestamp']),style:TextStyle(color:mine?Colors.white60:Colors.grey,fontSize:10)),if(mine)Padding(padding:const EdgeInsetsDirectional.only(start:5),child:Icon(d['status']=='read'?Icons.done_all:Icons.done,size:15,color:d['status']=='read'?Colors.lightBlueAccent:Colors.white70))])]))));}
-  Widget _replyBox(Map<String,dynamic>d,bool mine){final r=d['replyPreview'] as Map;return Container(margin:const EdgeInsets.only(bottom:6),padding:const EdgeInsets.all(7),decoration:BoxDecoration(color:Colors.black12,borderRadius:BorderRadius.circular(9)),child:Text(r['text']?.toString()??'',maxLines:2,overflow:TextOverflow.ellipsis,style:TextStyle(color:mine?Colors.white70:Colors.black54,fontSize:11)));}
-  String _time(dynamic value){if(value is Timestamp){final x=value.toDate();return x.hour.toString().padLeft(2,'0')+':'+x.minute.toString().padLeft(2,'0');}return '';}
-  Widget _composer(bool dark)=>SafeArea(top:false,child:Column(children:[if(_reply!=null)Container(margin:const EdgeInsets.fromLTRB(10,4,10,0),padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:dark?const Color(0xFF162039):Colors.white,borderRadius:BorderRadius.circular(14)),child:Row(children:[const Icon(Icons.reply,color:Color(0xFF0A8F83)),const SizedBox(width:8),Expanded(child:Text(_reply?['text']?.toString()??'')),IconButton(onPressed:()=>setState(()=>_reply=null),icon:const Icon(Icons.close))])),Padding(padding:const EdgeInsets.fromLTRB(8,6,8,8),child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[IconButton(onPressed:_pickFile,icon:_uploading?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.add_circle_outline,color:Color(0xFF0A8F83))),Expanded(child:TextField(controller:_text,minLines:1,maxLines:5,textDirection:TextDirection.rtl,decoration:InputDecoration(hintText:'اكتب رسالة...',filled:true,fillColor:dark?const Color(0xFF162039):Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none),contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:11)))),const SizedBox(width:5),IconButton.filled(onPressed:_send,style:IconButton.styleFrom(backgroundColor:const Color(0xFF0A8F83)),icon:const Icon(Icons.send_rounded))]))]));
+
+class _SwipeToReply extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onReply;
+  const _SwipeToReply({required this.child, required this.onReply});
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply> {
+  static const double _triggerDistance = 64;
+  double _dx = 0;
+
+  void _reset() {
+    if (mounted) setState(() => _dx = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final distance = _dx.abs();
+    final progress = (distance / _triggerDistance).clamp(0.0, 1.0);
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final iconAlignment = _dx >= 0
+        ? AlignmentDirectional.centerStart
+        : AlignmentDirectional.centerEnd;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        PositionedDirectional(
+          start: isRtl ? null : 4,
+          end: isRtl ? 4 : null,
+          top: 0,
+          bottom: 0,
+          child: Align(
+            alignment: iconAlignment,
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: .75 + (.25 * progress),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(Icons.reply_rounded,
+                        size: 18, color: AppColors.primary),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Transform.translate(
+          offset: Offset(_dx, 0),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragUpdate: (details) {
+              final next = (_dx + details.delta.dx).clamp(-96.0, 96.0);
+              setState(() => _dx = next);
+            },
+            onHorizontalDragEnd: (_) {
+              if (_dx.abs() >= _triggerDistance) {
+                widget.onReply();
+              }
+              _reset();
+            },
+            onHorizontalDragCancel: _reset,
+            child: widget.child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) {
+    final value = name.trim();
+    final initial = value.isEmpty ? 'م' : value.characters.first;
+    return Container(
+      color: AppColors.primary.withOpacity(.12),
+      alignment: Alignment.center,
+      child: Text(initial, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
+class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObserver {
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  final _chat = ChatService();
+  final _statusService = StatusService();
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _chatSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  Timer? _pendingRefreshTimer;
+  Timer? _typingClearTimer;
+  Timer? _roomLoadTimer;
+  bool _otherTyping = false;
+  List<MessageModel> _messages = [];
+  final List<Map<String, dynamic>> _localMedia = [];
+  final Set<String> _knownMessageIds = <String>{};
+  final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
+  final ScrollController _scrollController = ScrollController();
+  bool _showNewMessages = false;
+  bool _loadingMoreMessages = false;
+  DocumentSnapshot<Object?>? _oldestMessageDocument;
+  bool _hasMoreMessages = false;
+  final List<MessageModel> _olderMessages = <MessageModel>[];
+  Set<String> _newMessageIds = <String>{};
+  bool _hasInitialMessageSnapshot = false;
+  bool _loading = true;
+  String? _loadError;
+  bool _online = false;
+  DateTime? _lastSeen;
+  bool _muted = false;
+  bool _pinned = false;
+  MessageModel? _replyingTo;
+  CollectionReference<Map<String, dynamic>> get _messagesRef =>
+      _firestore.collection('chats').doc(widget.chatId).collection('messages');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scrollController.addListener(_onChatScroll);
+    _initializeRoom();
+    _loadPendingMedia();
+    
+    unawaited(NotificationService().cancelChatNotifications(widget.chatId));
+    _markRead();
+  }
+
+  Future<void> _setTyping(bool typing) async {
+    _typingClearTimer?.cancel();
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty || widget.chatId.isEmpty) return;
+    try {
+      await _firestore.collection('chats').doc(widget.chatId).set({
+        'typing.$uid': typing,
+        'typingUpdatedAt.$uid': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (typing) {
+        _typingClearTimer = Timer(const Duration(seconds: 4), () => unawaited(_setTyping(false)));
+      }
+    } catch (e) {
+      debugPrint('typing update failed: $e');
+    }
+  }
+
+  Future<void> _loadPendingMedia() async {
+    try {
+      final jobs =
+          await ChatMediaTransferService.instance.pendingForChat(widget.chatId);
+      if (!mounted) return;
+      final pending = jobs.map(_pendingMap).toList();
+      // Keep optimistic media visible until its Firestore message is observed.
+      // The outbox can become sent before the messages listener receives the
+      // new snapshot; clearing it here makes media disappear and reappear.
+      final pendingIds = pending
+          .map((m) => m['outboxId']?.toString())
+          .whereType<String>()
+          .toSet();
+      final retained = _localMedia.where((m) {
+        final id = m['outboxId']?.toString();
+        return id != null && !pendingIds.contains(id);
+      }).toList();
+      setState(() {
+        _localMedia
+          ..clear()
+          ..addAll(retained)
+          ..addAll(pending);
+      });
+      _pendingRefreshTimer?.cancel();
+      if (pending.isNotEmpty) {
+        _pendingRefreshTimer = Timer.periodic(
+          const Duration(milliseconds: 800),
+          (_) async {
+            if (!mounted) return;
+            final jobs =
+                await ChatMediaTransferService.instance.pendingForChat(widget.chatId);
+            if (!mounted) return;
+            if (jobs.isEmpty) {
+              _pendingRefreshTimer?.cancel();
+              _pendingRefreshTimer = null;
+              await _loadPendingMedia();
+            } else {
+              await _loadPendingMedia();
+            }
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('pending media load: $e');
+    }
+  }
+
+  Map<String, dynamic> _pendingMap(Map<String, dynamic> job) {
+    final type = job['type']?.toString() ?? 'file';
+    final local = job['local_path']?.toString() ?? '';
+    final status = job['status']?.toString() ?? 'queued';
+    final progress = (job['progress'] as num?)?.toDouble() ?? 0.0;
+    final uploadStatus = status == 'retry'
+        ? 'failed'
+        : status == 'queued'
+            ? 'pending'
+            : 'uploading';
+    return {
+      'id': job['id'],
+      'chatId': widget.chatId,
+      'senderId': _auth.currentUser?.uid ?? 'local',
+      'senderName': _auth.currentUser?.displayName ?? 'مستخدم',
+      'type': type,
+      'text': job['preview']?.toString() ?? 'مرفق',
+      'imageUrl': type == 'image' ? local : null,
+      'videoUrl': type == 'video' ? local : null,
+      'audioUrl': type == 'audio' ? local : null,
+      'fileUrl': type == 'file' ? local : null,
+      'fileName': job['file_name'],
+      'fileSize': job['file_size'],
+      'fileMimeType': job['mime_type'],
+      'audioDuration': job['audio_duration'],
+      'isLocal': true,
+      'isSending': status != 'retry',
+      'isUploading':
+          status == 'uploading' || status == 'queued' || status == 'retry',
+      'hasError': status == 'retry',
+      'uploadStatus': uploadStatus,
+      'uploadProgress': progress,
+      'outboxId': job['id'],
+      'timestamp': job['created_at'] ?? DateTime.now().toIso8601String(),
+      'onRetry': () async {
+        await ChatMediaTransferService.instance.retry(job['id'].toString());
+        if (mounted) await _loadPendingMedia();
+      },
+      'onCancel': () async {
+        await ChatMediaTransferService.instance.cancel(job['id'].toString());
+        if (mounted) await _loadPendingMedia();
+      },
+    };
+  }
+
+  void _addLocalMedia(Map<String, dynamic> media) {
+    if (!mounted) return;
+    setState(() {
+      _localMedia.removeWhere((m) => m['outboxId'] == media['outboxId']);
+      _localMedia.add(media);
+    });
+    unawaited(_loadPendingMedia());
+  }
+
+  bool _hiddenForCurrentUser(Map<String, dynamic> data) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+    final deletedFor = data['deletedFor'];
+    return deletedFor is Map && deletedFor[uid] == true;
+  }
+
+  Future<void> _initializeRoom() async {
+    _roomLoadTimer?.cancel();
+    _roomLoadTimer = Timer(const Duration(seconds: 15), () {
+      if (!mounted || !_loading) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'استغرق تجهيز المحادثة وقتاً أطول من المتوقع. تحقق من اتصال Firebase ثم أعد المحاولة.';
+      });
+    });
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      if (mounted) setState(() { _loading = false; _loadError = 'يجب تسجيل الدخول لفتح المحادثة.'; });
+      return;
+    }
+    if (widget.chatId.trim().isEmpty || widget.otherUserId.trim().isEmpty || widget.otherUserId == uid) {
+      if (mounted) setState(() { _loading = false; _loadError = 'بيانات المحادثة غير صالحة.'; });
+      return;
+    }
+    try {
+      final ref = _firestore.collection('chats').doc(widget.chatId);
+      final snapshot = await ref.get();
+      if (snapshot.exists) {
+        final data = snapshot.data() ?? <String, dynamic>{};
+        final participants = (data['participants'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+        if (!participants.contains(uid)) {
+          if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
+          return;
+        }
+        _listen();
+        return;
+      }
+
+      // Some legacy entry points can provide a stale/in-memory conversation id.
+      // Re-create the canonical Firebase chat and replace the stale route.
+      final newChatId = await _chat.createChat(
+        userId: widget.otherUserId,
+        userName: widget.otherUserName.trim().isEmpty ? 'مستخدم' : widget.otherUserName.trim(),
+        currentUserName: _auth.currentUser?.displayName?.trim().isNotEmpty == true
+            ? _auth.currentUser!.displayName!.trim()
+            : 'مستخدم MemoChat',
+        userImage: widget.otherUserImage ?? widget.groupImage,
+        currentUserImage: _auth.currentUser?.photoURL,
+      );
+      if (!mounted) return;
+      if (newChatId != widget.chatId) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (_) => ChatRoomScreen(
+            chatId: newChatId,
+            otherUserId: widget.otherUserId,
+            otherUserName: widget.otherUserName,
+            otherUserImage: widget.otherUserImage,
+            isGroup: widget.isGroup,
+            groupImage: widget.groupImage,
+            lastMessage: widget.lastMessage,
+          ),
+        ));
+        return;
+      }
+      _listen();
+    } catch (e) {
+      debugPrint('chat room initialization failed: $e');
+      if (mounted) setState(() { _loading = false; _loadError = 'تعذر تجهيز المحادثة حالياً. تحقق من الاتصال ثم حاول مرة أخرى.'; });
+    }
+  }
+
+  void _listen() {
+    _roomLoadTimer?.cancel();
+    _chatSub = _firestore
+        .collection('chats')
+        .doc(widget.chatId)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted) return;
+      if (!snapshot.exists) {
+        setState(() { _loading = false; _loadError ??= 'المحادثة غير موجودة.'; });
+        return;
+      }
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final uid = _auth.currentUser?.uid;
+      final mutedFor = data['mutedFor'];
+      final pinnedFor = data['pinnedFor'];
+      final typing = data['typing'];
+      final otherId = widget.otherUserId;
+      final otherTyping = typing is Map && typing[otherId] == true;
+      if (mounted && _otherTyping != otherTyping)
+        setState(() => _otherTyping = otherTyping);
+      setState(() {
+        _muted = mutedFor is Map && mutedFor[uid] == true
+            ? true
+            : data['isMuted'] == true && mutedFor is! Map;
+        _pinned = pinnedFor is Map && pinnedFor[uid] == true
+            ? true
+            : data['isPinned'] == true && pinnedFor is! Map;
+      });
+    });
+    _userSub = _firestore
+        .collection('users')
+        .doc(widget.otherUserId)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        final data = snapshot.data() ?? <String, dynamic>{};
+        final rawLastSeen = data['lastSeen'];
+        final lastSeen = rawLastSeen is Timestamp ? rawLastSeen.toDate() : (rawLastSeen is DateTime ? rawLastSeen : null);
+        setState(() { _online = data['isOnline'] == true; _lastSeen = lastSeen; });
+      }
+    });
+    _messagesSub = _messagesRef
+        .orderBy('timestamp', descending: true)
+        .limit(100)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted) return;
+      _roomLoadTimer?.cancel();
+      _oldestMessageDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : _oldestMessageDocument;
+      _hasMoreMessages = snapshot.docs.length >= 100;
+      final liveMessages = <MessageModel>[];
+      for (final doc in snapshot.docs) {
+        try {
+          final message = MessageModel.fromFirestore(doc.id, doc.data());
+          if (!_hiddenForCurrentUser(message.toFirestore())) {
+            liveMessages.add(message);
+          }
+        } catch (error, stackTrace) {
+          // One malformed legacy message must never blank the whole room.
+          debugPrint('Skipping malformed message ${doc.id}: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+      final liveIds = liveMessages.map((m) => m.id).toSet();
+      final messages = <MessageModel>[...liveMessages, ..._olderMessages.where((m) => !liveIds.contains(m.id))];
+      messages.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
+      final remoteIds = messages.map((m) => m.id).toSet();
+      final remoteMediaKeys = messages
+          .map((m) => m.idempotencyKey)
+          .whereType<String>()
+          .where((key) => key.startsWith('media_'))
+          .map((key) => key.substring('media_'.length))
+          .toSet();
+      final currentIds = remoteIds;
+      final newIds = _hasInitialMessageSnapshot
+          ? currentIds.difference(_knownMessageIds)
+          : <String>{};
+      _knownMessageIds
+        ..clear()
+        ..addAll(currentIds);
+      _newMessageIds = newIds;
+      _hasInitialMessageSnapshot = true;
+      final wasAwayFromLatest = _scrollController.hasClients && _scrollController.position.pixels > 140;
+      setState(() {
+        // Optimistic and canonical text messages use the exact same Firestore
+        // document ID, so the snapshot replaces the local bubble atomically.
+        _messages = messages;
+        _localMedia.removeWhere((m) {
+          final outboxId = m['outboxId']?.toString();
+          return remoteIds.contains(m['id']) ||
+              (outboxId != null && remoteMediaKeys.contains(outboxId));
+        });
+        _loading = false;
+        if (!wasAwayFromLatest) _showNewMessages = false;
+        else if (newIds.isNotEmpty) _showNewMessages = true;
+      });
+      if (newIds.isNotEmpty && !wasAwayFromLatest) WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
+      unawaited(_markDeliveryAndRead());
+      unawaited(_loadPendingMedia());
+    }, onError: (error) {
+      debugPrint('chat stream: $error');
+      if (mounted) setState(() { _loading = false; _loadError = error.toString(); });
+    });
+  }
+
+  DateTime _messageTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is num) {
+      final n = value.toInt();
+      return DateTime.fromMillisecondsSinceEpoch(
+          n > 100000000000 ? n : n * 1000);
+    }
+    if (value is String)
+      return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  Future<void> _forwardMessage(MessageModel message) async {
+    if (message.id.isEmpty) return;
+    try {
+      final chats = await _chat.streamChats(limit: 100).first;
+      if (!mounted) return;
+      final destinations = chats.where((chat) => chat.id != widget.chatId).toList();
+      if (destinations.isEmpty) {
+        ToastService.showInfo('لا توجد محادثات أخرى لإعادة التوجيه إليها.');
+        return;
+      }
+      final selected = await showModalBottomSheet<ChatModel>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (context) {
+          final query = ValueNotifier<String>('');
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .72,
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 10),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text('إعادة توجيه إلى', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      onChanged: (value) => query.value = value.trim().toLowerCase(),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'ابحث عن محادثة...',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ValueListenableBuilder<String>(
+                      valueListenable: query,
+                      builder: (_, value, __) {
+                        final filtered = destinations.where((chat) {
+                          final name = chat.getDisplayName(_auth.currentUser?.uid ?? '');
+                          return value.isEmpty || name.toLowerCase().contains(value);
+                        }).toList();
+                        return ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 4),
+                          itemBuilder: (_, index) {
+                            final chat = filtered[index];
+                            final name = chat.getDisplayName(_auth.currentUser?.uid ?? '');
+                            final photo = chat.getDisplayPhoto(_auth.currentUser?.uid ?? '');
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: photo.trim().isEmpty ? null : NetworkImage(photo.trim()),
+                                child: photo.trim().isEmpty ? Text(name.isEmpty ? 'م' : name.characters.first) : null,
+                              ),
+                              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                              subtitle: chat.isGroup ? const Text('مجموعة') : null,
+                              trailing: const Icon(Icons.arrow_back_rounded),
+                              onTap: () => Navigator.pop(context, chat),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      if (selected == null || !mounted) return;
+      await _chat.forwardMessage(
+        sourceChatId: widget.chatId,
+        messageId: message.id,
+        destinationChatId: selected.id,
+      );
+      if (mounted) ToastService.showSuccess('تمت إعادة توجيه الرسالة');
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر إعادة توجيه الرسالة: $e');
+    }
+  }
+
+  Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(widget.chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
+
+  Future<void> _markRead() async {
+    try {
+      await _chat.markAsRead(widget.chatId);
+    } catch (error) {
+      debugPrint('mark read: $error');
+    }
+  }
+
+  String _lastSeenLabel() {
+    final value = _lastSeen;
+    if (value == null) return 'غير متصل';
+    final now = DateTime.now();
+    final diff = now.difference(value);
+    if (diff.inMinutes < 1) return 'آخر ظهور منذ لحظات';
+    if (diff.inMinutes < 60) return 'آخر ظهور منذ ${diff.inMinutes} د';
+    if (diff.inHours < 24) return 'آخر ظهور منذ ${diff.inHours} س';
+    if (diff.inDays < 7) return 'آخر ظهور منذ ${diff.inDays} يوم';
+    return 'آخر ظهور ${value.day.toString().padLeft(2,'0')}/${value.month.toString().padLeft(2,'0')}';
+  }
+
+  void _call(bool video) {
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+        builder: (_) => CallScreen(
+            chatId: widget.chatId,
+            userName: widget.otherUserName,
+            userId: widget.otherUserId,
+            userImage: widget.otherUserImage ?? widget.groupImage,
+            isVideo: video,
+            isOutgoing: true)));
+  }
+
+  void _profile() {
+    if (widget.otherUserName.trim().isEmpty) return;
+    showModalBottomSheet<void>(context: context, builder: (_) => ListTile(title: Text(widget.otherUserName), subtitle: Text(widget.otherUserId), leading: CircleAvatar(backgroundImage: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? NetworkImage((widget.otherUserImage ?? widget.groupImage)!) : null, child: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? null : const Icon(Icons.person_rounded))));
+  }
+
+  Future<void> _openOtherUserStatus(UserStatusModel status) async { if (!mounted || status.stories.isEmpty) return; await Navigator.push(context, MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))); }
+
+  void _onChatScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels > 140 && !_showNewMessages && mounted) {
+      setState(() => _showNewMessages = true);
+    } else if (_scrollController.position.pixels <= 40 && _showNewMessages && mounted) {
+      setState(() => _showNewMessages = false);
+    }
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 180 &&
+        !_loadingMoreMessages && _hasMoreMessages) {
+      unawaited(_loadOlderMessages());
+    }
+  }
+
+  Future<void> _jumpToMessage(String id) async {
+    if (id.isEmpty) return;
+
+    // First try the currently rendered timeline.
+    final key = _messageKeys[id];
+    final target = key?.currentContext;
+    if (target != null) {
+      await Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+        alignment: .45,
+      );
+      return;
+    }
+
+    // A reply can point to an older message that is outside the current
+    // pagination window. Load that exact Firestore document instead of
+    // reporting that the message does not exist.
+    try {
+      final snap = await _firestore
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc(id)
+          .get();
+
+      if (!snap.exists || snap.data() == null) {
+        if (mounted) ToastService.showError('تعذر العثور على الرسالة الأصلية.');
+        return;
+      }
+
+      final loaded = MessageModel.fromFirestore(snap.id, snap.data()!);
+      if (!mounted) return;
+
+      setState(() {
+        if (!_messages.any((m) => m.id == loaded.id)) {
+          _messages = <MessageModel>[..._messages, loaded]
+            ..sort((a, b) => (b.timestamp ?? b.clientTimestamp ?? Timestamp(0, 0))
+                .compareTo(a.timestamp ?? a.clientTimestamp ?? Timestamp(0, 0)));
+        }
+        _knownMessageIds.add(loaded.id);
+      });
+
+      // The list is reversed; wait for the newly inserted target to be
+      // laid out, then reveal it.
+      await WidgetsBinding.instance.endOfFrame;
+      final loadedKey = _messageKeys.putIfAbsent(id, GlobalKey.new);
+      final loadedContext = loadedKey.currentContext;
+      if (loadedContext != null) {
+        await Scrollable.ensureVisible(
+          loadedContext,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+          alignment: .45,
+        );
+      } else if (mounted) {
+        ToastService.showInfo('تم العثور على الرسالة الأصلية، مرر المحادثة للوصول إليها.');
+      }
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر فتح الرسالة الأصلية.');
+    }
+  }
+
+  void _scrollToLatest() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+    if (mounted) setState(() => _showNewMessages = false);
+  }
+
+  void _optimisticallyAddTextMessage(
+    String text, {
+    Timestamp? clientTimestamp,
+    String? replyToId,
+    Map<String, dynamic>? replyPreview,
+  }) {
+    final value = text.trim();
+    final uid = _auth.currentUser?.uid;
+    if (!mounted || value.isEmpty || uid == null) return;
+
+    final now = clientTimestamp ?? Timestamp.now();
+    final optimisticId = 'msg_${now.microsecondsSinceEpoch}';
+
+    setState(() {
+      // Render the newly sent text immediately. The Firestore listener will
+      // replace this optimistic item with the canonical server message.
+      _messages = <MessageModel>[
+        MessageModel(
+          id: optimisticId,
+          chatId: widget.chatId,
+          senderId: uid,
+          senderName: _auth.currentUser?.displayName ?? 'مستخدم',
+          senderPhotoUrl: _auth.currentUser?.photoURL,
+          text: value,
+          type: MessageType.text,
+          timestamp: now,
+          clientTimestamp: now,
+          isRead: false,
+          isDelivered: false,
+          status: MessageStatus.sending,
+          replyToId: replyToId,
+          replyPreview: replyPreview,
+        ),
+        ..._messages.where((message) => message.id != optimisticId),
+      ];
+      _knownMessageIds.add(optimisticId);
+      _newMessageIds = <String>{optimisticId};
+      _showNewMessages = false;
+    });
+
+    // The ListView is reversed, so offset 0 is the newest message.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_loadingMoreMessages || !_hasMoreMessages || _oldestMessageDocument == null) return;
+    setState(() => _loadingMoreMessages = true);
+    try {
+      final page = await _chat.getMoreMessages(chatId: widget.chatId, limit: 30, startAfter: _oldestMessageDocument);
+      if (!mounted) return;
+      final existing = _messages.map((m) => m.id).toSet();
+      final merged = <MessageModel>[..._messages];
+      for (final m in page.messages) {
+        if (!existing.contains(m.id)) merged.add(m);
+      }
+      merged.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
+      setState(() {
+        final knownOlder = _olderMessages.map((m) => m.id).toSet();
+        _olderMessages.addAll(page.messages.where((m) => !knownOlder.contains(m.id)));
+        _messages = merged;
+        _oldestMessageDocument = page.lastDocument ?? _oldestMessageDocument;
+        _hasMoreMessages = page.hasMore;
+        _loadingMoreMessages = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _loadingMoreMessages = false);
+      debugPrint('load older messages: $e');
+    }
+  }
+
+  Future<void> _searchMessages() async {
+    final id = await Navigator.of(context).push<String>(MaterialPageRoute(
+        builder: (_) => MessageSearchScreen(chatId: widget.chatId)));
+    if (!mounted || id == null || id.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final key = _messageKeys[id];
+      final target = key?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 350), curve: Curves.easeOut, alignment: .45);
+      }
+    });
+  }
+
+  Future<void> _toggleMute() async {
+    try {
+      await _chat.muteChat(widget.chatId, !_muted);
+    } catch (e) {
+      debugPrint('mute chat: $e');
+    }
+  }
+
+  Future<void> _deleteChatForMe() async { try { await _chat.deleteChat(widget.chatId); if(mounted)Navigator.of(context).pop(); } catch(e){debugPrint('delete chat: $e');} }
+
+  Future<void> _togglePin() async {
+    try {
+      await _chat.pinChat(widget.chatId, !_pinned);
+    } catch (e) {
+      debugPrint('pin chat: $e');
+    }
+  }
+
+  Future<void> _toggleMessagePin(MessageModel message) async { try { await _chat.pinMessage(widget.chatId, message.id, !message.isPinned); } catch (e) { debugPrint('pin message: $e'); } }
+
+  Future<void> _deleteMessageForMe(MessageModel message) async { try { await _chat.deleteMessageForMe(widget.chatId, message.id); } catch (e) { debugPrint('delete message for me: $e'); } }
+  Future<void> _editMessage(MessageModel message) async {
+    final controller=TextEditingController(text: message.text ?? '');
+    final result=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('تعديل الرسالة'),
+      content:TextField(controller:controller,maxLines:5,autofocus:true,decoration:const InputDecoration(hintText:'نص الرسالة')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,controller.text.trim()),child:const Text('حفظ'))]));
+    controller.dispose();
+    if(result==null||result.isEmpty||result==message.text?.trim())return;
+    try{await _chat.editMessage(widget.chatId,message.id,result);}catch(e){if(mounted)ToastService.showError('تعذر تعديل الرسالة.');debugPrint('edit message: $e');}
+  }
+  Future<void> _confirmDeleteMessage(MessageModel message) async {
+    final all=message.senderId==_auth.currentUser?.uid;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text(all?'حذف الرسالة؟':'حذف الرسالة لديك؟'),
+      content:Text(all?'سيتم حذف الرسالة لدى جميع المشاركين.':'سيتم إخفاء الرسالة لديك فقط.'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))]));
+    if(ok!=true)return;
+    if(all)await _deleteMessage(message);else await _deleteMessageForMe(message);
+  }
+  Future<void> _showPinnedMessages() async {
+    try{
+      final items=await _chat.getPinnedMessages(widget.chatId);
+      if(!mounted)return;
+      showModalBottomSheet<void>(context:context,isScrollControlled:true,builder:(ctx)=>SafeArea(child:SizedBox(
+        height:MediaQuery.of(ctx).size.height*.55,
+        child:Column(children:[
+          const Padding(padding:EdgeInsets.all(16),child:Text('الرسائل المثبتة',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800))),
+          Expanded(child:items.isEmpty?const Center(child:Text('لا توجد رسائل مثبتة')):ListView.separated(
+            itemCount:items.length,separatorBuilder:(_,__)=>const Divider(height:1),
+            itemBuilder:(_,i){final m=items[i];return ListTile(
+              leading:const Icon(Icons.push_pin_outlined,color:AppColors.primary),
+              title:Text(m.text?.isNotEmpty==true?m.text!:'مرفق',maxLines:2,overflow:TextOverflow.ellipsis),
+              subtitle:Text(m.senderName),onTap:()=>Navigator.pop(ctx));}))
+        ]))));
+    }catch(e){if(mounted)ToastService.showError('تعذر تحميل الرسائل المثبتة.');debugPrint('pinned messages: $e');}
+  }
+
+  Future<void> _deleteMessage(MessageModel message) async {
+    if (message.senderId != _auth.currentUser?.uid) return;
+    try {
+      await _chat.deleteMessage(widget.chatId, message.id);
+    } catch (e) {
+      debugPrint('delete message: $e');
+    }
+  }
+
+  void _startReply(MessageModel message) {
+    setState(() => _replyingTo = message);
+    ChatReplyContext.instance.set(widget.chatId, message);
+  }
+
+  void _clearReply() {
+    setState(() => _replyingTo = null);
+    ChatReplyContext.instance.clear(widget.chatId);
+  }
+
+  Future<void> _shareLocation() async {
+    try {
+      final location = await Navigator.of(context).push<ChatLocationData>(
+        MaterialPageRoute(builder: (_) => const ChatLocationPicker()),
+      );
+      if (!mounted || location == null) return;
+      final url = 'https://www.openstreetmap.org/?mlat=${location.latitude}&mlon=${location.longitude}#map=18/${location.latitude}/${location.longitude}';
+      await _chat.sendMessage(
+        chatId: widget.chatId,
+        text: location.address,
+        locationUrl: url,
+        locationLat: location.latitude,
+        locationLng: location.longitude,
+        locationAddress: location.address,
+        metadata: {
+          'locationStreet': location.street,
+          'locationNeighborhood': location.neighborhood,
+          'locationCity': location.city,
+          'locationState': location.state,
+          'locationCountry': location.country,
+          'osmType': location.osmType,
+          'osmId': location.osmId,
+        },
+      );
+    } catch (e) {
+      debugPrint('share chat location: $e');
+      ToastService.showError('تعذر إرسال الموقع حالياً.');
+    }
+  }
+
+  UploadStatus? _uploadStatusFor(Map<String, dynamic> message) {
+    if (!message.containsKey('type')) return null;
+    final type = message['type']?.toString();
+    if (!{'image', 'video', 'audio', 'file'}.contains(type)) return null;
+    if (message['isLocal'] == true) {
+      switch (message['uploadStatus']?.toString()) {
+        case 'failed':
+          return UploadStatus.failed;
+        case 'pending':
+          return UploadStatus.pending;
+        case 'uploading':
+          return UploadStatus.uploading;
+      }
+      if (message['hasError'] == true) return UploadStatus.failed;
+      if (message['isUploading'] == true) return UploadStatus.uploading;
+    }
+    if (message['isLocal'] != true &&
+        message['senderId'] == _auth.currentUser?.uid)
+      return UploadStatus.delivered;
+    return null;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_firestore.collection('users').doc(uid).set({'isOnline': true, 'lastSeen': FieldValue.serverTimestamp()}, SetOptions(merge: true)));
+      unawaited(_markDeliveryAndRead());
+    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      unawaited(_firestore.collection('users').doc(uid).set({'isOnline': false, 'lastSeen': FieldValue.serverTimestamp()}, SetOptions(merge: true)));
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      unawaited(_firestore.collection('users').doc(uid).set({'isOnline': false, 'lastSeen': FieldValue.serverTimestamp()}, SetOptions(merge: true)));
+    }
+    _pendingRefreshTimer?.cancel();
+    _typingClearTimer?.cancel();
+    _roomLoadTimer?.cancel();
+    unawaited(_setTyping(false));
+    _messagesSub?.cancel();
+    _chatSub?.cancel();
+    _userSub?.cancel();
+    _scrollController.removeListener(_onChatScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final image = widget.otherUserImage ?? widget.groupImage;
+    final all = <Map<String, dynamic>>[
+      ..._localMedia,
+      ..._messages.map((m) => m.toFirestore()..['id'] = m.id)
+    ];
+    all.sort((a, b) =>
+        _messageTime(b['timestamp']).compareTo(_messageTime(a['timestamp'])));
+    return Scaffold(
+      backgroundColor: dark ? const Color(0xFF0B1121) : const Color(0xFFE3F1EF),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: dark ? const Color(0xFF101827) : const Color(0xFFF7FBFA),
+        foregroundColor: dark ? null : AppColors.primary,
+        leading: BackButton(color: dark ? null : AppColors.primary),
+        titleSpacing: 0,
+        title: StreamBuilder<UserStatusModel?>(
+            stream: _statusService.streamUserStatus(widget.otherUserId),
+            builder: (context, snapshot) {
+              final status = snapshot.hasError ? null : snapshot.data;
+              final hasStoryImage =
+                  status != null &&
+                  status.stories.isNotEmpty &&
+                  status.stories.first.type == 'image' &&
+                  status.stories.first.url.isNotEmpty;
+              final avatar = InkWell(
+                onTap: status != null && status.stories.isNotEmpty
+                    ? () => _openOtherUserStatus(status)
+                    : _profile,
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: status != null && status.stories.isNotEmpty
+                        ? Border.all(color: AppColors.primary, width: 2)
+                        : null,
+                  ),
+                  child: ClipOval(
+                    child: hasStoryImage
+                        ? CachedNetworkImage(
+                            imageUrl: status.stories.first.url,
+                            fit: BoxFit.cover,
+                          )
+                        : image != null && image.trim().isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: image.trim(),
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => _AvatarFallback(name: widget.otherUserName),
+                              )
+                            : Container(
+                                color: AppColors.primary.withOpacity(.12),
+                                child: Center(
+                                  child: Text(
+                                    widget.otherUserName.isEmpty
+                                        ? 'م'
+                                        : widget.otherUserName.substring(0, 1),
+                                    style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                  ),
+                ),
+              );
+              return Row(children: [
+                avatar,
+                const SizedBox(width: 10),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(widget.isGroup ? 'المجموعة' : widget.otherUserName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: dark ? null : AppColors.primary)),
+                    Text(
+                        _otherTyping
+                            ? 'يكتب الآن...'
+                            : (_online ? 'متصل الآن' : _lastSeenLabel()),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: _otherTyping
+                                ? AppColors.primary
+                                : (_online ? Colors.green : Colors.grey)))
+                  ]))
+              ]);
+            },
+          ),
+        actions: [
+          IconButton(
+              onPressed: _searchMessages,
+              tooltip: 'البحث داخل الرسائل',
+              icon: Icon(Icons.search_rounded,
+                  color: dark ? null : AppColors.primary)),
+          if (!widget.isGroup)
+            IconButton(
+                onPressed: () => _call(false),
+                icon: Icon(Icons.call_rounded,
+                    color: dark ? null : AppColors.primary)),
+          if (!widget.isGroup)
+            IconButton(
+                onPressed: () => _call(true),
+                icon: Icon(Icons.videocam_rounded,
+                    color: dark ? null : AppColors.primary)),
+          PopupMenuButton<String>(
+              iconColor: dark ? null : AppColors.primary,
+              onSelected: (value) {
+                if (value == 'mute') _toggleMute();
+                if (value == 'pin') _togglePin();
+                if (value == 'pinned') _showPinnedMessages();
+                if (value == 'profile') _profile();
+                if (value == 'delete') _deleteChatForMe();
+              },
+              itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
+                    const PopupMenuItem(value: 'pinned', child: Text('الرسائل المثبتة')),
+                    PopupMenuItem(value: 'mute', child: Text(_muted ? 'إلغاء كتم الإشعارات' : 'كتم الإشعارات')),
+                    PopupMenuItem(value: 'pin', child: Text(_pinned ? 'إلغاء تثبيت المحادثة' : 'تثبيت المحادثة')),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(value: 'delete', child: Text('حذف المحادثة لدي')),
+                  ])
+        ],
+      ),
+      body: Column(children: [
+        Expanded(
+            child: ChatBackground(
+                child: Stack(children: [
+          if (_loadError != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chat_bubble_outline_rounded, size: 44, color: AppColors.primary.withOpacity(.75)),
+                    const SizedBox(height: 12),
+                    Text(_loadError!, textAlign: TextAlign.center, style: TextStyle(color: dark ? Colors.white70 : const Color(0xFF49615E), fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 14),
+                    FilledButton.icon(onPressed: () { setState(() { _loadError = null; _loading = true; }); _initializeRoom(); }, icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+                  ],
+                ),
+              ),
+            )
+          else if (_loading)
+            const Center(
+              child: CircularProgressIndicator(),
+            )
+          else if (all.isEmpty)
+            Center(
+                child: Text('ابدأ المحادثة',
+                    style: TextStyle(
+                        color: dark ? Colors.white70 : const Color(0xFF49615E),
+                        fontWeight: FontWeight.w600)))
+          else
+            ListView.builder(
+                reverse: true,
+                padding: const EdgeInsets.all(8),
+                itemCount: all.length,
+                controller: _scrollController,
+                itemBuilder: (_, index) {
+                  final message = all[index];
+                  final older = index + 1 < all.length ? all[index + 1] : null;
+                  final currentDate = _messageTime(message['timestamp']);
+                  final olderDate = older == null ? null : _messageTime(older['timestamp']);
+                  final showDate = older == null || currentDate.year != olderDate!.year || currentDate.month != olderDate.month || currentDate.day != olderDate.day;
+                  final remote = message['isLocal'] != true;
+                  final rawMessageId = message['id']?.toString();
+                  final model = remote && rawMessageId != null
+                      ? _messages.firstWhere(
+                          (m) => m.id == rawMessageId,
+                          orElse: () => MessageModel(
+                              id: '', chatId: '', senderId: '', senderName: ''))
+                      : null;
+                  final status = _uploadStatusFor(message);
+                  final messageId = rawMessageId ?? index.toString();
+                  Widget bubble = MessageBubble(
+                      key: ValueKey(messageId),
+                      message: message,
+                      isFirstInChat: index == all.length - 1,
+                      isMe: message['senderId'] == _auth.currentUser?.uid ||
+                          message['isLocal'] == true,
+                      onReply: model == null || model.id.isEmpty
+                          ? null
+                          : () => _startReply(model),
+                      onForward: model == null || model.id.isEmpty
+                          ? null
+                          : () => _forwardMessage(model),
+                      onReplyPreviewTap: () {
+                        final preview = message['replyPreview'];
+                        final replyId = message['replyToId']?.toString() ?? (preview is Map ? preview['id']?.toString() : null);
+                        if (replyId != null && replyId.isNotEmpty) unawaited(_jumpToMessage(replyId));
+                      },
+                      onDelete: model == null || model.id.isEmpty || model.senderId != _auth.currentUser?.uid ? null : () => _confirmDeleteMessage(model),
+                      onEdit: model == null || model.id.isEmpty || model.senderId != _auth.currentUser?.uid ? null : () => _editMessage(model),
+                      onDeleteForMe: model == null || model.id.isEmpty
+                          ? null
+                          : () => _deleteMessageForMe(model),
+                      onPin: model == null || model.id.isEmpty
+                          ? null
+                          : () => _toggleMessagePin(model),
+                      onCallAgain: (_) => _call(false),
+                      onReaction: remote && messageId != null
+                          ? (emoji) => _chat.addReaction(
+                              widget.chatId, messageId, emoji)
+                          : null);
+                  if (messageId != null && _newMessageIds.contains(messageId)) {
+                    bubble = TweenAnimationBuilder<double>(
+                        key: ValueKey('entrance-$messageId'),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) => Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                                offset: Offset(0, 10 * (1 - value)),
+                                child: child)),
+                        child: bubble);
+                  }
+                  Widget messageWidget = status == null
+                      ? bubble
+                      : Stack(clipBehavior: Clip.none, children: [
+                          bubble,
+                          MediaUploadStatusWidget(
+                              status: status,
+                              progress:
+                                  (message['uploadProgress'] as num?)?.toDouble() ??
+                                      0.0,
+                              onRetry: () => message['onRetry']?.call(),
+                              onCancel: () => message['onCancel']?.call())
+                        ]);
+                  if (model != null && model.id.isNotEmpty) {
+                    messageWidget = _SwipeToReply(
+                      onReply: () => _startReply(model),
+                      child: messageWidget,
+                    );
+                  }
+                  return Column(
+                    children: [
+                      if (showDate) Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(color: dark ? Colors.white10 : Colors.white.withOpacity(.72), borderRadius: BorderRadius.circular(14)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            child: Text('${currentDate.day.toString().padLeft(2, '0')}/${currentDate.month.toString().padLeft(2, '0')}/${currentDate.year}', style: TextStyle(fontSize: 10, color: dark ? Colors.white70 : const Color(0xFF49615E), fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ),
+                      messageWidget,
+                    ],
+                  );
+                }),
+          if (_showNewMessages)
+            Positioned(
+              right: 14,
+              bottom: 14,
+              child: Material(
+                color: AppColors.primary,
+                elevation: 5,
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  onTap: _scrollToLatest,
+                  borderRadius: BorderRadius.circular(22),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.keyboard_double_arrow_down_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 5),
+                      Text('رسائل جديدة', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          if (_loadingMoreMessages)
+            const Positioned(top: 8, left: 0, right: 0, child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),),
+          if (_loading)
+            Positioned.fill(
+                child: IgnorePointer(
+                    child: ColoredBox(
+                        color: dark
+                            ? const Color(0xFF0B1121).withOpacity(.12)
+                            : const Color(0xFFE3F1EF).withOpacity(.12),
+                        child: Center(
+                            child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: AppColors.primary))))))
+        ]))),
+        AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => SizeTransition(
+                sizeFactor: animation,
+                axisAlignment: -1,
+                child: FadeTransition(opacity: animation, child: child)),
+            child: _replyingTo == null
+                ? const SizedBox.shrink(key: ValueKey('no-reply'))
+                : _replyBanner(_replyingTo!)),
+        ChatInputBar(
+            chatId: widget.chatId,
+            replyToId: _replyingTo?.id,
+            onSendMessage: (text, clientTimestamp) {
+              unawaited(_setTyping(false));
+              final replyingTo = _replyingTo;
+              final replyPreview = replyingTo == null
+                  ? null
+                  : <String, dynamic>{
+                      'id': replyingTo.id,
+                      'senderId': replyingTo.senderId,
+                      'senderName': replyingTo.senderName,
+                      'text': replyingTo.text ?? '',
+                      'type': replyingTo.type.name,
+                    };
+              _optimisticallyAddTextMessage(
+                text,
+                clientTimestamp: clientTimestamp,
+                replyToId: replyingTo?.id,
+                replyPreview: replyPreview,
+              );
+              if (replyingTo != null) _clearReply();
+            },
+            onTyping: _setTyping,
+            onSendImage: (_) {},
+            onLocalMedia: _addLocalMedia,
+            onShareLocation: _shareLocation,
+          ),
+      ]),
+    );
+  }
+
+  Widget _replyBanner(MessageModel message) {
+    final text = message.text?.trim().isNotEmpty == true
+        ? message.text!.trim()
+        : _replyTypeLabel(message.type);
+    return Material(
+        key: ValueKey('reply-${message.id}'),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF162039)
+            : const Color(0xFFF7FBFA),
+        child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+            decoration: BoxDecoration(
+                border: Border(
+                    top:
+                        BorderSide(color: AppColors.primary.withOpacity(.35)))),
+            child: Row(children: [
+              Container(
+                  width: 3,
+                  height: 38,
+                  decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(3))),
+              const SizedBox(width: 9),
+              const Icon(Icons.reply, color: AppColors.primary, size: 19),
+              const SizedBox(width: 7),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text('الرد على ${message.senderName}',
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700)),
+                    Text(text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12))
+                  ])),
+              IconButton(
+                  onPressed: _clearReply,
+                  icon: const Icon(Icons.close, size: 19))
+            ])));
+  }
+
+  String _replyTypeLabel(MessageType type) {
+    switch (type) {
+      case MessageType.image:
+        return 'صورة';
+      case MessageType.video:
+        return 'فيديو';
+      case MessageType.audio:
+        return 'رسالة صوتية';
+      case MessageType.file:
+        return 'ملف';
+      case MessageType.location:
+        return 'موقع';
+      default:
+        return 'رسالة';
+    }
+  }
 }

@@ -1,8 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A8F83"/><stop offset="1" stop-color="#08756C"/></linearGradient></defs>
-<rect x="48" y="48" width="928" height="928" rx="224" fill="url(#bg)"/>
-<path d="M250 302c0-48 39-87 87-87h350c48 0 87 39 87 87v238c0 48-39 87-87 87H472l-129 112c-21 18-53 3-53-25V627h-53c-48 0-87-39-87-87V302Z" fill="#fff"/>
-<path d="M350 386h324M350 482h216" fill="none" stroke="#0A8F83" stroke-width="54" stroke-linecap="round"/>
-<circle cx="704" cy="646" r="126" fill="#08756C" stroke="#fff" stroke-width="24"/>
-<path d="M641 650l39 39 88-103" fill="none" stroke="#fff" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <title>MemoChat</title>
+  <desc>Two clean overlapping white chat bubbles on a teal rounded-square background.</desc>
+
+  <rect width="500" height="500" rx="145" fill="#0D8274"/>
+
+  <path
+    fill="#FFFFFF"
+    d="M180 135h90a25 25 0 0 1 25 25v70a25 25 0 0 1-25 25h-70l-45 45v-45a25 25 0 0 1-25-25v-70a25 25 0 0 1 25-25h25Z"
+  />
+
+  <path
+    fill="#FFFFFF"
+    d="M318 168a28 28 0 0 1 28 28v166l-44-44h-82a28 28 0 0 1-28-28v-13h101a24 24 0 0 0 24-24v-85Z"
+  />
 </svg>

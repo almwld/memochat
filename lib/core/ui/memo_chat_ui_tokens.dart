@@ -1,0 +1,2 @@
+import 'package:flutter/material.dart';
+abstract final class MemoChatUiTokens { static const radiusSm=10.0; static const radiusMd=16.0; static const radiusLg=22.0; static const durationFast=Duration(milliseconds:160); static const durationNormal=Duration(milliseconds:240); static const inputFill=Color(0xFFF2F4F7); static const accent=Color(0xFF128C7E); }

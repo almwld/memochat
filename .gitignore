@@ -1,0 +1,94 @@
+# ═══════════════════════════════════════════════
+# Flutter / Dart
+# ═══════════════════════════════════════════════
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.g.dart
+*.freezed.dart
+
+# ═══════════════════════════════════════════════
+# IDE
+# ═══════════════════════════════════════════════
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+
+# ═══════════════════════════════════════════════
+# OS
+# ═══════════════════════════════════════════════
+.DS_Store
+Thumbs.db
+
+# ═══════════════════════════════════════════════
+# 🔐 Secrets (⚠️ حرج — لا ترفع أبداً)
+# ═══════════════════════════════════════════════
+lib/core/config/secrets.dart
+android/app/google-services.json
+android/app/google-services.json.bak
+android/key.properties
+GoogleService-Info.plist
+ios/Runner/GoogleService-Info.plist
+*.jks
+*.keystore
+*.p12
+*.pepk
+*.env
+.env
+.env.*
+*.env
+
+# ═══════════════════════════════════════════════
+# Firebase (محلي)
+# ═══════════════════════════════════════════════
+.firebase/
+firebase-debug.log
+firestore-debug.log
+.firebaserc
+
+# ═══════════════════════════════════════════════
+# Signing keys (احتياط)
+# ═══════════════════════════════════════════════
+key.properties
+*.jks
+*.keystore
+
+# ═══════════════════════════════════════════════
+# Coverage / Logs
+# ═══════════════════════════════════════════════
+coverage/
+*.lcov
+*.log
+
+# ═══════════════════════════════════════════════
+# Node (functions)
+# ═══════════════════════════════════════════════
+functions/node_modules/
+functions/*.log
+functions/.env
+
+# ═══════════════════════════════════════════════
+# Python (tool/)
+# ═══════════════════════════════════════════════
+__pycache__/
+*.pyc
+tool/__pycache__/
+
+# ═══════════════════════════════════════════════
+# Android secrets (لا ترفع)
+# ═══════════════════════════════════════════════
+android/app/google-services.json
+android/key.properties
+android/local.properties
+android/.gradle/
+android/app/*.jks
+android/app/*.keystore
+android/app/.cxx/
+android/.idea/

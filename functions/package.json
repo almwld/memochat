@@ -1,0 +1,12 @@
+{
+  "name": "memochat-functions",
+  "description": "Trusted backend functions for MemoChat messaging, notifications and LiveKit",
+  "main": "index.js",
+  "engines": {"node": "20"},
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^5.1.1",
+    "livekit-server-sdk": "^2.15.0"
+  }
+}

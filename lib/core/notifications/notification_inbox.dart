@@ -82,6 +82,19 @@ class NotificationInbox {
   Future<void> markRead(String id) async {
     final values = await read();
     final updated = values.map((item) => item.id == id ? item.copyWith(read: true) : item);
-    await (await _prefs).setStringList(_key, updated.map((value) => jsonEncode(value.toJson())).toList());
+    await (await _prefs).setStringList(
+      _key,
+      updated.map((value) => jsonEncode(value.toJson())).toList(),
+    );
+  }
+
+  Future<void> markAllRead() async {
+    final values = await read();
+    if (values.isEmpty) return;
+    final updated = values.map((item) => item.copyWith(read: true)).toList();
+    await (await _prefs).setStringList(
+      _key,
+      updated.map((value) => jsonEncode(value.toJson())).toList(),
+    );
   }
 }

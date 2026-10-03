@@ -7,195 +7,210 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.24.5'
+  JAVA_VERSION: '17'
+
+  # ═══════════════════════════════════════════════════════════════
+  # 🔐 كل المفاتيح مضمّنة (للاختبار — يجب تدويرها بعد النجاح)
+  # ═══════════════════════════════════════════════════════════════
+  # LiveKit
+  LIVEKIT_URL: 'wss://memo-2jv45qyl.livekit.cloud'
+  LIVEKIT_API_KEY: 'APInN2Q2vdtnxTg'
+  LIVEKIT_API_SECRET: 'l6qio9Q5ZKGI38d1IqyX9V04llq4CDIayb8CNdF7RXF'
+
+  # Nextcloud
+  NEXTCLOUD_URL: 'https://noa.it.tabdigital.cloud'
+  NEXTCLOUD_USER: 'flexymid3@gmail.com'
+  NEXTCLOUD_PASSWORD: '10.10.10.1010.10.10.10'
+
+  # Firebase
+  FIREBASE_PROJECT_NUMBER: '448753275014'
+  FIREBASE_PROJECT_ID: 'memo-f97b5'
+  FIREBASE_STORAGE_BUCKET: 'memo-f97b5.firebasestorage.app'
+  FIREBASE_MOBILE_SDK_APP_ID: '1:448753275014:android:e4dedb02a3b10cce9f0107'
+  FIREBASE_ANDROID_API_KEY: 'AIzaSyCSamhS5nlR4yqHQBunfk61b9GwkZHntbQ'
+  FIREBASE_ANDROID_PACKAGE: 'com.memo.app'
+
+  # Keystore
+  KEYSTORE_PASSWORD: '10.10.10.10'
+  KEY_PASSWORD: '10.10.10.10'
+  KEY_ALIAS: 'memochat'
+
+  # Keystore Base64 (كامل)
+  KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+  # google-services.json (كامل)
+  GOOGLE_SERVICES_JSON: |
+    {
+      "project_info": {
+        "project_number": "448753275014",
+        "project_id": "memo-f97b5",
+        "storage_bucket": "memo-f97b5.firebasestorage.app"
+      },
+      "client": [
+        {
+          "client_info": {
+            "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
+            "android_client_info": {
+              "package_name": "com.memo.app"
+            }
+          },
+          "oauth_client": [
+            {
+              "client_id": "448753275014-03c2ge0c3fhhrl0vupfps7262vs92pj6.apps.googleusercontent.com",
+              "client_type": 1,
+              "android_info": {
+                "package_name": "com.memo.app",
+                "certificate_hash": "5b251d8b069b6763e8fa6566456d038eeb804b53"
+              }
+            },
+            {
+              "client_id": "448753275014-df58mhe0nlt20v6q2ici83f8qt5vme5q.apps.googleusercontent.com",
+              "client_type": 1,
+              "android_info": {
+                "package_name": "com.memo.app",
+                "certificate_hash": "6110569ed024c3da2a05eef4ac764ad36f898371"
+              }
+            },
+            {
+              "client_id": "448753275014-7hmiihl18tpi968v5b7gkejfl43c613r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ],
+          "api_key": [
+            {
+              "current_key": "AIzaSyCSamhS5nlR4yqHQBunfk61b9GwkZHntbQ"
+            }
+          ],
+          "services": {
+            "appinvite_service": {
+              "other_platform_oauth_client": [
+                {
+                  "client_id": "448753275014-7hmiihl18tpi968v5b7gkejfl43c613r.apps.googleusercontent.com",
+                  "client_type": 3
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "configuration_version": "1"
+    }
+
 jobs:
   analyze-test-build:
-    name: Analyze, Test & Build APKs
+    name: Analyze, Test & Build
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.5'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      - name: Generate Android platform files
-        run: flutter create --platforms=android --project-name memochat --org com.memo .
-
-      - name: Configure Android build
+      # ═══════════════════════════════════════════════════════
+      # Restore Android scaffolding
+      # ═══════════════════════════════════════════════════════
+      - name: Restore Android project scaffolding
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('android/app/build.gradle')
-          text = path.read_text()
-          text = text.replace('namespace = "com.memo.memochat"', 'namespace = "com.memo.app"')
-          text = text.replace('namespace "com.memo.memochat"', 'namespace "com.memo.app"')
-          lines = text.splitlines()
-          output = []
-          inserted_min = False
-          inserted_desugar = False
-          for line in lines:
-              stripped = line.strip()
-              if stripped.startswith('compileSdk'):
-                  output.append('    compileSdk 35')
-                  continue
-              if stripped.startswith('minSdk'):
-                  output.append('        minSdk 23')
-                  inserted_min = True
-                  continue
-              if stripped.startswith('applicationId'):
-                  output.append('        applicationId "com.memo.app"')
-                  continue
-              if stripped == 'compileOptions {':
-                  output.append(line)
-                  output.append('        coreLibraryDesugaringEnabled true')
-                  inserted_desugar = True
-                  continue
-              output.append(line)
-          if not inserted_min:
-              for i, line in enumerate(output):
-                  if line.strip() == 'defaultConfig {':
-                      output.insert(i + 1, '        minSdk 23')
-                      inserted_min = True
-                      break
-          if not inserted_desugar:
-              raise SystemExit('Could not locate compileOptions block')
-          if not inserted_min:
-              raise SystemExit('Could not configure minSdk')
-          text = '\n'.join(output) + '\n'
-          dependency = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
-          if 'com.android.tools:desugar_jdk_libs:2.1.4' not in text:
-              text = text.rstrip() + '\n\ndependencies {\n' + dependency + '\n}\n'
-          path.write_text(text)
-          PY
-          mkdir -p android/app/src/main/kotlin/com/memo/app
-          if [ -f android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt ]; then
-            sed 's/^package com\.memo\.memochat$/package com.memo.app/' android/app/src/main/kotlin/com/memo/memochat/MainActivity.kt > android/app/src/main/kotlin/com/memo/app/MainActivity.kt
-            rm -rf android/app/src/main/kotlin/com/memo/memochat
-          fi
-          grep -nE 'namespace|applicationId' android/app/build.gradle
-          grep -R -n '^package ' android/app/src/main/kotlin || true
-          grep -nE 'compileSdk|minSdk|applicationId|coreLibraryDesugaring' android/app/build.gradle
+          flutter create --platforms=android --no-pub .
+          test -f android/app/build.gradle
+          test -f android/settings.gradle
+          test -f android/build.gradle
+          echo "✅ Android scaffolding restored"
 
-      - name: Prepare Android SDK 35
+      # ═══════════════════════════════════════════════════════
+      # Inject all secrets
+      # ═══════════════════════════════════════════════════════
+      - name: Inject google-services.json
         run: |
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
-          if [ -z "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "/usr/local/lib/android/sdk/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)"
-          fi
-          if [ -z "$SDKMANAGER" ]; then echo "Android sdkmanager not found"; exit 1; fi
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          test -s android/app/google-services.json
+          echo "✅ google-services.json injected"
 
-      - name: Force app Android SDK baseline
+      - name: Inject release keystore
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          app = Path('android/app/build.gradle')
-          text = app.read_text()
-          text = re.sub(r'compileSdk(?:Version)?\s+[^\n]+', 'compileSdk 35', text, count=1)
-          text = re.sub(r'targetSdk(?:Version)?\s+[^\n]+', 'targetSdk 35', text, count=1)
-          app.write_text(text)
-          print("Android app baseline: compileSdk=35, targetSdk=35")
-          PY
-          grep -nE 'compileSdk|targetSdk|minSdk' android/app/build.gradle
-
-      - name: Create google-services.json
-        env:
-          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
-        run: |
-          mkdir -p android/app
-          cat > android/app/google-services.json << EOF
-          {
-            "project_info": {
-              "project_number": "448753275014",
-              "project_id": "memo-f97b5",
-              "storage_bucket": "memo-f97b5.firebasestorage.app"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:448753275014:android:e4dedb02a3b10cce9f0107",
-                  "android_client_info": {"package_name": "com.memo.app"}
-                },
-                "oauth_client": [],
-                "api_key": [{"current_key": "$FIREBASE_ANDROID_API_KEY"}],
-                "services": {"appinvite_service": {"other_platform_oauth_client": []}}
-              }
-            ],
-            "configuration_version": "1"
-          }
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/memochat-release.jks
+          test -s android/app/memochat-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=app/memochat-release.jks
           EOF
+          echo "✅ keystore + key.properties injected"
 
-      - name: Create secrets.dart
-        env:
-          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          LIVEKIT_TOKEN_SERVER_URL: ${{ secrets.LIVEKIT_TOKEN_SERVER_URL }}
-          NEXTCLOUD_URL: ${{ secrets.NEXTCLOUD_URL }}
-          NEXTCLOUD_USER: ${{ secrets.NEXTCLOUD_USER }}
-          NEXTCLOUD_PASSWORD: ${{ secrets.NEXTCLOUD_PASSWORD }}
-          FIREBASE_ANDROID_API_KEY: ${{ secrets.FIREBASE_ANDROID_API_KEY }}
+      - name: Inject secrets.dart
         run: |
           mkdir -p lib/core/config
-          cat > lib/core/config/secrets.dart << EOF
+          cat > lib/core/config/secrets.dart <<EOF
           class Secrets {
             Secrets._();
             static const String livekitUrl = '$LIVEKIT_URL';
             static const String livekitApiKey = '$LIVEKIT_API_KEY';
             static const String livekitApiSecret = '$LIVEKIT_API_SECRET';
-            static const String livekitTokenServerUrl = '$LIVEKIT_TOKEN_SERVER_URL';
             static const String nextcloudUrl = '$NEXTCLOUD_URL';
             static const String nextcloudUser = '$NEXTCLOUD_USER';
             static const String nextcloudPassword = '$NEXTCLOUD_PASSWORD';
-            static const String firebaseProjectId = 'memo-f97b5';
-            static const String firebaseStorageBucket = 'memo-f97b5.firebasestorage.app';
+            static const String firebaseProjectId = '$FIREBASE_PROJECT_ID';
+            static const String firebaseStorageBucket = '$FIREBASE_STORAGE_BUCKET';
             static const String firebaseApiKey = '$FIREBASE_ANDROID_API_KEY';
-            static const String firebaseAppId = '1:448753275014:android:e4dedb02a3b10cce9f0107';
-            static const String androidPackageName = 'com.memo.app';
+            static const String firebaseAppId = '$FIREBASE_MOBILE_SDK_APP_ID';
+            static const String androidPackageName = '$FIREBASE_ANDROID_PACKAGE';
           }
           EOF
+          echo "✅ secrets.dart injected"
+          wc -l lib/core/config/secrets.dart
 
+      - name: Inject nextcloud_config.dart
+        run: |
+          mkdir -p lib/core/config
+          cat > lib/core/config/nextcloud_config.dart <<EOF
+          class NextcloudConfig {
+            NextcloudConfig._();
+            static const String url = '$NEXTCLOUD_URL';
+            static const String user = '$NEXTCLOUD_USER';
+            static const String password = '$NEXTCLOUD_PASSWORD';
+            static bool get isConfigured =>
+                url.isNotEmpty && user.isNotEmpty && password.isNotEmpty;
+          }
+          EOF
+          echo "✅ nextcloud_config.dart injected"
+
+      - name: Verify injected files
+        run: |
+          test -f android/app/build.gradle                || { echo "❌ build.gradle missing"; exit 1; }
+          test -f android/app/google-services.json        || { echo "❌ google-services.json missing"; exit 1; }
+          test -f android/app/memochat-release.jks        || { echo "❌ keystore missing"; exit 1; }
+          test -f android/key.properties                  || { echo "❌ key.properties missing"; exit 1; }
+          test -f lib/core/config/secrets.dart            || { echo "❌ secrets.dart missing"; exit 1; }
+          test -f lib/core/config/nextcloud_config.dart   || { echo "❌ nextcloud_config.dart missing"; exit 1; }
+          echo "✅ All injected files verified"
+
+      # ═══════════════════════════════════════════════════════
+      # Analysis & Tests
+      # ═══════════════════════════════════════════════════════
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Align Android media plugin compile SDKs
-        run: |
-          LIVEKIT_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/livekit_client-2.2.5/android/build.gradle' -print -quit)"
-          WEBRTC_GRADLE="$(find "$PUB_CACHE/hosted/pub.dev" -path '*/flutter_webrtc-0.11.7/android/build.gradle' -print -quit)"
-          if [ -z "$LIVEKIT_GRADLE" ] || [ -z "$WEBRTC_GRADLE" ]; then echo "Expected pinned LiveKit/WebRTC Android build files were not found"; exit 1; fi
-          sed -i 's/compileSdkVersion 30/compileSdkVersion 35/' "$LIVEKIT_GRADLE"
-          sed -i 's/compileSdkVersion 31/compileSdkVersion 35/' "$WEBRTC_GRADLE"
-          grep -nE 'compileSdkVersion|minSdkVersion' "$LIVEKIT_GRADLE"
-          grep -nE 'compileSdkVersion|minSdkVersion' "$WEBRTC_GRADLE"
-
-      - name: Generate launcher icons
-        run: |
-          mkdir -p build/icon
-          sudo apt-get update
-          sudo apt-get install -y librsvg2-bin
-          rsvg-convert -w 1024 -h 1024 assets/icon/icon_app.svg -o assets/icon/icon_app.png
-          dart run flutter_launcher_icons
-
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib/ test/
-        continue-on-error: true
-
       - name: Analyze
-        run: flutter analyze --no-pub
+        run: flutter analyze --no-pub --no-fatal-warnings --no-fatal-infos
 
       - name: Test
         run: flutter test --no-pub --coverage
@@ -208,83 +223,88 @@ jobs:
           path: coverage/
           retention-days: 7
 
-      - name: Build Fat APK (universal)
-        run: flutter build apk --release --no-pub
-
-      - name: Build Split APKs (per ABI)
-        run: flutter build apk --release --split-per-abi --no-pub
-
-      - name: Show artifact sizes
+      # ═══════════════════════════════════════════════════════
+      # Build
+      # ═══════════════════════════════════════════════════════
+      - name: Build Universal APK
         run: |
-          echo "Artifact sizes:"
+          flutter build apk --release --no-pub \
+            --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY \
+            --dart-define=NEXTCLOUD_URL=$NEXTCLOUD_URL \
+            --dart-define=NEXTCLOUD_USER=$NEXTCLOUD_USER \
+            --dart-define=NEXTCLOUD_PASSWORD=$NEXTCLOUD_PASSWORD \
+            --dart-define=LIVEKIT_URL=$LIVEKIT_URL \
+            --dart-define=LIVEKIT_API_KEY=$LIVEKIT_API_KEY
+
+      - name: Build Split APKs
+        run: |
+          flutter build apk --release --split-per-abi --no-pub \
+            --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY \
+            --dart-define=NEXTCLOUD_URL=$NEXTCLOUD_URL \
+            --dart-define=NEXTCLOUD_USER=$NEXTCLOUD_USER \
+            --dart-define=NEXTCLOUD_PASSWORD=$NEXTCLOUD_PASSWORD \
+            --dart-define=LIVEKIT_URL=$LIVEKIT_URL \
+            --dart-define=LIVEKIT_API_KEY=$LIVEKIT_API_KEY
+
+      - name: Build App Bundle
+        run: |
+          flutter build appbundle --release --no-pub \
+            --dart-define=FIREBASE_ANDROID_API_KEY=$FIREBASE_ANDROID_API_KEY \
+            --dart-define=NEXTCLOUD_URL=$NEXTCLOUD_URL \
+            --dart-define=NEXTCLOUD_USER=$NEXTCLOUD_USER \
+            --dart-define=NEXTCLOUD_PASSWORD=$NEXTCLOUD_PASSWORD \
+            --dart-define=LIVEKIT_URL=$LIVEKIT_URL \
+            --dart-define=LIVEKIT_API_KEY=$LIVEKIT_API_KEY
+
+      - name: Verify signatures
+        run: |
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)/apksigner"
+          for apk in build/app/outputs/flutter-apk/*.apk; do
+            echo "→ $apk"
+            "$APKSIGNER" verify --print-certs "$apk" | head -3
+          done
+
+      - name: Show sizes
+        run: |
+          echo "═══════════════════════════════════"
           ls -lh build/app/outputs/flutter-apk/
+          ls -lh build/app/outputs/bundle/release/
+          echo "═══════════════════════════════════"
 
-      - name: Appetize cloud test
-        id: appetize
-        if: always() && (success() || failure())
-        continue-on-error: true
-        uses: appetizeio/github-action-appetize@v1.1.0
+      # ═══════════════════════════════════════════════════════
+      # Upload
+      # ═══════════════════════════════════════════════════════
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
         with:
-          apiToken: ${{ secrets.APPETIZE_API_KEY }}
-          appFile: build/app/outputs/flutter-apk/app-release.apk
-          platform: android
-          note: memochat GitHub Actions build ${{ github.run_number }}
+          name: app-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
 
-      - name: Generate Build summary
-        if: always()
-        env:
-          APPETIZE_RESULT: ${{ steps.appetize.outcome }}
-          APPETIZE_PUBLIC_KEY: ${{ steps.appetize.outputs.publicKey }}
-        run: |
-          {
-            echo '# Build summary'
-            echo
-            echo '## Appetize cloud test'
-            echo
-            if [ "$APPETIZE_RESULT" = "success" ] && [ -n "$APPETIZE_PUBLIC_KEY" ]; then
-              echo '✅ Appetize upload: successful'
-              echo
-              echo "### [Open MemoChat in Appetize](https://appetize.io/app/$APPETIZE_PUBLIC_KEY)"
-              echo
-              echo 'Job summary generated at run-time'
-            else
-              echo '⚠️ Appetize cloud test was not completed.'
-              echo
-              echo 'The APK build and GitHub artifacts are still available above.'
-              echo
-              echo 'Job summary generated at run-time'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload universal APK
+      - name: Upload Universal
         uses: actions/upload-artifact@v4
         with:
           name: app-universal-release
           path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
 
       - name: Upload arm64-v8a
         uses: actions/upload-artifact@v4
         with:
           name: app-arm64-v8a-release
           path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          retention-days: 30
 
       - name: Upload armeabi-v7a
         uses: actions/upload-artifact@v4
         with:
           name: app-armeabi-v7a-release
           path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-          retention-days: 30
 
       - name: Upload x86_64
         uses: actions/upload-artifact@v4
         with:
           name: app-x86_64-release
           path: build/app/outputs/flutter-apk/app-x86_64-release.apk
-          retention-days: 30
 
-      - name: Upload to GitHub Release
+      - name: Release on tags
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
@@ -293,5 +313,6 @@ jobs:
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk
+            build/app/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

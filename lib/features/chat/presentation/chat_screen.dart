@@ -1,246 +1,350 @@
-// ignore_for_file: prefer_interpolation_to_compose_strings
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../../core/models/conversation.dart';
+import '../../../core/repositories/chat_repository.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
+import '../../shake/presentation/shake_screen.dart';
+import '../models/status_model.dart';
+import '../services/status_service.dart';
+import '../presentation/story_viewer_screen.dart';
+import '../presentation/add_status_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, this.initialTab = 0, this.showSections = true});
-  final int initialTab;
-  final bool showSections;
-  @override State<ChatScreen> createState() => _ChatScreenState();
+  const ChatScreen({required this.repository, this.onNewChat, super.key});
+  final ChatRepository repository;
+  final VoidCallback? onNewChat;
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
-  late int _tab = widget.initialTab;
+  final _searchFocus = FocusNode();
+  late final Stream<List<Conversation>> _conversationsStream;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _chats() {
-    if (Firebase.apps.isEmpty) return const Stream.empty();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Stream.empty();
-    return FirebaseFirestore.instance.collection('chats')
-        .where('participants', arrayContains: uid).snapshots();
+  @override
+  void initState() {
+    super.initState();
+    _conversationsStream = widget.repository.watchConversations();
   }
 
-  @override void dispose() { _search.dispose(); super.dispose(); }
+  @override
+  void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
 
-  @override Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: dark ? const Color(0xFF0B1121) : const Color(0xFFF7FAFA),
-      appBar: AppBar(
-        title: Text(
-          _tab == 0 ? 'المحادثات' : (_tab == 1 ? 'المكالمات' : 'تواصل'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        centerTitle: true, backgroundColor: const Color(0xFF0A8F83), foregroundColor: Colors.white,
-        bottom: widget.showSections ? PreferredSize(
-          preferredSize: const Size.fromHeight(58),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 10), height: 48,
-            decoration: BoxDecoration(color: dark ? const Color(0xFF162039) : Colors.white, borderRadius: BorderRadius.circular(16)),
-            child: Row(children: [_tabButton('المحادثات', 0), _tabButton('المكالمات', 1), _tabButton('تواصل', 2)]),
-          ),
-        ) : null,
-      ),
-      body: _tab == 0 ? _conversations(dark) : (_tab == 1 ? _calls() : _contacts(dark)),
-      floatingActionButton: widget.showSections && _tab == 0
-          ? FloatingActionButton(
-              backgroundColor: const Color(0xFF0A8F83),
-              onPressed: () => setState(() => _tab = 2),
-              child: const Icon(Icons.chat_rounded, color: Colors.white),
-            )
-          : null,
-    );
-  }
-
-  Widget _tabButton(String label, int index) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _tab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: _tab == index ? const Color(0xFF0A8F83) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Text(label, style: TextStyle(
-              color: _tab == index ? Colors.white : Colors.grey,
-              fontWeight: FontWeight.w700,
-            )),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _conversations(bool dark) {
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-        child: TextField(
-          controller: _search,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: 'ابحث في محادثاتك...', prefixIcon: const Icon(Icons.search),
-            filled: true, fillColor: dark ? const Color(0xFF162039) : Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-          ),
-        ),
-      ),
-      Expanded(
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _chats(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) return Center(child: Text('تعذر تحميل المحادثات: ' + snapshot.error.toString()));
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF0A8F83)));
-            final q = _search.text.trim().toLowerCase();
-            final docs = snapshot.data!.docs.where((doc) {
-              final last = doc.data()['lastMessage']?.toString().toLowerCase() ?? '';
-              return q.isEmpty || last.contains(q);
-            }).toList();
-            if (docs.isEmpty) return const Center(child: Text('لا توجد محادثات بعد'));
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-              itemCount: docs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _chatTile(docs[i], dark),
-            );
-          },
-        ),
-      ),
-    ]);
-  }
-
-  Widget _chatTile(DocumentSnapshot<Map<String, dynamic>> doc, bool dark) {
-    final data = doc.data() ?? <String, dynamic>{};
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    final ids = List<String>.from(data['participants'] ?? const []);
-    final other = ids.firstWhere((id) => id != uid, orElse: () => '');
-    final names = Map<String, dynamic>.from(data['participantNames'] ?? {});
-    final photos = Map<String, dynamic>.from(data['participantPhotos'] ?? {});
-    final name = names[other]?.toString() ?? 'مستخدم';
-    final photo = photos[other]?.toString();
-
-    return Card(
-      elevation: 0, color: dark ? const Color(0xFF162039) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        leading: CircleAvatar(
-          radius: 28,
-          backgroundImage: photo?.isNotEmpty == true ? NetworkImage(photo!) : null,
-          child: photo?.isNotEmpty == true ? null : const Icon(Icons.person, color: Color(0xFF0A8F83)),
-        ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(data['lastMessage']?.toString() ?? 'اضغط لفتح المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: const Icon(Icons.chevron_left),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ChatRoomScreen(
-              chatId: doc.id, otherUserId: other, otherUserName: name, otherUserImage: photo,
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
+          actions: [
+            IconButton(
+              tooltip: 'رجّ للتعارف',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShakeScreen(repository: widget.repository))),
+              icon: const Icon(Icons.vibration_rounded),
             ),
-          ),
+            IconButton(
+              tooltip: 'بحث',
+              onPressed: () => _searchFocus.requestFocus(),
+              icon: const AppIcon(AppIcons.search, size: 23),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _calls() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Center(child: Text('تسجيل الدخول مطلوب'));
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('calls').where('receiverId', isEqualTo: uid).limit(50).snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد مكالمات'));
-        return ListView.builder(
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, i) {
-            final data = snapshot.data!.docs[i].data();
-            return ListTile(
-              leading: CircleAvatar(child: Icon(data['isVideo'] == true ? Icons.videocam : Icons.call)),
-              title: Text(data['callerName']?.toString() ?? 'مستخدم'),
-              subtitle: Text(data['status']?.toString() ?? ''),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _contacts(bool dark) {
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(16),
-        child: TextField(
-          controller: _search,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: 'ابحث عن مستخدم للبدء...', prefixIcon: const Icon(Icons.search),
-            filled: true, fillColor: dark ? const Color(0xFF162039) : Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-          ),
-        ),
-      ),
-      Expanded(
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('users').limit(50).snapshots(),
+        body: StreamBuilder<List<Conversation>>(
+          stream: _conversationsStream,
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _StateView(
+                icon: AppIcons.chat,
+                title: 'تعذر تحميل المحادثات',
+                subtitle: 'تحقق من الاتصال ثم حاول مرة أخرى.',
+                action: FilledButton.icon(
+                  onPressed: () => setState(() {}),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              );
+            }
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-            final q = _search.text.trim().toLowerCase();
-            final users = snapshot.data!.docs.where((doc) {
-              final data = doc.data();
-              final hay = (data['displayName']?.toString() ?? '') + ' ' + (data['email']?.toString() ?? '');
-              return doc.id != uid && hay.toLowerCase().contains(q);
-            }).toList();
-            return ListView.builder(
-              itemCount: users.length,
-              itemBuilder: (context, i) {
-                final data = users[i].data();
-                return ListTile(
-                  leading: CircleAvatar(child: Text((data['displayName']?.toString() ?? 'م').characters.first)),
-                  title: Text(data['displayName']?.toString() ?? 'مستخدم'),
-                  subtitle: Text(data['email']?.toString() ?? ''),
-                  trailing: const Icon(Icons.chat, color: Color(0xFF0A8F83)),
-                  onTap: () => _startChat(users[i]),
-                );
-              },
+            final conversations = snapshot.data!;
+            final filtered = _filtered(conversations);
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    child: PremiumHero(
+                      icon: AppIcons.chat,
+                      title: 'مساحتك الخاصة',
+                      subtitle: 'كل محادثاتك ورسائلك في مكان واحد، بتجربة عربية سريعة ومرتبة.',
+                      action: IconButton(
+                        tooltip: 'محادثة جديدة',
+                        onPressed: widget.onNewChat,
+                        color: Colors.white,
+                        icon: const Icon(Icons.add_rounded),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: StreamBuilder<List<UserStatusModel>>(
+                      stream: StatusService().streamActiveStatuses(),
+                      builder: (context, snapshot) {
+                        final statuses = snapshot.data ?? const <UserStatusModel>[];
+                        return SizedBox(
+                          height: 104,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: statuses.length + 1,
+                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return _StatusAddTile(onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddStatusScreen())));
+                              }
+                              final status = statuses[index - 1];
+                              return _StatusTile(
+                                status: status,
+                                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: TextField(
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'ابحث في المحادثات...',
+                        prefixIcon: AppIcon(AppIcons.search, size: 21),
+                      ),
+                    ),
+                  ),
+                ),
+                if (filtered.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _StateView(
+                      icon: AppIcons.message,
+                      title: 'ابدأ أول محادثة',
+                      subtitle: 'انتقل إلى «تواصل» للعثور على أشخاص وابدأ محادثة جديدة.',
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+                    sliver: SliverList.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        return _ConversationCard(
+                          conversation: item,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatRoomScreen(
+                                chatId: item.id,
+                                otherUserId: item.participant.id,
+                                otherUserName: item.participant.displayName,
+                                otherUserImage: item.participant.avatarUrl,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
             );
           },
         ),
-      ),
-    ]);
-  }
+        floatingActionButton: widget.onNewChat == null
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: widget.onNewChat,
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('محادثة جديدة'),
+              ),
+      );
 
-  Future<void> _startChat(QueryDocumentSnapshot<Map<String, dynamic>> user) async {
-    final me = FirebaseAuth.instance.currentUser;
-    if (me == null) return;
-    final ids = [me.uid, user.id]..sort();
-    final chatId = ids.join('_');
-    final data = user.data();
-    await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
-      'participants': ids,
-      'participantNames': {me.uid: me.displayName ?? 'مستخدم', user.id: data['displayName'] ?? 'مستخدم'},
-      'participantPhotos': {me.uid: me.photoURL ?? '', user.id: data['photoUrl'] ?? data['photoURL'] ?? ''},
-      'lastMessage': '', 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          chatId: chatId, otherUserId: user.id,
-          otherUserName: data['displayName']?.toString() ?? 'مستخدم',
-          otherUserImage: data['photoUrl']?.toString(),
+  List<Conversation> _filtered(List<Conversation> source) {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) return source;
+    return source.where((item) {
+      final name = item.participant.displayName.toLowerCase();
+      final text = item.lastMessage?.text.toLowerCase() ?? '';
+      return name.contains(query) || text.contains(query);
+    }).toList();
+  }
+}
+
+class _ConversationCard extends StatelessWidget {
+  const _ConversationCard({required this.conversation, required this.onTap});
+  final Conversation conversation;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final user = conversation.participant;
+    final preview = conversation.lastMessage?.text ?? 'ابدأ المحادثة الآن';
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 29,
+                    backgroundColor: scheme.primaryContainer,
+                    backgroundImage: user.avatarUrl?.isNotEmpty == true ? NetworkImage(user.avatarUrl!) : null,
+                    child: user.avatarUrl?.isNotEmpty == true
+                        ? null
+                        : Text(
+                            user.displayName.characters.first,
+                            style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 19),
+                          ),
+                  ),
+                  if (user.isOnline)
+                    PositionedDirectional(
+                      bottom: 1,
+                      end: 1,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF28B86B),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Theme.of(context).cardColor, width: 2.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              if (conversation.unreadCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(20)),
+                  child: Text(
+                    conversation.unreadCount.toString(),
+                    style: TextStyle(color: scheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w900),
+                  ),
+                )
+              else
+                Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class _StateView extends StatelessWidget {
+  const _StateView({required this.icon, required this.title, required this.subtitle, this.action});
+  final AppIconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              PremiumIconTile(icon: icon, size: 76, iconSize: 36),
+              const SizedBox(height: 18),
+              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 7),
+              Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
+              if (action != null) ...[const SizedBox(height: 18), action!],
+            ],
+          ),
+        ),
+      );
+}
+
+
+class _StatusAddTile extends StatelessWidget {
+  const _StatusAddTile({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.primaryContainer,
+              ),
+              child: Icon(Icons.add_rounded, color: scheme.primary, size: 30),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'حالتي',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusTile extends StatelessWidget {
+  const _StatusTile({required this.status, required this.onTap});
+  final UserStatusModel status;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final image = status.userImage?.trim() ?? '';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(width: 72, child: Column(children: [
+        Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)), child: CircleAvatar(radius: 29, backgroundImage: image.isEmpty ? null : NetworkImage(image), child: image.isEmpty ? Text(status.userName.characters.first) : null)),
+        const SizedBox(height: 6),
+        Text(
+          status.userName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+        ),
+      ]),
+    ),
+  );
   }
 }

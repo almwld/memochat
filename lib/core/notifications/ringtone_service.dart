@@ -22,7 +22,9 @@ class RingtoneService {
     if (_ringing) return;
     await _player.setReleaseMode(ReleaseMode.release);
     await _player.play(AssetSource('audio/message_tone.wav'));
-    if (vibrate && await Vibration.hasVibrator()) await Vibration.vibrate(duration: 80);
+    if (vibrate && await Vibration.hasVibrator()) {
+      await Vibration.vibrate(duration: 80);
+    }
   }
 
   Future<void> stopIncomingCallRingtone() async {

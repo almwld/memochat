@@ -1,9 +1,26 @@
 import 'package:flutter/material.dart';
+import '../../../core/repositories/chat_repository.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_screen.dart';
-import '../../../core/notifications/notification_preferences.dart';
+import '../../chat/presentation/calls_screen.dart';
+import '../../contacts/presentation/contacts_screen.dart';
+import '../../settings/presentation/settings_screen.dart';
+import '../../shake/presentation/shake_screen.dart';
+import '../../advanced/presentation/advanced_hub_screen.dart';
+import '../../social/presentation/social_screen.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  const MainShell({
+    required this.repository,
+    required this.onThemeModeChanged,
+    required this.onSignOut,
+    super.key,
+  });
+
+  final ChatRepository repository;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
+  final VoidCallback onSignOut;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -11,99 +28,164 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
+  late final List<Widget> _pages;
 
-  static const _destinations = <NavigationDestination>[
-    NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'المحادثات'),
-    NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'تواصل'),
-    NavigationDestination(icon: Icon(Icons.call_outlined), selectedIcon: Icon(Icons.call), label: 'المكالمات'),
-    NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'الإعدادات'),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
+      ContactsScreen(repository: widget.repository),
+      const SocialScreen(),
+      DiscoverScreen(repository: widget.repository),
+      const CallsScreen(),
+      SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      const ChatScreen(initialTab: 0, showSections: false),
-      const ChatScreen(initialTab: 2, showSections: false),
-      const ChatScreen(initialTab: 1, showSections: false),
-      const SettingsScreen(),
-    ];
     return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: _destinations,
+      extendBody: true,
+      body: IndexedStack(index: _index, children: _pages),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: NavigationBar(
+            height: 72,
+            selectedIndex: _index,
+            onDestinationSelected: (index) => setState(() => _index = index),
+            destinations: const [
+              NavigationDestination(
+                icon: AppIcon(AppIcons.chat, size: 22),
+                selectedIcon: PremiumIconTile(
+                  icon: AppIcons.chat,
+                  size: 42,
+                  iconSize: 21,
+                ),
+                label: 'المحادثات',
+              ),
+              NavigationDestination(
+                icon: AppIcon(AppIcons.contacts, size: 22),
+                selectedIcon: PremiumIconTile(
+                  icon: AppIcons.contacts,
+                  size: 42,
+                  iconSize: 21,
+                ),
+                label: 'تواصل',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.dynamic_feed_outlined, size: 22),
+                selectedIcon: Icon(Icons.dynamic_feed_rounded, size: 28),
+                label: 'Memo',
+              ),
+              NavigationDestination(
+                icon: AppIcon(AppIcons.search, size: 22),
+                selectedIcon: PremiumIconTile(
+                  icon: AppIcons.search,
+                  size: 42,
+                  iconSize: 21,
+                ),
+                label: 'اكتشف',
+              ),
+              NavigationDestination(
+                icon: AppIcon(AppIcons.phoneCall, size: 22),
+                selectedIcon: PremiumIconTile(
+                  icon: AppIcons.phoneCall,
+                  size: 42,
+                  iconSize: 21,
+                ),
+                label: 'المكالمات',
+              ),
+              NavigationDestination(
+                icon: AppIcon(AppIcons.settings, size: 22),
+                selectedIcon: PremiumIconTile(
+                  icon: AppIcons.settings,
+                  size: 42,
+                  iconSize: 21,
+                ),
+                label: 'الإعدادات',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+
+class DiscoverScreen extends StatelessWidget {
+  const DiscoverScreen({required this.repository, super.key});
+
+  final ChatRepository repository;
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  final _preferences = NotificationPreferences();
-  late Future<List<bool>> _values;
-
-  @override
-  void initState() {
-    super.initState();
-    _values = _readValues();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('اكتشف', style: TextStyle(fontWeight: FontWeight.w900)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+        children: [
+          PremiumHero(
+            icon: AppIcons.search,
+            title: 'اكتشف أشخاصاً وطرقاً جديدة للتواصل',
+            subtitle: 'ابحث عن الأشخاص، ابدأ محادثة، أو استخدم الرجّ للتعارف القريب.',
+            action: const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.contacts, size: 48, iconSize: 23),
+              title: const Text('العثور على أشخاص', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('ابحث بالاسم أو المعرّف العام وابدأ محادثة.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ContactsScreen(repository: repository)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.chat, size: 48, iconSize: 23),
+              title: const Text('رجّ للتعارف', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('رجّ هاتفك للعثور على شخص آخر يهز هاتفه في الوقت نفسه.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ShakeScreen(repository: repository)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.chat, size: 48, iconSize: 23),
+              title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('غرف صوتية، Mini Apps، وملفات Business.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdvancedHubScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const PremiumIconTile(icon: AppIcons.phoneCall, size: 48, iconSize: 23),
+              title: const Text('المكالمات', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('الوصول السريع إلى سجل المكالمات.'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CallsScreen()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
-
-  Future<List<bool>> _readValues() async => [
-        await _preferences.messageSounds,
-        await _preferences.messageVibration,
-        await _preferences.callSounds,
-        await _preferences.callVibration,
-        await _preferences.callNotifications,
-        await _preferences.messageNotifications,
-      ];
-
-  Future<void> _set(int index, bool value) async {
-    switch (index) {
-      case 0: await _preferences.setMessageSounds(value);
-      case 1: await _preferences.setMessageVibration(value);
-      case 2: await _preferences.setCallSounds(value);
-      case 3: await _preferences.setCallVibration(value);
-      case 4: await _preferences.setCallNotifications(value);
-      case 5: await _preferences.setMessageNotifications(value);
-    }
-    if (mounted) setState(() => _values = _readValues());
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('الإعدادات')),
-        body: FutureBuilder<List<bool>>(
-          future: _values,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final labels = ['أصوات الرسائل', 'اهتزاز الرسائل', 'نغمة المكالمات', 'اهتزاز المكالمات', 'إشعارات المكالمات', 'إشعارات الرسائل'];
-            final icons = [Icons.volume_up_outlined, Icons.vibration, Icons.ring_volume_outlined, Icons.vibration, Icons.call_outlined, Icons.notifications_outlined];
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: [
-                Text('التنبيهات', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Card(
-                  child: Column(children: [
-                    for (var i = 0; i < labels.length; i++)
-                      SwitchListTile.adaptive(
-                        secondary: Icon(icons[i]), title: Text(labels[i]), value: snapshot.data![i], onChanged: (value) => _set(i, value),
-                      ),
-                  ]),
-                ),
-                const SizedBox(height: 20),
-                Text('حول التطبيق', style: Theme.of(context).textTheme.titleLarge),
-                const ListTile(leading: Icon(Icons.info_outline), title: Text('MemoChat'), subtitle: Text('مراسلة واتصال آمن عبر Firebase وLiveKit')),
-              ],
-            );
-          },
-        ),
-      );
 }
