@@ -1,4 +1,4 @@
-import '../extended_game_engine.dart';
+import 'extended_game_engine.dart';
 
 class WordScrambleGame extends ExtendedGameEngine {
   WordScrambleGame({super.key}) : super(config: const ExtendedGameConfig(
