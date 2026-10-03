@@ -8,4 +8,5 @@ abstract interface class ChatRepository {
   Stream<List<ChatUser>> watchContacts({String query = ''});
   Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto});
   Future<ChatMessage> sendMessage({required String conversationId, required String text});
+  Future<void> markAsUnread(String conversationId);
 }

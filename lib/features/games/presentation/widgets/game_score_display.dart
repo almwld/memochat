@@ -1,0 +1,2 @@
+import 'package:flutter/material.dart';
+class GameScoreDisplay extends StatelessWidget { final int score; final int? best; const GameScoreDisplay({super.key,required this.score,this.best}); @override Widget build(BuildContext context)=>Row(mainAxisSize:MainAxisSize.min,children:[Text('النقاط: $score',style:const TextStyle(fontWeight:FontWeight.w800)),if(best!=null)...[const SizedBox(width:8),Text('أفضل: $best',style:TextStyle(color:Theme.of(context).colorScheme.primary,fontWeight:FontWeight.w700))]]); }

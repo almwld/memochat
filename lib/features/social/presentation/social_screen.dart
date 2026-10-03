@@ -6,18 +6,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data/social_service.dart';
+import 'reels_screen.dart';
+import '../../../core/widgets/user_name.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key, this.service});
-
   final SocialService? service;
 
   @override
   State<SocialScreen> createState() => _SocialScreenState();
 }
 
-class _SocialScreenState extends State<SocialScreen>
-    with SingleTickerProviderStateMixin {
+class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderStateMixin {
   late final SocialService service = widget.service ?? SocialService();
   late final TabController tabs = TabController(length: 2, vsync: this);
 
@@ -28,11 +28,12 @@ class _SocialScreenState extends State<SocialScreen>
   }
 
   void _compose() {
+    final isReelsTab = tabs.index == 1;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _Composer(service: service),
+      builder: (_) => _Composer(service: service, initialReel: isReelsTab),
     );
   }
 
@@ -40,17 +41,11 @@ class _SocialScreenState extends State<SocialScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Memo',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
+        title: const Text('Memo', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [
           IconButton(
             tooltip: 'بحث',
-            onPressed: () => showSearch<void>(
-              context: context,
-              delegate: _Search(),
-            ),
+            onPressed: () => showSearch<void>(context: context, delegate: _Search()),
             icon: const Icon(Icons.search_rounded),
           ),
           IconButton(
@@ -59,9 +54,7 @@ class _SocialScreenState extends State<SocialScreen>
               context: context,
               builder: (_) => const AlertDialog(
                 title: Text('نشاط Memo'),
-                content: Text(
-                  'الإعجابات والتعليقات والمشاركات والمتابعات ستظهر هنا.',
-                ),
+                content: Text('الإعجابات والتعليقات والمشاركات والمتابعات ستظهر هنا.'),
               ),
             ),
             icon: const Icon(Icons.notifications_none_rounded),
@@ -70,14 +63,8 @@ class _SocialScreenState extends State<SocialScreen>
         bottom: TabBar(
           controller: tabs,
           tabs: const [
-            Tab(
-              icon: Icon(Icons.dynamic_feed_rounded),
-              text: 'المنشورات',
-            ),
-            Tab(
-              icon: Icon(Icons.play_circle_outline_rounded),
-              text: 'الريلز',
-            ),
+            Tab(icon: Icon(Icons.dynamic_feed_rounded), text: 'المنشورات'),
+            Tab(icon: Icon(Icons.play_circle_outline_rounded), text: 'الريلز'),
           ],
         ),
       ),
@@ -85,7 +72,7 @@ class _SocialScreenState extends State<SocialScreen>
         controller: tabs,
         children: [
           _Feed(service: service),
-          _Reels(service: service),
+          ReelsScreen(service: service),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -93,10 +80,10 @@ class _SocialScreenState extends State<SocialScreen>
         padding: const EdgeInsets.only(bottom: 86),
         child: FloatingActionButton.extended(
           heroTag: 'memo-community-create',
-          tooltip: 'إضافة منشور عام',
+          tooltip: 'إضافة محتوى',
           onPressed: _compose,
           icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة منشور'),
+          label: Text(tabs.index == 1 ? 'إضافة ريل' : 'إضافة منشور'),
         ),
       ),
     );
@@ -105,7 +92,6 @@ class _SocialScreenState extends State<SocialScreen>
 
 class _Feed extends StatelessWidget {
   const _Feed({required this.service});
-
   final SocialService service;
 
   @override
@@ -113,48 +99,156 @@ class _Feed extends StatelessWidget {
     return StreamBuilder(
       stream: service.posts(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(child: Text('تعذر تحميل المنشورات.'));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        if (snapshot.hasError) return const Center(child: Text('تعذر تحميل المنشورات.'));
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return const Center(
-            child: Text('لا توجد منشورات بعد. كن أول من ينشر في Memo.'),
-          );
-        }
+        if (docs.isEmpty) return const Center(child: Text('لا توجد منشورات بعد. كن أول من ينشر في Memo.'));
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
           itemCount: docs.length,
-          itemBuilder: (_, index) => _Post(
-            service: service,
-            id: docs[index].id,
-            data: docs[index].data(),
-          ),
+          itemBuilder: (_, i) => _Post(service: service, id: docs[i].id, data: docs[i].data()),
         );
       },
     );
   }
 }
 
-class _Post extends StatelessWidget {
-  const _Post({
-    required this.service,
-    required this.id,
-    required this.data,
-  });
-
+class _Post extends StatefulWidget {
+  const _Post({required this.service, required this.id, required this.data});
   final SocialService service;
   final String id;
   final Map<String, dynamic> data;
 
   @override
+  State<_Post> createState() => _PostState();
+}
+
+class _PostState extends State<_Post> {
+  Future<void> _comment() async {
+    final controller = TextEditingController();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'التعليقات',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 260,
+                  child: StreamBuilder(
+                    stream: widget.service.watchPostComments(widget.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return const Center(child: Text('تعذر تحميل التعليقات.'));
+                      }
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final comments = snapshot.data!.docs;
+                      if (comments.isEmpty) {
+                        return const Center(child: Text('لا توجد تعليقات بعد.'));
+                      }
+                      return ListView.separated(
+                        itemCount: comments.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final data = comments[index].data();
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              child: Icon(Icons.person_rounded),
+                            ),
+                            title: Text(
+                              data['userName']?.toString() ?? 'مستخدم Memo',
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: Text(data['text']?.toString() ?? ''),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        maxLength: 1000,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'اكتب تعليقك…',
+                          counterText: '',
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'إرسال التعليق',
+                      onPressed: () async {
+                        final text = controller.text.trim();
+                        if (text.isEmpty) return;
+                        try {
+                          await widget.service.addPostComment(widget.id, text);
+                          controller.clear();
+                        } catch (error) {
+                          if (sheetContext.mounted) {
+                            ScaffoldMessenger.of(sheetContext).showSnackBar(
+                              SnackBar(content: Text('تعذر إرسال التعليق: $error')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _run(
+    Future<void> Function() action, {
+    required String message,
+  }) async {
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$message: $error')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = data['mediaUrl']?.toString() ?? '';
-    final isVideo = data['mediaType'] == 'video';
-    final text = data['text']?.toString() ?? '';
+    final url = widget.data['mediaUrl']?.toString() ?? '';
+    final isVideo = widget.data['mediaType'] == 'video';
+    final author = widget.data['authorId']?.toString() ?? '';
+    final initialLikes = (widget.data['likesCount'] as num?)?.toInt() ?? 0;
+    final initialComments = (widget.data['commentsCount'] as num?)?.toInt() ?? 0;
+    final initialShares = (widget.data['sharesCount'] as num?)?.toInt() ?? 0;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -163,39 +257,120 @@ class _Post extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ListTile(
-            leading: const CircleAvatar(
-              child: Icon(Icons.person_rounded),
-            ),
-            title: Text(
-              data['authorId']?.toString() ?? 'مستخدم Memo',
+            leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+            title: UserName(
+              userId: author,
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: const Text('منشور على Memo'),
+            trailing: author.isEmpty || author == widget.service.currentUserId
+                ? null
+                : StreamBuilder(
+                    stream: widget.service.watchFollowing(author),
+                    builder: (context, snapshot) {
+                      final following = snapshot.data?.exists == true;
+                      return TextButton.icon(
+                        onPressed: () => _run(
+                          () => widget.service.toggleFollow(author, following),
+                          message: 'تعذر تحديث المتابعة',
+                        ),
+                        icon: Icon(
+                          following
+                              ? Icons.person_remove_alt_1_rounded
+                              : Icons.person_add_alt_1_rounded,
+                          size: 18,
+                        ),
+                        label: Text(following ? 'متابَع' : 'متابعة'),
+                      );
+                    },
+                  ),
           ),
           if (url.isNotEmpty)
             isVideo
-                ? AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: _Video(url),
-                  )
+                ? AspectRatio(aspectRatio: 16 / 9, child: _Video(url))
                 : CachedNetworkImage(
                     imageUrl: url,
                     height: 270,
                     fit: BoxFit.cover,
                   ),
-          if (text.isNotEmpty)
+          if ((widget.data['text']?.toString() ?? '').isNotEmpty)
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Text(
-                text,
+                widget.data['text'].toString(),
                 style: const TextStyle(fontSize: 16, height: 1.45),
               ),
             ),
-          _Actions(
-            service: service,
-            collection: 'socialPosts',
-            id: id,
-            data: data,
+          StreamBuilder(
+            stream: widget.service.watchPostLike(widget.id),
+            builder: (context, likeSnapshot) {
+              final liked = likeSnapshot.data?.exists == true;
+              return StreamBuilder<int>(
+                stream: widget.service.watchPostLikesCount(widget.id),
+                initialData: initialLikes,
+                builder: (context, countSnapshot) {
+                  final likes = countSnapshot.data ?? initialLikes;
+                  return StreamBuilder(
+                    stream: widget.service.watchPostSaved(widget.id),
+                    builder: (context, saveSnapshot) {
+                      final saved = saveSnapshot.data?.exists == true;
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: 'إعجاب',
+                              onPressed: () => _run(
+                                () => widget.service.togglePostLike(widget.id),
+                                message: 'تعذر تسجيل الإعجاب',
+                              ),
+                              icon: Icon(
+                                liked
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                color: liked
+                                    ? Theme.of(context).colorScheme.error
+                                    : null,
+                              ),
+                            ),
+                            Text('$likes'),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: 'تعليق',
+                              onPressed: _comment,
+                              icon: const Icon(Icons.mode_comment_outlined),
+                            ),
+                            Text('$initialComments'),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'مشاركة',
+                              onPressed: () => _run(
+                                () => widget.service.sharePost(widget.id),
+                                message: 'تعذر مشاركة المنشور',
+                              ),
+                              icon: const Icon(Icons.share_outlined),
+                            ),
+                            Text('$initialShares'),
+                            IconButton(
+                              tooltip: saved ? 'إلغاء الحفظ' : 'حفظ',
+                              onPressed: () => _run(
+                                () => widget.service.togglePostSave(widget.id, saved),
+                                message: 'تعذر تحديث الحفظ',
+                              ),
+                              icon: Icon(
+                                saved
+                                    ? Icons.bookmark_rounded
+                                    : Icons.bookmark_border_rounded,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -203,342 +378,53 @@ class _Post extends StatelessWidget {
   }
 }
 
-class _Reels extends StatelessWidget {
-  const _Reels({required this.service});
-
-  final SocialService service;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: service.reels(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(child: Text('تعذر تحميل الريلز.'));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return const Center(child: Text('لا توجد ريلز بعد.'));
-        }
-        return PageView.builder(
-          scrollDirection: Axis.vertical,
-          itemCount: docs.length,
-          itemBuilder: (_, index) => _Reel(
-            service: service,
-            id: docs[index].id,
-            data: docs[index].data(),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _Reel extends StatelessWidget {
-  const _Reel({
-    required this.service,
-    required this.id,
-    required this.data,
-  });
-
-  final SocialService service;
-  final String id;
-  final Map<String, dynamic> data;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _Video(
-          data['videoUrl']?.toString() ?? '',
-          cover: true,
-        ),
-        Positioned(
-          right: 12,
-          bottom: 20,
-          left: 12,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                data['caption']?.toString() ?? '',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              _Actions(
-                service: service,
-                collection: 'socialReels',
-                id: id,
-                data: data,
-                light: true,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _Video extends StatefulWidget {
-  const _Video(this.url, {this.cover = false});
-
+  const _Video(this.url);
   final String url;
-  final bool cover;
 
   @override
   State<_Video> createState() => _VideoState();
 }
 
 class _VideoState extends State<_Video> {
-  VideoPlayerController? player;
+  late final VideoPlayerController controller;
 
   @override
   void initState() {
     super.initState();
-    if (widget.url.isEmpty) {
-      return;
-    }
-    player = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+    controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..initialize().then((_) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {});
-        player?.setLooping(true);
-        player?.play();
+        if (mounted) setState(() {});
       });
   }
 
   @override
   void dispose() {
-    player?.dispose();
+    controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = player;
-    if (controller == null || !controller.value.isInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    return FittedBox(
-      fit: widget.cover ? BoxFit.cover : BoxFit.contain,
-      child: SizedBox(
-        width: controller.value.size.width,
-        height: controller.value.size.height,
-        child: VideoPlayer(controller),
-      ),
-    );
-  }
-}
-
-class _Actions extends StatelessWidget {
-  const _Actions({
-    required this.service,
-    required this.collection,
-    required this.id,
-    required this.data,
-    this.light = false,
-  });
-
-  final SocialService service;
-  final String collection;
-  final String id;
-  final Map<String, dynamic> data;
-  final bool light;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = light
-        ? Colors.white
-        : Theme.of(context).colorScheme.onSurface;
-    final author = data['authorId']?.toString() ?? '';
-
-    return Row(
-      children: [
-        StreamBuilder(
-          stream: service.like(collection, id),
-          builder: (context, snapshot) {
-            final liked = snapshot.data?.exists == true;
-            return Row(
-              children: [
-                IconButton(
-                  color: liked ? Colors.red : color,
-                  onPressed: () => service.toggleLike(collection, id, liked),
-                  icon: Icon(
-                    liked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                  ),
-                ),
-                Text(
-                  (data['likesCount'] ?? 0).toString(),
-                  style: TextStyle(color: color),
-                ),
-              ],
-            );
-          },
-        ),
-        IconButton(
-          color: color,
-          onPressed: () => _comments(context),
-          icon: const Icon(Icons.mode_comment_outlined),
-        ),
-        Text(
-          (data['commentsCount'] ?? 0).toString(),
-          style: TextStyle(color: color),
-        ),
-        IconButton(
-          color: color,
-          onPressed: () => service.share(collection, id),
-          icon: const Icon(Icons.share_rounded),
-        ),
-        StreamBuilder(
-          stream: service.saved(id),
-          builder: (context, snapshot) {
-            final saved = snapshot.data?.exists == true;
-            return IconButton(
-              color: color,
-              onPressed: () => service.toggleSave(collection, id, saved),
-              icon: Icon(
-                saved
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded,
-              ),
-            );
-          },
-        ),
-        const Spacer(),
-        if (author.isNotEmpty)
-          StreamBuilder(
-            stream: service.following(author),
-            builder: (context, snapshot) {
-              final following = snapshot.data?.exists == true;
-              return TextButton(
-                onPressed: () => service.toggleFollow(author, following),
-                child: Text(
-                  following ? 'متابَع' : 'متابعة',
-                  style: TextStyle(color: color),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-
-  Future<void> _comments(BuildContext context) async {
-    final input = TextEditingController();
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheetContext).height * .72,
-            child: Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'التعليقات',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: StreamBuilder(
-                    stream: service.comments(collection, id),
-                    builder: (context, snapshot) {
-                      final docs = snapshot.data?.docs ?? const [];
-                      if (docs.isEmpty) {
-                        return const Center(
-                          child: Text('كن أول من يعلّق.'),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: docs.length,
-                        itemBuilder: (_, index) {
-                          final comment = docs[index].data();
-                          return ListTile(
-                            leading: const CircleAvatar(
-                              child: Icon(Icons.person),
-                            ),
-                            title: Text(
-                              comment['userId']?.toString() ?? '',
-                            ),
-                            subtitle: Text(
-                              comment['text']?.toString() ?? '',
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    12,
-                    8,
-                    12,
-                    MediaQuery.viewInsetsOf(sheetContext).bottom + 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: input,
-                          maxLength: 1000,
-                          decoration: const InputDecoration(
-                            hintText: 'اكتب تعليقًا...',
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () async {
-                          await service.comment(collection, id, input.text);
-                          input.clear();
-                        },
-                        icon: const Icon(Icons.send_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    input.dispose();
+    if (!controller.value.isInitialized) return const AspectRatio(aspectRatio: 16 / 9, child: Center(child: CircularProgressIndicator()));
+    return AspectRatio(aspectRatio: 16 / 9, child: VideoPlayer(controller));
   }
 }
 
 class _Composer extends StatefulWidget {
-  const _Composer({required this.service});
-
+  const _Composer({required this.service, this.initialReel = false});
   final SocialService service;
+  final bool initialReel;
 
   @override
   State<_Composer> createState() => _ComposerState();
 }
 
 class _ComposerState extends State<_Composer> {
+  late bool reel = widget.initialReel;
   final text = TextEditingController();
   final picker = ImagePicker();
   File? media;
-  bool reel = false;
   bool busy = false;
 
   @override
@@ -548,159 +434,67 @@ class _ComposerState extends State<_Composer> {
   }
 
   Future<void> pickImage() async {
-    final result = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 88,
-    );
-    if (result != null && mounted) {
-      setState(() => media = File(result.path));
-    }
+    final result = await picker.pickImage(source: ImageSource.gallery, imageQuality: 88);
+    if (result != null && mounted) setState(() => media = File(result.path));
   }
 
   Future<void> pickVideo() async {
-    final result = await picker.pickVideo(
-      source: ImageSource.gallery,
-      maxDuration: const Duration(seconds: 90),
-    );
-    if (result != null && mounted) {
-      setState(() => media = File(result.path));
-    }
+    final result = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 90));
+    if (result != null && mounted) setState(() => media = File(result.path));
   }
 
   Future<void> publish() async {
-    if (media == null && text.text.trim().isEmpty) {
-      return;
-    }
+    if (media == null && text.text.trim().isEmpty) return;
     setState(() => busy = true);
     try {
       if (reel) {
         final video = media;
-        if (video == null) {
-          throw StateError('اختر فيديو للريل');
-        }
-        await widget.service.createReel(
-          video: video,
-          caption: text.text,
-        );
+        if (video == null) throw StateError('اختر فيديو للريل');
+        await widget.service.createReel(video: video, caption: text.text);
       } else {
         final file = media;
-        final isVideo = file != null &&
-            RegExp(
-              r'\.(mp4|mov|m4v)$',
-              caseSensitive: false,
-            ).hasMatch(file.path);
-        await widget.service.createPost(
-          text: text.text,
-          media: file,
-          video: isVideo,
-        );
+        final isVideo = file != null && RegExp(r'\.(mp4|mov|m4v)$', caseSensitive: false).hasMatch(file.path);
+        await widget.service.createPost(text: text.text, media: file, video: isVideo);
       }
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر النشر: $error')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر النشر: $error')));
     } finally {
-      if (mounted) {
-        setState(() => busy = false);
-      }
+      if (mounted) setState(() => busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        10,
-        16,
-        MediaQuery.viewInsetsOf(context).bottom + 20,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.viewInsetsOf(context).bottom + 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'إنشاء محتوى في Memo',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          const Text('إنشاء محتوى في Memo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
           SegmentedButton<bool>(
             segments: const [
-              ButtonSegment(
-                value: false,
-                label: Text('منشور'),
-                icon: Icon(Icons.article_outlined),
-              ),
-              ButtonSegment(
-                value: true,
-                label: Text('ريل'),
-                icon: Icon(Icons.video_library_outlined),
-              ),
+              ButtonSegment(value: false, label: Text('منشور'), icon: Icon(Icons.article_outlined)),
+              ButtonSegment(value: true, label: Text('ريل'), icon: Icon(Icons.video_library_outlined)),
             ],
             selected: {reel},
-            onSelectionChanged: (value) {
-              setState(() => reel = value.first);
-            },
+            onSelectionChanged: (value) => setState(() => reel = value.first),
           ),
-          TextField(
-            controller: text,
-            maxLength: 5000,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              hintText: 'ما الذي تريد مشاركته؟',
-            ),
-          ),
+          TextField(controller: text, maxLength: 5000, maxLines: 5, decoration: const InputDecoration(hintText: 'ما الذي تريد مشاركته؟')),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: reel ? pickVideo : pickImage,
-                  icon: Icon(
-                    reel
-                        ? Icons.video_library_rounded
-                        : Icons.photo_library_rounded,
-                  ),
-                  label: Text(reel ? 'اختيار فيديو' : 'اختيار صورة'),
-                ),
-              ),
-              if (!reel) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: pickVideo,
-                    icon: const Icon(Icons.videocam_outlined),
-                    label: const Text('فيديو'),
-                  ),
-                ),
-              ],
-            ],
+          OutlinedButton.icon(
+            onPressed: reel ? pickVideo : pickImage,
+            icon: Icon(reel ? Icons.video_library_rounded : Icons.photo_library_rounded),
+            label: Text(reel ? 'اختيار فيديو' : 'اختيار صورة'),
           ),
+          if (!reel)
+            OutlinedButton.icon(onPressed: pickVideo, icon: const Icon(Icons.videocam_outlined), label: const Text('إضافة فيديو')),
           if (media != null)
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                media!.path.split(Platform.pathSeparator).last,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            Padding(padding: const EdgeInsets.all(8), child: Text(media!.path.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis)),
           FilledButton.icon(
             onPressed: busy ? null : publish,
-            icon: busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.publish_rounded),
+            icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.publish_rounded),
             label: Text(busy ? 'جارٍ النشر...' : 'نشر'),
           ),
         ],
@@ -711,31 +505,11 @@ class _ComposerState extends State<_Composer> {
 
 class _Search extends SearchDelegate<void> {
   @override
-  List<Widget>? buildActions(BuildContext context) {
-    return [
-      IconButton(
-        onPressed: () => query = '',
-        icon: const Icon(Icons.clear),
-      ),
-    ];
-  }
-
+  List<Widget>? buildActions(BuildContext context) => [IconButton(onPressed: () => query = '', icon: const Icon(Icons.clear))];
   @override
-  Widget? buildLeading(BuildContext context) {
-    return BackButton(onPressed: () => close(context, null));
-  }
-
+  Widget? buildLeading(BuildContext context) => BackButton(onPressed: () => close(context, null));
   @override
-  Widget buildResults(BuildContext context) {
-    return Center(
-      child: Text(
-        query.isEmpty ? 'ابحث عن أشخاص ومنشورات' : 'بحث Memo: $query',
-      ),
-    );
-  }
-
+  Widget buildResults(BuildContext context) => Center(child: Text(query.isEmpty ? 'ابحث عن أشخاص ومنشورات' : 'بحث Memo: $query'));
   @override
-  Widget buildSuggestions(BuildContext context) {
-    return buildResults(context);
-  }
+  Widget buildSuggestions(BuildContext context) => buildResults(context);
 }

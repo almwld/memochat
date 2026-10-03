@@ -402,37 +402,50 @@ class MediaTransferEngine {
   Future<void> _process(Map<String, dynamic> job) async {
     final id = job['id'].toString();
     final file = File(job['local_path'].toString());
-    if (!await file.exists()) throw StateError('النسخة المحلية للملف لم تعد موجودة');
     if (_cancelled.contains(id)) throw MediaUploadCancelled();
 
-    final result = await _upload(
-      id: id,
-      file: file,
-      type: job['type'].toString(),
-      remoteDirectory: _remoteDirectory(job),
-      fileName: job['file_name'].toString(),
-      mimeType: job['mime_type']?.toString(),
-    );
-    if (!result.success || result.url == null || result.url!.isEmpty) {
-      throw StateError(result.error ?? 'تعذر تجهيز رابط قابل للوصول للوسائط');
-    }
-
     final db = await _database;
-    await db.update('media_outbox', {
-      'status': 'link_ready',
-      'progress': 1.0,
-      'remote_path': result.remotePath,
-      'remote_url': result.url,
-      'error': null,
-      'next_retry_at': null,
-      'updated_at': DateTime.now().millisecondsSinceEpoch,
-    }, where: 'id = ?', whereArgs: [id]);
+    String? readyUrl;
+    final existingUrl = job['remote_url']?.toString();
+    final existingStatus = job['status']?.toString();
+    if (existingUrl != null && existingUrl.isNotEmpty &&
+        existingStatus != 'sent') {
+      // The upload already completed. If Firestore publication failed, retry only
+      // the publication instead of uploading the same media again.
+      readyUrl = existingUrl;
+    } else {
+      if (!await file.exists()) {
+        throw StateError('النسخة المحلية للملف لم تعد موجودة');
+      }
+      final result = await _upload(
+        id: id,
+        file: file,
+        type: job['type'].toString(),
+        remoteDirectory: _remoteDirectory(job),
+        fileName: job['file_name'].toString(),
+        mimeType: job['mime_type']?.toString(),
+      );
+      if (!result.success || result.url == null || result.url!.isEmpty) {
+        throw StateError(result.error ?? 'تعذر تجهيز رابط قابل للوصول للوسائط');
+      }
+
+      readyUrl = result.url;
+      await db.update('media_outbox', {
+        'status': 'link_ready',
+        'progress': 1.0,
+        'remote_path': result.remotePath,
+        'remote_url': result.url,
+        'error': null,
+        'next_retry_at': null,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      }, where: 'id = ?', whereArgs: [id]);
+    }
 
     final destination = MediaDestination.values.firstWhere((v) => v.name == job['destination'].toString());
     if (destination == MediaDestination.chat || destination == MediaDestination.voice) {
-      await _publishChat(job, result.url!);
+      await _publishChat(job, readyUrl!);
     } else if (destination == MediaDestination.socialPost || destination == MediaDestination.socialReel) {
-      await _publishSocial(job, result.url!);
+      await _publishSocial(job, readyUrl!);
     }
 
     await db.update('media_outbox', {
@@ -553,9 +566,21 @@ class MediaTransferEngine {
     final caption = job['caption']?.toString() ?? '';
     final data = collection == 'socialReels'
         ? <String, dynamic>{
-            'authorId': uid, 'caption': caption, 'videoUrl': url,
-            'likesCount': 0, 'commentsCount': 0, 'sharesCount': 0, 'viewsCount': 0,
-            'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp(),
+            'authorId': uid,
+            'authorName': FirebaseAuth.instance.currentUser?.displayName ?? 'مستخدم Memo',
+            'authorPhoto': FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            'caption': caption,
+            'videoUrl': url,
+            'thumbnailUrl': '',
+            'likesCount': 0,
+            'commentsCount': 0,
+            'sharesCount': 0,
+            'viewsCount': 0,
+            'isPublished': true,
+            'commentsEnabled': true,
+            'isPinned': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           }
         : <String, dynamic>{
             'authorId': uid, 'text': caption, 'mediaUrl': url, 'mediaType': job['type'].toString(),

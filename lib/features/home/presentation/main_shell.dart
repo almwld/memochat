@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
@@ -9,6 +10,8 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../../advanced/presentation/advanced_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
+import '../../../core/services/quick_action_service.dart';
+import '../../../core/crypto/signal_session_manager.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -26,13 +29,14 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pages = [
       ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
       ContactsScreen(repository: widget.repository),
@@ -41,6 +45,42 @@ class _MainShellState extends State<MainShell> {
       const CallsScreen(),
       SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
     ];
+    _consumeQuickAction();
+    unawaited(_prepareE2EE());
+  }
+
+  Future<void> _prepareE2EE() async {
+    try {
+      await SignalSessionManager.instance.ensureReady();
+    } catch (_) {
+      // Encryption setup must never delay or block the visible UI.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _consumeQuickAction();
+  }
+
+  Future<void> _consumeQuickAction() async {
+    final action = await QuickActionService.consume();
+    if (!mounted || action == null) return;
+    final nextIndex = switch (action) {
+      'chat' || 'compose' => 0,
+      'contacts' => 1,
+      'social' => 2,
+      'calls' => 4,
+      _ => null,
+    };
+    if (nextIndex != null && nextIndex != _index) {
+      setState(() => _index = nextIndex);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override

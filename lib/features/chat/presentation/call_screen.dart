@@ -10,6 +10,7 @@ import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
 import 'package:memochat/features/chat/services/livekit_service.dart';
+import 'package:memochat/core/config/livekit_config.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
 
 class CallScreen extends StatefulWidget {
@@ -187,8 +188,18 @@ class _CallScreenState extends State<CallScreen> {
       }
 
       callId = c.id;
-      final rn = c.liveKitRoomName?.trim();
-      roomName = rn != null && rn.isNotEmpty ? rn : 'call_${c.id}';
+      // The token backend has one canonical room contract: call_<callId>.
+      // Never trust a legacy/malformed roomName persisted in an older call doc.
+      final canonicalRoomName = LiveKitConfig.canonicalRoomName(c.id);
+      final storedRoomName = c.liveKitRoomName?.trim();
+      if (storedRoomName != null &&
+          storedRoomName.isNotEmpty &&
+          storedRoomName != canonicalRoomName) {
+        debugPrint(
+          'CALL ROOM NORMALIZED stored=$storedRoomName canonical=$canonicalRoomName',
+        );
+      }
+      roomName = canonicalRoomName;
       ActiveCallRegistry.instance.register(c.id);
 
       callSub = calls.streamCall(c.id).listen(
@@ -287,6 +298,11 @@ class _CallScreenState extends State<CallScreen> {
       final cameraStatus =
           widget.isVideo ? await Permission.camera.status : null;
 
+      debugPrint(
+        'CALL PERMISSION PRECHECK microphone=${microphoneStatus.name} '
+        'camera=${cameraStatus?.name ?? 'not_required'} video=${widget.isVideo}',
+      );
+
       var microphoneGranted = microphoneStatus.isGranted;
       var cameraGranted = !widget.isVideo || cameraStatus?.isGranted == true;
 
@@ -312,9 +328,17 @@ class _CallScreenState extends State<CallScreen> {
       );
 
       if (!cameraGranted) {
+        final status = await Permission.camera.status;
+        if (status.isPermanentlyDenied || status.isRestricted) {
+          await openAppSettings();
+        }
         throw StateError('يرجى منح إذن الكاميرا من إعدادات التطبيق');
       }
       if (!microphoneGranted) {
+        final status = await Permission.microphone.status;
+        if (status.isPermanentlyDenied || status.isRestricted) {
+          await openAppSettings();
+        }
         throw StateError('يرجى منح إذن الميكروفون من إعدادات التطبيق');
       }
       final registry = ActiveCallRegistry.instance;

@@ -55,22 +55,64 @@ class FirebaseChatRepository implements ChatRepository {
   @override
   Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
-    final ids = [_uid, otherUserId]..sort();
+    final otherId = otherUserId.trim();
+    if (otherId.isEmpty || otherId == _uid) throw StateError('معرّف المستخدم الآخر غير صالح');
+
+    // Use a stable pair id for new DMs. This avoids relying on a collection
+    // query that can be rejected by a restrictive Firestore deployment.
+    final pair = <String>[_uid, otherId]..sort();
+    final stableId = 'dm_${pair[0]}_${pair[1]}';
+    final stableRef = _chats().doc(stableId);
     final me = FirebaseAuth.instance.currentUser;
-    final chatId = ids.join('_');
-    await _chats().doc(chatId).set({'participants': ids, 'participantNames': {_uid: me?.displayName ?? 'مستخدم', otherUserId: otherUserName}, 'participantPhotos': {_uid: me?.photoURL ?? '', otherUserId: otherUserPhoto ?? ''}, 'participantDetails': {_uid: {'name': me?.displayName ?? 'مستخدم', 'photoUrl': me?.photoURL ?? ''}, otherUserId: {'name': otherUserName, 'photoUrl': otherUserPhoto ?? ''}}, 'isGroup': false, 'isArchived': false, 'isPinned': false, 'isMuted': false, 'unreadCount': {_uid: 0, otherUserId: 0}, 'updatedAt': FieldValue.serverTimestamp(), 'createdAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
-    return chatId;
+    try {
+      await stableRef.set({
+        'participants': [_uid, otherId],
+        'participantNames': {
+          _uid: me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
+          otherId: otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
+        },
+        'participantPhotos': {
+          _uid: me?.photoURL ?? '',
+          otherId: otherUserPhoto ?? '',
+        },
+        'participantDetails': {
+          _uid: {'name': me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم', 'photoUrl': me?.photoURL ?? ''},
+          otherId: {'name': otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم', 'photoUrl': otherUserPhoto ?? ''},
+        },
+        'isGroup': false,
+        'isArchived': false,
+        'isPinned': false,
+        'isMuted': false,
+        'unreadCount': {_uid: 0, otherId: 0},
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return stableId;
+    } on FirebaseException catch (e) {
+      // A legacy/random DM may already exist. Fall back to the old lookup
+      // before surfacing the write error.
+      if (e.code == 'permission-denied' || e.code == 'already-exists') {
+        final existingChats = await _chats().where('participants', arrayContains: _uid).limit(100).get();
+        for (final doc in existingChats.docs) {
+          final participants = List<String>.from((doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const []);
+          if (participants.length == 2 && participants.contains(otherId)) return doc.id;
+        }
+      }
+      rethrow;
+    }
   }
 
   @override
   Stream<List<Conversation>> watchConversations() {
     if (_uid.isEmpty) return const Stream.empty();
 
+    // Do not require a Firestore composite index for the conversation list.
+    // Older chats may also lack updatedAt, so sorting is done locally below.
     return _chats()
         .where('participants', arrayContains: _uid)
-        .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) {
+        .map((snapshot) {
+          final conversations = snapshot.docs.map((doc) {
               final data = doc.data();
               final ids = List<String>.from(
                 (data['participants'] as List?)
@@ -126,8 +168,17 @@ class FirebaseChatRepository implements ChatRepository {
                         isMine: data['lastMessageSenderId'] == _uid,
                       ),
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
+                isArchived: data['isArchived'] == true,
               );
-            }).toList());
+            }).toList();
+
+          conversations.sort((a, b) {
+            final aTime = a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          });
+          return conversations;
+        });
   }
 
   @override
@@ -157,6 +208,20 @@ class FirebaseChatRepository implements ChatRepository {
                 isMine: (data['senderId'] as String?) == _uid,
               );
             }).toList());
+  }
+
+  @override
+  Future<void> markAsUnread(String conversationId) async {
+    if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
+    final ref = _chats().doc(conversationId);
+    final snapshot = await ref.get();
+    if (!snapshot.exists) throw StateError('المحادثة غير موجودة');
+    final participants = List<String>.from((snapshot.data()?['participants'] as List?)?.map((e) => e.toString()) ?? const []);
+    if (!participants.contains(_uid)) throw StateError('ليس لديك صلاحية لهذه المحادثة');
+    await ref.update({
+      'unreadCount.$_uid': FieldValue.increment(1),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   @override

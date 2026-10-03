@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
 import 'package:memochat/core/theme/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
@@ -17,10 +18,14 @@ import 'package:memochat/features/chat/services/status_service.dart';
 import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/message_search_screen.dart';
+import 'package:memochat/features/chat/presentation/starred_messages_screen.dart';
+import 'package:memochat/features/chat/presentation/group_info_screen.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
 import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
+import 'package:memochat/core/services/chat_preferences_service.dart';
+import 'package:memochat/features/chat/presentation/chat_settings_screen.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatId;
@@ -163,9 +168,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _loading = true;
   String? _loadError;
   bool _online = false;
+  bool get _selectionMode => _selectedMessageIds.isNotEmpty;
   DateTime? _lastSeen;
   bool _muted = false;
   bool _pinned = false;
+  bool _starredLoading = false;
+  final Set<String> _selectedMessageIds = <String>{};
+  String _wallpaper = 'default';
+  double _fontSize = 14.0;
+  final _chatPrefs = ChatPreferencesService();
   MessageModel? _replyingTo;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
       _firestore.collection('chats').doc(widget.chatId).collection('messages');
@@ -176,10 +187,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onChatScroll);
     _initializeRoom();
+    _loadChatPreferences();
     _loadPendingMedia();
     
     unawaited(NotificationService().cancelChatNotifications(widget.chatId));
     _markRead();
+  }
+
+  Future<void> _loadChatPreferences() async {
+    try {
+      final wallpaper = await _chatPrefs.getWallpaper(widget.chatId);
+      final fontSize = await _chatPrefs.getFontSize(widget.chatId);
+      if (!mounted) return;
+      setState(() {
+        _wallpaper = wallpaper ?? 'default';
+        _fontSize = fontSize ?? 14.0;
+      });
+    } catch (e) {
+      debugPrint('chat preferences load failed: $e');
+    }
+  }
+
+  Future<void> _openChatSettings() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatSettingsScreen(chatId: widget.chatId)));
+    await _loadChatPreferences();
   }
 
   Future<void> _setTyping(bool typing) async {
@@ -327,9 +358,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
     try {
       final ref = _firestore.collection('chats').doc(widget.chatId);
-      final snapshot = await ref.get();
-      if (snapshot.exists) {
-        final data = snapshot.data() ?? <String, dynamic>{};
+      DocumentSnapshot<Map<String, dynamic>>? snapshot;
+      try {
+        snapshot = await ref.get();
+      } on FirebaseException catch (e) {
+        // A stale route can point at a document the current rules reject.
+        // Do not strand the user on an error screen; resolve the canonical DM.
+        debugPrint('chat document read failed: ${e.code}');
+      }
+      if (snapshot?.exists == true) {
+        final data = snapshot!.data() ?? <String, dynamic>{};
         final participants = (data['participants'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
         if (!participants.contains(uid)) {
           if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
@@ -340,7 +378,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       }
 
       // Some legacy entry points can provide a stale/in-memory conversation id.
-      // Re-create the canonical Firebase chat and replace the stale route.
+      // Resolve the stable direct-chat document instead of trusting the stale id.
       final newChatId = await _chat.createChat(
         userId: widget.otherUserId,
         userName: widget.otherUserName.trim().isEmpty ? 'مستخدم' : widget.otherUserName.trim(),
@@ -580,6 +618,61 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
   }
 
+  void _toggleMessageSelection(String id) {
+    setState(() {
+      if (_selectedMessageIds.contains(id)) {
+        _selectedMessageIds.remove(id);
+      } else {
+        _selectedMessageIds.add(id);
+      }
+    });
+  }
+
+  List<MessageModel> _selectedModels() =>
+      _messages.where((m) => _selectedMessageIds.contains(m.id)).toList();
+
+  Future<void> _deleteSelectedMessages() async {
+    for (final message in _selectedModels()) {
+      try { await _chat.deleteMessage(widget.chatId, message.id); } catch (_) {}
+    }
+    if (mounted) setState(() => _selectedMessageIds.clear());
+  }
+
+  Future<void> _copySelectedMessages() async {
+    final text = _selectedModels().map((m) => m.text?.trim()).whereType<String>().where((v) => v.isNotEmpty).join('\n');
+    if (text.isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) ToastService.showSuccess('تم نسخ الرسائل المحددة');
+    }
+    if (mounted) setState(() => _selectedMessageIds.clear());
+  }
+
+  Future<void> _starSelectedMessages() async {
+    for (final message in _selectedModels()) {
+      try { await _chat.starMessage(widget.chatId, message.id, true); } catch (_) {}
+    }
+    if (mounted) setState(() => _selectedMessageIds.clear());
+  }
+
+  void _clearSelection() => setState(() => _selectedMessageIds.clear());
+
+  Future<void> _toggleMessageStar(MessageModel message) async {
+    if (_starredLoading) return;
+    setState(() => _starredLoading = true);
+    try {
+      await _chat.starMessage(widget.chatId, message.id, !message.isStarred);
+      if (mounted) ToastService.showSuccess(message.isStarred ? 'أزيلت من المفضلة' : 'حُفظت في المفضلة');
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر حفظ الرسالة: $e');
+    } finally {
+      if (mounted) setState(() => _starredLoading = false);
+    }
+  }
+
+  Future<void> _showStarredMessages() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredMessagesScreen(chatId: widget.chatId)));
+  }
+
   Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(widget.chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
 
   Future<void> _markRead() async {
@@ -613,9 +706,80 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             isOutgoing: true)));
   }
 
-  void _profile() {
-    if (widget.otherUserName.trim().isEmpty) return;
-    showModalBottomSheet<void>(context: context, builder: (_) => ListTile(title: Text(widget.otherUserName), subtitle: Text(widget.otherUserId), leading: CircleAvatar(backgroundImage: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? NetworkImage((widget.otherUserImage ?? widget.groupImage)!) : null, child: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? null : const Icon(Icons.person_rounded))));
+  Future<void> _openGroupInfo() async {
+    if (!widget.isGroup) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoScreen(chatId: widget.chatId)));
+  }
+
+  Future<void> _profile() async {
+    if (widget.otherUserId.trim().isEmpty) return;
+
+    var displayName = widget.otherUserName.trim();
+    var image = (widget.otherUserImage ?? widget.groupImage)?.trim() ?? '';
+
+    try {
+      final snapshot = await _firestore.collection('users').doc(widget.otherUserId).get();
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final storedName = data['displayName']?.toString().trim();
+      final profileName = data['name']?.toString().trim();
+      if (storedName?.isNotEmpty == true) {
+        displayName = storedName!;
+      } else if (profileName?.isNotEmpty == true) {
+        displayName = profileName!;
+      }
+      final storedImage = data['photoUrl']?.toString().trim();
+      final authImage = data['photoURL']?.toString().trim();
+      if (storedImage?.isNotEmpty == true) {
+        image = storedImage!;
+      } else if (authImage?.isNotEmpty == true) {
+        image = authImage!;
+      }
+    } catch (e) {
+      debugPrint('load contact profile failed: $e');
+    }
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
+                child: image.isNotEmpty ? null : const Icon(Icons.person_rounded, size: 30),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName.isEmpty ? 'مستخدم MemoChat' : displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'معلومات جهة الاتصال',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openOtherUserStatus(UserStatusModel status) async { if (!mounted || status.stories.isEmpty) return; await Navigator.push(context, MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))); }
@@ -967,11 +1131,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       backgroundColor: dark ? const Color(0xFF0B1121) : const Color(0xFFE3F1EF),
       appBar: AppBar(
         elevation: 0,
+        leading: _selectionMode
+            ? IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection)
+            : BackButton(color: dark ? null : AppColors.primary),
         backgroundColor: dark ? const Color(0xFF101827) : const Color(0xFFF7FBFA),
         foregroundColor: dark ? null : AppColors.primary,
-        leading: BackButton(color: dark ? null : AppColors.primary),
         titleSpacing: 0,
-        title: StreamBuilder<UserStatusModel?>(
+        title: _selectionMode
+            ? Text('${_selectedMessageIds.length} محددة')
+            : StreamBuilder<UserStatusModel?>(
             stream: _statusService.streamUserStatus(widget.otherUserId),
             builder: (context, snapshot) {
               final status = snapshot.hasError ? null : snapshot.data;
@@ -1051,7 +1219,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
               ]);
             },
           ),
-        actions: [
+        actions: _selectionMode ? [
+          IconButton(tooltip: 'نسخ', onPressed: _copySelectedMessages, icon: const Icon(Icons.copy_outlined)),
+          IconButton(tooltip: 'حفظ', onPressed: _starSelectedMessages, icon: const Icon(Icons.star_border)),
+          IconButton(tooltip: 'حذف', onPressed: _deleteSelectedMessages, icon: const Icon(Icons.delete_outline)),
+        ] : [
           IconButton(
               onPressed: _searchMessages,
               tooltip: 'البحث داخل الرسائل',
@@ -1073,12 +1245,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 if (value == 'mute') _toggleMute();
                 if (value == 'pin') _togglePin();
                 if (value == 'pinned') _showPinnedMessages();
+                if (value == 'starred') _showStarredMessages();
                 if (value == 'profile') _profile();
+                if (value == 'groupInfo') _openGroupInfo();
                 if (value == 'delete') _deleteChatForMe();
+                if (value == 'settings') _openChatSettings();
               },
               itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
+                    if (widget.isGroup) const PopupMenuItem(value: 'groupInfo', child: Text('معلومات المجموعة')),
+                    if (!widget.isGroup) const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
+                    const PopupMenuItem(value: 'settings', child: Text('تخصيص المحادثة')),
                     const PopupMenuItem(value: 'pinned', child: Text('الرسائل المثبتة')),
+                    const PopupMenuItem(value: 'starred', child: Text('الرسائل المحفوظة')),
                     PopupMenuItem(value: 'mute', child: Text(_muted ? 'إلغاء كتم الإشعارات' : 'كتم الإشعارات')),
                     PopupMenuItem(value: 'pin', child: Text(_pinned ? 'إلغاء تثبيت المحادثة' : 'تثبيت المحادثة')),
                     const PopupMenuDivider(),
@@ -1089,6 +1267,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       body: Column(children: [
         Expanded(
             child: ChatBackground(
+                scrollController: _scrollController,
+                wallpaper: _wallpaper,
                 child: Stack(children: [
           if (_loadError != null)
             Center(
@@ -1163,7 +1343,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       onPin: model == null || model.id.isEmpty
                           ? null
                           : () => _toggleMessagePin(model),
+                      onStar: model == null || model.id.isEmpty
+                          ? null
+                          : () => _toggleMessageStar(model),
                       onCallAgain: (_) => _call(false),
+                      onSelect: model == null || model.id.isEmpty ? null : () => _toggleMessageSelection(model.id),
+                      fontSize: _fontSize,
                       onReaction: remote && messageId != null
                           ? (emoji) => _chat.addReaction(
                               widget.chatId, messageId, emoji)

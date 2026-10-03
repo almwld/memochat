@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
+import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
+import '../../../core/models/chat_folder.dart';
+import '../../../core/services/chat_folder_service.dart';
+import 'folders_manager_screen.dart';
+import '../../../core/deeplink/invite_handler.dart';
+import '../services/chat_service.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../presentation/story_viewer_screen.dart';
 import '../presentation/add_status_screen.dart';
+import 'create_group_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({required this.repository, this.onNewChat, super.key});
@@ -21,26 +32,120 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  final _inbox = NotificationInbox();
   late final Stream<List<Conversation>> _conversationsStream;
+  late Future<int> _unreadNotifications;
+  _ConversationFilter _conversationFilter = _ConversationFilter.all;
+  bool _showArchived = false;
+  final _folderService = ChatFolderService();
+  ChatFolder? _activeFolder;
+  StreamSubscription<Uri>? _inviteSubscription;
 
   @override
   void initState() {
     super.initState();
     _conversationsStream = widget.repository.watchConversations();
+    _inviteSubscription = InviteHandler.instance.links.listen(_handleInvite);
+    _unreadNotifications = _inbox.unreadCount();
+    unawaited(_loadActiveFolder());
+  }
+
+  Future<void> _loadActiveFolder() async {
+    final folders = await _folderService.getFolders();
+    if (!mounted) return;
+    if (_activeFolder != null &&
+        !folders.any((folder) => folder.id == _activeFolder!.id)) {
+      setState(() => _activeFolder = null);
+    }
+  }
+
+  Future<void> _openCreateGroup() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _handleInvite(Uri uri) async {
+    if (!mounted) return;
+    final link = uri.toString();
+    final join = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('دعوة إلى مجموعة'), content: const Text('هل تريد الانضمام إلى المجموعة عبر هذا الرابط؟'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('انضمام'))]));
+    if (join != true) return;
+    try {
+      final id = await ChatService().joinByInviteLink(link);
+      final snap = await FirebaseFirestore.instance.collection('chats').doc(id).get();
+      final data = snap.data() ?? const <String,dynamic>{};
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final participants = List<String>.from(data['participants'] as List? ?? const []);
+      final other = participants.firstWhere((v) => v != uid, orElse: () => '');
+      if (!mounted || other.isEmpty) return;
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(chatId: id, otherUserId: other, otherUserName: data['groupName']?.toString() ?? 'مجموعة', isGroup: true)));
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الانضمام: ' + e.toString()))); }
   }
 
   @override
-  void dispose() { _search.dispose(); _searchFocus.dispose(); super.dispose(); }
+  void dispose() { _inviteSubscription?.cancel(); _search.dispose(); _searchFocus.dispose(); super.dispose(); }
+
+  Future<void> _openFolders() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FoldersManagerScreen()));
+    await _loadActiveFolder();
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+    );
+    if (mounted) setState(() => _unreadNotifications = _inbox.unreadCount());
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
           actions: [
+            FutureBuilder<int>(
+              future: _unreadNotifications,
+              builder: (context, snapshot) {
+                final count = snapshot.data ?? 0;
+                return IconButton(
+                  tooltip: 'الإشعارات${count > 0 ? ' ($count)' : ''}',
+                  onPressed: _openNotifications,
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.notifications_outlined),
+                      if (count > 0)
+                        PositionedDirectional(
+                          top: -5,
+                          end: -6,
+                          child: Container(
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.error,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 9, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
             IconButton(
               tooltip: 'رجّ للتعارف',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShakeScreen(repository: widget.repository))),
               icon: const Icon(Icons.vibration_rounded),
+            ),
+            IconButton(
+              tooltip: 'مجموعة جديدة',
+              onPressed: _openCreateGroup,
+              icon: const Icon(Icons.group_add_outlined),
             ),
             IconButton(
               tooltip: 'بحث',
@@ -127,6 +232,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
+                SliverToBoxAdapter(child: _buildCategoryBar()),
                 if (filtered.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
@@ -146,6 +252,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         final item = filtered[index];
                         return _ConversationCard(
                           conversation: item,
+                          onMarkUnread: () => widget.repository.markAsUnread(item.id),
+                          onArchive: () => _toggleArchive(item),
+                          onFolder: () => _assignChatToFolder(item.id),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => ChatRoomScreen(
@@ -173,21 +282,165 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
       );
 
+  Future<void> _assignChatToFolder(String chatId) async {
+    final folders = await _folderService.getFolders();
+    if (!mounted || folders.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أنشئ مجلدًا أولًا')));
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('تنظيم المحادثة', style: TextStyle(fontWeight: FontWeight.w800))),
+          for (final folder in folders)
+            FutureBuilder<bool>(
+              future: Future.value(folder.chatIds.contains(chatId)),
+              builder: (_, snap) => CheckboxListTile(
+                value: snap.data ?? false,
+                title: Text(folder.name),
+                onChanged: (value) async {
+                  await _folderService.setChatInFolder(folder.id, chatId, value == true);
+                  if (context.mounted) Navigator.pop(context);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _toggleArchive(Conversation item) async {
+    await ChatService().archiveChat(item.id, !item.isArchived);
+    if (mounted) setState(() {});
+  }
+
+  Widget _buildCategoryBar() => FutureBuilder<List<ChatFolder>>(
+    future: _folderService.getFolders(),
+    builder: (context, snapshot) {
+      final folders = snapshot.data ?? const <ChatFolder>[];
+      final items = <Widget>[
+        ChoiceChip(
+          label: const Text('كل البحث'),
+          selected: _conversationFilter == _ConversationFilter.all &&
+              !_showArchived &&
+              _activeFolder == null &&
+              _search.text.trim().isEmpty,
+          onSelected: (_) => setState(() {
+            _search.clear();
+            _conversationFilter = _ConversationFilter.all;
+            _showArchived = false;
+            _activeFolder = null;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('المحادثات'),
+          selected: _conversationFilter == _ConversationFilter.all &&
+              !_showArchived &&
+              _activeFolder == null,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.all;
+            _showArchived = false;
+            _activeFolder = null;
+          }),
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.tune, size: 17),
+          label: const Text('المجلدات'),
+          onPressed: _openFolders,
+        ),
+        FilterChip(
+          avatar: const Icon(Icons.archive_outlined, size: 17),
+          label: const Text('المؤرشفة'),
+          selected: _showArchived,
+          onSelected: (value) => setState(() {
+            _showArchived = value;
+            if (value) _activeFolder = null;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('الكل'),
+          selected: _conversationFilter == _ConversationFilter.all &&
+              !_showArchived &&
+              _activeFolder == null,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.all;
+            _showArchived = false;
+            _activeFolder = null;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('غير مقروءة'),
+          selected: _conversationFilter == _ConversationFilter.unread,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.unread;
+            _showArchived = false;
+          }),
+        ),
+        ChoiceChip(
+          label: const Text('متصلون'),
+          selected: _conversationFilter == _ConversationFilter.online,
+          onSelected: (_) => setState(() {
+            _conversationFilter = _ConversationFilter.online;
+            _showArchived = false;
+          }),
+        ),
+        ...folders.map(
+          (folder) => ChoiceChip(
+            label: Text(folder.name),
+            selected: _activeFolder?.id == folder.id,
+            onSelected: (_) => setState(() {
+              _activeFolder = folder;
+              _showArchived = false;
+            }),
+          ),
+        ),
+      ];
+
+      return SizedBox(
+        height: 52,
+        child: ListView.separated(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (_, index) => items[index],
+        ),
+      );
+    },
+  );
+
   List<Conversation> _filtered(List<Conversation> source) {
     final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return source;
     return source.where((item) {
       final name = item.participant.displayName.toLowerCase();
       final text = item.lastMessage?.text.toLowerCase() ?? '';
-      return name.contains(query) || text.contains(query);
+      final matchesSearch = query.isEmpty || name.contains(query) || text.contains(query);
+      final matchesArchive = _showArchived ? item.isArchived : !item.isArchived;
+      final matchesFolder = _activeFolder == null || _activeFolder!.chatIds.contains(item.id);
+      final matchesFilter = switch (_conversationFilter) {
+        _ConversationFilter.all => true,
+        _ConversationFilter.unread => item.unreadCount > 0,
+        _ConversationFilter.online => item.participant.isOnline,
+      };
+      return matchesSearch && matchesArchive && matchesFilter && matchesFolder;
     }).toList();
   }
+
 }
 
+enum _ConversationFilter { all, unread, online }
+
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.conversation, required this.onTap});
+  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread, required this.onArchive, required this.onFolder});
   final Conversation conversation;
   final VoidCallback onTap;
+  final Future<void> Function() onMarkUnread;
+  final Future<void> Function() onArchive;
+  final VoidCallback onFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -198,6 +451,7 @@ class _ConversationCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
+        onLongPress: onMarkUnread,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
           child: Row(
@@ -252,7 +506,14 @@ class _ConversationCard extends StatelessWidget {
                   ),
                 )
               else
-                Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+                PopupMenuButton<String>(
+                  onSelected: (value) { if (value == 'archive') onArchive(); if (value == 'folder') onFolder(); },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'archive', child: Text(conversation.isArchived ? 'إلغاء الأرشفة' : 'أرشفة')),
+                    const PopupMenuItem(value: 'folder', child: Text('مجلد')),
+                  ],
+                  icon: Icon(Icons.more_horiz_rounded, color: scheme.onSurfaceVariant),
+                ),
             ],
           ),
         ),

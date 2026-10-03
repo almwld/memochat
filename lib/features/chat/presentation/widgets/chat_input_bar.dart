@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:image_editor_plus/image_editor_plus.dart';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +17,7 @@ import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
 import 'package:memochat/features/chat/services/reliable_message_service.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
+import 'package:memochat/features/games/presentation/games_screen.dart';
 
 class ChatInputBar extends StatefulWidget {
   final String chatId;
@@ -147,8 +152,60 @@ class _ChatInputBarState extends State<ChatInputBar> {
       preview: isVideo ? '🎬 فيديو' : '📷 صورة',
       name: file.path.split(Platform.pathSeparator).last,
       size: _formatBytes(await file.length()),
-      mime: isVideo ? 'video/mp4' : 'image/jpeg',
+      mime: isVideo ? 'video/mp4' : _imageMime(file.path),
     );
+  }
+
+  Future<void> _pickContact() async {
+    if (_sending) return;
+    final granted = await FlutterContacts.requestPermission(readonly: true);
+    if (!granted || !mounted) {
+      ToastService.showError('لم يتم السماح بالوصول إلى جهات الاتصال.');
+      return;
+    }
+    final contacts = await FlutterContacts.getContacts(withProperties: true);
+    if (!mounted || contacts.isEmpty) {
+      ToastService.showError('لا توجد جهات اتصال متاحة.');
+      return;
+    }
+    final selected = await showModalBottomSheet<Contact>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * .7,
+          child: ListView.builder(
+            itemCount: contacts.length,
+            itemBuilder: (_, index) {
+              final c = contacts[index];
+              final phone = c.phones.isNotEmpty ? c.phones.first.number : '';
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                title: Text(c.displayName.isEmpty ? 'جهة اتصال' : c.displayName),
+                subtitle: Text(phone.isEmpty ? 'بدون رقم هاتف' : phone),
+                onTap: () => Navigator.pop(ctx, c),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    final name = selected.displayName.trim().isEmpty ? 'جهة اتصال' : selected.displayName.trim();
+    final phone = selected.phones.isNotEmpty ? selected.phones.first.number.trim() : '';
+    final email = selected.emails.isNotEmpty ? selected.emails.first.address.trim() : '';
+    try {
+      await ChatService().sendMessage(
+        chatId: widget.chatId,
+        text: name,
+        metadata: {'kind': 'contact', 'contactName': name, 'contactPhone': phone, 'contactEmail': email},
+        replyToId: widget.replyToId,
+      );
+      if (mounted) setState(() => _attachments = false);
+    } catch (e) {
+      if (mounted) ToastService.showError('تعذر إرسال جهة الاتصال.');
+      debugPrint('contact send: $e');
+    }
   }
 
   Future<void> _sendText() async {
@@ -225,6 +282,15 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   String pBasename(String path) => path.split(Platform.pathSeparator).last;
 
+  String _imageMime(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic';
+    return 'image/jpeg';
+  }
+
   Future<void> _sendMedia(
     File file, {
     required String type,
@@ -257,16 +323,34 @@ class _ChatInputBarState extends State<ChatInputBar> {
     }
   }
 
+  Future<File> _editImageFile(File source) async {
+    final data = await source.readAsBytes();
+    if (!mounted) return source;
+    final edited = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ImageEditor(image: data)),
+    );
+    if (edited is! Uint8List || edited.isEmpty) return source;
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/edited_${DateTime.now().microsecondsSinceEpoch}.jpg';
+    final output = File(path);
+    await output.writeAsBytes(edited, flush: true);
+    return output;
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     if (source == ImageSource.gallery) {
       final xs = await _picker.pickMultiImage(imageQuality: 90);
       for (final x in xs) {
-        await _sendMedia(File(x.path), type: 'image', folder: 'images', preview: '📷 صورة');
+        final edited = await _editImageFile(File(x.path));
+        await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
       }
       return;
     }
     final x = await _picker.pickImage(source: source, imageQuality: 90);
-    if (x != null) await _sendMedia(File(x.path), type: 'image', folder: 'images', preview: '📷 صورة');
+    if (x != null) {
+      final edited = await _editImageFile(File(x.path));
+      await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
+    }
   }
 
   Future<void> _pickVideo() async {
@@ -538,6 +622,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             ),
                           ),
                           IconButton(
+                            tooltip: 'الألعاب',
+                            onPressed: _sending ? null : () => showGamesSheet(context, chatId: widget.chatId),
+                            icon: Icon(Icons.sports_esports_outlined, color: iconColor),
+                            splashRadius: 21,
+                          ),
+                          IconButton(
                             tooltip: 'إرفاق',
                             onPressed: _sending ? null : _toggleAttachments,
                             icon: Icon(Icons.attach_file_rounded, color: iconColor),
@@ -700,6 +790,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           _mediaItem(Icons.photo_library_outlined, 'المعرض', () => _pickImage(ImageSource.gallery)),
           _mediaItem(Icons.video_library, 'فيديو', _pickVideo),
           _mediaItem(Icons.attach_file, 'ملف', _pickFile),
+          _mediaItem(Icons.contacts_outlined, 'جهة اتصال', _pickContact),
           _mediaItem(Icons.location_on_outlined, 'موقعي', () {
             setState(() => _attachments = false);
             widget.onShareLocation?.call();

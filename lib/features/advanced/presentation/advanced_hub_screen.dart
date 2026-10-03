@@ -1,42 +1,143 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/advanced_features_service.dart';
+import '../../../core/services/mini_app_state_service.dart';
 import '../../chat/services/livekit_service.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/premium_ui.dart';
+import '../../communities/presentation/communities_screen.dart';
 
 class AdvancedHubScreen extends StatelessWidget {
   const AdvancedHubScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      ('غرف صوتية', 'انضم إلى نقاشات صوتية مباشرة أو أنشئ غرفة.', Icons.mic_rounded, const VoiceRoomsScreen()),
-      ('Mini Apps', 'أدوات صغيرة داخل MemoChat بدون مغادرة التطبيق.', Icons.apps_rounded, const MiniAppsScreen()),
-      ('Business', 'ملف نشاط تجاري احترافي قابل للاكتشاف.', Icons.storefront_rounded, const BusinessScreen()),
+    final liveItems = [
+      ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded, const VoiceRoomsScreen(), const Color(0xFF0A8F83)),
+      ('المجتمعات', 'قنوات منظمة للنقاش، الأعضاء والمحتوى المشترك.', Icons.groups_rounded, const CommunitiesScreen(), const Color(0xFF1677C8)),
+      ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded, const BusinessScreen(), const Color(0xFF7B4DFF)),
+    ];
+    final productivityItems = [
+      ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded, const MiniAppsScreen(), const Color(0xFFEA7B24)),
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900))),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final item = items[i];
-          return Card(
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(14),
-              leading: CircleAvatar(radius: 26, child: Icon(item.$3)),
-              title: Text(item.$1, style: const TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(item.$2)),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.$4)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+        children: [
+          const PremiumHero(
+            icon: AppIcons.more,
+            title: 'وسّع تجربة MemoChat',
+            subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع مزامنة وحماية أفضل.',
+          ),
+          const SizedBox(height: 18),
+          const _AdvancedSectionTitle(icon: Icons.bolt_rounded, title: 'تجارب حية'),
+          const SizedBox(height: 8),
+          _AdvancedFeatureGrid(items: liveItems),
+          const SizedBox(height: 20),
+          const _AdvancedSectionTitle(icon: Icons.auto_awesome_rounded, title: 'إنتاجية داخلية'),
+          const SizedBox(height: 8),
+          _AdvancedFeatureGrid(items: productivityItems),
+          const SizedBox(height: 18),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.verified_user_outlined, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('مصمم للعمل مع LiveKit وFirestore والمزامنة المحلية دون مغادرة التطبيق.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4))),
+                ],
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
+}
+
+class _AdvancedFeatureGrid extends StatelessWidget {
+  const _AdvancedFeatureGrid({required this.items});
+  final List<(String, String, IconData, Widget, Color)> items;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680 ? 2 : 1;
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              mainAxisExtent: 142,
+            ),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return _AdvancedFeatureCard(
+                title: item.$1,
+                subtitle: item.$2,
+                icon: item.$3,
+                color: item.$5,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.$4)),
+              );
+            },
+          );
+        },
+      );
+}
+
+class _AdvancedFeatureCard extends StatelessWidget {
+  const _AdvancedFeatureCard({required this.title, required this.subtitle, required this.icon, required this.color, required this.onTap});
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(17)),
+                  child: Icon(icon, color: color, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const SizedBox(height: 5),
+                  Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.3, fontSize: 12)),
+                ])),
+                Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _AdvancedSectionTitle extends StatelessWidget {
+  const _AdvancedSectionTitle({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+  @override
+  Widget build(BuildContext context) => Row(children: [Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))]);
 }
 
 class VoiceRoomsScreen extends StatefulWidget {
@@ -129,8 +230,10 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   final _service = AdvancedFeaturesService();
   final _liveKit = LiveKitService();
   Room? _room;
+  Timer? _participantsRefresh;
   bool _joining = true;
-  bool _mic = true;
+  bool _mic = false;
+  bool _speaker = true;
   String? _error;
 
   @override
@@ -142,10 +245,30 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   Future<void> _join() async {
     try {
       await _service.joinVoiceRoom(widget.roomId);
-      _room = await _liveKit.connectRoom(roomName: widget.roomName);
-      if (mounted) setState(() { _joining = false; _mic = _liveKit.isMicrophoneEnabled; });
+      final user = FirebaseAuth.instance.currentUser;
+      _room = await _liveKit.connectVoiceRoom(
+        roomId: widget.roomId,
+        roomName: widget.roomName,
+        participantName: user?.displayName,
+      );
+      _participantsRefresh = Timer.periodic(const Duration(milliseconds: 700), (_) {
+        if (mounted) setState(() {});
+      });
+      if (mounted) {
+        setState(() {
+          _joining = false;
+          _mic = _liveKit.isMicrophoneEnabled;
+          _speaker = _liveKit.isSpeakerOn;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _joining = false; _error = e.toString(); });
+      try { await _service.leaveVoiceRoom(widget.roomId); } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _joining = false;
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -154,54 +277,192 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     if (mounted) setState(() => _mic = value);
   }
 
+  Future<void> _toggleSpeaker() async {
+    final value = !_speaker;
+    await _liveKit.setSpeakerphone(value);
+    if (mounted) setState(() => _speaker = value);
+  }
+
   Future<void> _leave() async {
+    _participantsRefresh?.cancel();
     await _liveKit.endCall();
-    await _service.leaveVoiceRoom(widget.roomId);
-    if (mounted) Navigator.pop(context);
+    try {
+      await _service.leaveVoiceRoom(widget.roomId);
+    } finally {
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   @override
   void dispose() {
-    if (_liveKit.isConnected) _liveKit.endCall();
+    _participantsRefresh?.cancel();
+    if (_liveKit.isConnected) unawaited(_liveKit.endCall());
     super.dispose();
   }
 
+  List<_VoiceParticipant> _participants() {
+    final room = _room;
+    if (room == null) return const [];
+    final result = <_VoiceParticipant>[];
+    final local = room.localParticipant;
+    if (local != null) {
+      result.add(_VoiceParticipant(
+        identity: local.identity,
+        name: local.name.isEmpty ? 'أنت' : local.name,
+        muted: !_mic,
+        isLocal: true,
+      ));
+    }
+    for (final participant in room.remoteParticipants.values) {
+      dynamic p = participant;
+      var muted = true;
+      try {
+        for (final publication in p.trackPublications.values) {
+          final source = publication.source.toString().toLowerCase();
+          if (source.contains('microphone')) {
+            muted = publication.muted == true;
+            break;
+          }
+        }
+      } catch (_) {}
+      result.add(_VoiceParticipant(
+        identity: p.identity.toString(),
+        name: p.name.toString().isEmpty ? 'مشارك' : p.name.toString(),
+        muted: muted,
+        isLocal: false,
+      ));
+    }
+    return result;
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.title)),
-    body: _joining
-        ? const Center(child: CircularProgressIndicator())
-        : _error != null
-            ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)))
-            : StreamBuilder(
-                stream: _service.watchRoomMembers(widget.roomId),
-                builder: (context, snapshot) {
-                  final count = snapshot.data?.docs.length ?? 0;
-                  return Column(
-                    children: [
-                      const SizedBox(height: 34),
-                      const CircleAvatar(radius: 48, child: Icon(Icons.graphic_eq_rounded, size: 44)),
-                      const SizedBox(height: 18),
-                      Text(widget.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 6),
-                      Text('$count مشارك', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                      const Spacer(),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        FloatingActionButton.large(onPressed: _toggleMic, child: Icon(_mic ? Icons.mic_rounded : Icons.mic_off_rounded)),
-                        const SizedBox(width: 20),
-                        FloatingActionButton.large(
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                          foregroundColor: Theme.of(context).colorScheme.onError,
-                          onPressed: _leave,
-                          child: const Icon(Icons.call_end_rounded),
+  Widget build(BuildContext context) {
+    final participants = _participants();
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            tooltip: _speaker ? 'السماعة الخارجية مفعلة' : 'السماعة الخارجية متوقفة',
+            onPressed: _toggleSpeaker,
+            icon: Icon(_speaker ? Icons.volume_up_rounded : Icons.volume_off_rounded),
+          ),
+        ],
+      ),
+      body: _joining
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_off_rounded, size: 56),
+                        const SizedBox(height: 16),
+                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          label: const Text('العودة'),
                         ),
-                      ]),
-                      const SizedBox(height: 36),
+                      ],
+                    ),
+                  ),
+                )
+              : SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 18),
+                      const Icon(Icons.graphic_eq_rounded, size: 46),
+                      const SizedBox(height: 8),
+                      Text(widget.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 4),
+                      Text(
+                        participants.length.toString() + ' مشارك الآن',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 14),
+                      Expanded(
+                        child: participants.isEmpty
+                            ? const Center(child: Text('بانتظار المشاركين…'))
+                            : GridView.builder(
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                                itemCount: participants.length,
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisExtent: 118,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                ),
+                                itemBuilder: (_, index) {
+                                  final participant = participants[index];
+                                  return Card(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 28,
+                                          child: Icon(participant.muted ? Icons.mic_off_rounded : Icons.mic_rounded),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          participant.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w800),
+                                        ),
+                                        Text(
+                                          participant.muted ? 'صامت' : 'يتحدث',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            FloatingActionButton.large(
+                              onPressed: _toggleMic,
+                              child: Icon(_mic ? Icons.mic_rounded : Icons.mic_off_rounded),
+                            ),
+                            const SizedBox(width: 18),
+                            FloatingActionButton.large(
+                              backgroundColor: Theme.of(context).colorScheme.error,
+                              foregroundColor: Theme.of(context).colorScheme.onError,
+                              onPressed: _leave,
+                              child: const Icon(Icons.call_end_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                  );
-                },
-              ),
-  );
+                  ),
+                ),
+    );
+  }
+}
+
+class _VoiceParticipant {
+  const _VoiceParticipant({
+    required this.identity,
+    required this.name,
+    required this.muted,
+    required this.isLocal,
+  });
+  final String identity;
+  final String name;
+  final bool muted;
+  final bool isLocal;
 }
 
 class MiniAppsScreen extends StatelessWidget {
@@ -239,7 +500,9 @@ class QuickNotesScreen extends StatefulWidget {
 
 class _QuickNotesScreenState extends State<QuickNotesScreen> {
   final _controller = TextEditingController();
+  final _cloudState = MiniAppStateService();
   bool _loaded = false;
+  bool _cloudSynced = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -247,13 +510,36 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _controller.text = prefs.getString('mini_notes') ?? '';
+    if (Firebase.apps.isNotEmpty && FirebaseAuth.instance.currentUser != null) {
+      try {
+        final cloud = await _cloudState.load('quick_notes');
+        final cloudText = cloud?['text']?.toString();
+        if (cloudText != null && cloudText.isNotEmpty) _controller.text = cloudText;
+        _cloudSynced = cloud != null;
+      } catch (_) {
+        // Local notes remain available when the account or network is offline.
+      }
+    }
     if (mounted) setState(() => _loaded = true);
   }
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mini_notes', _controller.text);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحفظ محلياً')));
+    var message = 'تم الحفظ محلياً';
+    if (Firebase.apps.isNotEmpty && FirebaseAuth.instance.currentUser != null) {
+      try {
+        await _cloudState.save('quick_notes', {'text': _controller.text});
+        _cloudSynced = true;
+        message = 'تم الحفظ محلياً ومزامنته سحابياً';
+      } catch (_) {
+        message = 'تم الحفظ محلياً؛ ستتم المزامنة عند توفر الاتصال';
+      }
+    }
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
@@ -266,7 +552,19 @@ class _QuickNotesScreenState extends State<QuickNotesScreen> {
     ]),
     body: Padding(
       padding: const EdgeInsets.all(16),
-      child: TextField(controller: _controller, enabled: _loaded, maxLines: null, expands: true, decoration: const InputDecoration(hintText: 'اكتب ملاحظتك...')),
+      child: Column(
+        children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              _cloudSynced ? 'مزامنة سحابية مفعّلة' : 'حفظ محلي آمن',
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(child: TextField(controller: _controller, enabled: _loaded, maxLines: null, expands: true, decoration: const InputDecoration(hintText: 'اكتب ملاحظتك...'))),
+        ],
+      ),
     ),
   );
 }

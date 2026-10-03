@@ -5,6 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../../core/notifications/notification_inbox.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
+import 'advanced_privacy_screen.dart';
+import '../../../core/widgets/security_level_indicator.dart';
+import '../../../core/security/security_settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -21,6 +26,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final _inbox = NotificationInbox();
   static const _notificationsKey = 'settings.notifications';
   static const _readReceiptsKey = 'settings.readReceipts';
   static const _typingKey = 'settings.typing';
@@ -40,6 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _load();
+    SecuritySettingsService.instance.load();
   }
 
   Future<void> _load() async {
@@ -229,6 +236,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _notifications,
                 onChanged: (v) => _toggle(_notificationsKey, v),
               ),
+              FutureBuilder<int>(
+                future: _inbox.unreadCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return ListTile(
+                    leading: const PremiumIconTile(icon: AppIcons.notifications, size: 42, iconSize: 20),
+                    title: const Text('مركز الإشعارات', style: TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text(count > 0 ? '$count إشعار غير مقروء' : 'لا توجد إشعارات غير مقروءة'),
+                    trailing: count > 0
+                        ? Badge(label: Text(count > 99 ? '99+' : '$count'), child: const Icon(Icons.chevron_left_rounded))
+                        : const Icon(Icons.chevron_left_rounded),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationCenterScreen())),
+                  );
+                },
+              ),
               _SwitchRow(
                 icon: AppIcons.message,
                 title: 'إيصالات القراءة',
@@ -265,6 +287,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _SectionTitle('المظهر والتطبيق'),
           _CardGroup(
             children: [
+              ListTile(
+                leading: const Icon(Icons.shield_outlined),
+                title: const Text('الخصوصية المتقدمة', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const SecurityLevelIndicator(compact: false),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen())),
+              ),
               ListTile(
                 leading: const PremiumIconTile(icon: AppIcons.settings, size: 42, iconSize: 20),
                 title: const Text('المظهر', style: TextStyle(fontWeight: FontWeight.w800)),
