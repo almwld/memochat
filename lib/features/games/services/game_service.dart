@@ -26,6 +26,33 @@ class GameService {
     await _games(chatId).doc(gameId).update({...data,'updatedAt':FieldValue.serverTimestamp()});
   }
 
+  Future<void> updatePlayerState({
+    required String chatId,
+    required String gameId,
+    required String uid,
+    required Map<String, dynamic> state,
+    int? score,
+    String? currentTurn,
+  }) async {
+    final ref = _games(chatId).doc(gameId);
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final data = snap.data() ?? <String, dynamic>{};
+      final scores = Map<String, dynamic>.from(data['scores'] as Map? ?? const {});
+      if (score != null) scores[uid] = score;
+      final mergedState = Map<String, dynamic>.from(data['state'] as Map? ?? const {});
+      mergedState.addAll(state);
+      final update = <String, dynamic>{
+        'state': mergedState,
+        'scores': scores,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (currentTurn != null) update['currentTurn'] = currentTurn;
+      tx.update(ref, update);
+    });
+  }
+
   Future<void> endGame({required String chatId,required String gameId,Map<String,int>? scores}) async {
     await _games(chatId).doc(gameId).update({'status':GameStatus.ended.name,'scores':scores??{},'endedAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});
   }
