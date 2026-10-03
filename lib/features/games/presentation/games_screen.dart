@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../data/games_catalog.dart';
+import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/games/models/game.dart';
 import '../services/game_service.dart';
 import 'game_room_screen.dart';
@@ -22,7 +23,13 @@ class _GamesScreenState extends State<GamesScreen> {
     if(uid==null) return;
     setState(()=>_opening=true);
     try {
-      final id=await GameService.instance.createGame(chatId:widget.chatId,type:GamesCatalog.all[index].type,uid:uid,timeLimit:_limit);
+      final definition=GamesCatalog.all[index];
+      final id=await GameService.instance.createGame(chatId:widget.chatId,type:definition.type,uid:uid,timeLimit:_limit);
+      await ChatService().sendMessage(
+        chatId: widget.chatId,
+        text: '🎮 ${definition.title} — دعوة للعب',
+        metadata: {'kind': 'game_invite', 'gameId': id, 'gameType': definition.type.name, 'timeLimit': _limit.name},
+      );
       if(!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>GameRoomScreen(chatId:widget.chatId,gameId:id)));
     } finally { if(mounted) setState(()=>_opening=false); }
