@@ -46,7 +46,7 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
       if (!mounted) return;
       setState(() => _level = level);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم تطبيق $\{level.label\}')),
+        SnackBar(content: Text('تم تطبيق ' + level.label)),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
