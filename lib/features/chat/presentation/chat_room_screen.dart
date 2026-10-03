@@ -704,9 +704,75 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoScreen(chatId: widget.chatId)));
   }
 
-  void _profile() {
-    if (widget.otherUserName.trim().isEmpty) return;
-    showModalBottomSheet<void>(context: context, builder: (_) => ListTile(title: Text(widget.otherUserName), subtitle: Text(widget.otherUserId), leading: CircleAvatar(backgroundImage: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? NetworkImage((widget.otherUserImage ?? widget.groupImage)!) : null, child: (widget.otherUserImage ?? widget.groupImage)?.isNotEmpty == true ? null : const Icon(Icons.person_rounded))));
+  Future<void> _profile() async {
+    if (widget.otherUserId.trim().isEmpty) return;
+
+    var displayName = widget.otherUserName.trim();
+    var image = (widget.otherUserImage ?? widget.groupImage)?.trim() ?? '';
+
+    try {
+      final snapshot = await _firestore.collection('users').doc(widget.otherUserId).get();
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final storedName = data['displayName']?.toString().trim();
+      final profileName = data['name']?.toString().trim();
+      if (storedName?.isNotEmpty == true) {
+        displayName = storedName!;
+      } else if (profileName?.isNotEmpty == true) {
+        displayName = profileName!;
+      }
+      final storedImage = data['photoUrl']?.toString().trim();
+      final authImage = data['photoURL']?.toString().trim();
+      if (storedImage?.isNotEmpty == true) {
+        image = storedImage!;
+      } else if (authImage?.isNotEmpty == true) {
+        image = authImage!;
+      }
+    } catch (e) {
+      debugPrint('load contact profile failed: $e');
+    }
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
+                child: image.isNotEmpty ? null : const Icon(Icons.person_rounded, size: 30),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName.isEmpty ? 'مستخدم MemoChat' : displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'معلومات جهة الاتصال',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openOtherUserStatus(UserStatusModel status) async { if (!mounted || status.stories.isEmpty) return; await Navigator.push(context, MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))); }
