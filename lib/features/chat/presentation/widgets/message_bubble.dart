@@ -31,9 +31,10 @@ class MessageBubble extends StatefulWidget {
   final VoidCallback? onReplyPreviewTap;
   final VoidCallback? onForward;
   final VoidCallback? onStar;
+  final VoidCallback? onSelect;
   final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.fontSize = 14});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -106,7 +107,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _shell(Widget child, bool dark) => GestureDetector(
-        onLongPress: _options,
+        onLongPress: widget.onSelect ?? _options,
         child: Container(
             decoration: BoxDecoration(
                 color: widget.isMe
