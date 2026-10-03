@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -227,6 +226,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       case GameType.speedMath: return _speedMathGame();
       case GameType.movieQuiz: return _choiceGame('Movie Quiz', ['Inception','Interstellar','Avatar','The Matrix']);
       case GameType.sudokuDuel: return _sudokuGame();
+      default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
     }
   }
 
@@ -354,7 +354,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       onSubmitted: (v) {
         if (!_guardTurn()) return;
         if (v.trim().isEmpty) return;
-        final last = _word.characters.last;
+        final last = String.fromCharCode(_word.runes.last);
         if (v.trim().startsWith(last)) {
           _point(value: 2);
           setState(() => _word = v.trim());
