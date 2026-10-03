@@ -30,6 +30,35 @@ class ChatService {
   }
   Stream<List<ChatModel>> streamChats({int limit=50})=>_firestore.collection('chats').where('participants',arrayContains:_uid()).limit(limit).snapshots().map((s){final uid=currentUserId;final list=s.docs.map((d)=>ChatModel.fromFirestore(d.id,d.data())).where((c){final data=s.docs.firstWhere((d)=>d.id==c.id).data();final deletedFor=data['deletedFor'];return uid==null||deletedFor is! Map||deletedFor[uid]!=true;}).toList();list.sort((a,b)=>(b.updatedAt??Timestamp(0,0)).compareTo(a.updatedAt??Timestamp(0,0)));return list;});
   Future<List<ChatModel>> getMoreChats({required int limit,DocumentSnapshot? startAfter})async{Query<Map<String,dynamic>> q=_firestore.collection('chats').where('participants',arrayContains:_uid()).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();final uid=currentUserId;return s.docs.where((d){final deletedFor=d.data()['deletedFor'];return uid==null||deletedFor is! Map||deletedFor[uid]!=true;}).map((d)=>ChatModel.fromFirestore(d.id,d.data())).toList();}
+  Future<void> promoteToAdmin(String chatId, String memberId) async {
+    final uid=_uid(); final chat=await _authorizedChat(chatId); final data=chat.data() ?? {};
+    final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {});
+    if (roles[uid] != 'owner' && roles[uid] != 'admin') throw Exception('لا تملك صلاحية الإدارة');
+    if (!roles.containsKey(memberId)) throw Exception('العضو غير موجود');
+    roles[memberId]='admin'; await _chatRef(chatId).update({'memberRoles':roles,'updatedAt':FieldValue.serverTimestamp()});
+  }
+
+  Future<void> demoteFromAdmin(String chatId, String memberId) async {
+    final uid=_uid(); final chat=await _authorizedChat(chatId); final data=chat.data() ?? {};
+    final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {});
+    if (roles[uid] != 'owner') throw Exception('المالك فقط يستطيع خفض صلاحية المدير');
+    if (roles[memberId] == 'owner') throw Exception('لا يمكن خفض صلاحية المالك');
+    if (roles.containsKey(memberId)) roles[memberId]='member';
+    await _chatRef(chatId).update({'memberRoles':roles,'updatedAt':FieldValue.serverTimestamp()});
+  }
+
+  Future<void> removeMember(String chatId, String memberId) async {
+    final uid=_uid(); final chat=await _authorizedChat(chatId); final data=chat.data() ?? {};
+    final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {});
+    if (roles[uid] != 'owner' && roles[uid] != 'admin') throw Exception('لا تملك صلاحية الإدارة');
+    if (roles[memberId] == 'owner') throw Exception('لا يمكن إزالة مالك المجموعة');
+    final participants=List<String>.from(data['participants'] as List? ?? const [])..remove(memberId);
+    final details=Map<String,dynamic>.from(data['participantDetails'] as Map? ?? const {})..remove(memberId);
+    final unread=Map<String,dynamic>.from(data['unreadCount'] as Map? ?? const {})..remove(memberId);
+    roles.remove(memberId);
+    await _chatRef(chatId).update({'participants':participants,'participantDetails':details,'unreadCount':unread,'memberRoles':roles,'updatedAt':FieldValue.serverTimestamp()});
+  }
+
   Future<String> createGroupChat({required String name, required List<String> memberIds, required Map<String, Map<String, dynamic>> memberDetails}) async {
     final owner = _uid();
     final cleanName = name.trim();
