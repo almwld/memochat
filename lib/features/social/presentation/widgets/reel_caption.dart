@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/user_name.dart';
 
 class ReelCaption extends StatelessWidget {
   const ReelCaption({super.key, required this.author, required this.caption, required this.musicTitle});
@@ -11,7 +12,7 @@ class ReelCaption extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('@$author', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+        Row(children: [const Text('@', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)), Flexible(child: UserName(userId: author, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)))]),
         if (caption.isNotEmpty) ...[
           const SizedBox(height: 7),
           Text(caption, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, height: 1.35, fontSize: 14)),
