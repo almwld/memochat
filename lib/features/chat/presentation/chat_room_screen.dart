@@ -21,6 +21,8 @@ import 'package:memochat/features/chat/presentation/widgets/chat_background.dart
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
 import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
+import 'package:memochat/core/services/chat_preferences_service.dart';
+import 'package:memochat/features/chat/presentation/chat_settings_screen.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatId;
@@ -166,6 +168,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   DateTime? _lastSeen;
   bool _muted = false;
   bool _pinned = false;
+  String _wallpaper = 'default';
+  double _fontSize = 14.0;
+  final _chatPrefs = ChatPreferencesService();
   MessageModel? _replyingTo;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
       _firestore.collection('chats').doc(widget.chatId).collection('messages');
@@ -176,10 +181,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onChatScroll);
     _initializeRoom();
+    _loadChatPreferences();
     _loadPendingMedia();
     
     unawaited(NotificationService().cancelChatNotifications(widget.chatId));
     _markRead();
+  }
+
+  Future<void> _loadChatPreferences() async {
+    try {
+      final wallpaper = await _chatPrefs.getWallpaper(widget.chatId);
+      final fontSize = await _chatPrefs.getFontSize(widget.chatId);
+      if (!mounted) return;
+      setState(() {
+        _wallpaper = wallpaper ?? 'default';
+        _fontSize = fontSize ?? 14.0;
+      });
+    } catch (e) {
+      debugPrint('chat preferences load failed: $e');
+    }
+  }
+
+  Future<void> _openChatSettings() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatSettingsScreen(chatId: widget.chatId)));
+    await _loadChatPreferences();
   }
 
   Future<void> _setTyping(bool typing) async {
@@ -1075,9 +1100,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 if (value == 'pinned') _showPinnedMessages();
                 if (value == 'profile') _profile();
                 if (value == 'delete') _deleteChatForMe();
+                if (value == 'settings') _openChatSettings();
               },
               itemBuilder: (_) => [
                     const PopupMenuItem(value: 'profile', child: Text('معلومات جهة الاتصال')),
+                    const PopupMenuItem(value: 'settings', child: Text('تخصيص المحادثة')),
                     const PopupMenuItem(value: 'pinned', child: Text('الرسائل المثبتة')),
                     PopupMenuItem(value: 'mute', child: Text(_muted ? 'إلغاء كتم الإشعارات' : 'كتم الإشعارات')),
                     PopupMenuItem(value: 'pin', child: Text(_pinned ? 'إلغاء تثبيت المحادثة' : 'تثبيت المحادثة')),
@@ -1090,6 +1117,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         Expanded(
             child: ChatBackground(
                 scrollController: _scrollController,
+                wallpaper: _wallpaper,
                 child: Stack(children: [
           if (_loadError != null)
             Center(
@@ -1165,6 +1193,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                           ? null
                           : () => _toggleMessagePin(model),
                       onCallAgain: (_) => _call(false),
+                      fontSize: _fontSize,
                       onReaction: remote && messageId != null
                           ? (emoji) => _chat.addReaction(
                               widget.chatId, messageId, emoji)

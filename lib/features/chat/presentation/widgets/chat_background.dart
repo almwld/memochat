@@ -5,10 +5,12 @@ class ChatBackground extends StatelessWidget {
     super.key,
     required this.child,
     this.scrollController,
+    this.wallpaper = 'default',
   });
 
   final Widget child;
   final ScrollController? scrollController;
+  final String wallpaper;
 
   @override
   Widget build(BuildContext context) {
@@ -17,22 +19,30 @@ class ChatBackground extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ColoredBox(
-          color: dark ? const Color(0xFF0B1117) : const Color(0xFFF4F7F6),
+          color: _backgroundColor(dark),
           child: CustomPaint(
-            painter: _ChatBackgroundPainter(dark: dark, scrollOffset: scrollController?.hasClients == true ? scrollController!.offset : 0),
+            painter: _ChatBackgroundPainter(dark: dark, wallpaper: wallpaper, scrollOffset: scrollController?.hasClients == true ? scrollController!.offset : 0),
           ),
         ),
         child,
       ],
     );
   }
+
+  Color _backgroundColor(bool dark) => switch (wallpaper) {
+    'mint' => dark ? const Color(0xFF102824) : const Color(0xFFE8F6F2),
+    'paper' => dark ? const Color(0xFF171717) : const Color(0xFFFFFBF2),
+    'dark' => const Color(0xFF0B1117),
+    _ => dark ? const Color(0xFF0B1117) : const Color(0xFFF4F7F6),
+  };
 }
 
 class _ChatBackgroundPainter extends CustomPainter {
-  const _ChatBackgroundPainter({required this.dark, required this.scrollOffset});
+  const _ChatBackgroundPainter({required this.dark, required this.scrollOffset, required this.wallpaper});
 
   final bool dark;
   final double scrollOffset;
+  final String wallpaper;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -87,5 +97,5 @@ class _ChatBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ChatBackgroundPainter oldDelegate) =>
-      oldDelegate.dark != dark || oldDelegate.scrollOffset != scrollOffset;
+      oldDelegate.dark != dark || oldDelegate.scrollOffset != scrollOffset || oldDelegate.wallpaper != wallpaper;
 }

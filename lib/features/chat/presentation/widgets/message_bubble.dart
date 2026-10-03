@@ -30,8 +30,9 @@ class MessageBubble extends StatefulWidget {
   final bool isFirstInChat;
   final VoidCallback? onReplyPreviewTap;
   final VoidCallback? onForward;
+  final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -199,7 +200,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           if (m['isEdited'] == true) _editedMarker(dark),
           if (m['replyPreview'] is Map) _replyPreview(m['replyPreview'] as Map, dark),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Flexible(child: Text(m['text']?.toString() ?? '', style: TextStyle(color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)), fontSize: 14))),
+            Flexible(child: Text(m['text']?.toString() ?? '', style: TextStyle(color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)), fontSize: widget.fontSize))),
             const SizedBox(width: 6),
             Text(_timeLabel(m['timestamp'] ?? m['clientTimestamp']), style: TextStyle(color: widget.isMe ? Colors.white70 : (dark ? Colors.white60 : const Color(0xFF6B7D7D)), fontSize: 9)),
           ]),
