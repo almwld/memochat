@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/game.dart';
 import '../services/game_service.dart';
+import 'widgets/game_art.dart';
 
 class ExtendedGamesBody extends StatefulWidget {
   final GameType type;
@@ -78,28 +79,13 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
   );
 
   Widget _head() => Column(children: [
-    Text(_icon(), style: const TextStyle(fontSize: 52)),
+    GameArt(type: widget.type, size: 76),
     const SizedBox(height: 6),
     Text(widget.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
     Text('الجولة $round  •  النقاط $score', style: const TextStyle(fontWeight: FontWeight.w700)),
     const SizedBox(height: 6), Text(feedback, textAlign: TextAlign.center),
   ]);
 
-  String _icon() {
-    const m = <GameType,String>{
-      GameType.colorRush:'🎨',GameType.higherLower:'↕️',GameType.numberGuess:'🔢',GameType.wordScramble:'🔤',
-      GameType.emojiMemory:'🧠',GameType.patternTap:'🔷',GameType.oddOneOut:'👀',GameType.fourInRow:'🟡',
-      GameType.dotsAndBoxes:'▫️',GameType.reactionRace:'⚡',GameType.cardFlip:'🃏',GameType.treasureHunt:'💎',
-      GameType.mazeRunner:'🌀',GameType.stackTower:'🏗️',GameType.targetHit:'🎯',GameType.bubblePop:'🫧',
-      GameType.colorMatch:'🌈',GameType.shapeMatch:'🔺',GameType.sequenceRecall:'🧩',GameType.fastChoice:'🚀',
-      GameType.trueFalse:'✅',GameType.flagQuiz:'🏳️',GameType.animalQuiz:'🦊',GameType.foodQuiz:'🍕',
-      GameType.geographyQuiz:'🌍',GameType.scienceQuiz:'🔬',GameType.historyQuiz:'🏛️',GameType.languageQuiz:'🗣️',
-      GameType.riddleRush:'🧠',GameType.anagramBattle:'🔠',GameType.mathDuel:'➗',GameType.codeBreaker:'🔐',
-      GameType.lightSwitch:'💡',GameType.connectPairs:'🔗',GameType.wordGuess:'📝',GameType.picturePuzzle:'🖼️',
-      GameType.balanceBeam:'⚖️',GameType.rocketRace:'🚀',GameType.galaxyCatch:'🌌',GameType.rhythmTap:'🎵',
-    };
-    return m[widget.type] ?? '🎮';
-  }
 
   Widget _grid(List<String> labels) => GridView.builder(
     shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: labels.length,
