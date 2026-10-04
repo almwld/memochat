@@ -94,6 +94,43 @@ service cloud.firestore {
 
       allow delete: if false;
 
+      match /games/{gameId} {
+        allow read: if isChatParticipant(chatId);
+
+        allow create: if isChatParticipant(chatId) &&
+          request.resource.data.type is string &&
+          request.resource.data.players is list &&
+          request.resource.data.players.size() == 1 &&
+          request.resource.data.players[0] == request.auth.uid;
+
+        allow update: if isChatParticipant(chatId) &&
+          request.auth.uid in resource.data.players &&
+          request.resource.data.type == resource.data.type &&
+          request.resource.data.players is list &&
+          request.resource.data.players.size() >= 1 &&
+          request.resource.data.players.size() <= 2 &&
+          (
+            request.resource.data.players == resource.data.players ||
+            (
+              request.auth.uid in resource.data.players &&
+              request.resource.data.players.size() == resource.data.players.size() + 1
+            )
+          ) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'players',
+            'state',
+            'scores',
+            'currentTurn',
+            'status',
+            'startedAt',
+            'endedAt',
+            'timeLimit',
+            'updatedAt'
+          ]);
+
+        allow delete: if false;
+      }
+
       match /messages/{messageId} {
         allow read: if isChatParticipant(chatId);
 
