@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../data/community_service.dart';
 
@@ -36,8 +37,10 @@ class CommunitiesScreen extends StatelessWidget {
               final description = data['description']?.toString() ?? '';
               final members = data['membersCount'] ?? 0;
               return Card(
+                clipBehavior: Clip.antiAlias,
                 child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.groups_rounded)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: Container(width: 52, height: 52, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.10), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.groups_rounded, color: Theme.of(context).colorScheme.primary)),
                   title: Text(data['name']?.toString() ?? 'مجتمع', style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(description.isNotEmpty ? description : '$members أعضاء', maxLines: 2, overflow: TextOverflow.ellipsis),
                   trailing: const Icon(Icons.chevron_left_rounded),
@@ -79,8 +82,8 @@ class CommunitiesScreen extends StatelessWidget {
     try {
       final id = await _service.createCommunity(name: name.text, description: description.text);
       if (context.mounted) await _openCommunity(context, id, name.text.trim());
-    } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء المجتمع.')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إنشاء المجتمع: ' + e.toString().replaceFirst('Bad state: ', ''))));
     } finally {
       name.dispose();
       description.dispose();
