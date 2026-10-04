@@ -106,7 +106,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     // The room owns the game document; gameplay remains usable if no active session is found.
     // We only subscribe after locating the latest game for this chat.
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null || widget.chatId.trim().isEmpty) return;
     try {
       final snap = await FirebaseFirestore.instance
           .collection('chats').doc(widget.chatId).collection('games')
@@ -228,7 +228,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               child: _gameBody(),
             ),
-            _QuickGameChatBar(chatId: widget.chatId),
+            if (widget.chatId.trim().isNotEmpty) _QuickGameChatBar(chatId: widget.chatId),
           ],
         ),
       ),
