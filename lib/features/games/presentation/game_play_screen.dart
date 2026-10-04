@@ -33,7 +33,8 @@ class GamePlayScreen extends StatefulWidget {
   final GameType type;
   final String title;
   final String chatId;
-  const GamePlayScreen({super.key, required this.type, required this.title, required this.chatId});
+  final String? gameId;
+  const GamePlayScreen({super.key, required this.type, required this.title, required this.chatId, this.gameId});
 
   @override
   State<GamePlayScreen> createState() => _GamePlayScreenState();
@@ -103,18 +104,22 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Future<void> _resolveGameSession() async {
-    // The room owns the game document; gameplay remains usable if no active session is found.
-    // We only subscribe after locating the latest game for this chat.
+    // The room owns the exact game document; solo gameplay remains usable without a session.
+    // Never guess a session by type when a direct challenge already supplied its gameId.
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || widget.chatId.trim().isEmpty) return;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('chats').doc(widget.chatId).collection('games')
-          .where('type', isEqualTo: widget.type.name)
-          .orderBy('createdAt', descending: true)
-          .limit(1).get();
-      if (snap.docs.isEmpty || !mounted) return;
-      _gameId = snap.docs.first.id;
+      if (widget.gameId?.trim().isNotEmpty == true) {
+        _gameId = widget.gameId!.trim();
+      } else {
+        final snap = await FirebaseFirestore.instance
+            .collection('chats').doc(widget.chatId).collection('games')
+            .where('type', isEqualTo: widget.type.name)
+            .orderBy('createdAt', descending: true)
+            .limit(1).get();
+        if (snap.docs.isEmpty || !mounted) return;
+        _gameId = snap.docs.first.id;
+      }
       _gameSubscription = GameService.instance.watchGame(widget.chatId, _gameId!).listen((game) {
         if (!mounted || game == null) return;
         final others = game.players.where((id) => id != uid).toList();
