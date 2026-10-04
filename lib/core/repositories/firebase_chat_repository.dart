@@ -143,6 +143,9 @@ class FirebaseChatRepository implements ChatRepository {
                         ?.map((e) => e.toString()) ??
                     const [],
               );
+              final isGroup = data['isGroup'] == true;
+              final groupName = data['groupName']?.toString().trim() ?? '';
+              final groupPhoto = data['groupPhoto']?.toString().trim() ?? '';
               final other =
                   ids.firstWhere((id) => id != _uid, orElse: () => '');
               final names = Map<String, dynamic>.from(
@@ -159,11 +162,15 @@ class FirebaseChatRepository implements ChatRepository {
               final otherDetails = details[other] is Map
                   ? Map<String, dynamic>.from(details[other] as Map)
                   : const <String, dynamic>{};
-              final otherName = names[other]?.toString() ??
-                  otherDetails['name']?.toString() ??
-                  'مستخدم';
-              final otherPhoto = photos[other]?.toString() ??
-                  otherDetails['photoUrl']?.toString();
+              final otherName = isGroup && groupName.isNotEmpty
+                  ? groupName
+                  : names[other]?.toString() ??
+                      otherDetails['name']?.toString() ??
+                      'مستخدم';
+              final otherPhoto = isGroup && groupPhoto.isNotEmpty
+                  ? groupPhoto
+                  : photos[other]?.toString() ??
+                      otherDetails['photoUrl']?.toString();
               final preview = data['lastMessage']?.toString() ?? '';
               final previewTime = data['updatedAt'];
               final previewDate = previewTime is Timestamp
@@ -173,7 +180,7 @@ class FirebaseChatRepository implements ChatRepository {
                 return Conversation(
                   id: doc.id,
                 participant: ChatUser(
-                  id: other,
+                  id: isGroup ? doc.id : other,
                   displayName: otherName,
                   avatarUrl: otherPhoto,
                   isOnline: false,
