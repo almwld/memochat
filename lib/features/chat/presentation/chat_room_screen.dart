@@ -65,6 +65,7 @@ class _SwipeToReplyState extends State<_SwipeToReply> {
     if (mounted) setState(() => _dx = 0);
   }
 
+
   @override
   Widget build(BuildContext context) {
     final distance = _dx.abs();
