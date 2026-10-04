@@ -284,7 +284,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       GameType.balanceBeam, GameType.rocketRace, GameType.galaxyCatch, GameType.rhythmTap,
     };
     if (extended.contains(widget.type)) {
-      return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
+      return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId, gameId: widget.gameId);
     }
     switch (widget.type) {
       case GameType.xo: return XoGame(key: ValueKey(widget.chatId));
