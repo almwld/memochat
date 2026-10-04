@@ -37,7 +37,7 @@ class _GamesScreenState extends State<GamesScreen> {
 
       await ChatService().sendMessage(
         chatId: widget.chatId,
-        text: 'دعوة تحدٍ: \${definition.title}',
+        text: 'دعوة تحدٍ: ${definition.title}',
         metadata: {
           'kind': 'game_invite',
           'gameId': id,
@@ -56,7 +56,7 @@ class _GamesScreenState extends State<GamesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر بدء التحدي: \${e}')),
+          SnackBar(content: Text('تعذر بدء التحدي: $e')),
         );
       }
     } finally {
