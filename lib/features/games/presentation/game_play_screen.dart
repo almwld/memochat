@@ -302,7 +302,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       case GameType.speedMath: return SpeedMathGame(key: ValueKey(widget.chatId));
       case GameType.movieQuiz: return MovieQuizGame(key: ValueKey(widget.chatId));
       case GameType.sudokuDuel: return SudokuDuelGame(key: ValueKey(widget.chatId));
-      default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
+      default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId, gameId: widget.gameId);
     }
   }
 
