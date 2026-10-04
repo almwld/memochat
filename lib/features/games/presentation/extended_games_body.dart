@@ -248,7 +248,6 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
       case GameType.geographyQuiz: case GameType.scienceQuiz: case GameType.historyQuiz: case GameType.languageQuiz:
         return _quiz();
       case GameType.riddleRush: return Column(children:[_head(),const Text('شيء يسمع بلا أذن ويتكلم بلا لسان؟',style:TextStyle(fontSize:21),textAlign:TextAlign.center),_grid(const ['الصدى','الظل','الوقت','المفتاح'])]);
-      case GameType.anagramBattle: return _word();
       case GameType.mathDuel: return _math();
       case GameType.codeBreaker: return _codeBreaker();
       case GameType.lightSwitch: return _lightSwitch();
