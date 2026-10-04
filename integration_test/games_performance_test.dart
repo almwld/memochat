@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -11,7 +13,7 @@ void main() {
   testWidgets('all 55 games render without jank-heavy animation setup', (tester) async {
     expect(GameType.values.length, 55);
 
-    final timings = <FrameTiming>[];
+    final timings = <ui.FrameTiming>[];
     binding.addTimingsCallback(timings.addAll);
 
     for (final type in GameType.values) {
