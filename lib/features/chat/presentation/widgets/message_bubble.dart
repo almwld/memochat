@@ -17,6 +17,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubble.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_viewer.dart';
+import 'package:memochat/features/games/presentation/game_room_screen.dart';
 
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
@@ -154,6 +155,8 @@ class _MessageBubbleState extends State<MessageBubble> {
         return _withStatus(_buildLocation(m, dark));
       case 'contact':
         return _withStatus(_buildContact(m, dark));
+      case 'game_invite':
+        return _buildGameInvite(m, dark);
       case 'system':
         return _buildSystem(m);
       default:
@@ -193,6 +196,78 @@ class _MessageBubbleState extends State<MessageBubble> {
       return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
     }
     return const Icon(Icons.done_rounded, size: 15, color: Colors.grey);
+  }
+
+  Widget _buildGameInvite(Map<String, dynamic> m, bool dark) {
+    final metadata = m['metadata'] is Map
+        ? Map<String, dynamic>.from(m['metadata'] as Map)
+        : <String, dynamic>{};
+    final gameId = metadata['gameId']?.toString() ?? '';
+    final gameType = metadata['gameType']?.toString() ?? '';
+    final title = m['text']?.toString().replaceFirst('دعوة تحدٍ: ', '') ?? 'تحدٍ مباشر';
+
+    return _shell(
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.sports_esports_rounded,
+                    color: widget.isMe ? Colors.white : AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.isMe ? 'أرسلت تحديًا مباشرًا مشفرًا' : 'وصلك تحدٍ مباشر مشفر عبر Signal',
+              style: TextStyle(
+                fontSize: 11,
+                color: widget.isMe ? Colors.white70 : (dark ? Colors.white70 : Colors.black54),
+              ),
+            ),
+            if (gameId.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => GameRoomScreen(
+                      chatId: m['chatId']?.toString() ?? '',
+                      gameId: gameId,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(widget.isMe ? 'فتح غرفة التحدي' : 'قبول التحدي'),
+              ),
+            ],
+            if (gameType.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'اللعبة: $gameType',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: widget.isMe ? Colors.white54 : (dark ? Colors.white54 : Colors.black45),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      dark,
+    );
   }
 
   Widget _buildText(Map<String, dynamic> m, bool dark) {
