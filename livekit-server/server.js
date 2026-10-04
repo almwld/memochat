@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 
 const PORT = Number(process.env.PORT || 3000);
-const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
+const LIVEKIT_URL = String(process.env.LIVEKIT_URL || 'wss://memo-2jv45qyl.livekit.cloud').trim();
 
 // Firebase Admin credentials are supplied through Railway environment variables.
 if (!admin.apps.length) {
