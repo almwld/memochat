@@ -258,7 +258,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
         roomName: widget.roomName,
         participantName: user?.displayName,
       );
-      _participantsRefresh = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      _participantsRefresh = Timer.periodic(const Duration(milliseconds: 180), (_) {
         if (mounted) setState(() {});
       });
       if (mounted) {
@@ -318,25 +318,28 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
         identity: local.identity,
         name: local.name.isEmpty ? 'أنت' : local.name,
         muted: !_mic,
+        speaking: (() { try { return (local as dynamic).isSpeaking == true; } catch (_) { return false; } })(),
         isLocal: true,
       ));
     }
     for (final participant in room.remoteParticipants.values) {
       dynamic p = participant;
       var muted = true;
+      var speaking = false;
       try {
         for (final publication in p.trackPublications.values) {
           final source = publication.source.toString().toLowerCase();
           if (source.contains('microphone')) {
             muted = publication.muted == true;
-            break;
           }
         }
       } catch (_) {}
+      try { speaking = p.isSpeaking == true; } catch (_) {}
       result.add(_VoiceParticipant(
         identity: p.identity.toString(),
         name: p.name.toString().isEmpty ? 'مشارك' : p.name.toString(),
         muted: muted,
+        speaking: speaking,
         isLocal: false,
       ));
     }
@@ -450,7 +453,7 @@ class _VoiceParticipantTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final active = !participant.muted;
+    final active = participant.speaking;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: AnimatedBuilder(
@@ -498,7 +501,7 @@ class _VoiceParticipantTile extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     Text(
-                      participant.muted ? 'صامت' : 'يتحدث الآن',
+                      participant.speaking ? 'يتحدث الآن' : (participant.muted ? 'صامت' : 'جاهز'),
                       style: TextStyle(
                         fontSize: 11,
                         color: active ? scheme.primary : scheme.onSurfaceVariant,
@@ -521,11 +524,13 @@ class _VoiceParticipant {
     required this.identity,
     required this.name,
     required this.muted,
+    required this.speaking,
     required this.isLocal,
   });
   final String identity;
   final String name;
   final bool muted;
+  final bool speaking;
   final bool isLocal;
 }
 
