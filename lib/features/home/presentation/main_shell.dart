@@ -12,6 +12,7 @@ import '../../advanced/presentation/advanced_hub_screen.dart';
 import '../../games/presentation/games_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
 import '../../../core/services/quick_action_service.dart';
+import '../../profile/presentation/profile_screen.dart';
 import '../../../core/crypto/signal_session_manager.dart';
 
 class MainShell extends StatefulWidget {
@@ -157,6 +158,40 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 }
 
 
+class _ProfileEntryCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(radius: 25, child: Icon(Icons.person_rounded)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ملفي الشخصي', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    SizedBox(height: 3),
+                    Text('الهوية، النبذة، الإحصائيات والخصوصية'),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class DiscoverScreen extends StatelessWidget {
   const DiscoverScreen({required this.repository, super.key});
 
@@ -171,6 +206,8 @@ class DiscoverScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
+          _ProfileEntryCard(),
+          const SizedBox(height: 12),
           PremiumHero(
             icon: AppIcons.search,
             title: 'اكتشف أشخاصاً وطرقاً جديدة للتواصل',
