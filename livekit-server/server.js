@@ -622,8 +622,6 @@ async function handleNewMessage(change) {
         .collection('private').doc('tokens').get();
       var tokenData = tokenSnap.exists ? (tokenSnap.data() || {}) : {};
       var fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
-        .concat(Array.isArray(user.fcmTokens) ? user.fcmTokens : [])
-        .concat([user.fcmToken])
         .map(function(value) { return String(value || '').trim(); })
         .filter(Boolean)
         .filter(function(value, index, all) { return all.indexOf(value) === index; });
@@ -663,9 +661,12 @@ async function handleNewMessage(change) {
           console.error('[msg] FCM failed to=' + userSnap.id + ' tokenIndex=' + ti + ' code=' + (err.code || '?'));
           if (err.code === 'messaging/registration-token-not-registered' ||
               err.code === 'messaging/invalid-registration-token') {
-            await db.collection('users').doc(userSnap.id).set(
-              { fcmTokens: admin.firestore.FieldValue.arrayRemove(fcmToken) }, { merge: true }
-            );
+            await db.collection('users').doc(userSnap.id)
+              .collection('private').doc('tokens')
+              .set({
+                tokens: admin.firestore.FieldValue.arrayRemove(fcmToken),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
           }
         }
       }
