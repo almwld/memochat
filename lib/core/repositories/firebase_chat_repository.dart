@@ -64,6 +64,28 @@ class FirebaseChatRepository implements ChatRepository {
     final stableId = 'dm_${pair[0]}_${pair[1]}';
     final stableRef = _chats().doc(stableId);
     final me = FirebaseAuth.instance.currentUser;
+
+    // Resolve an existing DM before attempting a write. A legacy DM can have
+    // the same participant pair but a different document id; resolving it
+    // first avoids turning a normal open-chat action into a permission error.
+    try {
+      final existing = await _chats()
+          .where('participants', arrayContains: _uid)
+          .limit(100)
+          .get();
+      for (final doc in existing.docs) {
+        final participants = List<String>.from(
+          (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+        );
+        if (participants.length == 2 && participants.contains(otherId)) {
+          return doc.id;
+        }
+      }
+    } on FirebaseException catch (e) {
+      // Continue to the canonical create path when the lookup itself is unavailable.
+      if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+    }
+
     try {
       await stableRef.set({
         'participants': [_uid, otherId],
