@@ -60,5 +60,48 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
   void _showInfo(BuildContext context) => showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (_) => const Padding(padding: EdgeInsets.fromLTRB(22, 8, 22, 28), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('ألعاب MemoChat', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), SizedBox(height: 10), Text('ألعاب فردية وتحديات جماعية داخل التطبيق، برسوميات CustomPaint ونتائج قابلة للحفظ. يمكنك فتح أي لعبة مباشرة من قائمة اكتشف.', style: TextStyle(height: 1.5))]));
 }
 
-class _FeaturedGameCard extends StatelessWidget { const _FeaturedGameCard({required this.game, required this.onTap}); final GameDefinition game; final VoidCallback onTap; @override Widget build(BuildContext context) => SizedBox(width: 250, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, const Color(0xFF164C72)], begin: Alignment.topRight, end: Alignment.bottomLeft)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [GameArt(type: game.type, size: 42, compact: true), const Spacer(), Text(game.title, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)), const SizedBox(height: 6), const Row(children: [Icon(Icons.play_arrow_rounded, color: Colors.white, size: 17), SizedBox(width: 4), Text('ابدأ الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))])])))); }
-class _GameListTile extends StatelessWidget { const _GameListTile({required this.game, required this.category, required this.onTap}); final GameDefinition game; final String category; final VoidCallback onTap; @override Widget build(BuildContext context) => Card(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(11), child: Row(children: [GameArt(type: game.type, size: 52), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)), const SizedBox(height: 4), Text('$category • ${game.playersLabel}', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 10, fontWeight: FontWeight.w700))])), const Icon(Icons.play_circle_outline_rounded)])))); }
+class _FeaturedGameCard extends StatelessWidget {
+  const _FeaturedGameCard({required this.game, required this.onTap});
+  final GameDefinition game;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(width: 250, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(
+      onTap: onTap,
+      child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(18)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          GameArt(type: game.type, size: 42, compact: true), const Spacer(),
+          Text(game.title, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          const SizedBox(height: 6),
+          const Row(children: [Icon(Icons.play_arrow_rounded, color: Colors.white, size: 17), SizedBox(width: 4), Text('ابدأ الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))]),
+        ]),
+      ),
+    )));
+  }
+}
+
+class _GameListTile extends StatelessWidget {
+  const _GameListTile({required this.game, required this.category, required this.onTap});
+  final GameDefinition game;
+  final String category;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: Padding(
+      padding: const EdgeInsets.all(11),
+      child: Row(children: [
+        GameArt(type: game.type, size: 52), const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text('$category • ${game.playersLabel}', style: TextStyle(color: scheme.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+        ])),
+        const Icon(Icons.play_circle_outline_rounded),
+      ]),
+    )));
+  }
+}
