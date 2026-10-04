@@ -11,6 +11,11 @@ class GameService {
   Stream<GameSession?> watchGame(String chatId,String gameId)=>_games(chatId).doc(gameId).snapshots().map((d)=>d.exists?GameSession.fromFirestore(d):null);
 
   Future<String> createGame({required String chatId,required GameType type,required String uid,GameTimeLimit timeLimit=GameTimeLimit.none}) async {
+    final chat = await _db.collection('chats').doc(chatId).get();
+    final participants = List<String>.from(chat.data()?['participants'] as List? ?? const []);
+    if (participants.length != 2 || !participants.contains(uid)) {
+      throw StateError('التحديات المباشرة متاحة بين لاعبين داخل محادثة مباشرة');
+    }
     final ref=_games(chatId).doc();
     final now=DateTime.now();
     final session=GameSession(id:ref.id,type:type,players:[uid],status:GameStatus.waiting,timeLimit:timeLimit);
