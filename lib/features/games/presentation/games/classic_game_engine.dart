@@ -21,9 +21,10 @@ class ClassicGameEngine extends StatefulWidget {
 class _ClassicGameEngineState extends State<ClassicGameEngine> {
   final _random = Random();
   Timer? _timer;
-  int _seconds = 30, _score = 0, _streak = 0, _round = 1; String? _selected; bool? _correct; bool _answered = false;
-  int _score = 0;
-  int _round = 1;
+  int _seconds = 30, _score = 0, _streak = 0, _round = 1;
+  String? _selected;
+  bool? _correct;
+  bool _answered = false;
   bool _started = false;
   bool _paused = false;
   bool _finished = false;
@@ -61,15 +62,22 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
     if (!_started || _paused || _finished) return;
     final correct = value == widget.config.options[widget.config.correctIndex];
     setState(() {
-      if (correct) _score += 2;
-      _round++;
-      _seconds = max(0, _seconds - 1);
+      _selected = value;
+      _correct = correct;
+      _answered = true;
+      if (correct) {
+        _score += 2 + min(_streak, 3);
+        _streak++;
+      } else {
+        _streak = 0;
+        _seconds = max(0, _seconds - 2);
+      }
     });
-    if (_seconds == 0) {
-      _finish();
-    } else {
-      _shuffle();
-    }
+    Future.delayed(const Duration(milliseconds: 360), () {
+      if (!mounted || _finished) return;
+      if (_seconds == 0) { _finish(); return; }
+      setState(() { _round++; _shuffle(); });
+    });
   }
 
   void _replay() {
@@ -113,7 +121,7 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('النقاط: $_score', style: const TextStyle(fontWeight: FontWeight.w800)),
-                    Text('الجولة $_round'),
+                    Text('الجولة $_round • السلسلة $_streak'),
                     Text('$_seconds ث', style: TextStyle(fontWeight: FontWeight.w800, color: _seconds <= 10 ? Theme.of(context).colorScheme.error : null)),
                   ],
                 ),
