@@ -62,10 +62,33 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _openCreateGroup() async {
-    await Navigator.of(context).push(
+    final createdId = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
     );
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (createdId == null || createdId.isEmpty) return;
+    try {
+      final snap = await FirebaseFirestore.instance.collection('chats').doc(createdId).get();
+      final data = snap.data() ?? const <String, dynamic>{};
+      final groupName = data['groupName']?.toString().trim();
+      if (!snap.exists || data['isGroup'] != true) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ChatRoomScreen(
+          chatId: createdId,
+          otherUserId: '',
+          otherUserName: groupName?.isNotEmpty == true ? groupName! : 'مجموعة',
+          otherUserImage: data['groupPhoto']?.toString(),
+          isGroup: true,
+        ),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم إنشاء المجموعة، لكن تعذر فتح الغرفة: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _handleInvite(Uri uri) async {
