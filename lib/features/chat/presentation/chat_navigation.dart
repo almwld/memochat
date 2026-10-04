@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
@@ -11,12 +12,25 @@ class ChatNavigation {
   static Future<void> openChat(BuildContext context,{required String userName,required String userId,String? userImage}) async {
     final user=FirebaseAuth.instance.currentUser;
     if(user==null){ToastService.showError('يجب تسجيل الدخول أولاً');return;}
-    if(userId.trim().isEmpty||userId==user.uid){ToastService.showError('معرّف المستخدم الآخر غير صالح');return;}
+    final requestedId=userId.trim();
+    if(requestedId.isEmpty||requestedId==user.uid){ToastService.showError('معرّف المستخدم الآخر غير صالح');return;}
     try{
+      var resolvedId=requestedId;
+      // Social/profile surfaces may expose the public Memo ID instead of the
+      // Firebase UID. Resolve it before creating/opening the canonical DM.
+      if(resolvedId.startsWith('memo_')){
+        final snap=await FirebaseFirestore.instance.collection('users').where('publicId',isEqualTo:resolvedId).limit(1).get();
+        if(snap.docs.isNotEmpty) resolvedId=snap.docs.first.id;
+      }
+      if(resolvedId.isEmpty||resolvedId==user.uid){
+        if(context.mounted) ToastService.showError('حساب المستخدم غير صالح');
+        return;
+      }
       final name=user.displayName?.trim().isNotEmpty==true?user.displayName!.trim():'مستخدم MemoChat';
-      final id=await ChatService().createChat(userId:userId.trim(),userName:userName.trim().isEmpty?'مستخدم':userName.trim(),currentUserName:name,userImage:userImage,currentUserImage:user.photoURL);
+      final displayName=userName.trim().isEmpty?'مستخدم':userName.trim();
+      final id=await ChatService().createChat(userId:resolvedId,userName:displayName,currentUserName:name,userImage:userImage,currentUserImage:user.photoURL);
       if(!context.mounted)return;
-      await Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatRoomScreen(chatId:id,otherUserId:userId.trim(),otherUserName:userName.trim().isEmpty?'مستخدم':userName.trim(),groupImage:userImage,isGroup:false)));
+      await Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatRoomScreen(chatId:id,otherUserId:resolvedId,otherUserName:displayName,groupImage:userImage,isGroup:false)));
     }catch(e){if(context.mounted)ToastService.showError('فشل فتح المحادثة: $e');}
   }
   static Future<void> openCall(BuildContext context,{required String chatId,required String userName,required String userId,required bool isVideo}) async {
