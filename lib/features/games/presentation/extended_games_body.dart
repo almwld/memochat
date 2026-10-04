@@ -101,19 +101,19 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:1.5),
     itemBuilder: (_,i) => _tile(Center(child: Text(labels[i],textAlign:TextAlign.center,style:const TextStyle(fontSize:19,fontWeight:FontWeight.w800))), () {
       final correct = i == target;
-      if (correct) _win(); else setState(() => feedback = 'حاول مرة أخرى 👀');
+      if (correct) _win(); else setState(() => feedback = 'حاول مرة أخرى حاول');
     }, i),
   );
 
   Widget _memory() => GridView.builder(
     shrinkWrap:true, physics:const NeverScrollableScrollPhysics(), itemCount:8,
     gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:4,crossAxisSpacing:8,mainAxisSpacing:8),
-    itemBuilder:(_,i)=>_tile(Center(child:Text(open.contains(i)?cards[i]:'❔',style:const TextStyle(fontSize:27))),(){
+    itemBuilder:(_,i)=>_tile(Center(child:Text(open.contains(i)?cards[i]:'?',style:const TextStyle(fontSize:27))),(){
       if(open.contains(i)) return;
       setState(()=>open.add(i));
       if(open.length==2){
         final a=open.elementAt(0),b=open.elementAt(1);
-        if(cards[a]==cards[b]) _win(3,'زوج متطابق! 💫');
+        if(cards[a]==cards[b]) _win(3,'زوج متطابق! ممتاز');
         Future.delayed(const Duration(milliseconds:600),(){if(mounted)setState(open.clear);});
       }
     },i),
@@ -165,18 +165,18 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
   Widget _body() {
     switch(widget.type) {
       case GameType.colorRush: return _arena(mode:'color');
-      case GameType.higherLower: return Column(children:[_head(),const SizedBox(height:18),const Text('هل الرقم التالي أعلى أم أقل؟',style:TextStyle(fontSize:21)),_grid(const ['⬆️ أعلى','⬇️ أقل','🟰 متساوي','🎲 مفاجأة'])]);
+      case GameType.higherLower: return Column(children:[_head(),const SizedBox(height:18),const Text('هل الرقم التالي أعلى أم أقل؟',style:TextStyle(fontSize:21)),_grid(const ['أعلى','أقل','متساوي','مفاجأة'])]);
       case GameType.numberGuess: return Column(children:[_head(),const SizedBox(height:18),const Text('اختر الرقم الأقرب للهدف المخفي',style:TextStyle(fontSize:20)),_grid(const ['3','7','12','18'])]);
       case GameType.wordScramble: case GameType.anagramBattle: case GameType.wordGuess: return _word();
       case GameType.emojiMemory: case GameType.cardFlip: case GameType.connectPairs: return Column(children:[_head(),const SizedBox(height:15),_memory()]);
-      case GameType.patternTap: case GameType.sequenceRecall: return Column(children:[_head(),Text(pattern.map((x)=>['🔵','🟢','🟣','🟠'][x]).join(' '),style:const TextStyle(fontSize:32)),const SizedBox(height:12),_arena()]);
+      case GameType.patternTap: case GameType.sequenceRecall: return Column(children:[_head(),Text(pattern.map((x)=>['A','B','C','D'][x]).join(' '),style:const TextStyle(fontSize:32)),const SizedBox(height:12),_arena()]);
       case GameType.oddOneOut: return Column(children:[_head(),_grid(const ['●','●','●','◆'])]);
-      case GameType.treasureHunt: return Column(children:[_head(),_grid(const ['🗺️','🏝️','💎','🌴'])]);
+      case GameType.treasureHunt: return Column(children:[_head(),_grid(const ['الخريطة','الشاطئ','الجوهرة','البوابة'])]);
       case GameType.mathDuel: return Column(children:[_head(),const Text('7 × 3 + 3 = ؟',style:TextStyle(fontSize:28,fontWeight:FontWeight.w900)),_grid(const ['21','24','27','30'])]);
       case GameType.codeBreaker: return Column(children:[_head(),const Text('اختر الشفرة المضيئة',style:TextStyle(fontSize:20)),_grid(const ['123','314','721','909'])]);
       case GameType.shapeMatch: return _arena(mode:'shape');
       case GameType.colorMatch: return _arena(mode:'color');
-      case GameType.lightSwitch: return Column(children:[_head(),_grid(const ['💡','🌑','💡','🌑'])]);
+      case GameType.lightSwitch: return Column(children:[_head(),_grid(const ['تشغيل','إيقاف','تشغيل','إيقاف'])]);
       case GameType.reactionRace: return _tapChallenge('سباق رد الفعل',Icons.bolt_rounded);
       case GameType.targetHit: return _tapChallenge('التصويب على الهدف',Icons.adjust_rounded,goal:5);
       case GameType.bubblePop: return _tapChallenge('فرقعة الفقاعات',Icons.circle_rounded,goal:10);
