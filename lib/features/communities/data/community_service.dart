@@ -43,8 +43,13 @@ class CommunityService {
       'userId': _uid,
       'role': 'owner',
       'joinedAt': FieldValue.serverTimestamp(),
+      'communityId': community.id,
     });
-    await batch.commit();
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw StateError('تعذر إنشاء المجتمع (' + e.code + '). ' + (e.message ?? ''));
+    }
     return community.id;
   }
 
