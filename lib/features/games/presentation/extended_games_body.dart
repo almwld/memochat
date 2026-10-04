@@ -54,7 +54,7 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
         if (!mounted || game == null) return;
         final other = game.players.firstWhere((id) => id != uid, orElse: () => '');
         final raw = other.isEmpty ? null : game.scores[other];
-        final remoteScore = (raw as num?)?.toInt() ?? 0;
+        final remoteScore = raw is num ? raw.toInt() : 0;
         setState(() {
           _remoteUid = other.isEmpty ? null : other;
           _remoteScore = remoteScore;
