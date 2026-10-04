@@ -4,7 +4,7 @@ class GalaxyCatchGame extends ExtendedGameEngine {
   GalaxyCatchGame({super.key}) : super(config: const ExtendedGameConfig(
     title: 'Galaxy Catch',
     instruction: 'التقط الهدف الصحيح',
-    options: ["⭐","🌙","☄️","🪐"],
+    options: ["نجمة","قمر","مذنب","كوكب"],
     correctIndex: 0,
   ));
 }
