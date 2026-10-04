@@ -21,7 +21,7 @@ class ClassicGameEngine extends StatefulWidget {
 class _ClassicGameEngineState extends State<ClassicGameEngine> {
   final _random = Random();
   Timer? _timer;
-  int _seconds = 30;
+  int _seconds = 30, _score = 0, _streak = 0, _round = 1; String? _selected; bool? _correct; bool _answered = false;
   int _score = 0;
   int _round = 1;
   bool _started = false;
