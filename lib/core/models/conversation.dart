@@ -6,6 +6,7 @@ class Conversation {
     required this.id,
     required this.participant,
     this.lastMessage,
+    this.updatedAt,
     this.unreadCount = 0,
     this.isArchived = false,
   });
@@ -13,6 +14,9 @@ class Conversation {
   final String id;
   final ChatUser participant;
   final ChatMessage? lastMessage;
+  /// The conversation document's canonical activity timestamp.
+  /// Unlike [lastMessage], this also exists for newly-created empty chats.
+  final DateTime? updatedAt;
   final int unreadCount;
   final bool isArchived;
 }
