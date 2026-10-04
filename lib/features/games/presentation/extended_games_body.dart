@@ -157,10 +157,46 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
       const SizedBox(height:18),_tile(const Center(child:Text('حل الكلمة',style:TextStyle(fontWeight:FontWeight.w800))),()=>_win(2,'الكلمة: $w'),1)]);
   }
 
-  Widget _tapChallenge(String title, IconData icon, {int goal=8}) => Column(children:[
-    _head(), Text(title,textAlign:TextAlign.center,style:const TextStyle(fontSize:19,fontWeight:FontWeight.w800)),const SizedBox(height:18),
-    AnimatedBuilder(animation:_pulse,builder:(_,__)=>Transform.scale(scale:1+_pulse.value*.06,child:Material(color:colors[target],shape:const CircleBorder(),elevation:10,child:InkWell(onTap:(){setState(()=>_tapCount++);if(_tapCount>=goal)_win(4,'تحدٍ مكتمل');},customBorder:const CircleBorder(),child:SizedBox(width:150,height:150,child:Icon(icon,size:64,color:Colors.white))))))),
-    const SizedBox(height:14),Text('$_tapCount / $goal',style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900))]);
+  Widget _tapChallenge(String title, IconData icon, {int goal = 8}) => Column(
+    children: [
+      _head(),
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 18),
+      AnimatedBuilder(
+        animation: _pulse,
+        builder: (_, child) => Transform.scale(
+          scale: 1 + _pulse.value * .06,
+          child: child,
+        ),
+        child: Material(
+          color: colors[target],
+          shape: const CircleBorder(),
+          elevation: 10,
+          child: InkWell(
+            onTap: () {
+              setState(() => _tapCount++);
+              if (_tapCount >= goal) _win(4, 'تحدٍ مكتمل');
+            },
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 150,
+              height: 150,
+              child: Icon(icon, size: 64, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Text(
+        '$_tapCount / $goal',
+        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+      ),
+    ],
+  );
 
   Widget _body() {
     switch(widget.type) {
