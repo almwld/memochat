@@ -354,7 +354,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (mounted) setState(() { _loading = false; _loadError = 'يجب تسجيل الدخول لفتح المحادثة.'; });
       return;
     }
-    if (widget.chatId.trim().isEmpty || widget.otherUserId.trim().isEmpty || widget.otherUserId == uid) {
+    if (widget.chatId.trim().isEmpty ||
+        (!widget.isGroup && (widget.otherUserId.trim().isEmpty || widget.otherUserId == uid))) {
       if (mounted) setState(() { _loading = false; _loadError = 'بيانات المحادثة غير صالحة.'; });
       return;
     }
@@ -442,18 +443,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             : data['isPinned'] == true && pinnedFor is! Map;
       });
     });
-    _userSub = _firestore
-        .collection('users')
-        .doc(widget.otherUserId)
-        .snapshots()
-        .listen((snapshot) {
-      if (mounted) {
-        final data = snapshot.data() ?? <String, dynamic>{};
-        final rawLastSeen = data['lastSeen'];
-        final lastSeen = rawLastSeen is Timestamp ? rawLastSeen.toDate() : (rawLastSeen is DateTime ? rawLastSeen : null);
-        setState(() { _online = data['isOnline'] == true; _lastSeen = lastSeen; });
-      }
-    });
+    if (!widget.isGroup && widget.otherUserId.trim().isNotEmpty) {
+      _userSub = _firestore
+          .collection('users')
+          .doc(widget.otherUserId)
+          .snapshots()
+          .listen((snapshot) {
+        if (mounted) {
+          final data = snapshot.data() ?? <String, dynamic>{};
+          final rawLastSeen = data['lastSeen'];
+          final lastSeen = rawLastSeen is Timestamp
+              ? rawLastSeen.toDate()
+              : (rawLastSeen is DateTime ? rawLastSeen : null);
+          setState(() {
+            _online = data['isOnline'] == true;
+            _lastSeen = lastSeen;
+          });
+        }
+      });
+    }
     _messagesSub?.cancel();
     _messagesSub = _chat
         .streamMessages(widget.chatId, limit: 100)

@@ -407,12 +407,32 @@ class MediaTransferEngine {
     final db = await _database;
     String? readyUrl;
     final existingUrl = job['remote_url']?.toString();
+    final existingRemotePath = job['remote_path']?.toString();
     final existingStatus = job['status']?.toString();
-    if (existingUrl != null && existingUrl.isNotEmpty &&
+
+    if (existingUrl != null &&
+        existingUrl.isNotEmpty &&
         existingStatus != 'sent') {
-      // The upload already completed. If Firestore publication failed, retry only
-      // the publication instead of uploading the same media again.
       readyUrl = existingUrl;
+    } else if (existingRemotePath != null && existingRemotePath.isNotEmpty) {
+      // Reuse an upload that succeeded while public-share creation was
+      // temporarily unavailable. Do not upload the same bytes again.
+      final nc = NextcloudService();
+      await nc.loadConfig();
+      final sharedUrl = await nc.createPublicShare(existingRemotePath);
+      if (sharedUrl != null && sharedUrl.isNotEmpty) {
+        readyUrl = sharedUrl;
+        await db.update('media_outbox', {
+          'status': 'link_ready',
+          'progress': 1.0,
+          'remote_url': sharedUrl,
+          'error': null,
+          'next_retry_at': null,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        }, where: 'id = ?', whereArgs: [id]);
+      } else {
+        throw StateError('تم رفع الوسائط، لكن تعذر تجهيز رابط الوصول بعد');
+      }
     } else {
       if (!await file.exists()) {
         throw StateError('النسخة المحلية للملف لم تعد موجودة');
@@ -425,15 +445,33 @@ class MediaTransferEngine {
         fileName: job['file_name'].toString(),
         mimeType: job['mime_type']?.toString(),
       );
-      if (!result.success || result.url == null || result.url!.isEmpty) {
-        throw StateError(result.error ?? 'تعذر تجهيز رابط قابل للوصول للوسائط');
+      if (!result.success) {
+        throw StateError(result.error ?? 'تعذر رفع الوسائط');
+      }
+
+      final remotePath = result.remotePath?.trim() ?? '';
+      if (remotePath.isEmpty) {
+        throw StateError(result.error ?? 'تعذر تحديد مسار الوسائط المرفوعة');
+      }
+
+      if (result.url == null || result.url!.isEmpty) {
+        await db.update('media_outbox', {
+          'status': 'share_retry',
+          'progress': 1.0,
+          'remote_path': remotePath,
+          'remote_url': null,
+          'error': result.error ?? 'تعذر تجهيز رابط الوصول',
+          'next_retry_at': DateTime.now().millisecondsSinceEpoch,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        }, where: 'id = ?', whereArgs: [id]);
+        throw StateError(result.error ?? 'تم رفع الوسائط، لكن تعذر تجهيز رابط الوصول');
       }
 
       readyUrl = result.url;
       await db.update('media_outbox', {
         'status': 'link_ready',
         'progress': 1.0,
-        'remote_path': result.remotePath,
+        'remote_path': remotePath,
         'remote_url': result.url,
         'error': null,
         'next_retry_at': null,
@@ -446,6 +484,8 @@ class MediaTransferEngine {
       await _publishChat(job, readyUrl!);
     } else if (destination == MediaDestination.socialPost || destination == MediaDestination.socialReel) {
       await _publishSocial(job, readyUrl!);
+    } else if (destination == MediaDestination.status) {
+      await _publishStatus(job, readyUrl!);
     }
 
     await db.update('media_outbox', {
@@ -558,6 +598,22 @@ class MediaTransferEngine {
       audioDuration: job['audio_duration']?.toString(),
       idempotencyKey: 'media_${job['id']}',
     );
+  }
+
+  Future<void> _publishStatus(Map<String, dynamic> job, String url) async {
+    final uid = job['uid']?.toString() ?? '';
+    if (uid.isEmpty) throw StateError('معرّف المستخدم غير صالح');
+    final type = job['type']?.toString() ?? 'image';
+    final id = job['id']?.toString() ?? '';
+    if (id.isEmpty) throw StateError('معرّف الحالة غير صالح');
+    await FirebaseFirestore.instance.collection('statuses').doc(id).set({
+      'userId': uid,
+      'mediaUrl': url,
+      'mediaType': type,
+      'caption': job['caption']?.toString() ?? '',
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
+    });
   }
 
   Future<void> _publishSocial(Map<String, dynamic> job, String url) async {
