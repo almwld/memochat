@@ -226,28 +226,40 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
 
   Widget _body() {
     switch(widget.type) {
-      case GameType.colorRush: return _arena(mode:'color');
-      case GameType.higherLower: return Column(children:[_head(),const SizedBox(height:18),const Text('هل الرقم التالي أعلى أم أقل؟',style:TextStyle(fontSize:21)),_grid(const ['⬆️ أعلى','⬇️ أقل','🟰 متساوي','🎲 مفاجأة'])]);
-      case GameType.numberGuess: return Column(children:[_head(),const SizedBox(height:18),const Text('اختر الرقم الأقرب للهدف المخفي',style:TextStyle(fontSize:20)),_grid(const ['3','7','12','18'])]);
+      case GameType.colorRush: return _reaction();
+      case GameType.higherLower: return _higherLower();
+      case GameType.numberGuess: return _numberGuess();
       case GameType.wordScramble: case GameType.anagramBattle: case GameType.wordGuess: return _word();
       case GameType.emojiMemory: case GameType.cardFlip: case GameType.connectPairs: return _memoryBoard();
-      case GameType.patternTap: case GameType.sequenceRecall: return Column(children:[_head(),Text(pattern.map((x)=>['🔵','🟢','🟣','🟠'][x]).join(' '),style:const TextStyle(fontSize:32)),const SizedBox(height:12),_arena()]);
-      case GameType.oddOneOut: return Column(children:[_head(),_grid(const ['●','●','●','◆'])]);
-      case GameType.treasureHunt: return Column(children:[_head(),_grid(const ['🗺️','🏝️','💎','🌴'])]);
-      case GameType.mathDuel: return Column(children:[_head(),const Text('7 × 3 + 3 = ؟',style:TextStyle(fontSize:28,fontWeight:FontWeight.w900)),_grid(const ['21','24','27','30'])]);
-      case GameType.codeBreaker: return Column(children:[_head(),const Text('اختر الشفرة المضيئة',style:TextStyle(fontSize:20)),_grid(const ['123','314','721','909'])]);
-      case GameType.shapeMatch: return _arena(mode:'shape');
-      case GameType.colorMatch: return _arena(mode:'color');
-      case GameType.lightSwitch: return Column(children:[_head(),_grid(const ['💡','🌑','💡','🌑'])]);
-      case GameType.reactionRace: case GameType.targetHit: case GameType.bubblePop: case GameType.stackTower:
-      case GameType.mazeRunner: case GameType.fourInRow: case GameType.dotsAndBoxes: case GameType.fastChoice:
-      case GameType.picturePuzzle: case GameType.balanceBeam: case GameType.rocketRace: case GameType.galaxyCatch:
-      case GameType.rhythmTap: return _arena();
+      case GameType.patternTap: case GameType.sequenceRecall: return _arcadeGame(hint:'تذكّر التسلسل واضغط بسرعة',icon:Icons.timeline_rounded);
+      case GameType.oddOneOut: return _boardGame(columns:2,count:4,hint:'اكتشف العنصر المختلف',icon:Icons.circle_rounded,goal:3);
+      case GameType.fourInRow: return _boardGame(columns:7,count:42,hint:'كوّن أربعة أحجار متتالية',icon:Icons.circle_rounded,goal:_target%42);
+      case GameType.dotsAndBoxes: return _dotsBoard();
+      case GameType.reactionRace: return _arcadeGame(hint:'اضغط الهدف بأسرع ما يمكن',icon:Icons.bolt_rounded);
+      case GameType.treasureHunt: return _arcadeGame(hint:'اعثر على الكنز المخفي',icon:Icons.diamond_rounded);
+      case GameType.mazeRunner: return _boardGame(columns:5,count:25,hint:'اعثر على بوابة الخروج',icon:Icons.route_rounded,goal:24);
+      case GameType.stackTower: return _arcadeGame(hint:'ابنِ البرج بثبات',icon:Icons.account_balance_rounded);
+      case GameType.targetHit: return _targetHit();
+      case GameType.bubblePop: return _bubblePop();
+      case GameType.colorMatch: return _arcadeGame(hint:'طابق اللون المطلوب',icon:Icons.palette_rounded);
+      case GameType.shapeMatch: return _arcadeGame(hint:'طابق الشكل المطلوب',icon:Icons.category_rounded);
+      case GameType.fastChoice: return _arcadeGame(hint:'اختر بسرعة',icon:Icons.flash_on_rounded);
+      case GameType.trueFalse: case GameType.flagQuiz: case GameType.animalQuiz: case GameType.foodQuiz:
+      case GameType.geographyQuiz: case GameType.scienceQuiz: case GameType.historyQuiz: case GameType.languageQuiz:
+        return _quiz();
       case GameType.riddleRush: return Column(children:[_head(),const Text('شيء يسمع بلا أذن ويتكلم بلا لسان؟',style:TextStyle(fontSize:21),textAlign:TextAlign.center),_grid(const ['الصدى','الظل','الوقت','المفتاح'])]);
+      case GameType.anagramBattle: return _word();
+      case GameType.mathDuel: return _math();
+      case GameType.codeBreaker: return _codeBreaker();
+      case GameType.lightSwitch: return _lightSwitch();
+      case GameType.picturePuzzle: return _boardGame(columns:2,count:4,hint:'ركّب الصورة الصحيحة',icon:Icons.image_rounded,goal:_target);
+      case GameType.balanceBeam: return _arcadeGame(hint:'حافظ على التوازن',icon:Icons.balance_rounded);
+      case GameType.rocketRace: return _arcadeGame(hint:'ادفع الصاروخ نحو خط النهاية',icon:Icons.rocket_launch_rounded);
+      case GameType.galaxyCatch: return _arcadeGame(hint:'التقط النجوم قبل اختفائها',icon:Icons.auto_awesome_rounded);
+      case GameType.rhythmTap: return _arcadeGame(hint:'اضغط مع الإيقاع',icon:Icons.music_note_rounded);
       default: return _quiz();
     }
   }
-
   @override Widget build(BuildContext context)=>Directionality(
     textDirection:TextDirection.rtl,
     child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(16,18,16,100),child:_body()),
