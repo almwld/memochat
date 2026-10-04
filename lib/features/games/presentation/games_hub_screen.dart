@@ -29,7 +29,7 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
     return GamesCatalog.all.where((game) => (_category == 'الكل' || _categoryOf(game.type) == _category) && (q.isEmpty || game.title.toLowerCase().contains(q) || game.subtitle.toLowerCase().contains(q))).toList();
   }
 
-  void _open(GameDefinition game) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GamePlayScreen(type: game.type, title: game.title, chatId: '__solo_games__')));
+  void _open(GameDefinition game) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GamePlayScreen(type: game.type, title: game.title, chatId: '')));
 
   @override
   Widget build(BuildContext context) {
