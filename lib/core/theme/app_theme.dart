@@ -106,9 +106,48 @@ abstract final class AppTheme {
       cardTheme: CardTheme(
         elevation: 0,
         margin: EdgeInsets.zero,
+        surfaceTintColor: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: dark ? Colors.white.withOpacity(.06) : AppColors.border.withOpacity(.75),
+          ),
         ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: dark ? Colors.white.withOpacity(.08) : AppColors.border,
+        space: 1,
+        thickness: 1,
+      ),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        minVerticalPadding: 10,
+      ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        side: BorderSide(color: dark ? Colors.white12 : AppColors.border),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 46),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          side: BorderSide(color: dark ? Colors.white24 : AppColors.border),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
   }
