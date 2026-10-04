@@ -70,6 +70,28 @@ class CallService {
     final uid = _uid();
     final user = _auth.currentUser!;
     if (receiverId.isEmpty || receiverId == uid) throw Exception('معرّف المستقبل غير صالح');
+    final normalizedChatId = chatId.trim();
+    if (normalizedChatId.isEmpty) throw Exception('معرّف المحادثة غير صالح');
+
+    // Calls are allowed only from the real direct chat shared by both users.
+    // This keeps the LiveKit room contract tied to an authorized Firestore
+    // conversation and rejects stale/fabricated contact routes.
+    final chatSnapshot = await _retry(
+      () => _firestore.collection('chats').doc(normalizedChatId).get(),
+    );
+    if (!chatSnapshot.exists) throw Exception('المحادثة غير موجودة');
+    final chatData = chatSnapshot.data() ?? <String, dynamic>{};
+    final chatParticipants = (chatData['participants'] as List?)
+            ?.map((value) => value.toString())
+            .where((value) => value.isNotEmpty)
+            .toSet() ??
+        <String>{};
+    if (chatData['isGroup'] == true ||
+        chatParticipants.length != 2 ||
+        !chatParticipants.contains(uid) ||
+        !chatParticipants.contains(receiverId)) {
+      throw Exception('المكالمة غير مرتبطة بمحادثة مباشرة صالحة');
+    }
     final registry = ActiveCallRegistry.instance;
     if (registry.hasActiveCall) {
       final activeId = registry.activeCallId;
@@ -128,14 +150,14 @@ class CallService {
     await _retry(() => _firestore.runTransaction((tx) async {
       final existingCall = await tx.get(ref); if (existingCall.exists) return;
       tx.set(lockRef, {'participants':[uid,receiverId],'activeCallId':id,'status':CallStatus.calling.name,'updatedAt':FieldValue.serverTimestamp()});
-      tx.set(ref, {'id':id,'chatId':chatId,'callerId':uid,'callerName':user.displayName ?? 'مستخدم','callerPhotoUrl':user.photoURL,'receiverId':receiverId,'receiverName':receiverName,'receiverPhotoUrl':receiverPhotoUrl,'callType':type.name,'status':CallStatus.calling.name,'startedAt':FieldValue.serverTimestamp(),'isAnswered':false,'participants':[uid,receiverId],'liveKitRoomName':room,'roomName':room,'isVideoCall':type == CallType.video});
+      tx.set(ref, {'id':id,'chatId':normalizedChatId,'callerId':uid,'callerName':user.displayName ?? 'مستخدم','callerPhotoUrl':user.photoURL,'receiverId':receiverId,'receiverName':receiverName,'receiverPhotoUrl':receiverPhotoUrl,'callType':type.name,'status':CallStatus.calling.name,'startedAt':FieldValue.serverTimestamp(),'isAnswered':false,'participants':[uid,receiverId],'liveKitRoomName':room,'roomName':room,'isVideoCall':type == CallType.video});
     }));
     _inCall = true; _current = id;
     final saved = await _retry(() => ref.get());
     if (!saved.exists) throw Exception('تعذر حفظ المكالمة');
     final call = CallModel.fromFirestore(id,saved.data()!);
     // The Firestore calls/{callId} trigger is the single incoming-call FCM producer.
-    unawaited(_timeline(chatId:chatId,callId:id,text:type == CallType.video ? 'بدء مكالمة فيديو' : 'بدء مكالمة صوتية',status:CallStatus.calling.name,type:type));
+    unawaited(_timeline(chatId:normalizedChatId,callId:id,text:type == CallType.video ? 'بدء مكالمة فيديو' : 'بدء مكالمة صوتية',status:CallStatus.calling.name,type:type));
     return call;
   }
 
