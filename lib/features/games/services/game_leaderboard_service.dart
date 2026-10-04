@@ -37,6 +37,8 @@ class GameLeaderboardService {
 
       tx.set(scoreRef, {
         'uid': uid,
+        'displayName': user.displayName?.trim().isNotEmpty == true ? user.displayName!.trim() : 'لاعب',
+        'photoUrl': user.photoURL,
         'score': score > previousScore ? score : previousScore,
         'lastScore': score,
         'updatedAt': FieldValue.serverTimestamp(),
