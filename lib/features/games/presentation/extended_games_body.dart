@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/game.dart';
+import '../models/game_session.dart';
 import '../services/game_service.dart';
 import 'widgets/game_art.dart';
 
@@ -11,7 +12,8 @@ class ExtendedGamesBody extends StatefulWidget {
   final GameType type;
   final String title;
   final String chatId;
-  const ExtendedGamesBody({super.key, required this.type, required this.title, required this.chatId});
+  final String? gameId;
+  const ExtendedGamesBody({super.key, required this.type, required this.title, required this.chatId, this.gameId});
   @override State<ExtendedGamesBody> createState() => _ExtendedGamesBodyState();
 }
 
@@ -25,19 +27,38 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
   final Set<int> open = {};
   List<String> cards = [];
   Timer? _roundTimer;
+  StreamSubscription<GameSession?>? _gameSubscription;
+  String? _remoteUid;
+  int _remoteScore = 0;
   int _seconds = 12;
   int _tapCount = 0;
 
   static const colors = [Color(0xFF10B9A6), Color(0xFF4C7DFF), Color(0xFFFFB84D), Color(0xFFEF6B8A), Color(0xFF8B6CFF)];
 
   @override void initState() { super.initState(); _newRound(); _findGame(); }
-  @override void dispose() { _roundTimer?.cancel(); _pulse.dispose(); super.dispose(); }
+  @override void dispose() { _roundTimer?.cancel(); _gameSubscription?.cancel(); _pulse.dispose(); super.dispose(); }
 
   Future<void> _findGame() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || widget.chatId.trim().isEmpty) return;
     try {
-      final s = await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).collection('games')
-        .where('type', isEqualTo: widget.type.name).orderBy('createdAt', descending: true).limit(1).get();
-      if (s.docs.isNotEmpty && mounted) setState(() => gameId = s.docs.first.id);
+      String? resolved = widget.gameId?.trim().isNotEmpty == true ? widget.gameId!.trim() : null;
+      if (resolved == null) {
+        final s = await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).collection('games')
+          .where('type', isEqualTo: widget.type.name).orderBy('createdAt', descending: true).limit(1).get();
+        if (s.docs.isNotEmpty) resolved = s.docs.first.id;
+      }
+      if (resolved == null || !mounted) return;
+      setState(() => gameId = resolved);
+      _gameSubscription = GameService.instance.watchGame(widget.chatId, resolved).listen((game) {
+        if (!mounted || game == null) return;
+        final other = game.players.firstWhere((id) => id != uid, orElse: () => '');
+        final raw = other.isEmpty ? null : game.scores[other];
+        setState(() {
+          _remoteUid = other.isEmpty ? null : other;
+          _remoteScore = raw is num ? raw.toInt() : 0;
+        });
+      });
     } catch (_) {}
   }
 
@@ -92,6 +113,7 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
     const SizedBox(height: 6),
     Text(widget.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
     Text('الجولة $round  •  النقاط $score  •  $_seconds ث', style: const TextStyle(fontWeight: FontWeight.w700)),
+    if (_remoteUid != null) Text('نقاط اللاعب الآخر: $_remoteScore', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
     const SizedBox(height: 6), Text(feedback, textAlign: TextAlign.center),
   ]);
 
