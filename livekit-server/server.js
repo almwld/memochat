@@ -211,7 +211,7 @@ app.post('/media/share', async (req, res) => {
   try {
     const decodedToken = await verifyFirebaseUser(req);
     const remotePath = String(req.body?.remotePath || '').replace(/^\/+/, '');
-    const prefix = 'Sehatak/users/' + sanitizePathPart(decodedToken.uid) + '/';
+    const prefix = 'MemoChat/users/' + sanitizePathPart(decodedToken.uid) + '/';
     if (!remotePath.startsWith(prefix)) {
       return res.status(403).json({ success: false, message: 'ليس لديك صلاحية مشاركة هذا الملف' });
     }
