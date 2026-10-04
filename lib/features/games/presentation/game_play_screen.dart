@@ -132,8 +132,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
           _gameStartedAt = game.startedAt;
           _durationMinutes = game.timeLimit == GameTimeLimit.fiveMinutes ? 5 : game.timeLimit == GameTimeLimit.tenMinutes ? 10 : game.timeLimit == GameTimeLimit.fifteenMinutes ? 15 : null;
           final rawScore = game.scores[other ?? ''];
-          if (rawScore is num && other != uid) {
-            _remoteScore = rawScore.toInt();
+          final remoteScore = rawScore is num ? rawScore : null;
+          if (remoteScore != null && other != uid) {
+            _remoteScore = remoteScore.toInt();
           }
           final rawStep = remoteState['step'];
           if (rawStep is num && widget.type == GameType.diceRoll) {
