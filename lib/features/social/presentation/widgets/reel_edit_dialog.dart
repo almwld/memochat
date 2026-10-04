@@ -78,7 +78,7 @@ Future<void> showReelEditDialog({
                     context: context,
                     builder: (dialog) => AlertDialog(
                       title: const Text('حذف الريل؟'),
-                      content: const Text('لا يمكن التراجع عن حذف الريل من Firestore.'),
+                      content: const Text('لا يمكن التراجع عن حذف الريل.'),
                       actions: [
                         TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
                         FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('حذف')),

@@ -113,16 +113,143 @@ class _Feed extends StatelessWidget {
   }
 }
 
-class _Post extends StatelessWidget {
+class _Post extends StatefulWidget {
   const _Post({required this.service, required this.id, required this.data});
   final SocialService service;
   final String id;
   final Map<String, dynamic> data;
 
   @override
+  State<_Post> createState() => _PostState();
+}
+
+class _PostState extends State<_Post> {
+  Future<void> _comment() async {
+    final controller = TextEditingController();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'التعليقات',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 260,
+                  child: StreamBuilder(
+                    stream: widget.service.watchPostComments(widget.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return const Center(child: Text('تعذر تحميل التعليقات.'));
+                      }
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final comments = snapshot.data!.docs;
+                      if (comments.isEmpty) {
+                        return const Center(child: Text('لا توجد تعليقات بعد.'));
+                      }
+                      return ListView.separated(
+                        itemCount: comments.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final data = comments[index].data();
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              child: Icon(Icons.person_rounded),
+                            ),
+                            title: Text(
+                              data['userName']?.toString() ?? 'مستخدم Memo',
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: Text(data['text']?.toString() ?? ''),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        maxLength: 1000,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'اكتب تعليقك…',
+                          counterText: '',
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'إرسال التعليق',
+                      onPressed: () async {
+                        final text = controller.text.trim();
+                        if (text.isEmpty) return;
+                        try {
+                          await widget.service.addPostComment(widget.id, text);
+                          controller.clear();
+                        } catch (error) {
+                          if (sheetContext.mounted) {
+                            ScaffoldMessenger.of(sheetContext).showSnackBar(
+                              SnackBar(content: Text('تعذر إرسال التعليق: $error')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _run(
+    Future<void> Function() action, {
+    required String message,
+  }) async {
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$message: $error')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = data['mediaUrl']?.toString() ?? '';
-    final isVideo = data['mediaType'] == 'video';
+    final url = widget.data['mediaUrl']?.toString() ?? '';
+    final isVideo = widget.data['mediaType'] == 'video';
+    final author = widget.data['authorId']?.toString() ?? '';
+    final initialLikes = (widget.data['likesCount'] as num?)?.toInt() ?? 0;
+    final initialComments = (widget.data['commentsCount'] as num?)?.toInt() ?? 0;
+    final initialShares = (widget.data['sharesCount'] as num?)?.toInt() ?? 0;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.only(bottom: 12),
@@ -131,15 +258,120 @@ class _Post extends StatelessWidget {
         children: [
           ListTile(
             leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
-            title: UserName(userId: data['authorId']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
+            title: UserName(
+              userId: author,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
             subtitle: const Text('منشور على Memo'),
+            trailing: author.isEmpty || author == widget.service.currentUserId
+                ? null
+                : StreamBuilder(
+                    stream: widget.service.watchFollowing(author),
+                    builder: (context, snapshot) {
+                      final following = snapshot.data?.exists == true;
+                      return TextButton.icon(
+                        onPressed: () => _run(
+                          () => widget.service.toggleFollow(author, following),
+                          message: 'تعذر تحديث المتابعة',
+                        ),
+                        icon: Icon(
+                          following
+                              ? Icons.person_remove_alt_1_rounded
+                              : Icons.person_add_alt_1_rounded,
+                          size: 18,
+                        ),
+                        label: Text(following ? 'متابَع' : 'متابعة'),
+                      );
+                    },
+                  ),
           ),
           if (url.isNotEmpty)
             isVideo
                 ? AspectRatio(aspectRatio: 16 / 9, child: _Video(url))
-                : CachedNetworkImage(imageUrl: url, height: 270, fit: BoxFit.cover),
-          if ((data['text']?.toString() ?? '').isNotEmpty)
-            Padding(padding: const EdgeInsets.all(16), child: Text(data['text'].toString(), style: const TextStyle(fontSize: 16, height: 1.45))),
+                : CachedNetworkImage(
+                    imageUrl: url,
+                    height: 270,
+                    fit: BoxFit.cover,
+                  ),
+          if ((widget.data['text']?.toString() ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: Text(
+                widget.data['text'].toString(),
+                style: const TextStyle(fontSize: 16, height: 1.45),
+              ),
+            ),
+          StreamBuilder(
+            stream: widget.service.watchPostLike(widget.id),
+            builder: (context, likeSnapshot) {
+              final liked = likeSnapshot.data?.exists == true;
+              return StreamBuilder<int>(
+                stream: widget.service.watchPostLikesCount(widget.id),
+                initialData: initialLikes,
+                builder: (context, countSnapshot) {
+                  final likes = countSnapshot.data ?? initialLikes;
+                  return StreamBuilder(
+                    stream: widget.service.watchPostSaved(widget.id),
+                    builder: (context, saveSnapshot) {
+                      final saved = saveSnapshot.data?.exists == true;
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: 'إعجاب',
+                              onPressed: () => _run(
+                                () => widget.service.togglePostLike(widget.id),
+                                message: 'تعذر تسجيل الإعجاب',
+                              ),
+                              icon: Icon(
+                                liked
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                color: liked
+                                    ? Theme.of(context).colorScheme.error
+                                    : null,
+                              ),
+                            ),
+                            Text('$likes'),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: 'تعليق',
+                              onPressed: _comment,
+                              icon: const Icon(Icons.mode_comment_outlined),
+                            ),
+                            Text('$initialComments'),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'مشاركة',
+                              onPressed: () => _run(
+                                () => widget.service.sharePost(widget.id),
+                                message: 'تعذر مشاركة المنشور',
+                              ),
+                              icon: const Icon(Icons.share_outlined),
+                            ),
+                            Text('$initialShares'),
+                            IconButton(
+                              tooltip: saved ? 'إلغاء الحفظ' : 'حفظ',
+                              onPressed: () => _run(
+                                () => widget.service.togglePostSave(widget.id, saved),
+                                message: 'تعذر تحديث الحفظ',
+                              ),
+                              icon: Icon(
+                                saved
+                                    ? Icons.bookmark_rounded
+                                    : Icons.bookmark_border_rounded,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
         ],
       ),
     );

@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubble.dart';
+import 'package:memochat/features/chat/presentation/widgets/media_viewer.dart';
 
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
@@ -30,8 +31,11 @@ class MessageBubble extends StatefulWidget {
   final bool isFirstInChat;
   final VoidCallback? onReplyPreviewTap;
   final VoidCallback? onForward;
+  final VoidCallback? onStar;
+  final VoidCallback? onSelect;
+  final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -104,7 +108,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _shell(Widget child, bool dark) => GestureDetector(
-        onLongPress: _options,
+        onLongPress: widget.onSelect ?? _options,
         child: Container(
             decoration: BoxDecoration(
                 color: widget.isMe
@@ -148,6 +152,8 @@ class _MessageBubbleState extends State<MessageBubble> {
         return _withStatus(_buildCall(m, dark));
       case 'location':
         return _withStatus(_buildLocation(m, dark));
+      case 'contact':
+        return _withStatus(_buildContact(m, dark));
       case 'system':
         return _buildSystem(m);
       default:
@@ -199,7 +205,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           if (m['isEdited'] == true) _editedMarker(dark),
           if (m['replyPreview'] is Map) _replyPreview(m['replyPreview'] as Map, dark),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Flexible(child: Text(m['text']?.toString() ?? '', style: TextStyle(color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)), fontSize: 14))),
+            Flexible(child: Text(m['text']?.toString() ?? '', style: TextStyle(color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)), fontSize: widget.fontSize))),
             const SizedBox(width: 6),
             Text(_timeLabel(m['timestamp'] ?? m['clientTimestamp']), style: TextStyle(color: widget.isMe ? Colors.white70 : (dark ? Colors.white60 : const Color(0xFF6B7D7D)), fontSize: 9)),
           ]),
@@ -341,7 +347,15 @@ class _MessageBubbleState extends State<MessageBubble> {
     final local = _isLocal(path);
     final cleanPath = path.replaceFirst('file://', '');
     final image = local ? Image.file(File(cleanPath), fit: BoxFit.contain) : CachedNetworkImage(imageUrl: path, fit: BoxFit.contain);
-    return GestureDetector(onTap: () => showDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: InteractiveViewer(child: image))), child: ClipRRect(borderRadius: BorderRadius.circular(14), child: local ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover) : CachedNetworkImage(imageUrl: path, width: 230, height: 230, fit: BoxFit.cover, placeholder: (_, __) => const SizedBox(width: 230, height: 230, child: Center(child: CircularProgressIndicator(strokeWidth: 2))), errorWidget: (_, __, ___) => const SizedBox(width: 230, height: 230, child: Center(child: Icon(Icons.broken_image))))));
+    return GestureDetector(
+      onTap: () async {
+        if (!local && path.startsWith('http')) {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MediaViewer(mediaUrl: path, mediaType: 'image')));
+        } else if (mounted) {
+          await showDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: InteractiveViewer(child: image)));
+        }
+      },
+      child: ClipRRect(borderRadius: BorderRadius.circular(14), child: local ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover) : CachedNetworkImage(imageUrl: path, width: 230, height: 230, fit: BoxFit.cover, placeholder: (_, __) => const SizedBox(width: 230, height: 230, child: Center(child: CircularProgressIndicator(strokeWidth: 2))), errorWidget: (_, __, ___) => const SizedBox(width: 230, height: 230, child: Center(child: Icon(Icons.broken_image))))));
   }
 
   Widget _buildVideo(String path) {
@@ -518,6 +532,29 @@ class _MessageBubbleState extends State<MessageBubble> {
     return _shell(Padding(padding: const EdgeInsets.all(10), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 48, height: 48, decoration: BoxDecoration(color: ic.withOpacity(.15), shape: BoxShape.circle), child: Icon(icon, color: ic, size: 24)), const SizedBox(width: 12), Flexible(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)), if (duration.isNotEmpty) ...[const SizedBox(height: 3), Text(duration, style: TextStyle(color: tc.withOpacity(.7), fontSize: 11))]])), const SizedBox(width: 12), InkWell(borderRadius: BorderRadius.circular(20), onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'), child: Padding(padding: const EdgeInsets.all(6), child: Icon(video ? Icons.videocam : Icons.call, color: tc, size: 20)))])), dark);
   }
 
+  Widget _buildContact(Map<String, dynamic> m, bool dark) {
+    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
+    final name = meta['contactName']?.toString().trim().isNotEmpty == true ? meta['contactName'].toString() : 'جهة اتصال';
+    final phone = meta['contactPhone']?.toString().trim() ?? '';
+    final email = meta['contactEmail']?.toString().trim() ?? '';
+    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
+    return _shell(Padding(
+      padding: const EdgeInsets.all(12),
+      child: SizedBox(
+        width: 250,
+        child: Row(children: [
+          CircleAvatar(backgroundColor: widget.isMe ? Colors.white24 : AppColors.primary.withOpacity(.12), child: Icon(Icons.person, color: widget.isMe ? Colors.white : AppColors.primary)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc, fontWeight: FontWeight.w800)),
+            if (phone.isNotEmpty) Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.75), fontSize: 12)),
+            if (email.isNotEmpty) Text(email, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.65), fontSize: 11)),
+          ])),
+        ]),
+      ),
+    ), dark);
+  }
+
   Widget _buildLocation(Map<String, dynamic> m, bool dark) {
     final lat = (m['locationLat'] as num?)?.toDouble();
     final lng = (m['locationLng'] as num?)?.toDouble();
@@ -683,6 +720,8 @@ class _MessageBubbleState extends State<MessageBubble> {
               ),
             if (widget.onEdit != null && widget.message['isDeleted'] != true && (widget.message['text']?.toString().trim() ?? '').isNotEmpty)
               ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () { Navigator.pop(context); widget.onEdit?.call(); }),
+            if (widget.onStar != null)
+              ListTile(leading: Icon(widget.message['isStarred'] == true ? Icons.star : Icons.star_border), title: Text(widget.message['isStarred'] == true ? 'إزالة من المفضلة' : 'حفظ في المفضلة'), onTap: () { Navigator.pop(context); widget.onStar?.call(); }),
             if (widget.onPin != null)
               ListTile(leading: Icon((widget.message['isPinned'] == true) ? Icons.push_pin : Icons.push_pin_outlined), title: Text(widget.message['isPinned'] == true ? 'إلغاء تثبيت الرسالة' : 'تثبيت الرسالة'), onTap: () { Navigator.pop(context); widget.onPin?.call(); }),
             if (widget.onForward != null)

@@ -1,0 +1,240 @@
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/material.dart';
+import '../../services/game_leaderboard_service.dart';
+import '../../services/game_achievement_service.dart';
+
+class ClassicGameConfig {
+  final String title;
+  final String instruction;
+  final List<String> options;
+  final int correctIndex;
+  const ClassicGameConfig({required this.title, required this.instruction, required this.options, required this.correctIndex});
+}
+
+class ClassicGameEngine extends StatefulWidget {
+  final ClassicGameConfig config;
+  const ClassicGameEngine({super.key, required this.config});
+  @override State<ClassicGameEngine> createState() => _ClassicGameEngineState();
+}
+
+class _ClassicGameEngineState extends State<ClassicGameEngine> {
+  final _random = Random();
+  Timer? _timer;
+  int _seconds = 30, _score = 0, _streak = 0, _round = 1;
+  String? _selected;
+  bool? _correct;
+  bool _answered = false;
+  bool _started = false;
+  bool _paused = false;
+  bool _finished = false;
+  late List<String> _options;
+
+  @override
+  void initState() { super.initState(); _shuffle(); }
+
+  void _shuffle() { _options = List<String>.from(widget.config.options)..shuffle(_random); }
+
+  void _start() {
+    setState(() => _started = true);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _paused) return;
+      if (_seconds <= 1) {
+        _finish();
+      } else {
+        setState(() => _seconds--);
+      }
+    });
+  }
+
+  Future<void> _finish() async {
+    _timer?.cancel();
+    try {
+      await GameLeaderboardService.instance.submitScore(gameId: widget.config.title, score: _score);
+      if (_score >= 10) {
+        await GameAchievementService.instance.unlock('score_10_${widget.config.title}');
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _finished = true);
+  }
+
+  void _answer(String value) {
+    if (!_started || _paused || _finished) return;
+    final correct = value == widget.config.options[widget.config.correctIndex];
+    setState(() {
+      _selected = value;
+      _correct = correct;
+      _answered = true;
+      if (correct) {
+        _score += 2 + min(_streak, 3);
+        _streak++;
+      } else {
+        _streak = 0;
+        _seconds = max(0, _seconds - 2);
+      }
+    });
+    Future.delayed(const Duration(milliseconds: 360), () {
+      if (!mounted || _finished) return;
+      if (_seconds == 0) { _finish(); return; }
+      setState(() { _round++; _shuffle(); });
+    });
+  }
+
+  void _replay() {
+    _timer?.cancel();
+    setState(() {
+      _seconds = 30;
+      _score = 0;
+      _round = 1;
+      _started = false;
+      _paused = false;
+      _finished = false;
+      _shuffle();
+    });
+  }
+
+  @override
+  void dispose() { _timer?.cancel(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_started) return _startView(context);
+    if (_finished) return _resultView(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.config.title),
+        actions: [
+          IconButton(
+            onPressed: () => setState(() => _paused = !_paused),
+            icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('النقاط: $_score', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text('الجولة $_round • السلسلة $_streak'),
+                    Text('$_seconds ث', style: TextStyle(fontWeight: FontWeight.w800, color: _seconds <= 10 ? Theme.of(context).colorScheme.error : null)),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text(widget.config.instruction, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 24),
+                ..._options.map((o) {
+                  final selected = _selected == o;
+                  final isAnswer = _answered && o == widget.config.options[widget.config.correctIndex];
+                  final isWrong = selected && _correct == false;
+                  final border = isAnswer ? Theme.of(context).colorScheme.primary
+                      : isWrong ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.outlineVariant;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: border, width: 2),
+                      ),
+                      child: SizedBox(width: double.infinity, child: FilledButton.tonal(
+                        onPressed: _answered ? null : () => _answer(o),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Row(children: [
+                            Expanded(child: Text(o, textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+                            if (isAnswer) Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
+                            else if (isWrong) Icon(Icons.cancel_rounded, color: Theme.of(context).colorScheme.error),
+                          ]),
+                        ),
+                      )),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          if (_paused)
+            ColoredBox(
+              color: Colors.black54,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.pause_circle, size: 52),
+                        const SizedBox(height: 10),
+                        const Text('متوقف مؤقتاً', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                        FilledButton(onPressed: () => setState(() => _paused = false), child: const Text('متابعة')),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _startView(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.config.title)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.sports_esports_rounded, size: 64),
+              const SizedBox(height: 16),
+              Text(widget.config.instruction, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _start,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('بدء اللعبة')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _resultView(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.config.title)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.emoji_events_rounded, size: 64),
+              const SizedBox(height: 12),
+              const Text('النتيجة النهائية', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              Text('$_score نقطة', style: const TextStyle(fontSize: 30)),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(onPressed: _replay, icon: const Icon(Icons.replay), label: const Text('إعادة اللعب')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

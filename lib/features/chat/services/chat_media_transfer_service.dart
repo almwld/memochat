@@ -30,6 +30,9 @@ class ChatMediaTransferService {
     String? mimeType,
     String? audioDuration,
   }) async {
+    // Lazily initialize the durable outbox so voice/media works even when
+    // application startup skipped background media initialization.
+    await _engine.initialize(startWorker: true);
     final id = await _engine.enqueue(
       sourceFile: sourceFile,
       destination: type == 'audio' ? MediaDestination.voice : MediaDestination.chat,

@@ -37,6 +37,11 @@ class LiveKitService {
       throw Exception('تعذر الحصول على رمز Firebase');
     }
 
+    final canonicalRoom = LiveKitConfig.normalizeRoomName(roomName);
+    if (!RegExp(r'^call_[A-Za-z0-9_-]+$').hasMatch(canonicalRoom)) {
+      throw StateError('اسم غرفة المكالمة غير صالح');
+    }
+
     final response = await http
         .post(
           Uri.parse('${LiveKitConfig.tokenServerUrl}/token'),
@@ -46,12 +51,11 @@ class LiveKitService {
           },
           body: jsonEncode({
             'identity': user.uid,
-            'roomName': roomName,
+            'roomName': canonicalRoom,
             'participantName': participantName,
           }),
         )
         .timeout(const Duration(seconds: 15));
-
     if (response.statusCode != 200) {
       throw Exception(
         'فشل طلب Token (${response.statusCode}): ${response.body}',
@@ -120,6 +124,7 @@ class LiveKitService {
               url,
               token,
               connectOptions: connectOptions,
+              roomOptions: options,
             )
             .timeout(const Duration(seconds: 25));
         return current;
@@ -148,7 +153,77 @@ class LiveKitService {
     throw lastError ?? StateError('تعذر الاتصال بخدمة LiveKit');
   }
 
+  Future<Room> connectVoiceRoom({
+    required String roomId,
+    required String roomName,
+    String? participantName,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('يجب تسجيل الدخول قبل دخول غرفة الصوت');
+
+    final idToken = await user.getIdToken();
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('تعذر الحصول على رمز Firebase');
+    }
+
+    final canonicalRoom = roomName.trim();
+    if (!RegExp(r'^memo_voice_[A-Za-z0-9_-]+$').hasMatch(canonicalRoom)) {
+      throw StateError('اسم غرفة الصوت غير صالح');
+    }
+
+    final name = participantName?.trim().isNotEmpty == true
+        ? participantName!.trim()
+        : (user.displayName?.trim().isNotEmpty == true
+            ? user.displayName!.trim()
+            : 'مستخدم');
+
+    final response = await http
+        .post(
+          Uri.parse('${LiveKitConfig.tokenServerUrl}/voice-token'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: jsonEncode({
+            'roomId': roomId,
+            'roomName': canonicalRoom,
+            'participantName': name,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'فشل طلب Token لغرفة الصوت (${response.statusCode}): ${response.body}',
+      );
+    }
+
+    final raw = jsonDecode(response.body);
+    if (raw is! Map) throw Exception('استجابة خادم غرفة الصوت غير صالحة');
+    final envelope = Map<String, dynamic>.from(raw);
+    final data = envelope['data'];
+    if (data is! Map) {
+      throw Exception(
+        envelope['message']?.toString() ?? 'تعذر إنشاء توكن غرفة الصوت',
+      );
+    }
+
+    final value = Map<String, dynamic>.from(data);
+    final token = value['token']?.toString() ?? '';
+    final url = value['url']?.toString() ?? '';
+    if (token.isEmpty || url.isEmpty) {
+      throw Exception('توكن أو رابط LiveKit لغرفة الصوت فارغ');
+    }
+
+    final connectedRoom = await _connectWithRetry(url: url, token: token);
+    _room = connectedRoom;
+    _isConnected = true;
+    await enableMicrophone();
+    await setSpeakerphone(true);
+    return connectedRoom;
+  }
   Future<Room> connectRoom({required String roomName, String? participantName}) async {
+    roomName = LiveKitConfig.normalizeRoomName(roomName);
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('يجب تسجيل الدخول قبل إجراء المكالمة');
@@ -179,7 +254,7 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
-    final result = await connectRoom(roomName: roomName, participantName: callerName);
+    final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
     try {

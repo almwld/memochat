@@ -7,6 +7,9 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../../core/notifications/notification_inbox.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
+import 'advanced_privacy_screen.dart';
+import '../../../core/widgets/security_level_indicator.dart';
+import '../../../core/security/security_settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -43,6 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _load();
+    SecuritySettingsService.instance.load();
   }
 
   Future<void> _load() async {
@@ -283,6 +287,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _SectionTitle('المظهر والتطبيق'),
           _CardGroup(
             children: [
+              ListTile(
+                leading: const Icon(Icons.shield_outlined),
+                title: const Text('الخصوصية المتقدمة', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const SecurityLevelIndicator(compact: false),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen())),
+              ),
               ListTile(
                 leading: const PremiumIconTile(icon: AppIcons.settings, size: 42, iconSize: 20),
                 title: const Text('المظهر', style: TextStyle(fontWeight: FontWeight.w800)),

@@ -104,9 +104,10 @@ exports.notifyNewChatMessage=onDocumentCreated('chats/{chatId}/messages/{message
   const mutedFor=chat.mutedFor&&typeof chat.mutedFor==='object'?chat.mutedFor:{};
   const notifyReceivers=receivers.filter(uid=>mutedFor[uid]!==true);
   if(!notifyReceivers.length)return;
-  const type=String(m.type||'text'),text=String(m.text||'').trim();
-  const body={image:'📷 أرسل صورة',video:'🎬 أرسل فيديو',audio:'🎵 أرسل رسالة صوتية',file:'📎 أرسل ملف',location:'📍 شارك موقعاً'}[type]||text||'أرسل رسالة جديدة';
-  const senderName=String(m.senderName||'مستخدم');
+  const encryptedMessage=Boolean(m.e2eePayloads && typeof m.e2eePayloads==='object');
+  const type=encryptedMessage?'encrypted':String(m.type||'text'),text=encryptedMessage?'':String(m.text||'').trim();
+  const body=encryptedMessage?'لديك رسالة جديدة في الدردشة':({image:'📷 أرسل صورة',video:'🎬 أرسل فيديو',audio:'🎵 أرسل رسالة صوتية',file:'📎 أرسل ملف',location:'📍 شارك موقعاً'}[type]||text||'أرسل رسالة جديدة');
+  const senderName=encryptedMessage?'مستخدم':String(m.senderName||'مستخدم');
 
   // Delivery is distinct from sending: a message is delivered only when at
   // least one receiver is actually online. Opening the chat also marks it
@@ -127,13 +128,13 @@ exports.notifyNewChatMessage=onDocumentCreated('chats/{chatId}/messages/{message
       senderName,
       senderPhotoUrl:String(m.senderPhotoUrl || m.senderAvatar || ''),
       messageType:type,
-      imageUrl:String(m.imageUrl || ''),
-      videoUrl:String(m.videoUrl || ''),
-      audioUrl:String(m.audioUrl || ''),
-      fileUrl:String(m.fileUrl || ''),
-      fileName:String(m.fileName || ''),
-      fileMimeType:String(m.fileMimeType || m.fileType || ''),
-      fileSize:String(m.fileSize || ''),
+      imageUrl:encryptedMessage?'':String(m.imageUrl || ''),
+      videoUrl:encryptedMessage?'':String(m.videoUrl || ''),
+      audioUrl:encryptedMessage?'':String(m.audioUrl || ''),
+      fileUrl:encryptedMessage?'':String(m.fileUrl || ''),
+      fileName:encryptedMessage?'':String(m.fileName || ''),
+      fileMimeType:encryptedMessage?'':String(m.fileMimeType || m.fileType || ''),
+      fileSize:encryptedMessage?'':String(m.fileSize || ''),
       body,
       recipientId:uid,
       title:senderName,

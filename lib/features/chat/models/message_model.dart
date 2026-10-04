@@ -7,10 +7,12 @@ enum MessageStatus { sending, sent, delivered, read, failed }
 class MessageModel extends Equatable {
   final String id, chatId, senderId, senderName;
   final String? senderPhotoUrl, text;
+  final String? ciphertext, encryptedKey, nonce;
+  final bool isEncrypted;
   final Map<String, dynamic>? replyPreview;
   final MessageType type;
   final Timestamp? timestamp, clientTimestamp, readAt, deliveredAt, editedAt, pinnedAt;
-  final bool isRead, isDelivered, isEdited, isDeleted, isPinned;
+  final bool isRead, isDelivered, isEdited, isDeleted, isPinned, isStarred;
   final MessageStatus status;
   final String? replyToId, idempotencyKey;
   final MessageModel? replyTo;
@@ -28,6 +30,10 @@ class MessageModel extends Equatable {
     required this.senderName,
     this.senderPhotoUrl,
     this.text,
+    this.ciphertext,
+    this.encryptedKey,
+    this.nonce,
+    this.isEncrypted = false,
     this.replyPreview,
     this.type = MessageType.text,
     this.timestamp,
@@ -61,6 +67,7 @@ class MessageModel extends Equatable {
     this.editedAt,
     this.pinnedAt,
     this.isPinned = false,
+    this.isStarred = false,
     this.status = MessageStatus.sent,
   });
 
@@ -107,6 +114,10 @@ class MessageModel extends Equatable {
       senderId: data['senderId']?.toString() ?? '',
       senderName: data['senderName']?.toString() ?? 'مستخدم',
       senderPhotoUrl: data['senderPhotoUrl']?.toString(),
+      ciphertext: data['ciphertext']?.toString(),
+      encryptedKey: data['encryptedKey']?.toString(),
+      nonce: data['nonce']?.toString(),
+      isEncrypted: data['type']?.toString() == 'encrypted' || data['e2eeVersion'] != null,
       text: data['text']?.toString(),
       replyPreview: mapOf(data['replyPreview']),
       type: MessageType.values.firstWhere(
@@ -150,6 +161,7 @@ class MessageModel extends Equatable {
       editedAt: timestampOf(data['editedAt']),
       pinnedAt: timestampOf(data['pinnedAt']),
       isPinned: data['isPinned'] == true,
+      isStarred: data['isStarred'] == true,
     );
   }
 
@@ -158,6 +170,9 @@ class MessageModel extends Equatable {
         'senderId': senderId,
         'senderName': senderName,
         'senderPhotoUrl': senderPhotoUrl,
+        'ciphertext': ciphertext,
+        'encryptedKey': encryptedKey,
+        'nonce': nonce,
         'text': text,
         'type': type.name,
         'timestamp': timestamp ?? FieldValue.serverTimestamp(),
@@ -192,6 +207,7 @@ class MessageModel extends Equatable {
         'editedAt': editedAt,
         'pinnedAt': pinnedAt,
         'isPinned': isPinned,
+        'isStarred': isStarred,
       };
 
   bool get isImage => type == MessageType.image;
@@ -207,11 +223,12 @@ class MessageModel extends Equatable {
 
   @override
   List<Object?> get props => [
-        id, chatId, senderId, senderName, senderPhotoUrl, text, type,
+        id, chatId, senderId, senderName, senderPhotoUrl, text, ciphertext,
+        encryptedKey, nonce, isEncrypted, type,
         timestamp, clientTimestamp, isRead, isDelivered, isEdited, isDeleted,
         replyToId, idempotencyKey, reactions, deletedFor, attachments, metadata,
         imageUrl, audioUrl, fileUrl, videoUrl, locationUrl, locationAddress,
         locationLat, locationLng, audioDuration, fileSize, fileName, fileMimeType,
-        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, status,
+        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, isStarred, status,
       ];
 }

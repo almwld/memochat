@@ -157,7 +157,7 @@ app.post(
       }
 
       requireNextcloud();
-      const ownerPath = 'Sehatak/users/' + sanitizePathPart(decodedToken.uid);
+      const ownerPath = 'MemoChat/users/' + sanitizePathPart(decodedToken.uid);
       const directory = ownerPath + '/' + logicalPath;
       await ensureNextcloudDirectories(directory);
 
@@ -211,7 +211,7 @@ app.post('/media/share', async (req, res) => {
   try {
     const decodedToken = await verifyFirebaseUser(req);
     const remotePath = String(req.body?.remotePath || '').replace(/^\/+/, '');
-    const prefix = 'Sehatak/users/' + sanitizePathPart(decodedToken.uid) + '/';
+    const prefix = 'MemoChat/users/' + sanitizePathPart(decodedToken.uid) + '/';
     if (!remotePath.startsWith(prefix)) {
       return res.status(403).json({ success: false, message: 'ليس لديك صلاحية مشاركة هذا الملف' });
     }
@@ -300,6 +300,80 @@ app.post('/token', async (req, res) => {
   }
 });
 
+
+// Voice-room token endpoint. Voice rooms are persisted under voiceRooms/{roomId}
+// and are intentionally isolated from one-to-one calls/{callId}.
+app.post('/voice-token', async (req, res) => {
+  try {
+    const decodedToken = await verifyFirebaseUser(req);
+    const roomId = String(req.body?.roomId || '').trim();
+    const roomName = String(req.body?.roomName || '').trim();
+    const participantName = String(req.body?.participantName || decodedToken.name || 'مستخدم').trim();
+
+    if (!roomId || !roomName) {
+      return res.status(400).json({ success: false, message: 'roomId و roomName مطلوبان' });
+    }
+    if (!/^memo_voice_[A-Za-z0-9_-]+$/.test(roomName)) {
+      return res.status(400).json({ success: false, message: 'اسم غرفة الصوت غير صالح' });
+    }
+
+    const roomSnapshot = await db.collection('voiceRooms').doc(roomId).get();
+    if (!roomSnapshot.exists) {
+      return res.status(404).json({ success: false, message: 'غرفة الصوت غير موجودة' });
+    }
+    const room = roomSnapshot.data() || {};
+    if (room.active !== true) {
+      return res.status(409).json({ success: false, message: 'غرفة الصوت مغلقة' });
+    }
+    if (String(room.roomName || '') !== roomName) {
+      return res.status(403).json({ success: false, message: 'اسم LiveKit لا يطابق غرفة الصوت' });
+    }
+
+    const memberSnapshot = await db.collection('voiceRooms').doc(roomId)
+      .collection('members').doc(decodedToken.uid).get();
+    if (!memberSnapshot.exists) {
+      return res.status(403).json({ success: false, message: 'انضم إلى الغرفة أولاً' });
+    }
+
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+    if (!apiKey || !apiSecret || !LIVEKIT_URL) {
+      return res.status(500).json({ success: false, message: 'إعدادات LiveKit غير مكتملة' });
+    }
+
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity: decodedToken.uid,
+      name: participantName.slice(0, 120),
+      ttl: '2h',
+    });
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        token: await token.toJwt(),
+        url: LIVEKIT_URL,
+        roomName,
+        participantIdentity: decodedToken.uid,
+        participantName: participantName.slice(0, 120),
+      },
+    });
+  } catch (error) {
+    const status = Number(error.statusCode) || 500;
+    console.error('Voice token error:', error.message || error);
+    return res.status(status).json({
+      success: false,
+      message: error.message || 'تعذر إنشاء توكن غرفة الصوت',
+    });
+  }
+});
+
 // Production incoming-call notification endpoint.
 // Flutter creates the canonical calls/{callId} document, then calls this endpoint.
 // Railway verifies the caller and sends FCM directly, so Firebase Cloud Functions/Blaze are not required.
@@ -351,17 +425,13 @@ app.post('/call-notification', async (req, res) => {
       console.error(`❌ [${requestId}] receiver user not found uid=${receiverId}`);
       return res.status(404).json({ success: false, message: 'Receiver not found', requestId });
     }
-    const receiver = receiverSnapshot.data() || {};
-    // Canonical Flutter path: users/{uid}/private/tokens.tokens
-    // Keep root fields as a legacy compatibility fallback.
+    // Canonical FCM storage only: users/{uid}/private/tokens.tokens.
+    // Legacy root token fields are intentionally ignored to prevent duplicate
+    // and stale notifications.
     const tokenSnapshot = await db.collection('users').doc(receiverId)
       .collection('private').doc('tokens').get();
     const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
-    const fcmTokens = [
-      ...(Array.isArray(tokenData.tokens) ? tokenData.tokens : []),
-      ...(Array.isArray(receiver.fcmTokens) ? receiver.fcmTokens : []),
-      receiver.fcmToken,
-    ]
+    const fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
       .map((value) => String(value || '').trim())
       .filter(Boolean)
       .filter((value, index, all) => all.indexOf(value) === index);
@@ -409,13 +479,12 @@ app.post('/call-notification', async (req, res) => {
         }
       });
       if (invalidTokens.length) {
-        await db.collection('users').doc(receiverId).set({
-          fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
-          ...(fcmTokens.every((token) => invalidTokens.includes(token))
-            ? { fcmToken: null }
-            : {}),
-          lastTokenUpdate: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        await db.collection('users').doc(receiverId)
+          .collection('private').doc('tokens')
+          .set({
+            tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
       }
       if (response.failureCount === response.successCount + response.failureCount && response.successCount === 0) {
         const firstError = response.responses.find((result) => !result.success)?.error;
@@ -439,13 +508,14 @@ app.post('/call-notification', async (req, res) => {
 // Firestore -> FCM: New chat message listener
 // ============================================================
 function buildMessagePayload(opts) {
-  var preview = String(opts.messageText || '').slice(0, 120);
+  var encrypted = opts.encrypted === true;
+  var preview = encrypted ? 'لديك رسالة جديدة في الدردشة' : String(opts.messageText || '').slice(0, 120);
   return {
     token: opts.fcmToken,
     // Notification + data is intentional for chat messages: Android can render
     // the message in the system tray while the data payload preserves chat routing.
     notification: {
-      title: String(opts.senderName || 'رسالة جديدة'),
+      title: encrypted ? 'رسالة جديدة' : String(opts.senderName || 'رسالة جديدة'),
       body: preview || 'لديك رسالة جديدة في الدردشة',
     },
     data: {
@@ -453,18 +523,18 @@ function buildMessagePayload(opts) {
       chatId: String(opts.chatId || ''),
       messageId: String(opts.messageId || ''),
       senderId: String(opts.senderId || ''),
-      senderName: String(opts.senderName || 'user'),
-      senderPhotoUrl: String(opts.senderPhotoUrl || ''),
-      messageType: String(opts.messageType || 'text'),
-      imageUrl: String(opts.imageUrl || ''),
-      videoUrl: String(opts.videoUrl || ''),
-      audioUrl: String(opts.audioUrl || ''),
-      fileUrl: String(opts.fileUrl || ''),
-      fileName: String(opts.fileName || ''),
-      fileMimeType: String(opts.fileMimeType || ''),
-      fileSize: String(opts.fileSize || ''),
-      body: preview,
-      title: String(opts.senderName || 'رسالة جديدة'),
+      senderName: encrypted ? 'user' : String(opts.senderName || 'user'),
+      senderPhotoUrl: encrypted ? '' : String(opts.senderPhotoUrl || ''),
+      messageType: encrypted ? 'encrypted' : String(opts.messageType || 'text'),
+      imageUrl: encrypted ? '' : String(opts.imageUrl || ''),
+      videoUrl: encrypted ? '' : String(opts.videoUrl || ''),
+      audioUrl: encrypted ? '' : String(opts.audioUrl || ''),
+      fileUrl: encrypted ? '' : String(opts.fileUrl || ''),
+      fileName: encrypted ? '' : String(opts.fileName || ''),
+      fileMimeType: encrypted ? '' : String(opts.fileMimeType || ''),
+      fileSize: encrypted ? '' : String(opts.fileSize || ''),
+      body: encrypted ? '' : preview,
+      title: encrypted ? 'رسالة جديدة' : String(opts.senderName || 'رسالة جديدة'),
       chatType: String(opts.chatType || 'direct'),
       timestamp: String(Date.now())
     },
@@ -499,20 +569,23 @@ async function handleNewMessage(change) {
     var senderId = String(msg.senderId || '');
     if (!senderId) { console.warn('[msg] no senderId id=' + messageId); return; }
 
-    var senderName = String(msg.senderName || msg.senderDisplayName || '');
-    var senderPhotoUrl = String(msg.senderPhotoUrl || msg.senderAvatar || '');
-    var messageType = String(msg.type || 'text');
-    var imageUrl = String(msg.imageUrl || '');
-    var videoUrl = String(msg.videoUrl || '');
-    var audioUrl = String(msg.audioUrl || '');
-    var fileUrl = String(msg.fileUrl || '');
-    var fileName = String(msg.fileName || '');
-    var fileMimeType = String(msg.fileMimeType || msg.fileType || '');
-    var fileSize = String(msg.fileSize || '');
+    var encryptedMessage = msg.e2eePayloads && typeof msg.e2eePayloads === 'object';
+    var senderName = encryptedMessage ? 'user' : String(msg.senderName || msg.senderDisplayName || '');
+    var senderPhotoUrl = encryptedMessage ? '' : String(msg.senderPhotoUrl || msg.senderAvatar || '');
+    var messageType = encryptedMessage ? 'encrypted' : String(msg.type || 'text');
+    var imageUrl = encryptedMessage ? '' : String(msg.imageUrl || '');
+    var videoUrl = encryptedMessage ? '' : String(msg.videoUrl || '');
+    var audioUrl = encryptedMessage ? '' : String(msg.audioUrl || '');
+    var fileUrl = encryptedMessage ? '' : String(msg.fileUrl || '');
+    var fileName = encryptedMessage ? '' : String(msg.fileName || '');
+    var fileMimeType = encryptedMessage ? '' : String(msg.fileMimeType || msg.fileType || '');
+    var fileSize = encryptedMessage ? '' : String(msg.fileSize || '');
     var messageText = '';
-    if (typeof msg.text === 'string') messageText = msg.text;
-    else if (typeof msg.message === 'string') messageText = msg.message;
-    else if (typeof msg.content === 'string') messageText = msg.content;
+    if (!encryptedMessage) {
+      if (typeof msg.text === 'string') messageText = msg.text;
+      else if (typeof msg.message === 'string') messageText = msg.message;
+      else if (typeof msg.content === 'string') messageText = msg.content;
+    }
 
     var chatSnap = await db.collection('chats').doc(chatId).get();
     if (!chatSnap.exists) { console.warn('[msg] chat missing id=' + chatId); return; }
@@ -549,8 +622,6 @@ async function handleNewMessage(change) {
         .collection('private').doc('tokens').get();
       var tokenData = tokenSnap.exists ? (tokenSnap.data() || {}) : {};
       var fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
-        .concat(Array.isArray(user.fcmTokens) ? user.fcmTokens : [])
-        .concat([user.fcmToken])
         .map(function(value) { return String(value || '').trim(); })
         .filter(Boolean)
         .filter(function(value, index, all) { return all.indexOf(value) === index; });
@@ -578,7 +649,8 @@ async function handleNewMessage(change) {
           fileUrl: fileUrl,
           fileName: fileName,
           fileMimeType: fileMimeType,
-          fileSize: fileSize
+          fileSize: fileSize,
+          encrypted: encryptedMessage
         });
 
         try {
@@ -589,9 +661,12 @@ async function handleNewMessage(change) {
           console.error('[msg] FCM failed to=' + userSnap.id + ' tokenIndex=' + ti + ' code=' + (err.code || '?'));
           if (err.code === 'messaging/registration-token-not-registered' ||
               err.code === 'messaging/invalid-registration-token') {
-            await db.collection('users').doc(userSnap.id).set(
-              { fcmTokens: admin.firestore.FieldValue.arrayRemove(fcmToken) }, { merge: true }
-            );
+            await db.collection('users').doc(userSnap.id)
+              .collection('private').doc('tokens')
+              .set({
+                tokens: admin.firestore.FieldValue.arrayRemove(fcmToken),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
           }
         }
       }

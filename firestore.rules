@@ -31,13 +31,29 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      // Authorize collection queries from the matched chat document itself.\n      allow read: if signedIn() &&\n        resource.data.participants is list &&\n        request.auth.uid in resource.data.participants;
+      // Authorize collection queries from the matched chat document itself.
+      // Explicitly authorize both document reads and the
+      // array-contains conversation-list query used by the client.
+      allow get: if signedIn() &&
+        resource.data.participants is list &&
+        request.auth.uid in resource.data.participants;
+
+      allow list: if signedIn() &&
+        resource.data.participants is list &&
+        request.auth.uid in resource.data.participants;
 
       allow create: if signedIn() &&
         request.resource.data.participants is list &&
         request.resource.data.participants.size() >= 2 &&
-        request.auth.uid in request.resource.data.participants;
+        request.resource.data.participants.size() <= 100 &&
+        request.auth.uid in request.resource.data.participants &&
+        (
+          request.resource.data.isGroup == true ||
+          request.resource.data.participants.size() == 2
+        );
 
+      // Normal chat activity may update only conversation metadata.
+      // Group membership has a separate, tightly-scoped path below.
       allow update: if isChatParticipant(chatId) &&
         request.resource.data.participants == resource.data.participants &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -55,6 +71,26 @@ service cloud.firestore {
           'typingUpdatedAt',
           'deletedFor'
         ]);
+
+      // Allow an authenticated user to join an existing group through its
+      // invite code, without granting permission to mutate an existing member.
+      allow update: if signedIn() &&
+        resource.data.isGroup == true &&
+        resource.data.inviteCode is string &&
+        resource.data.inviteCode.size() > 0 &&
+        request.resource.data.inviteCode == resource.data.inviteCode &&
+        request.auth.uid in request.resource.data.participants &&
+        !(request.auth.uid in resource.data.participants) &&
+        request.resource.data.participants.size() == resource.data.participants.size() + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'participants',
+          'participantDetails',
+          'memberRoles',
+          'unreadCount',
+          'updatedAt'
+        ]) &&
+        request.resource.data.memberRoles[request.auth.uid] == 'member' &&
+        request.resource.data.unreadCount[request.auth.uid] == 0;
 
       allow delete: if false;
 
@@ -202,9 +238,15 @@ service cloud.firestore {
       allow create: if signedIn() &&
         request.resource.data.callerId == request.auth.uid &&
         request.resource.data.receiverId is string &&
+        request.resource.data.receiverId != request.auth.uid &&
         request.resource.data.participants is list &&
+        request.resource.data.participants.size() == 2 &&
         request.auth.uid in request.resource.data.participants &&
-        request.resource.data.receiverId in request.resource.data.participants;
+        request.resource.data.receiverId in request.resource.data.participants &&
+        request.resource.data.chatId is string &&
+        get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.isGroup != true &&
+        request.auth.uid in get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants &&
+        request.resource.data.receiverId in get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants;
 
       allow read: if isCallParty();
 
@@ -377,8 +419,14 @@ service cloud.firestore {
         request.resource.data.name.size() >= 2 &&
         request.resource.data.name.size() <= 80;
       allow update: if signedIn() &&
-        resource.data.ownerId == request.auth.uid &&
-        request.resource.data.ownerId == resource.data.ownerId;
+        request.resource.data.ownerId == resource.data.ownerId &&
+        (
+          resource.data.ownerId == request.auth.uid ||
+          (
+            exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['membersCount', 'updatedAt'])
+          )
+        );
       allow delete: if false;
 
       match /members/{memberId} {

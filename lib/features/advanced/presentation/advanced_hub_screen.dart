@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -229,8 +230,10 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   final _service = AdvancedFeaturesService();
   final _liveKit = LiveKitService();
   Room? _room;
+  Timer? _participantsRefresh;
   bool _joining = true;
-  bool _mic = true;
+  bool _mic = false;
+  bool _speaker = true;
   String? _error;
 
   @override
@@ -242,10 +245,30 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   Future<void> _join() async {
     try {
       await _service.joinVoiceRoom(widget.roomId);
-      _room = await _liveKit.connectRoom(roomName: widget.roomName);
-      if (mounted) setState(() { _joining = false; _mic = _liveKit.isMicrophoneEnabled; });
+      final user = FirebaseAuth.instance.currentUser;
+      _room = await _liveKit.connectVoiceRoom(
+        roomId: widget.roomId,
+        roomName: widget.roomName,
+        participantName: user?.displayName,
+      );
+      _participantsRefresh = Timer.periodic(const Duration(milliseconds: 700), (_) {
+        if (mounted) setState(() {});
+      });
+      if (mounted) {
+        setState(() {
+          _joining = false;
+          _mic = _liveKit.isMicrophoneEnabled;
+          _speaker = _liveKit.isSpeakerOn;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _joining = false; _error = e.toString(); });
+      try { await _service.leaveVoiceRoom(widget.roomId); } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _joining = false;
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -254,54 +277,192 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     if (mounted) setState(() => _mic = value);
   }
 
+  Future<void> _toggleSpeaker() async {
+    final value = !_speaker;
+    await _liveKit.setSpeakerphone(value);
+    if (mounted) setState(() => _speaker = value);
+  }
+
   Future<void> _leave() async {
+    _participantsRefresh?.cancel();
     await _liveKit.endCall();
-    await _service.leaveVoiceRoom(widget.roomId);
-    if (mounted) Navigator.pop(context);
+    try {
+      await _service.leaveVoiceRoom(widget.roomId);
+    } finally {
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   @override
   void dispose() {
-    if (_liveKit.isConnected) _liveKit.endCall();
+    _participantsRefresh?.cancel();
+    if (_liveKit.isConnected) unawaited(_liveKit.endCall());
     super.dispose();
   }
 
+  List<_VoiceParticipant> _participants() {
+    final room = _room;
+    if (room == null) return const [];
+    final result = <_VoiceParticipant>[];
+    final local = room.localParticipant;
+    if (local != null) {
+      result.add(_VoiceParticipant(
+        identity: local.identity,
+        name: local.name.isEmpty ? 'أنت' : local.name,
+        muted: !_mic,
+        isLocal: true,
+      ));
+    }
+    for (final participant in room.remoteParticipants.values) {
+      dynamic p = participant;
+      var muted = true;
+      try {
+        for (final publication in p.trackPublications.values) {
+          final source = publication.source.toString().toLowerCase();
+          if (source.contains('microphone')) {
+            muted = publication.muted == true;
+            break;
+          }
+        }
+      } catch (_) {}
+      result.add(_VoiceParticipant(
+        identity: p.identity.toString(),
+        name: p.name.toString().isEmpty ? 'مشارك' : p.name.toString(),
+        muted: muted,
+        isLocal: false,
+      ));
+    }
+    return result;
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.title)),
-    body: _joining
-        ? const Center(child: CircularProgressIndicator())
-        : _error != null
-            ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)))
-            : StreamBuilder(
-                stream: _service.watchRoomMembers(widget.roomId),
-                builder: (context, snapshot) {
-                  final count = snapshot.data?.docs.length ?? 0;
-                  return Column(
-                    children: [
-                      const SizedBox(height: 34),
-                      const CircleAvatar(radius: 48, child: Icon(Icons.graphic_eq_rounded, size: 44)),
-                      const SizedBox(height: 18),
-                      Text(widget.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 6),
-                      Text('$count مشارك', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                      const Spacer(),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        FloatingActionButton.large(onPressed: _toggleMic, child: Icon(_mic ? Icons.mic_rounded : Icons.mic_off_rounded)),
-                        const SizedBox(width: 20),
-                        FloatingActionButton.large(
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                          foregroundColor: Theme.of(context).colorScheme.onError,
-                          onPressed: _leave,
-                          child: const Icon(Icons.call_end_rounded),
+  Widget build(BuildContext context) {
+    final participants = _participants();
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            tooltip: _speaker ? 'السماعة الخارجية مفعلة' : 'السماعة الخارجية متوقفة',
+            onPressed: _toggleSpeaker,
+            icon: Icon(_speaker ? Icons.volume_up_rounded : Icons.volume_off_rounded),
+          ),
+        ],
+      ),
+      body: _joining
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_off_rounded, size: 56),
+                        const SizedBox(height: 16),
+                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          label: const Text('العودة'),
                         ),
-                      ]),
-                      const SizedBox(height: 36),
+                      ],
+                    ),
+                  ),
+                )
+              : SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 18),
+                      const Icon(Icons.graphic_eq_rounded, size: 46),
+                      const SizedBox(height: 8),
+                      Text(widget.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 4),
+                      Text(
+                        participants.length.toString() + ' مشارك الآن',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 14),
+                      Expanded(
+                        child: participants.isEmpty
+                            ? const Center(child: Text('بانتظار المشاركين…'))
+                            : GridView.builder(
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                                itemCount: participants.length,
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisExtent: 118,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                ),
+                                itemBuilder: (_, index) {
+                                  final participant = participants[index];
+                                  return Card(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 28,
+                                          child: Icon(participant.muted ? Icons.mic_off_rounded : Icons.mic_rounded),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          participant.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w800),
+                                        ),
+                                        Text(
+                                          participant.muted ? 'صامت' : 'يتحدث',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            FloatingActionButton.large(
+                              onPressed: _toggleMic,
+                              child: Icon(_mic ? Icons.mic_rounded : Icons.mic_off_rounded),
+                            ),
+                            const SizedBox(width: 18),
+                            FloatingActionButton.large(
+                              backgroundColor: Theme.of(context).colorScheme.error,
+                              foregroundColor: Theme.of(context).colorScheme.onError,
+                              onPressed: _leave,
+                              child: const Icon(Icons.call_end_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                  );
-                },
-              ),
-  );
+                  ),
+                ),
+    );
+  }
+}
+
+class _VoiceParticipant {
+  const _VoiceParticipant({
+    required this.identity,
+    required this.name,
+    required this.muted,
+    required this.isLocal,
+  });
+  final String identity;
+  final String name;
+  final bool muted;
+  final bool isLocal;
 }
 
 class MiniAppsScreen extends StatelessWidget {

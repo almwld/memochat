@@ -10,6 +10,7 @@ import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
 import 'package:memochat/features/chat/services/livekit_service.dart';
+import 'package:memochat/core/config/livekit_config.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
 
 class CallScreen extends StatefulWidget {
@@ -187,8 +188,18 @@ class _CallScreenState extends State<CallScreen> {
       }
 
       callId = c.id;
-      final rn = c.liveKitRoomName?.trim();
-      roomName = rn != null && rn.isNotEmpty ? rn : 'call_${c.id}';
+      // The token backend has one canonical room contract: call_<callId>.
+      // Never trust a legacy/malformed roomName persisted in an older call doc.
+      final canonicalRoomName = LiveKitConfig.canonicalRoomName(c.id);
+      final storedRoomName = c.liveKitRoomName?.trim();
+      if (storedRoomName != null &&
+          storedRoomName.isNotEmpty &&
+          storedRoomName != canonicalRoomName) {
+        debugPrint(
+          'CALL ROOM NORMALIZED stored=$storedRoomName canonical=$canonicalRoomName',
+        );
+      }
+      roomName = canonicalRoomName;
       ActiveCallRegistry.instance.register(c.id);
 
       callSub = calls.streamCall(c.id).listen(
@@ -280,47 +291,25 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> join(CallModel c, User user) async {
     if (joined || ending || (c.status != CallStatus.connected && widget.isOutgoing)) return;
     try {
-      // Read the current Android permission state first. Requesting an
-      // already-granted permission again can race with Android's permission
-      // manager and incorrectly produce a denial on some devices.
+      // LiveKit owns the native media-permission boundary. This mirrors the
+      // proven Sehatak flow: connect first, then let the LiveKit/WebRTC SDK
+      // request/use microphone and camera permissions at the point of capture.
+      // permission_handler is used here only for diagnostics, not as a gate,
+      // because an OEM permission manager can report a stale state while the
+      // native WebRTC layer can still access an already-granted permission.
       final microphoneStatus = await Permission.microphone.status;
       final cameraStatus =
           widget.isVideo ? await Permission.camera.status : null;
-
-      var microphoneGranted = microphoneStatus.isGranted;
-      var cameraGranted = !widget.isVideo || cameraStatus?.isGranted == true;
-
-      if (!microphoneGranted || !cameraGranted) {
-        final requested = <Permission>[];
-        if (!microphoneGranted) requested.add(Permission.microphone);
-        if (widget.isVideo && !cameraGranted) requested.add(Permission.camera);
-
-        if (requested.isNotEmpty) {
-          await requested.request();
-        }
-
-        // Re-read after the request instead of trusting the request result map.
-        // This handles Android OEM permission-manager state changes reliably.
-        microphoneGranted = (await Permission.microphone.status).isGranted;
-        cameraGranted = !widget.isVideo ||
-            (await Permission.camera.status).isGranted;
-      }
-
       debugPrint(
-        'CALL PERMISSIONS microphone=$microphoneGranted '
-        'camera=$cameraGranted video=${widget.isVideo}',
+        'CALL PERMISSION DIAGNOSTIC microphone=${microphoneStatus.name} '
+        'camera=${cameraStatus?.name ?? 'not_required'} video=${widget.isVideo}',
       );
 
-      if (!cameraGranted) {
-        throw StateError('يرجى منح إذن الكاميرا من إعدادات التطبيق');
-      }
-      if (!microphoneGranted) {
-        throw StateError('يرجى منح إذن الميكروفون من إعدادات التطبيق');
-      }
       final registry = ActiveCallRegistry.instance;
       if (registry.hasActiveCall && !registry.isActive(c.id)) {
         throw StateError('مكالمة أخرى نشطة');
       }
+
       room = await live.startCall(
         roomName: roomName!,
         callerName: user.displayName?.trim().isNotEmpty == true
@@ -328,10 +317,9 @@ class _CallScreenState extends State<CallScreen> {
             : widget.userName,
         isVideo: widget.isVideo,
       );
+
       // The accept transition is already persisted by CallService.
-      // Do not make the LiveKit media UI depend on a second Firestore write:
-      // if that write fails after WebRTC has started, the old code showed
-      // "call failed" while the microphone/camera kept publishing.
+      // Do not make the LiveKit media UI depend on a second Firestore write.
       joined = true;
       timeout?.cancel();
       registry.register(c.id);
@@ -372,23 +360,37 @@ class _CallScreenState extends State<CallScreen> {
       if (mounted) setState(() { connecting = false; error = null; });
     } catch (e) {
       ActiveCallRegistry.instance.unregister(c.id);
-      // If LiveKit started before a later UI/state step failed, tear down the
-      // media session so audio cannot continue behind an error screen.
       try {
         await live.endCall();
       } catch (cleanupError) {
         debugPrint('CALL LIVEKIT CLEANUP $cleanupError');
       }
-      final microphoneGranted = (await Permission.microphone.status).isGranted;
+
+      final microphoneGranted =
+          (await Permission.microphone.status).isGranted;
       final cameraGranted =
           !widget.isVideo || (await Permission.camera.status).isGranted;
+      final raw = e.toString().toLowerCase();
+      final looksLikePermissionFailure =
+          raw.contains('permission') ||
+          raw.contains('notallowed') ||
+          raw.contains('not allowed') ||
+          raw.contains('denied') ||
+          raw.contains('accessdenied');
       final permissionsGranted = microphoneGranted && cameraGranted;
-      final friendly = _friendlyCallError(
-        e,
-        permissionsGranted: permissionsGranted,
-      );
+
+      final friendly = looksLikePermissionFailure && !permissionsGranted
+          ? _friendlyCallError(
+              StateError('permission denied'),
+              permissionsGranted: false,
+            )
+          : _friendlyCallError(
+              e,
+              permissionsGranted: permissionsGranted,
+            );
+
       debugPrint(
-        'CALL LIVEKIT $e permissionsGranted=$permissionsGranted '
+        'CALL LIVEKIT ERROR $e permissionsGranted=$permissionsGranted '
         'microphone=$microphoneGranted camera=$cameraGranted',
       );
       if (mounted) {

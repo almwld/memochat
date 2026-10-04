@@ -1,211 +1,724 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../data/game_catalog.dart';
-import '../data/game_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../models/game.dart';
+import '../models/game_session.dart';
+import '../services/game_service.dart';
+import '../services/game_state_persistence.dart';
+import 'extended_games_body.dart';
+import 'game_factory.dart';
+import 'games/xo_game.dart';
+import 'games/quiz_battle_game.dart';
+import 'games/emoji_reaction_game.dart';
+import 'games/dice_roll_game.dart';
+import 'games/draw_guess_game.dart';
+import 'games/word_chain_game.dart';
+import 'games/truth_dare_game.dart';
+import 'games/guess_song_game.dart';
+import 'games/memory_match_game.dart';
+import 'games/trivia_game.dart';
+import 'games/quick_tap_game.dart';
+import 'games/would_you_rather_game.dart';
+import 'games/speed_math_game.dart';
+import 'games/movie_quiz_game.dart';
+import 'games/sudoku_duel_game.dart';
+
+import '../../chat/services/chat_service.dart';
 
 class GamePlayScreen extends StatefulWidget {
-  const GamePlayScreen({required this.game, super.key});
-  final GameDefinition game;
-  @override State<GamePlayScreen> createState() => _GamePlayScreenState();
+  final GameType type;
+  final String title;
+  final String chatId;
+  const GamePlayScreen({super.key, required this.type, required this.title, required this.chatId});
+
+  @override
+  State<GamePlayScreen> createState() => _GamePlayScreenState();
 }
 
 class _GamePlayScreenState extends State<GamePlayScreen> {
+  int score = 0;
+  int _bestScore = 0;
+  int _step = 0;
+  bool _done = false;
   final _random = Random();
-  final _service = GameService();
+  final List<String> _xo = List.filled(9, '');
+  String _word = 'كتاب';
+  String _truthOrDare = '';
+  int _quickTaps = 0;
+  int _reactionTarget = 0;
   Timer? _timer;
-  int _seconds = 45;
-  int _score = 0;
-  int _level = 1;
-  int _combo = 0;
-  int _best = 0;
-  bool _paused = false;
-  bool _finished = false;
-  int _target = 0;
-  int _mathAnswer = 0;
-  List<int> _mathOptions = const [];
-  List<int> _cards = const [];
-  final _revealed = <int>{};
-  final _matched = <int>{};
-  int? _firstCard;
-  bool _checking = false;
-
-  bool get _memoryMode => widget.game.id == 'memory_match' || widget.game.id == 'card_flip' || widget.game.id == 'emoji_memory';
-  bool get _mathMode => widget.game.id == 'math' || widget.game.id == 'math_duel' || widget.game.id == 'number_puzzle';
+  StreamSubscription<GameSession?>? _gameSubscription;
+  String? _gameId;
+  String? _remoteUid;
+  int _seconds = 30;
+  int _mathA = 7, _mathB = 5;
+  String _mathOp = '+';
+  int _mathAnswer = 12;
+  final List<int> _memory = [];
+  final Set<int> _memoryOpen = {};
+  final Set<int> _memoryMatched = {};
+  String _remoteAction = '';
+  int _remoteScore = 0;
+  String? _currentTurn;
+  DateTime? _gameStartedAt;
+  int? _durationMinutes;
+  final List<String> _sudoku = [
+    '1','2','3','4',
+    '3','4','1','2',
+    '2','1','4','3',
+    '4','3','2','1',
+  ];
+  final List<String> _sudokuUser = List.filled(16, '');
 
   @override
   void initState() {
     super.initState();
-    _bestScore();
-    _startRound();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _paused || _finished) return;
-      if (_seconds <= 1) { _finish(); } else { setState(() => _seconds--); }
-    });
+    _newRound();
+    _restoreProgress();
+    _resolveGameSession();
   }
 
-  Future<void> _bestScore() async {
-    final best = await _service.bestScore(widget.game.id);
-    if (mounted) setState(() => _best = best);
+  Future<void> _restoreProgress() async {
+    try {
+      final saved = await GameStatePersistence.instance.read(widget.type.name);
+      if (!mounted || saved == null) return;
+      final best = saved['bestScore'];
+      if (best is num) setState(() => _bestScore = best.toInt());
+    } catch (_) {}
   }
 
-  void _startRound() {
-    if (_memoryMode) {
-      final values = List<int>.generate(8, (i) => i)..addAll(List<int>.generate(8, (i) => i));
-      values.shuffle(_random);
-      _cards = values;
-    } else if (_mathMode) {
-      _newMath();
-    } else {
-      _target = _random.nextInt(9);
+  Future<void> _persistProgress() async {
+    if (score > _bestScore) _bestScore = score;
+    try {
+      await GameStatePersistence.instance.save(
+        gameId: widget.type.name,
+        bestScore: _bestScore,
+        lastScore: score,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _resolveGameSession() async {
+    // The room owns the game document; gameplay remains usable if no active session is found.
+    // We only subscribe after locating the latest game for this chat.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('chats').doc(widget.chatId).collection('games')
+          .where('type', isEqualTo: widget.type.name)
+          .orderBy('createdAt', descending: true)
+          .limit(1).get();
+      if (snap.docs.isEmpty || !mounted) return;
+      _gameId = snap.docs.first.id;
+      _gameSubscription = GameService.instance.watchGame(widget.chatId, _gameId!).listen((game) {
+        if (!mounted || game == null) return;
+        final others = game.players.where((id) => id != uid).toList();
+        final other = others.isEmpty ? null : others.first;
+        final remoteState = game.state;
+        if (!mounted) return;
+        setState(() {
+          _remoteUid = other;
+          _currentTurn = game.currentTurn;
+          _gameStartedAt = game.startedAt;
+          _durationMinutes = game.timeLimit == GameTimeLimit.fiveMinutes ? 5 : game.timeLimit == GameTimeLimit.tenMinutes ? 10 : game.timeLimit == GameTimeLimit.fifteenMinutes ? 15 : null;
+          final rawScore = game.scores[other ?? ''];
+          if (rawScore is num && other != uid) {
+            // Keep the opponent score available without replacing the local score.
+          }
+          final rawStep = remoteState['step'];
+          if (rawStep is num && widget.type == GameType.diceRoll) {
+            _step = rawStep.toInt();
+          }
+          final rawWord = remoteState['word'];
+          if (rawWord is String && widget.type == GameType.wordChain && rawWord.isNotEmpty) {
+            _word = rawWord;
+          }
+          final rawXo = remoteState['xo'];
+          if (rawXo is List && widget.type == GameType.xo && rawXo.length == 9) {
+            for (var i = 0; i < 9; i++) {
+              final value = rawXo[i]?.toString() ?? '';
+              _xo[i] = value;
+            }
+          }
+        });
+      });
+    } catch (_) {
+      // Local gameplay must not be blocked by a missing/older Firestore index.
     }
   }
 
-  void _newMath() {
-    final a = 2 + _random.nextInt(8 + _level * 2);
-    final b = 1 + _random.nextInt(8 + _level * 2);
-    _mathAnswer = a + b;
-    final options = <int>{_mathAnswer};
-    while (options.length < 4) options.add(max(0, _mathAnswer + _random.nextInt(9) - 4));
-    _mathOptions = options.toList()..shuffle(_random);
-    _target = 0;
-  }
-
-  void _scorePoint({int points = 10}) {
-    _combo++;
-    final earned = points + (_combo ~/ 3) * 2;
-    setState(() { _score += earned; _level = 1 + (_score ~/ 100); });
-    HapticFeedback.selectionClick();
-  }
-
-  void _answer(int index) {
-    if (_paused || _finished) return;
-    if (_mathMode) {
-      if (_mathOptions[index] == _mathAnswer) { _scorePoint(points: 12); } else { setState(() => _combo = 0); HapticFeedback.vibrate(); }
-      _newMath();
-      setState(() {});
-      return;
-    }
-    if (_target == index) { _scorePoint(); _target = _random.nextInt(9); setState(() {}); } else { setState(() => _combo = 0); HapticFeedback.vibrate(); }
-  }
-
-  Future<void> _tapCard(int index) async {
-    if (_checking || _paused || _finished || _matched.contains(index)) return;
-    if (_revealed.contains(index)) return;
-    setState(() => _revealed.add(index));
-    if (_firstCard == null) { _firstCard = index; return; }
-    final first = _firstCard!;
-    _firstCard = null;
-    _checking = true;
-    if (_cards[first] == _cards[index]) {
-      _matched.addAll([first, index]);
-      _scorePoint(points: 18);
-      if (_matched.length == _cards.length) {
-        _level++;
-        _startRound();
-        _revealed.clear();
-        _matched.clear();
-      }
-    } else {
-      setState(() {});
-      await Future<void>.delayed(const Duration(milliseconds: 420));
-      if (mounted) _revealed.removeAll([first, index]);
-      setState(() => _combo = 0);
-    }
-    _checking = false;
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _finish() async {
-    if (_finished) return;
-    _finished = true;
+  @override
+  void dispose() {
     _timer?.cancel();
-    await _service.saveScore(gameId: widget.game.id, score: _score, level: _level);
+    _gameSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _newRound() {
+    _step++;
+    _done = false;
+    _reactionTarget = _random.nextInt(4);
+    _mathA = 2 + _random.nextInt(18);
+    _mathB = 2 + _random.nextInt(12);
+    final ops = ['+', '-', '×'];
+    _mathOp = ops[_random.nextInt(ops.length)];
+    _mathAnswer = _mathOp == '+'
+        ? _mathA + _mathB
+        : _mathOp == '-'
+            ? _mathA - _mathB
+            : _mathA * _mathB;
+    if (widget.type == GameType.memoryMatch) {
+      _memory
+        ..clear()
+        ..addAll([0, 1, 2, 3, 0, 1, 2, 3]..shuffle(_random));
+      _memoryOpen.clear();
+      _memoryMatched.clear();
+    }
+  }
+
+  bool get _isMyTurn {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return _currentTurn == null || _currentTurn == uid;
+  }
+
+  Future<void> _syncGameState(Map<String, dynamic> state, {String? nextTurn}) async {
+    final id = _gameId;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || uid == null) return;
+    try {
+      await GameService.instance.updatePlayerState(
+        chatId: widget.chatId,
+        gameId: id,
+        uid: uid,
+        state: state,
+        score: score,
+        currentTurn: nextTurn,
+      );
+    } catch (_) {}
+  }
+
+  bool _guardTurn() {
+    if (_isMyTurn) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('انتظر دور اللاعب الآخر')),
+    );
+    return false;
+  }
+
+  void _point({int value = 1}) {
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('انتهت الجولة', style: TextStyle(fontWeight: FontWeight.w900)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.emoji_events_rounded, size: 54, color: widget.game.color),
-          const SizedBox(height: 10),
-          Text('نتيجتك $_score نقطة', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text(_score > _best ? 'رقم قياسي جديد!' : 'أفضل نتيجة: $_best'),
-        ]),
-        actions: [
-          TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('إنهاء')),
-          FilledButton(onPressed: () { Navigator.pop(context); _restart(); }, child: const Text('جولة جديدة')),
-        ],
+    setState(() => score += value);
+    _syncGameState({'action': 'score', 'score': score, 'step': _step});
+    _persistProgress();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title), centerTitle: true),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              child: _gameBody(),
+            ),
+            _QuickGameChatBar(chatId: widget.chatId),
+          ],
+        ),
       ),
     );
   }
 
-  void _restart() {
-    _timer?.cancel();
-    setState(() { _seconds = 45; _score = 0; _level = 1; _combo = 0; _finished = false; _paused = false; _revealed.clear(); _matched.clear(); _firstCard = null; _startRound(); });
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) { if (!mounted || _paused || _finished) return; if (_seconds <= 1) _finish(); else setState(() => _seconds--); });
+  Widget _gameBody() {
+    final dedicated = DedicatedGameFactory.build(widget.type);
+    if (dedicated != null) return dedicated;
+    const extended = {
+      GameType.colorRush, GameType.higherLower, GameType.numberGuess, GameType.wordScramble,
+      GameType.emojiMemory, GameType.patternTap, GameType.oddOneOut, GameType.fourInRow,
+      GameType.dotsAndBoxes, GameType.reactionRace, GameType.cardFlip, GameType.treasureHunt,
+      GameType.mazeRunner, GameType.stackTower, GameType.targetHit, GameType.bubblePop,
+      GameType.colorMatch, GameType.shapeMatch, GameType.sequenceRecall, GameType.fastChoice,
+      GameType.trueFalse, GameType.flagQuiz, GameType.animalQuiz, GameType.foodQuiz,
+      GameType.geographyQuiz, GameType.scienceQuiz, GameType.historyQuiz, GameType.languageQuiz,
+      GameType.riddleRush, GameType.anagramBattle, GameType.mathDuel, GameType.codeBreaker,
+      GameType.lightSwitch, GameType.connectPairs, GameType.wordGuess, GameType.picturePuzzle,
+      GameType.balanceBeam, GameType.rocketRace, GameType.galaxyCatch, GameType.rhythmTap,
+    };
+    if (extended.contains(widget.type)) {
+      return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
+    }
+    switch (widget.type) {
+      case GameType.xo: return XoGame(key: ValueKey(widget.chatId));
+      case GameType.quizBattle: return QuizBattleGame(key: ValueKey(widget.chatId));
+      case GameType.emojiReaction: return EmojiReactionGame(key: ValueKey(widget.chatId));
+      case GameType.diceRoll: return DiceRollGame(key: ValueKey(widget.chatId));
+      case GameType.drawGuess: return DrawGuessGame(key: ValueKey(widget.chatId));
+      case GameType.wordChain: return WordChainGame(key: ValueKey(widget.chatId));
+      case GameType.truthDare: return TruthDareGame(key: ValueKey(widget.chatId));
+      case GameType.guessSong: return GuessSongGame(key: ValueKey(widget.chatId));
+      case GameType.memoryMatch: return MemoryMatchGame(key: ValueKey(widget.chatId));
+      case GameType.trivia: return TriviaGame(key: ValueKey(widget.chatId));
+      case GameType.quickTap: return QuickTapGame(key: ValueKey(widget.chatId));
+      case GameType.wouldYouRather: return WouldYouRatherGame(key: ValueKey(widget.chatId));
+      case GameType.speedMath: return SpeedMathGame(key: ValueKey(widget.chatId));
+      case GameType.movieQuiz: return MovieQuizGame(key: ValueKey(widget.chatId));
+      case GameType.sudokuDuel: return SudokuDuelGame(key: ValueKey(widget.chatId));
+      default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
+    }
   }
 
+  Widget _header(String subtitle) => Column(
+        children: [
+          Text(subtitle, textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text('النقاط: $score  •  أفضل: $_bestScore', style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (_currentTurn != null) Text(_isMyTurn ? 'دورك الآن' : 'دور اللاعب الآخر', style: const TextStyle(fontSize: 12)),
+          if (_durationMinutes != null && _gameStartedAt != null) Text('المدة: $_durationMinutes دقيقة', style: const TextStyle(fontSize: 11)),
+          if (_remoteUid != null) Text('نقاط اللاعب الآخر: $_remoteScore', style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 18),
+        ],
+      );
+
+  Widget _action(String text, VoidCallback onTap) => SizedBox(
+        width: double.infinity,
+        child: FilledButton(onPressed: onTap, child: Text(text)),
+      );
+
+  Widget _xoGame() {
+    String winner = '';
+    for (final line in const [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]) {
+      if (_xo[line[0]].isNotEmpty && _xo[line[0]] == _xo[line[1]] && _xo[line[1]] == _xo[line[2]]) winner = _xo[line[0]];
+    }
+    final full = _xo.every((e) => e.isNotEmpty);
+    return Column(children: [
+      _header('إكس أو'),
+      if (winner.isNotEmpty || full) Text(winner.isEmpty ? 'تعادل' : 'الفائز: $winner',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 12),
+      GridView.builder(
+        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+        itemCount: 9, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3),
+        itemBuilder: (_, i) => InkWell(
+          onTap: _xo[i].isNotEmpty || winner.isNotEmpty || !_isMyTurn ? null : () {
+            setState(() => _xo[i] = i.isEven ? 'X' : 'O');
+            _syncGameState({'xo': List<String>.from(_xo), 'step': _step}, nextTurn: _remoteUid);
+          },
+          child: Container(
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outline), borderRadius: BorderRadius.circular(14)),
+            child: Center(child: Text(_xo[i], style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900))),
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      _action('إعادة اللعب', () => setState(() { _xo.fillRange(0, 9, ''); score = 0; })),
+    ]);
+  }
+
+  Widget _quizGame() => _quizLike(
+    'Quiz Battle',
+    'ما هو الكوكب المعروف بالكوكب الأحمر؟',
+    ['الأرض','المريخ','الزهرة','المشتري'],
+    1,
+  );
+
+  Widget _quizLike(String title, String question, List<String> answers, int correct) => Column(children: [
+    _header(title),
+    Text(question, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+    const SizedBox(height: 18),
+    ...List.generate(answers.length, (i) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _action(answers[i], () {
+        _point(value: i == correct ? 2 : 0);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(i == correct ? 'إجابة صحيحة ✓' : 'حاول مرة أخرى')));
+      }),
+    )),
+  ]);
+
+  Widget _reactionGame() {
+    final labels = ['❤️','😂','🔥','👏'];
+    return Column(children: [
+      _header('Emoji Reaction'),
+      const Text('اضغط على الإيموجي المطلوب بأسرع ما يمكن'),
+      const SizedBox(height: 18),
+      Text(labels[_reactionTarget], style: const TextStyle(fontSize: 48)),
+      const SizedBox(height: 18),
+      Wrap(spacing: 12, runSpacing: 12, children: List.generate(labels.length, (i) =>
+        OutlinedButton(onPressed: () {
+          if (i == _reactionTarget) {
+            _point(value: 2);
+            setState(_newRound);
+          }
+        }, child: Text(labels[i], style: const TextStyle(fontSize: 28))))),
+    ]);
+  }
+
+  Widget _diceGame() {
+    final value = _step % 6 + 1;
+    return Column(children: [
+      _header('Dice Roll'),
+      Text('🎲 $value', style: const TextStyle(fontSize: 64)),
+      _action('ارمِ النرد', () { if (!_guardTurn()) return; setState(() {
+        _step = _random.nextInt(6);
+        score += _step + 1;
+      }); _syncGameState({'dice': _step + 1, 'action': 'dice'}, nextTurn: _remoteUid); }),
+    ]);
+  }
+
+  Widget _drawGame() => Column(children: [
+    _header('Draw & Guess'),
+    const Text('ارسم كلمة بسيطة في المساحة، ثم شارك الشاشة مع الطرف الآخر.'),
+    const SizedBox(height: 12),
+    Container(
+      height: 280,
+      decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outline), borderRadius: BorderRadius.circular(18)),
+      child: CustomPaint(painter: _GridPainter()),
+    ),
+    const SizedBox(height: 12),
+    _action('خمنت الكلمة ✓', () => _point(value: 2)),
+  ]);
+
+  Widget _wordGame() => Column(children: [
+    _header('Word Chain'),
+    Text('ابدأ بكلمة تنتهي بحرف بداية الكلمة السابقة.'),
+    const SizedBox(height: 12),
+    Text('الكلمة الحالية: $_word', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+    const SizedBox(height: 12),
+    TextField(
+      textDirection: TextDirection.rtl,
+      decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'اكتب كلمتك'),
+      onSubmitted: (v) {
+        if (!_guardTurn()) return;
+        if (v.trim().isEmpty) return;
+        final last = String.fromCharCode(_word.runes.last);
+        if (v.trim().startsWith(last)) {
+          _point(value: 2);
+          setState(() => _word = v.trim());
+          _syncGameState({'word': _word, 'step': _step}, nextTurn: _remoteUid);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يجب أن تبدأ الكلمة بالحرف الأخير.')));
+        }
+      },
+    ),
+  ]);
+
+  Widget _truthDareGame() => Column(children: [
+    _header('Truth or Dare'),
+    if (_truthOrDare.isNotEmpty) Padding(
+      padding: const EdgeInsets.all(18),
+      child: Text(_truthOrDare, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+    ),
+    Row(children: [
+      Expanded(child: _action('صراحة', () => setState(() => _truthOrDare = 'ما أكثر شيء تتمنى تعلمه هذا العام؟'))),
+      const SizedBox(width: 10),
+      Expanded(child: _action('تحدي', () => setState(() => _truthOrDare = 'قل جملة مضحكة بصوت جاد.'))),
+    ]),
+  ]);
+
+  Widget _choiceGame(String title, List<String> options) => Column(children: [
+    _header(title),
+    const Text('اختر إجابة لتسجيل نقطة.'),
+    const SizedBox(height: 16),
+    ...options.map((e) => Padding(padding: const EdgeInsets.only(bottom: 10),
+      child: _action(e, () { if (!_guardTurn()) return; _point(value: 1); _syncGameState({'action': 'choice', 'choice': e}, nextTurn: _remoteUid); }))),
+  ]);
+
+  Widget _memoryGame() {
+    final icons = ['🍎','🚀','⚽','🎵'];
+    return Column(children: [
+      _header('Memory Match'),
+      GridView.builder(
+        shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: 8,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4),
+        itemBuilder: (_, i) {
+          final visible = _memoryOpen.contains(i) || _memoryMatched.contains(i);
+          return InkWell(
+            onTap: visible ? null : () {
+              setState(() => _memoryOpen.add(i));
+              if (_memoryOpen.length == 2) {
+                final a = _memoryOpen.elementAt(0), b = _memoryOpen.elementAt(1);
+                if (_memory[a] == _memory[b]) {
+                  setState(() { _memoryMatched.addAll([a,b]); _memoryOpen.clear(); score += 2; });
+                } else {
+                  Future.delayed(const Duration(milliseconds: 550), () {
+                    if (mounted) setState(_memoryOpen.clear);
+                  });
+                }
+              }
+            },
+            child: Card(child: Center(child: Text(visible ? icons[_memory[i]] : '?', style: const TextStyle(fontSize: 28)))),
+          );
+        },
+      ),
+    ]);
+  }
+
+  Widget _quickTapGame() => Column(children: [
+    _header('Quick Tap'),
+    const Text('اضغط الزر أكبر عدد ممكن خلال 10 ثوانٍ.'),
+    const SizedBox(height: 20),
+    Text('$_quickTaps', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900)),
+    _action('اضغط!', () { if (!_guardTurn()) return; setState(() { _quickTaps++; score++; }); _syncGameState({'action': 'quick_tap', 'taps': _quickTaps}, nextTurn: _remoteUid); }),
+  ]);
+
+  Widget _speedMathGame() {
+    final choices = <int>{_mathAnswer};
+    while (choices.length < 4) choices.add(_mathAnswer + _random.nextInt(11) - 5);
+    final list = choices.toList()..shuffle(_random);
+    return Column(children: [
+      _header('Speed Math'),
+      Text('$_mathA $_mathOp $_mathB = ؟', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 18),
+      ...list.map((n) => Padding(padding: const EdgeInsets.only(bottom: 10),
+        child: _action('$n', () {
+          if (n == _mathAnswer) {
+            _point(value: 2);
+            setState(_newRound);
+          }
+        }))),
+    ]);
+  }
+
+  Widget _sudokuGame() => Column(children: [
+    _header('Sudoku Duel'),
+    const Text('أكمل الخانات الفارغة في شبكة 4×4.'),
+    const SizedBox(height: 12),
+    GridView.builder(
+      shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: 16,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4),
+      itemBuilder: (_, i) {
+        final given = i % 3 == 0 || i == 5 || i == 10 || i == 15;
+        return Container(
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outline)),
+          child: given ? Center(child: Text(_sudoku[i], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)))
+            : TextField(
+              textAlign: TextAlign.center, keyboardType: TextInputType.number, maxLength: 1,
+              decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+              onChanged: (v) { if (v == _sudoku[i]) _point(); },
+            ),
+        );
+      },
+    ),
+  ]);
+}
+
+class _GridPainter extends CustomPainter {
   @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..style = PaintingStyle.stroke..strokeWidth = 3;
+    final path = Path()..moveTo(30, size.height * .6)..quadraticBezierTo(size.width * .3, size.height * .1, size.width * .5, size.height * .55)..quadraticBezierTo(size.width * .75, size.height * .9, size.width - 30, size.height * .25);
+    canvas.drawPath(path, p);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+
+class _QuickGameChatBar extends StatefulWidget {
+  final String chatId;
+  const _QuickGameChatBar({required this.chatId});
+
+  @override
+  State<_QuickGameChatBar> createState() => _QuickGameChatBarState();
+}
+
+class _QuickGameChatBarState extends State<_QuickGameChatBar>
+    with SingleTickerProviderStateMixin {
+  bool _open = false;
+  Timer? _bubbleTimer;
+  final TextEditingController _controller = TextEditingController();
+  late final AnimationController _animation =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
+
+  @override
+  void dispose() {
+    _bubbleTimer?.cancel();
+    _animation.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() => _open = !_open);
+    if (_open) {
+      _animation.forward();
+    } else {
+      _controller.clear();
+      _animation.reverse();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: scheme.surface,
-      appBar: AppBar(
-        title: Text(widget.game.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-        actions: [IconButton(onPressed: () => setState(() => _paused = !_paused), icon: Icon(_paused ? Icons.play_arrow_rounded : Icons.pause_rounded))],
+    return IgnorePointer(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ephemeralBubbles(scheme),
+              const SizedBox(height: 8),
+              AnimatedBuilder(
+                animation: _animation,
+                builder: (context, child) => Opacity(
+                  opacity: .78 + (_animation.value * .22),
+                  child: Transform.translate(
+                    offset: Offset(0, 10 * (1 - _animation.value)),
+                    child: child,
+                  ),
+                ),
+                child: _open ? _inputBar(scheme) : _bubble(scheme),
+              ),
+            ],
+          ),
+        ),
       ),
-      body: Stack(children: [
-        CustomPaint(painter: _GameBackdropPainter(widget.game.color), size: Size.infinite),
-        SafeArea(child: Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 12), child: Row(children: [
-            _Stat(label: 'النقاط', value: '$_score', color: widget.game.color),
-            const SizedBox(width: 8), _Stat(label: 'المستوى', value: '$_level', color: scheme.secondary),
-            const SizedBox(width: 8), _Stat(label: 'الوقت', value: '$_seconds', color: scheme.error),
-            if (_combo > 1) ...[const SizedBox(width: 8), _Stat(label: 'سلسلة', value: 'x$_combo', color: Colors.orange)],
-          ])),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: LinearProgressIndicator(value: _seconds / 45, minHeight: 6, borderRadius: BorderRadius.circular(8), color: widget.game.color)),
-          const SizedBox(height: 20),
-          Expanded(child: _memoryMode ? _buildMemory() : _buildChallenge()),
-          Padding(padding: const EdgeInsets.all(16), child: Text(widget.game.subtitle, textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
-        ])),
-        if (_paused) Positioned.fill(child: ColoredBox(color: Colors.black54, child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.pause_circle_outline_rounded, size: 52), const SizedBox(height: 12), const Text('اللعبة متوقفة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 14), FilledButton(onPressed: () => setState(() => _paused = false), child: const Text('متابعة'))]))))),
-      ]),
     );
   }
 
-  Widget _buildChallenge() => Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-    const SizedBox(height: 18),
-    Text(_mathMode ? 'اختر الإجابة الصحيحة' : 'اضغط الهدف المضيء', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-    const SizedBox(height: 24),
-    if (_mathMode) Text('$_mathAnswer = ؟', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900)),
-    if (!_mathMode) _TargetOrb(color: widget.game.color),
-    const SizedBox(height: 28),
-    Expanded(child: GridView.builder(itemCount: 9, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12), itemBuilder: (_, index) {
-      if (_mathMode && index >= 4) return const SizedBox.shrink();
-      final active = !_mathMode && _target == index;
-      return InkWell(onTap: () => _mathMode ? _answer(index) : _answer(index), borderRadius: BorderRadius.circular(22), child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), gradient: LinearGradient(colors: [widget.game.color.withOpacity(active ? .95 : .12), widget.game.color.withOpacity(active ? .55 : .05)]), boxShadow: active ? [BoxShadow(color: widget.game.color.withOpacity(.35), blurRadius: 18)] : null), child: Center(child: _mathMode ? Text('${_mathOptions[index]}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)) : Icon(active ? Icons.bolt_rounded : Icons.circle_outlined, color: active ? Colors.white : widget.game.color.withOpacity(.25), size: active ? 34 : 22))));
-    })),
-  ]));
+  Widget _ephemeralBubbles(ColorScheme scheme) {
+    return StreamBuilder<MessagePaginationResult>(
+      stream: ChatService().streamMessages(widget.chatId, limit: 12),
+      builder: (context, snapshot) {
+        final messages = snapshot.data?.messages ?? const [];
+        final now = DateTime.now();
+        final visible = messages.where((m) {
+          if (m.metadata?['kind']?.toString() != 'game_quick_chat') return false;
+          final stamp = m.timestamp?.toDate() ?? now;
+          return now.difference(stamp).inSeconds < 6;
+        }).take(3).toList();
+        if (visible.isEmpty) {
+          _bubbleTimer?.cancel();
+          _bubbleTimer = null;
+          return const SizedBox.shrink();
+        }
+        _bubbleTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+          if (mounted) setState(() {});
+        });
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: visible.map((m) {
+            final mine = m.senderId == uid;
+            return Align(
+              alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+              child: Container(
+                margin: const EdgeInsets.only(top: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                constraints: const BoxConstraints(maxWidth: 280),
+                decoration: BoxDecoration(
+                  color: scheme.surface.withOpacity(.55),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: scheme.onSurface.withOpacity(.10)),
+                ),
+                child: Text(
+                  m.text ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(fontSize: 13, color: scheme.onSurface.withOpacity(.78)),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
 
-  Widget _buildMemory() => Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-    const Text('طابق البطاقات المتشابهة', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-    const SizedBox(height: 18),
-    Expanded(child: GridView.builder(itemCount: _cards.length, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 9, mainAxisSpacing: 9), itemBuilder: (_, index) {
-      final open = _revealed.contains(index) || _matched.contains(index);
-      return InkWell(onTap: () => _tapCard(index), borderRadius: BorderRadius.circular(16), child: AnimatedContainer(duration: const Duration(milliseconds: 180), decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: LinearGradient(colors: open ? [widget.game.color.withOpacity(.95), widget.game.color.withOpacity(.55)] : [schemeColor(context).surfaceContainerHighest, schemeColor(context).surfaceContainer], begin: Alignment.topLeft, end: Alignment.bottomRight), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 7, offset: Offset(0, 4))]), child: Center(child: open ? Text('${_cards[index] + 1}', style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)) : Icon(Icons.lock_outline_rounded, color: widget.game.color.withOpacity(.45)))));
-    })),
-  ]));
+  Widget _bubble(ColorScheme scheme) => Material(
+        color: scheme.surface.withOpacity(.42),
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: _toggle,
+          child: Container(
+            height: 42,
+            width: 46,
+            decoration: BoxDecoration(
+              color: scheme.surface.withOpacity(.28),
+              shape: BoxShape.circle,
+              border: Border.all(color: scheme.onSurface.withOpacity(.16)),
+            ),
+            child: Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 20,
+              color: scheme.onSurface.withOpacity(.70),
+            ),
+          ),
+        ),
+      );
 
-  ColorScheme schemeColor(BuildContext context) => Theme.of(context).colorScheme;
+  Widget _inputBar(ColorScheme scheme) => Material(
+        color: scheme.surface.withOpacity(.90),
+        elevation: 8,
+        borderRadius: BorderRadius.circular(26),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 430, minHeight: 52),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: scheme.outline.withOpacity(.22)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'إغلاق المحادثة السريعة',
+                onPressed: _toggle,
+                icon: const Icon(Icons.close_rounded),
+              ),
+              Expanded(
+                child: TextField(
+                  autofocus: true,
+                  controller: _controller,
+                  textDirection: TextDirection.rtl,
+                  textInputAction: TextInputAction.send,
+                  maxLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'رسالة سريعة…',
+                    hintStyle: TextStyle(color: scheme.onSurface.withOpacity(.52)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                  onSubmitted: (_) => _send(),
+                ),
+              ),
+              IconButton(
+                tooltip: 'إرسال',
+                onPressed: _send,
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    _controller.clear();
+    FocusScope.of(context).unfocus();
+    try {
+      await ChatService().sendMessage(
+        chatId: widget.chatId,
+        text: text,
+        metadata: const {'kind': 'game_quick_chat'},
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إرسال الرسالة السريعة')),
+      );
+    }
+  }
 }
-
-class _Stat extends StatelessWidget { const _Stat({required this.label, required this.value, required this.color}); final String label; final String value; final Color color; @override Widget build(BuildContext context) => Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 9), decoration: BoxDecoration(color: color.withOpacity(.11), borderRadius: BorderRadius.circular(14)), child: Column(children: [Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)), Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 10))]))); }
-class _TargetOrb extends StatelessWidget { const _TargetOrb({required this.color}); final Color color; @override Widget build(BuildContext context) => Container(width: 104, height: 104, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white, color, Color.lerp(color, Colors.black, .35)!], center: const Alignment(-.35, -.35)), boxShadow: [BoxShadow(color: color.withOpacity(.45), blurRadius: 25, spreadRadius: 4)]), child: const Icon(Icons.stars_rounded, color: Colors.white, size: 42)); }
-class _GameBackdropPainter extends CustomPainter { const _GameBackdropPainter(this.color); final Color color; @override void paint(Canvas canvas, Size size) { final p = Paint()..color = color.withOpacity(.035); for (var i = 0; i < 8; i++) { canvas.drawCircle(Offset(size.width * ((i * 37) % 100) / 100, 90 + i * 130), 70 + i * 9, p); } } @override bool shouldRepaint(covariant _GameBackdropPainter oldDelegate) => oldDelegate.color != color; }
