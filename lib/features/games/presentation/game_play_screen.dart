@@ -252,7 +252,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         case GameType.wordChain:
           return _wordGame();
         case GameType.wouldYouRather:
-          return _choiceGame();
+          return _choiceGame('ماذا تفضل؟', const ['الخيار الأول', 'الخيار الثاني']);
         case GameType.quickTap:
           return _quickTapGame();
         case GameType.speedMath:
