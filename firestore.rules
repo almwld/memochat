@@ -52,6 +52,8 @@ service cloud.firestore {
           request.resource.data.participants.size() == 2
         );
 
+      // Normal chat activity may update only conversation metadata.
+      // Group membership has a separate, tightly-scoped path below.
       allow update: if isChatParticipant(chatId) &&
         request.resource.data.participants == resource.data.participants &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -69,6 +71,26 @@ service cloud.firestore {
           'typingUpdatedAt',
           'deletedFor'
         ]);
+
+      // Allow an authenticated user to join an existing group through its
+      // invite code, without granting permission to mutate an existing member.
+      allow update: if signedIn() &&
+        resource.data.isGroup == true &&
+        resource.data.inviteCode is string &&
+        resource.data.inviteCode.size() > 0 &&
+        request.resource.data.inviteCode == resource.data.inviteCode &&
+        request.auth.uid in request.resource.data.participants &&
+        !(request.auth.uid in resource.data.participants) &&
+        request.resource.data.participants.size() == resource.data.participants.size() + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'participants',
+          'participantDetails',
+          'memberRoles',
+          'unreadCount',
+          'updatedAt'
+        ]) &&
+        request.resource.data.memberRoles[request.auth.uid] == 'member' &&
+        request.resource.data.unreadCount[request.auth.uid] == 0;
 
       allow delete: if false;
 
