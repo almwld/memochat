@@ -57,7 +57,7 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
     );
   }
 
-  void _showInfo(BuildContext context) => showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (_) => const Padding(padding: EdgeInsets.fromLTRB(22, 8, 22, 28), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('ألعاب MemoChat', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), SizedBox(height: 10), Text('ألعاب فردية وتحديات جماعية داخل التطبيق، برسوميات CustomPaint ونتائج قابلة للحفظ. يمكنك فتح أي لعبة مباشرة من قائمة اكتشف.', style: TextStyle(height: 1.5))]));
+  void _showInfo(BuildContext context) => showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (_) => const Padding(padding: EdgeInsets.fromLTRB(22, 8, 22, 28), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('ألعاب MemoChat', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), SizedBox(height: 10), Text('ألعاب فردية وتحديات جماعية داخل التطبيق، برسوميات CustomPaint ونتائج قابلة للحفظ. يمكنك فتح أي لعبة مباشرة من قائمة اكتشف.', style: TextStyle(height: 1.5))])));
 }
 
 class _FeaturedGameCard extends StatelessWidget {
