@@ -148,6 +148,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   final _statusService = StatusService();
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _chatSub;
+  Timer? _messageStreamRetry;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
   Timer? _pendingRefreshTimer;
   Timer? _typingClearTimer;
@@ -340,6 +341,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _initializeRoom() async {
     _roomLoadTimer?.cancel();
+    _messageStreamRetry?.cancel();
     _roomLoadTimer = Timer(const Duration(seconds: 15), () {
       if (!mounted || !_loading) return;
       setState(() {
@@ -452,6 +454,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         setState(() { _online = data['isOnline'] == true; _lastSeen = lastSeen; });
       }
     });
+    _messagesSub?.cancel();
     _messagesSub = _messagesRef
         .orderBy('timestamp', descending: true)
         .limit(100)
@@ -511,8 +514,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       unawaited(_markDeliveryAndRead());
       unawaited(_loadPendingMedia());
     }, onError: (error) {
-      debugPrint('chat stream: $error');
-      if (mounted) setState(() { _loading = false; _loadError = error.toString(); });
+      debugPrint('chat messages stream: $error');
+      if (!mounted) return;
+      // A transient Firestore/index/network error must not erase the room.
+      // Keep the current messages visible and reconnect automatically.
+      setState(() {
+        _loading = false;
+        _loadError = null;
+      });
+      _messageStreamRetry?.cancel();
+      _messageStreamRetry = Timer(const Duration(seconds: 2), () {
+        if (mounted) _listen();
+      });
     });
   }
 
