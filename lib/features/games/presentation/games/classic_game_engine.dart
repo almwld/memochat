@@ -128,10 +128,35 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
                 const SizedBox(height: 24),
                 Text(widget.config.instruction, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 24),
-                ..._options.map((o) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: SizedBox(width: double.infinity, child: FilledButton(onPressed: () => _answer(o), child: Text(o))),
-                )),
+                ..._options.map((o) {
+                  final selected = _selected == o;
+                  final isAnswer = _answered && o == widget.config.options[widget.config.correctIndex];
+                  final isWrong = selected && _correct == false;
+                  final border = isAnswer ? Theme.of(context).colorScheme.primary
+                      : isWrong ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.outlineVariant;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: border, width: 2),
+                      ),
+                      child: SizedBox(width: double.infinity, child: FilledButton.tonal(
+                        onPressed: _answered ? null : () => _answer(o),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Row(children: [
+                            Expanded(child: Text(o, textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+                            if (isAnswer) Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary)
+                            else if (isWrong) Icon(Icons.cancel_rounded, color: Theme.of(context).colorScheme.error),
+                          ]),
+                        ),
+                      )),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
