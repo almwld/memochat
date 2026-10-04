@@ -156,6 +156,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       case 'contact':
         return _withStatus(_buildContact(m, dark));
       case 'game_invite':
+      case 'gameInvite':
         return _buildGameInvite(m, dark);
       case 'system':
         return _buildSystem(m);
