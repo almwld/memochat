@@ -224,53 +224,85 @@ class _ChannelScreenState extends State<ChannelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.name)),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder(
-              stream: widget.service.watchPosts(communityId: widget.communityId, channelId: widget.channelId),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final posts = snapshot.data!.docs;
-                if (posts.isEmpty) return const Center(child: Text('لا توجد منشورات بعد.'));
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: posts.length,
-                  itemBuilder: (_, index) => Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Text(posts[index].data()['text']?.toString() ?? ''),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(child: TextField(controller: _controller, minLines: 1, maxLines: 4, decoration: const InputDecoration(hintText: 'منشور جديد...'))),
-                  IconButton(
-                    onPressed: () async {
-                      final text = _controller.text;
-                      _controller.clear();
-                      try {
-                        await widget.service.sendChannelPost(communityId: widget.communityId, channelId: widget.channelId, text: text);
-                      } catch (_) {}
-                    },
-                    icon: const Icon(Icons.send_rounded),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+      appBar: AppBar(
+        title: Row(children: [
+          Container(width: 40, height: 40, decoration: BoxDecoration(color: scheme.primary.withOpacity(.10), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.forum_rounded, color: scheme.primary)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(widget.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900))),
+        ]),
       ),
+      body: Column(children: [
+        Expanded(
+          child: StreamBuilder(
+            stream: widget.service.watchPosts(communityId: widget.communityId, channelId: widget.channelId),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('تعذر تحميل رسائل الغرفة.'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final posts = snapshot.data!.docs;
+              if (posts.isEmpty) return const Center(child: Text('ابدأ أول رسالة في هذه الغرفة.'));
+              return ListView.builder(
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                itemCount: posts.length,
+                itemBuilder: (_, index) {
+                  final data = posts[index].data();
+                  final mine = data['authorId']?.toString() == FirebaseAuth.instance.currentUser?.uid;
+                  return Align(
+                    alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 330),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: mine ? scheme.primary : scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(data['text']?.toString() ?? '', style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface, height: 1.35)),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+            child: Row(children: [
+              Expanded(child: TextField(
+                controller: _controller,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  hintText: 'اكتب رسالة في الغرفة...',
+                  filled: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                ),
+              )),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                tooltip: 'إرسال',
+                onPressed: () async {
+                  final text = _controller.text.trim();
+                  if (text.isEmpty) return;
+                  _controller.clear();
+                  try {
+                    await widget.service.sendChannelPost(communityId: widget.communityId, channelId: widget.channelId, text: text);
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الإرسال: $e')));
+                  }
+                },
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }
