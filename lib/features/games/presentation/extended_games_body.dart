@@ -135,130 +135,30 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
       const SizedBox(height:18),_tile(const Center(child:Text('حل الكلمة',style:TextStyle(fontWeight:FontWeight.w800))),()=>_win(2,'الكلمة: $w'),1)]);
   }
 
-
-  Widget _boardGame({required int columns, required int count, required String hint, required IconData icon, required int goal}) {
-    return Column(children:[
-      _head(),
-      Text(hint, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
-      const SizedBox(height: 14),
-      GridView.builder(
-        shrinkWrap:true, physics:const NeverScrollableScrollPhysics(), itemCount:count,
-        gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),
-        itemBuilder:(_,i){
-          final active=i < target;
-          return _tile(
-            Icon(active ? icon : Icons.circle_outlined,size:28,color:active ? colors[i%colors.length] : null),
-            (){
-              if (i == goal) { _win(3,'إصابة صحيحة'); }
-              else { setState(() => feedback='اختيار غير صحيح'); }
-            }, i,
-          );
-        },
-      ),
-    ]);
-  }
-
-  Widget _arcadeGame({required String hint, required IconData icon}) {
-    final progress = ((_step % 10) + 1) / 10;
-    return Column(children:[
-      _head(),
-      Text(hint,textAlign:TextAlign.center,style:const TextStyle(fontWeight:FontWeight.w700)),
-      const SizedBox(height:14),
-      ClipRRect(borderRadius:BorderRadius.circular(16),child:LinearProgressIndicator(value:progress,minHeight:10)),
-      const SizedBox(height:18),
-      SizedBox(height:210,child:Center(
-        child: GestureDetector(
-          onTap:()=>_win(2,'ممتاز!'),
-          child: AnimatedScale(
-            scale:1.0 + (_pulse.value*.08),
-            duration:const Duration(milliseconds:120),
-            child:Container(
-              width:118,height:118,
-              decoration:BoxDecoration(shape:BoxShape.circle,color:colors[_step%colors.length].withOpacity(.16),border:Border.all(color:colors[_step%colors.length],width:3)),
-              child:Icon(icon,size:54,color:colors[_step%colors.length]),
-            ),
-          ),
-        ),
-      )),
-      FilledButton.icon(onPressed:()=>setState(()=>_step++),icon:const Icon(Icons.flash_on_rounded),label:const Text('الحركة التالية')),
-    ]);
-  }
-
-  Widget _dotsBoard() {
-    return Column(children:[
-      _head(),
-      const Text('أغلق المربعات قبل منافسك',style:TextStyle(fontWeight:FontWeight.w700)),
-      const SizedBox(height:12),
-      GridView.count(
-        shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:3,crossAxisSpacing:8,mainAxisSpacing:8,
-        children:List.generate(9,(i)=>_tile(
-          AnimatedContainer(
-            duration:const Duration(milliseconds:180),
-            decoration:BoxDecoration(
-              color:i < score ? colors[i%colors.length].withOpacity(.22) : Colors.transparent,
-              border:Border.all(color:colors[i%colors.length],width:2),
-              borderRadius:BorderRadius.circular(10),
-            ),
-            child:Center(child:Icon(i < score ? Icons.check_rounded : Icons.add_rounded)),
-          ),
-          i < score ? null : ()=>_win(1,'مربع مكتمل'), i,
-        )),
-      ),
-    ]);
-  }
-
-  Widget _memoryBoard() {
-    final values=<int>[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7]..shuffle(_r);
-    return Column(children:[
-      _head(),
-      const Text('طابق البطاقات بأقل عدد من المحاولات',style:TextStyle(fontWeight:FontWeight.w700)),
-      const SizedBox(height:12),
-      GridView.builder(
-        shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),itemCount:16,
-        gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:4,crossAxisSpacing:8,mainAxisSpacing:8),
-        itemBuilder:(_,i)=>_tile(
-          Center(child:Icon(Icons.auto_awesome_rounded,size:28,color:colors[values[i]%colors.length])),
-          ()=>_win(1,'بطاقة مكتشفة'),i,
-        ),
-      ),
-    ]);
-  }
-
   Widget _body() {
     switch(widget.type) {
-      case GameType.colorRush: return _reaction();
-      case GameType.higherLower: return _higherLower();
-      case GameType.numberGuess: return _numberGuess();
+      case GameType.colorRush: return _arena(mode:'color');
+      case GameType.higherLower: return Column(children:[_head(),const SizedBox(height:18),const Text('هل الرقم التالي أعلى أم أقل؟',style:TextStyle(fontSize:21)),_grid(const ['⬆️ أعلى','⬇️ أقل','🟰 متساوي','🎲 مفاجأة'])]);
+      case GameType.numberGuess: return Column(children:[_head(),const SizedBox(height:18),const Text('اختر الرقم الأقرب للهدف المخفي',style:TextStyle(fontSize:20)),_grid(const ['3','7','12','18'])]);
       case GameType.wordScramble: case GameType.anagramBattle: case GameType.wordGuess: return _word();
-      case GameType.emojiMemory: case GameType.cardFlip: case GameType.connectPairs: return _memoryBoard();
-      case GameType.patternTap: case GameType.sequenceRecall: return _arcadeGame(hint:'تذكّر التسلسل واضغط بسرعة',icon:Icons.timeline_rounded);
-      case GameType.oddOneOut: return _boardGame(columns:2,count:4,hint:'اكتشف العنصر المختلف',icon:Icons.circle_rounded,goal:3);
-      case GameType.fourInRow: return _boardGame(columns:7,count:42,hint:'كوّن أربعة أحجار متتالية',icon:Icons.circle_rounded,goal:_target%42);
-      case GameType.dotsAndBoxes: return _dotsBoard();
-      case GameType.reactionRace: return _arcadeGame(hint:'اضغط الهدف بأسرع ما يمكن',icon:Icons.bolt_rounded);
-      case GameType.treasureHunt: return _arcadeGame(hint:'اعثر على الكنز المخفي',icon:Icons.diamond_rounded);
-      case GameType.mazeRunner: return _boardGame(columns:5,count:25,hint:'اعثر على بوابة الخروج',icon:Icons.route_rounded,goal:24);
-      case GameType.stackTower: return _arcadeGame(hint:'ابنِ البرج بثبات',icon:Icons.account_balance_rounded);
-      case GameType.targetHit: return _targetHit();
-      case GameType.bubblePop: return _bubblePop();
-      case GameType.colorMatch: return _arcadeGame(hint:'طابق اللون المطلوب',icon:Icons.palette_rounded);
-      case GameType.shapeMatch: return _arcadeGame(hint:'طابق الشكل المطلوب',icon:Icons.category_rounded);
-      case GameType.fastChoice: return _arcadeGame(hint:'اختر بسرعة',icon:Icons.flash_on_rounded);
-      case GameType.trueFalse: case GameType.flagQuiz: case GameType.animalQuiz: case GameType.foodQuiz:
-      case GameType.geographyQuiz: case GameType.scienceQuiz: case GameType.historyQuiz: case GameType.languageQuiz:
-        return _quiz();
+      case GameType.emojiMemory: case GameType.cardFlip: case GameType.connectPairs: return Column(children:[_head(),const SizedBox(height:15),_memory()]);
+      case GameType.patternTap: case GameType.sequenceRecall: return Column(children:[_head(),Text(pattern.map((x)=>['🔵','🟢','🟣','🟠'][x]).join(' '),style:const TextStyle(fontSize:32)),const SizedBox(height:12),_arena()]);
+      case GameType.oddOneOut: return Column(children:[_head(),_grid(const ['●','●','●','◆'])]);
+      case GameType.treasureHunt: return Column(children:[_head(),_grid(const ['🗺️','🏝️','💎','🌴'])]);
+      case GameType.mathDuel: return Column(children:[_head(),const Text('7 × 3 + 3 = ؟',style:TextStyle(fontSize:28,fontWeight:FontWeight.w900)),_grid(const ['21','24','27','30'])]);
+      case GameType.codeBreaker: return Column(children:[_head(),const Text('اختر الشفرة المضيئة',style:TextStyle(fontSize:20)),_grid(const ['123','314','721','909'])]);
+      case GameType.shapeMatch: return _arena(mode:'shape');
+      case GameType.colorMatch: return _arena(mode:'color');
+      case GameType.lightSwitch: return Column(children:[_head(),_grid(const ['💡','🌑','💡','🌑'])]);
+      case GameType.reactionRace: case GameType.targetHit: case GameType.bubblePop: case GameType.stackTower:
+      case GameType.mazeRunner: case GameType.fourInRow: case GameType.dotsAndBoxes: case GameType.fastChoice:
+      case GameType.picturePuzzle: case GameType.balanceBeam: case GameType.rocketRace: case GameType.galaxyCatch:
+      case GameType.rhythmTap: return _arena();
       case GameType.riddleRush: return Column(children:[_head(),const Text('شيء يسمع بلا أذن ويتكلم بلا لسان؟',style:TextStyle(fontSize:21),textAlign:TextAlign.center),_grid(const ['الصدى','الظل','الوقت','المفتاح'])]);
-      case GameType.mathDuel: return _math();
-      case GameType.codeBreaker: return _codeBreaker();
-      case GameType.lightSwitch: return _lightSwitch();
-      case GameType.picturePuzzle: return _boardGame(columns:2,count:4,hint:'ركّب الصورة الصحيحة',icon:Icons.image_rounded,goal:_target);
-      case GameType.balanceBeam: return _arcadeGame(hint:'حافظ على التوازن',icon:Icons.balance_rounded);
-      case GameType.rocketRace: return _arcadeGame(hint:'ادفع الصاروخ نحو خط النهاية',icon:Icons.rocket_launch_rounded);
-      case GameType.galaxyCatch: return _arcadeGame(hint:'التقط النجوم قبل اختفائها',icon:Icons.auto_awesome_rounded);
-      case GameType.rhythmTap: return _arcadeGame(hint:'اضغط مع الإيقاع',icon:Icons.music_note_rounded);
       default: return _quiz();
     }
   }
+
   @override Widget build(BuildContext context)=>Directionality(
     textDirection:TextDirection.rtl,
     child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(16,18,16,100),child:_body()),
