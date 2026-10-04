@@ -7,6 +7,7 @@ import '../services/game_service.dart';
 import 'game_room_screen.dart';
 import 'game_play_screen.dart';
 import 'widgets/game_grid.dart';
+import 'widgets/game_art.dart';
 
 class GamesScreen extends StatefulWidget {
   final String chatId;
@@ -72,7 +73,7 @@ class _GamesScreenState extends State<GamesScreen> {
     final dark=Theme.of(context).brightness==Brightness.dark;
     return SafeArea(child:Column(children:[
       Padding(padding:const EdgeInsets.fromLTRB(18,8,18,4),child:Row(children:[
-        Container(width:44,height:44,decoration:BoxDecoration(color:Theme.of(context).colorScheme.primaryContainer,borderRadius:BorderRadius.circular(15)),child:const Icon(Icons.sports_esports_rounded)),
+        Container(width:44,height:44,decoration:BoxDecoration(color:Theme.of(context).colorScheme.primaryContainer,borderRadius:BorderRadius.circular(15)),child:GameArt(type: GameType.xo, size: 44, compact: true)),
         const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('ألعاب الدردشة',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),Text('اختر لعبة وابدأ التحدي',style:TextStyle(fontSize:12))])),
         IconButton(onPressed:()=>Navigator.pop(context),icon:const Icon(Icons.close_rounded)),
       ])),
