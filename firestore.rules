@@ -476,7 +476,13 @@ service cloud.firestore {
           (memberId == request.auth.uid || exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)));
         allow create: if signedIn() &&
           request.auth.uid == memberId &&
-          getAfter(/databases/$(database)/documents/communities/$(communityId)).data.visibility == 'public';
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.role is string &&
+          request.resource.data.joinedAt is timestamp &&
+          getAfter(/databases/$(database)/documents/communities/$(communityId)).data.visibility == 'public' &&
+          (request.resource.data.role == 'member' ||
+           (request.resource.data.role == 'owner' &&
+            getAfter(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid));
         allow update: if signedIn() && resource.data.role == 'owner' && request.auth.uid == memberId;
         allow delete: if signedIn() && request.auth.uid == memberId;
       }
