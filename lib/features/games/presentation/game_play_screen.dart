@@ -236,6 +236,34 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Widget _gameBody() {
+    // Direct challenges must use the state-aware classic implementations.
+    // Dedicated renderers remain available for solo play until they expose
+    // the same GameService state contract.
+    if (widget.chatId.trim().isNotEmpty) {
+      switch (widget.type) {
+        case GameType.xo:
+          return _xoGame();
+        case GameType.reactionRace:
+          return _reactionGame();
+        case GameType.diceRoll:
+          return _diceGame();
+        case GameType.drawGuess:
+          return _drawGame();
+        case GameType.wordChain:
+          return _wordGame();
+        case GameType.wouldYouRather:
+          return _choiceGame();
+        case GameType.quickTap:
+          return _quickTapGame();
+        case GameType.speedMath:
+          return _speedMathGame();
+        case GameType.sudokuDuel:
+          return _sudokuGame();
+        default:
+          break;
+      }
+    }
+
     final dedicated = DedicatedGameFactory.build(widget.type);
     if (dedicated != null) return dedicated;
     const extended = {
