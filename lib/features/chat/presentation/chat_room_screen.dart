@@ -428,7 +428,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         .listen((snapshot) {
       if (!mounted) return;
       if (!snapshot.exists) {
-        setState(() { _loading = false; _loadError ??= 'المحادثة غير موجودة.'; });
+        setState(() {
+          _loading = false;
+          _loadError ??= 'المحادثة غير موجودة.';
+        });
         return;
       }
       final data = snapshot.data() ?? <String, dynamic>{};
@@ -436,11 +439,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       final mutedFor = data['mutedFor'];
       final pinnedFor = data['pinnedFor'];
       final typing = data['typing'];
-      final otherId = widget.otherUserId;
-      final otherTyping = typing is Map && typing[otherId] == true;
-      if (mounted && _otherTyping != otherTyping)
+      final otherId = widget.otherUserId.trim();
+      final otherTyping =
+          !widget.isGroup && otherId.isNotEmpty && typing is Map && typing[otherId] == true;
+      if (mounted && _otherTyping != otherTyping) {
         setState(() => _otherTyping = otherTyping);
+      }
       setState(() {
+        _loading = false;
+        _loadError = null;
         _muted = mutedFor is Map && mutedFor[uid] == true
             ? true
             : data['isMuted'] == true && mutedFor is! Map;
@@ -448,19 +455,39 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             ? true
             : data['isPinned'] == true && pinnedFor is! Map;
       });
+    }, onError: (Object error, StackTrace stackTrace) {
+      debugPrint('chat metadata stream failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'تعذر تحديث بيانات المحادثة. تحقق من الاتصال ثم أعد المحاولة.';
+      });
     });
-    _userSub = _firestore
-        .collection('users')
-        .doc(widget.otherUserId)
-        .snapshots()
-        .listen((snapshot) {
-      if (mounted) {
-        final data = snapshot.data() ?? <String, dynamic>{};
-        final rawLastSeen = data['lastSeen'];
-        final lastSeen = rawLastSeen is Timestamp ? rawLastSeen.toDate() : (rawLastSeen is DateTime ? rawLastSeen : null);
-        setState(() { _online = data['isOnline'] == true; _lastSeen = lastSeen; });
-      }
-    });
+
+    // Group rooms do not have a single "other user".
+    if (!widget.isGroup && widget.otherUserId.trim().isNotEmpty) {
+      _userSub = _firestore
+          .collection('users')
+          .doc(widget.otherUserId.trim())
+          .snapshots()
+          .listen((snapshot) {
+        if (mounted) {
+          final data = snapshot.data() ?? <String, dynamic>{};
+          final rawLastSeen = data['lastSeen'];
+          final lastSeen = rawLastSeen is Timestamp
+              ? rawLastSeen.toDate()
+              : (rawLastSeen is DateTime ? rawLastSeen : null);
+          setState(() {
+            _online = data['isOnline'] == true;
+            _lastSeen = lastSeen;
+          });
+        }
+      }, onError: (Object error, StackTrace stackTrace) {
+        debugPrint('chat user stream failed: $error');
+      });
+    }
+
     _messagesSub?.cancel();
     _messagesSub = _messagesRef
         .orderBy('timestamp', descending: true)
