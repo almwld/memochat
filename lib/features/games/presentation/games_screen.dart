@@ -62,6 +62,8 @@ class _GamesScreenState extends State<GamesScreen> {
     } finally {
       if (mounted) setState(() => _opening = false);
     }
+  }
+
   @override Widget build(BuildContext context){
     final dark=Theme.of(context).brightness==Brightness.dark;
     return SafeArea(child:Column(children:[
