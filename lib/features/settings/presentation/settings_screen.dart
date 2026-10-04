@@ -10,6 +10,7 @@ import '../../notifications/presentation/notification_center_screen.dart';
 import 'advanced_privacy_screen.dart';
 import '../../../core/widgets/security_level_indicator.dart';
 import '../../../core/security/security_settings_service.dart';
+import '../../profile/presentation/profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -224,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             action: const SizedBox.shrink(),
           ),
           const SizedBox(height: 14),
-          _AccountCard(user: user, onTap: _editProfile),
+          _AccountCard(user: user, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen()))),
           const SizedBox(height: 18),
           const _SectionTitle('الإشعارات والخصوصية'),
           _CardGroup(
@@ -319,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text(user?.displayName ?? 'مستخدم MemoChat', style: const TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: Text(user?.isAnonymous == true ? 'حساب مؤقت' : user?.email ?? 'حساب MemoChat'),
                 trailing: const Icon(Icons.edit_outlined),
-                onTap: _editProfile,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
               ),
               ListTile(
                 leading: const PremiumIconTile(icon: AppIcons.more, size: 42, iconSize: 20),
