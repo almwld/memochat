@@ -203,9 +203,11 @@ class FirebaseChatRepository implements ChatRepository {
               }
             }).whereType<Conversation>().toList();
 
+          // Match Sehatak's list semantics: updatedAt is the source of truth,
+          // including newly-created chats that do not have a last message yet.
           conversations.sort((a, b) {
-            final aTime = a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final bTime = b.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final aTime = a.updatedAt ?? a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.updatedAt ?? b.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
             return bTime.compareTo(aTime);
           });
           return conversations;
