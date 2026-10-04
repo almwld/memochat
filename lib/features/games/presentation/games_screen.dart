@@ -19,55 +19,53 @@ class _GamesScreenState extends State<GamesScreen> {
   bool _opening=false;
 
   Future<void> _openGame(int index) async {
-    if(_opening) return;
-    final uid=FirebaseAuth.instance.currentUser?.uid;
-    if(uid==null) return;
-    setState(()=>_opening=true);
+    if (_opening) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || index < 0 || index >= GamesCatalog.all.length) return;
+    final definition = GamesCatalog.all[index];
+    setState(() => _opening = true);
+
+    // Open the game UI first. Multiplayer persistence/invites are optional and
+    // must never prevent a game from opening when Firestore is slow/restricted.
     try {
-      final definition=GamesCatalog.all[index];
-      String? id;
-      try {
-        id = await GameService.instance.createGame(
-          chatId: widget.chatId,
-          type: definition.type,
-          uid: uid,
-          timeLimit: _limit,
-        );
-      } catch (e) {
-        // Game sessions are stored under chats/{id}/games, but older deployed
-        // rules may not expose that subcollection. Never block the game UI on
-        // that optional multiplayer persistence layer.
-        debugPrint('game session create unavailable: $e');
-      }
-
-      if (!mounted) return;
-      if (id == null) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => GamePlayScreen(
-              type: definition.type,
-              title: definition.title,
-              chatId: widget.chatId,
-            ),
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GamePlayScreen(
+            type: definition.type,
+            title: definition.title,
+            chatId: widget.chatId,
           ),
-        );
-        return;
-      }
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
 
+    // Persist the session and invitation after the UI is available.
+    try {
+      final id = await GameService.instance.createGame(
+        chatId: widget.chatId,
+        type: definition.type,
+        uid: uid,
+        timeLimit: _limit,
+      ).timeout(const Duration(seconds: 4));
       try {
         await ChatService().sendMessage(
           chatId: widget.chatId,
           text: '🎮 ${definition.title} — دعوة للعب',
-          metadata: {'kind': 'game_invite', 'gameId': id, 'gameType': definition.type.name, 'timeLimit': _limit.name},
-        );
+          metadata: {
+            'kind': 'game_invite',
+            'gameId': id,
+            'gameType': definition.type.name,
+            'timeLimit': _limit.name,
+          },
+        ).timeout(const Duration(seconds: 4));
       } catch (e) {
-        debugPrint('game invite message failed: $e');
+        debugPrint('game invite unavailable: $e');
       }
-
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => GameRoomScreen(chatId:widget.chatId,gameId:id!)),
-      );
-    } finally { if(mounted) setState(()=>_opening=false); }
+    } catch (e) {
+      debugPrint('game session persistence unavailable: $e');
+    }
   }
 
   @override Widget build(BuildContext context){
