@@ -141,6 +141,27 @@ class ChatService {
     final pair = <String>[id, other]..sort();
     final chatId = 'dm_${pair[0]}_${pair[1]}';
     final ref = _chatRef(chatId);
+
+    // Resolve an existing DM first. This is important for room routes created
+    // by older contact/search flows that used a different chat document id.
+    try {
+      final existing = await _firestore
+          .collection('chats')
+          .where('participants', arrayContains: id)
+          .limit(100)
+          .get();
+      for (final doc in existing.docs) {
+        final participants = List<String>.from(
+          (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+        );
+        if (participants.length == 2 && participants.contains(other)) {
+          return doc.id;
+        }
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+    }
+
     try {
       await ref.set({
         'participants': [id, other],
