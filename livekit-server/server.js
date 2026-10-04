@@ -157,7 +157,7 @@ app.post(
       }
 
       requireNextcloud();
-      const ownerPath = 'Sehatak/users/' + sanitizePathPart(decodedToken.uid);
+      const ownerPath = 'MemoChat/users/' + sanitizePathPart(decodedToken.uid);
       const directory = ownerPath + '/' + logicalPath;
       await ensureNextcloudDirectories(directory);
 
@@ -425,17 +425,13 @@ app.post('/call-notification', async (req, res) => {
       console.error(`❌ [${requestId}] receiver user not found uid=${receiverId}`);
       return res.status(404).json({ success: false, message: 'Receiver not found', requestId });
     }
-    const receiver = receiverSnapshot.data() || {};
-    // Canonical Flutter path: users/{uid}/private/tokens.tokens
-    // Keep root fields as a legacy compatibility fallback.
+    // Canonical FCM storage only: users/{uid}/private/tokens.tokens.
+    // Legacy root token fields are intentionally ignored to prevent duplicate
+    // and stale notifications.
     const tokenSnapshot = await db.collection('users').doc(receiverId)
       .collection('private').doc('tokens').get();
     const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
-    const fcmTokens = [
-      ...(Array.isArray(tokenData.tokens) ? tokenData.tokens : []),
-      ...(Array.isArray(receiver.fcmTokens) ? receiver.fcmTokens : []),
-      receiver.fcmToken,
-    ]
+    const fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
       .map((value) => String(value || '').trim())
       .filter(Boolean)
       .filter((value, index, all) => all.indexOf(value) === index);
@@ -483,13 +479,12 @@ app.post('/call-notification', async (req, res) => {
         }
       });
       if (invalidTokens.length) {
-        await db.collection('users').doc(receiverId).set({
-          fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
-          ...(fcmTokens.every((token) => invalidTokens.includes(token))
-            ? { fcmToken: null }
-            : {}),
-          lastTokenUpdate: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        await db.collection('users').doc(receiverId)
+          .collection('private').doc('tokens')
+          .set({
+            tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
       }
       if (response.failureCount === response.successCount + response.failureCount && response.successCount === 0) {
         const firstError = response.responses.find((result) => !result.success)?.error;

@@ -57,66 +57,45 @@ class VoiceService {
     });
   }
 
-  /// Stops recording, uploads to Nextcloud and creates the Firestore message.
-  /// Throws on upload failure so the UI can keep the recording available/retry.
+  /// Stops recording and places the file in the durable media outbox.
+  /// The worker performs Recorder → Outbox → Media → Firestore → FCM.
   Future<String?> stopRecording({
     required String chatId,
     VoidCallback? onProgress,
   }) async {
     if (!_isRecording && _recordingPath == null) return null;
-
     _recordingTimer?.cancel();
     _recordingTimer = null;
     _isRecording = false;
 
     final recordedPath = _recordingPath;
     if (recordedPath == null) return null;
-
-    // Ensure the recorder has flushed the file before opening it.
-    try {
-      await _recorder.stop();
-    } catch (_) {}
+    try { await _recorder.stop(); } catch (_) {}
 
     final file = File(recordedPath);
     if (!await file.exists()) throw StateError('تعذر إنشاء ملف التسجيل الصوتي');
-    final fileLength = await file.length();
-    if (fileLength <= 0) throw StateError('ملف التسجيل الصوتي فارغ');
-    final capturedDuration = _recordingDuration;
+    if (await file.length() <= 0) throw StateError('ملف التسجيل الصوتي فارغ');
+    if (_auth.currentUser == null) throw StateError('يجب تسجيل الدخول لإرسال رسالة صوتية');
 
-    final user = _auth.currentUser;
-    if (user == null) throw StateError('يجب تسجيل الدخول لإرسال رسالة صوتية');
-
-    final result = await _media.uploadNow(
-      file: file,
+    // Persist the recording before any network operation. Navigation, process
+    // death, or a temporary network failure must not lose the voice message.
+    final outboxId = await _media.enqueue(
+      sourceFile: file,
       destination: MediaDestination.voice,
       type: 'audio',
       folder: 'audio',
+      caption: '🎤 رسالة صوتية',
+      preview: '🎤 رسالة صوتية',
       chatId: chatId,
-      fileName: 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
+      fileName: 'voice_' + DateTime.now().millisecondsSinceEpoch.toString() + '.m4a',
       mimeType: 'audio/mp4',
+      audioDuration: _recordingDuration.inSeconds.toString(),
     );
 
-    if (!result.success || result.url == null || result.url!.isEmpty) {
-      throw StateError(result.error ?? 'فشل رفع التسجيل الصوتي إلى Nextcloud');
-    }
-
-    await _chatService.sendMessage(
-      chatId: chatId,
-      text: '🎤 رسالة صوتية',
-      audioUrl: result.url,
-      fileName: result.fileName,
-      fileMimeType: 'audio/mp4',
-      audioDuration: capturedDuration.inSeconds.toString(),
-      idempotencyKey: 'voice_${user.uid}_${DateTime.now().millisecondsSinceEpoch}',
-    );
-
-    try {
-      await file.delete();
-    } catch (_) {}
-
+    try { await file.delete(); } catch (_) {}
     _recordingPath = null;
     _recordingDuration = Duration.zero;
-    return result.url;
+    return outboxId;
   }
 
   Future<void> cancelRecording() async {
