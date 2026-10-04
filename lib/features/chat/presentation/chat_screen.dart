@@ -40,6 +40,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final _folderService = ChatFolderService();
   ChatFolder? _activeFolder;
   StreamSubscription<Uri>? _inviteSubscription;
+  // Keep the last successful snapshot visible if Firestore briefly terminates a stream.
+  List<Conversation> _lastConversations = const <Conversation>[];
 
   @override
   void initState() {
@@ -157,7 +159,14 @@ class _ChatScreenState extends State<ChatScreen> {
         body: StreamBuilder<List<Conversation>>(
           stream: _conversationsStream,
           builder: (context, snapshot) {
-            if (snapshot.hasError) {
+            if (snapshot.hasData) {
+              _lastConversations =
+                  List<Conversation>.unmodifiable(snapshot.data!);
+            }
+
+            // Do not blank an already-loaded inbox because of a transient
+            // Firestore/network/auth stream error.
+            if (snapshot.hasError && _lastConversations.isEmpty) {
               return _StateView(
                 icon: AppIcons.chat,
                 title: 'تعذر تحميل المحادثات',
@@ -169,8 +178,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               );
             }
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final conversations = snapshot.data!;
+            if (!snapshot.hasData && _lastConversations.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final conversations = snapshot.data ?? _lastConversations;
             final filtered = _filtered(conversations);
             return CustomScrollView(
               slivers: [
