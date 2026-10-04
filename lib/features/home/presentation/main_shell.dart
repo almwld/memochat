@@ -8,6 +8,7 @@ import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
 import '../../advanced/presentation/advanced_hub_screen.dart';
+import '../../games/presentation/games_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -169,6 +170,27 @@ class DiscoverScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_left_rounded),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AdvancedHubScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GamesHubScreen())),
+              child: Container(
+                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF0A8F83), Color(0xFF164C72)], begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd)),
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  Container(width: 50, height: 50, decoration: BoxDecoration(color: Colors.white.withOpacity(.18), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.sports_esports_rounded, color: Colors.white, size: 27)),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('ألعاب MemoChat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                    SizedBox(height: 4),
+                    Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ])),
+                  const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                ]),
               ),
             ),
           ),
