@@ -256,7 +256,10 @@ class DiscoverScreen extends StatelessWidget {
             child: InkWell(
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GamesHubScreen())),
               child: Container(
-                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF0A8F83), Color(0xFF164C72)], begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A8F83),
+                  border: Border.all(color: Colors.white.withOpacity(.10)),
+                ),
                 padding: const EdgeInsets.all(14),
                 child: Row(children: [
                   Container(width: 50, height: 50, decoration: BoxDecoration(color: Colors.white.withOpacity(.18), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.sports_esports_rounded, color: Colors.white, size: 27)),
