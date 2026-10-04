@@ -619,6 +619,36 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /gameLeaderboard/{gameId} {
+      allow read: if signedIn();
+
+      match /scores/{userId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() &&
+          userId == request.auth.uid &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.score is int &&
+          request.resource.data.score >= 0;
+        allow delete: if false;
+      }
+
+      match /players/{userId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() &&
+          userId == request.auth.uid &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.totalScore is int &&
+          request.resource.data.gamesPlayed is int &&
+          request.resource.data.wins is int &&
+          request.resource.data.bestScore is int &&
+          request.resource.data.totalScore >= 0 &&
+          request.resource.data.gamesPlayed >= 0 &&
+          request.resource.data.wins >= 0 &&
+          request.resource.data.bestScore >= 0;
+        allow delete: if false;
+      }
+    }
+
     match /conversations/{conversationId} {
       allow read, write: if false;
     }
