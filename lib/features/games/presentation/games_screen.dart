@@ -5,6 +5,7 @@ import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/games/models/game.dart';
 import '../services/game_service.dart';
 import 'game_room_screen.dart';
+import 'game_play_screen.dart';
 import 'widgets/game_grid.dart';
 
 class GamesScreen extends StatefulWidget {
@@ -24,14 +25,48 @@ class _GamesScreenState extends State<GamesScreen> {
     setState(()=>_opening=true);
     try {
       final definition=GamesCatalog.all[index];
-      final id=await GameService.instance.createGame(chatId:widget.chatId,type:definition.type,uid:uid,timeLimit:_limit);
-      await ChatService().sendMessage(
-        chatId: widget.chatId,
-        text: '🎮 ${definition.title} — دعوة للعب',
-        metadata: {'kind': 'game_invite', 'gameId': id, 'gameType': definition.type.name, 'timeLimit': _limit.name},
+      String? id;
+      try {
+        id = await GameService.instance.createGame(
+          chatId: widget.chatId,
+          type: definition.type,
+          uid: uid,
+          timeLimit: _limit,
+        );
+      } catch (e) {
+        // Game sessions are stored under chats/{id}/games, but older deployed
+        // rules may not expose that subcollection. Never block the game UI on
+        // that optional multiplayer persistence layer.
+        debugPrint('game session create unavailable: $e');
+      }
+
+      if (!mounted) return;
+      if (id == null) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => GamePlayScreen(
+              type: definition.type,
+              title: definition.title,
+              chatId: widget.chatId,
+            ),
+          ),
+        );
+        return;
+      }
+
+      try {
+        await ChatService().sendMessage(
+          chatId: widget.chatId,
+          text: '🎮 ${definition.title} — دعوة للعب',
+          metadata: {'kind': 'game_invite', 'gameId': id, 'gameType': definition.type.name, 'timeLimit': _limit.name},
+        );
+      } catch (e) {
+        debugPrint('game invite message failed: $e');
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => GameRoomScreen(chatId:widget.chatId,gameId:id!)),
       );
-      if(!mounted) return;
-      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>GameRoomScreen(chatId:widget.chatId,gameId:id)));
     } finally { if(mounted) setState(()=>_opening=false); }
   }
 
