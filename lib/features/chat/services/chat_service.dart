@@ -5,6 +5,7 @@ import '../../../core/crypto/signal_session_manager.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import '../../../core/repositories/firebase_chat_repository.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -133,70 +134,28 @@ class ChatService {
     return ref.id;
   }
 
-  Future<String> createChat({required String userId,required String userName,required String currentUserName,String? userImage,String? currentUserImage,String? idempotencyKey}) async {
-    final id = _uid();
-    final other = userId.trim();
-    if (other.isEmpty || other == id) throw Exception('معرّف المستخدم الآخر غير صالح');
-
-    final pair = <String>[id, other]..sort();
-    final chatId = 'dm_${pair[0]}_${pair[1]}';
-    final ref = _chatRef(chatId);
-
-    // Resolve an existing DM first. This is important for room routes created
-    // by older contact/search flows that used a different chat document id.
-    try {
-      final existing = await _firestore
-          .collection('chats')
-          .where('participants', arrayContains: id)
-          .limit(100)
-          .get();
-      for (final doc in existing.docs) {
-        final participants = List<String>.from(
-          (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
-        );
-        if (participants.length == 2 && participants.contains(other)) {
-          return doc.id;
-        }
-      }
-    } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+  /// Canonical direct-chat entry point.
+  /// All profile/contact/community routes use the same repository contract so
+  /// they resolve the same stable DM id and never create parallel rooms.
+  Future<String> createChat({
+    required String userId,
+    required String userName,
+    required String currentUserName,
+    String? userImage,
+    String? currentUserImage,
+    String? idempotencyKey,
+  }) async {
+    final normalizedUserId = userId.trim();
+    if (normalizedUserId.isEmpty) {
+      throw Exception('معرّف المستخدم الآخر غير صالح');
     }
-
-    try {
-      await ref.set({
-        'participants': [id, other],
-        'participantDetails': {
-          id: {'name': currentUserName.trim().isEmpty ? 'مستخدم' : currentUserName.trim(), 'photoUrl': currentUserImage},
-          other: {'name': userName.trim().isEmpty ? 'مستخدم' : userName.trim(), 'photoUrl': userImage},
-        },
-        'lastMessage': '',
-        'lastMessageTime': null,
-        'lastMessageSenderId': null,
-        'unreadCount': {id: 0, other: 0},
-        'isGroup': false,
-        'isArchived': false,
-        'isPinned': false,
-        'isMuted': false,
-        'pinnedFor': {id: false, other: false},
-        'mutedFor': {id: false, other: false},
-        'typing': {id: false, other: false},
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        if (idempotencyKey?.isNotEmpty == true) 'idempotencyKey': idempotencyKey,
-      });
-      return chatId;
-    } on FirebaseException catch (e) {
-      if (e.code == 'already-exists') return chatId;
-      // Preserve compatibility with older random-id direct chats.
-      if (e.code == 'permission-denied') {
-        final existingChats = await _firestore.collection('chats').where('participants', arrayContains: id).limit(100).get();
-        for (final d in existingChats.docs) {
-          final p = List<String>.from(d.data()['participants'] ?? const []);
-          if (p.length == 2 && p.contains(other) && d.data()['isGroup'] != true) return d.id;
-        }
-      }
-      rethrow;
-    }
+    // FirebaseChatRepository owns the canonical DM schema/id. Keep this
+    // compatibility API for older callers, but do not duplicate creation logic.
+    return FirebaseChatRepository().createConversation(
+      otherUserId: normalizedUserId,
+      otherUserName: userName,
+      otherUserPhoto: userImage,
+    );
   }
 
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration})async{
