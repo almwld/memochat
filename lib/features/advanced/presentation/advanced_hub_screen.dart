@@ -226,11 +226,12 @@ class VoiceRoomScreen extends StatefulWidget {
   @override State<VoiceRoomScreen> createState() => _VoiceRoomScreenState();
 }
 
-class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
+class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProviderStateMixin {
   final _service = AdvancedFeaturesService();
   final _liveKit = LiveKitService();
   Room? _room;
   Timer? _participantsRefresh;
+  late final AnimationController _pulseController;
   bool _joining = true;
   bool _mic = false;
   bool _speaker = true;
@@ -239,6 +240,12 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1150),
+      lowerBound: 0.88,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
     _join();
   }
 
@@ -296,6 +303,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   @override
   void dispose() {
     _participantsRefresh?.cancel();
+    _pulseController.dispose();
     if (_liveKit.isConnected) unawaited(_liveKit.endCall());
     super.dispose();
   }
@@ -398,30 +406,9 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                                 ),
                                 itemBuilder: (_, index) {
                                   final participant = participants[index];
-                                  return Card(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 28,
-                                          child: Icon(participant.muted ? Icons.mic_off_rounded : Icons.mic_rounded),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          participant.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w800),
-                                        ),
-                                        Text(
-                                          participant.muted ? 'صامت' : 'يتحدث',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  return _VoiceParticipantTile(
+                                    participant: participant,
+                                    pulse: _pulseController,
                                   );
                                 },
                               ),
@@ -448,6 +435,83 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+}
+
+class _VoiceParticipantTile extends StatelessWidget {
+  const _VoiceParticipantTile({
+    required this.participant,
+    required this.pulse,
+  });
+  final _VoiceParticipant participant;
+  final Animation<double> pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = !participant.muted;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: AnimatedBuilder(
+        animation: pulse,
+        builder: (context, _) {
+          final scale = active ? pulse.value : 1.0;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              if (active)
+                Transform.scale(
+                  scale: 1.22 - (pulse.value - .88) * 1.2,
+                  child: Container(
+                    width: 62,
+                    height: 62,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: scheme.primary.withOpacity(.18),
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                ),
+              Transform.scale(
+                scale: scale,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 29,
+                      backgroundColor: active
+                          ? scheme.primary.withOpacity(.12)
+                          : scheme.surfaceContainerHighest,
+                      child: Icon(
+                        active ? Icons.graphic_eq_rounded : Icons.mic_off_rounded,
+                        color: active ? scheme.primary : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      participant.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      participant.muted ? 'صامت' : 'يتحدث الآن',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: active ? scheme.primary : scheme.onSurfaceVariant,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
