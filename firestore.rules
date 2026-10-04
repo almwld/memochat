@@ -104,18 +104,10 @@ service cloud.firestore {
           request.resource.data.players[0] == request.auth.uid;
 
         allow update: if isChatParticipant(chatId) &&
-          request.auth.uid in resource.data.players &&
           request.resource.data.type == resource.data.type &&
           request.resource.data.players is list &&
           request.resource.data.players.size() >= 1 &&
           request.resource.data.players.size() <= 2 &&
-          (
-            request.resource.data.players == resource.data.players ||
-            (
-              request.auth.uid in resource.data.players &&
-              request.resource.data.players.size() == resource.data.players.size() + 1
-            )
-          ) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'players',
             'state',
@@ -126,7 +118,20 @@ service cloud.firestore {
             'endedAt',
             'timeLimit',
             'updatedAt'
-          ]);
+          ]) &&
+          (
+            (
+              request.auth.uid in resource.data.players &&
+              request.resource.data.players == resource.data.players
+            ) ||
+            (
+              resource.data.players.size() == 1 &&
+              request.resource.data.players.size() == 2 &&
+              request.auth.uid in request.resource.data.players &&
+              resource.data.players[0] != request.auth.uid &&
+              request.resource.data.players.hasAll(resource.data.players)
+            )
+          );
 
         allow delete: if false;
       }
