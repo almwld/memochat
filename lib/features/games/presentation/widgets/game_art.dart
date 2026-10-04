@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/game.dart';
+import '../../models/game.dart';
 
 /// Scalable, asset-free game artwork used across the games catalog and rooms.
 /// Every game type gets a distinct visual language without relying on emoji glyphs.
