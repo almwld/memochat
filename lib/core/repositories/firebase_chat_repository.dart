@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/chat_user.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
@@ -135,7 +136,8 @@ class FirebaseChatRepository implements ChatRepository {
         .snapshots()
         .map((snapshot) {
           final conversations = snapshot.docs.map((doc) {
-              final data = doc.data();
+              try {
+                final data = doc.data();
               final ids = List<String>.from(
                 (data['participants'] as List?)
                         ?.map((e) => e.toString()) ??
@@ -168,8 +170,8 @@ class FirebaseChatRepository implements ChatRepository {
                   ? previewTime.toDate()
                   : DateTime.now();
 
-              return Conversation(
-                id: doc.id,
+                return Conversation(
+                  id: doc.id,
                 participant: ChatUser(
                   id: other,
                   displayName: otherName,
@@ -190,9 +192,16 @@ class FirebaseChatRepository implements ChatRepository {
                         isMine: data['lastMessageSenderId'] == _uid,
                       ),
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
-                isArchived: data['isArchived'] == true,
-              );
-            }).toList();
+                  isArchived: data['isArchived'] == true,
+                );
+              } catch (error, stackTrace) {
+                // Ignore one malformed/legacy chat document instead of terminating
+                // the entire conversation stream.
+                debugPrint('Skipping malformed conversation ${doc.id}: $error');
+                debugPrintStack(stackTrace: stackTrace);
+                return null;
+              }
+            }).whereType<Conversation>().toList();
 
           conversations.sort((a, b) {
             final aTime = a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
