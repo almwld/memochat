@@ -9,6 +9,7 @@ class Conversation {
     this.updatedAt,
     this.unreadCount = 0,
     this.isArchived = false,
+    this.isGroup = false,
   });
 
   final String id;
@@ -19,4 +20,5 @@ class Conversation {
   final DateTime? updatedAt;
   final int unreadCount;
   final bool isArchived;
+  final bool isGroup;
 }
