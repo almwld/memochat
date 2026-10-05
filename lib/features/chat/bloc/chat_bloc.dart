@@ -286,7 +286,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     // Reconnect the listener without transitioning through ChatLoading.
     // This prevents the visible conversation list from flickering or
     // disappearing during a manual pull-to-refresh.
-    await _onLoadChats(const LoadChats(), emit);
+    await _onLoadChats(LoadChats(), emit);
   }
 
   // ============================================================
