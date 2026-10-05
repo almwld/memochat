@@ -147,7 +147,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     LoadChats event,
     Emitter<ChatState> emit,
   ) async {
-    emit(ChatLoading());
+    // A refresh/re-entry must never blank an inbox that already has data.
+    // Loading is only a first-open state; the existing render remains visible
+    // while the Firestore listener is recreated.
+    final hasRenderedChats = _allChats.isNotEmpty;
+    if (!hasRenderedChats && state is! ChatLoaded) {
+      emit(ChatLoading());
+    } else if (hasRenderedChats && state is! ChatLoaded) {
+      emit(ChatLoaded(chats: _applySearch(_allChats)));
+    }
 
     await _subscription?.cancel();
 
@@ -275,7 +283,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     RefreshChats event,
     Emitter<ChatState> emit,
   ) async {
-    add(LoadChats());
+    // Reconnect the listener without transitioning through ChatLoading.
+    // This prevents the visible conversation list from flickering or
+    // disappearing during a manual pull-to-refresh.
+    await _onLoadChats(const LoadChats(), emit);
   }
 
   // ============================================================
