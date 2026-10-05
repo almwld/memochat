@@ -189,19 +189,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
             // Do not blank an already-loaded inbox because of a transient
             // Firestore/network/auth stream error.
-            if (snapshot.hasError && _lastConversations.isEmpty) {
+            // A Firestore/network error is never allowed to replace the
+            // inbox with a fatal error page. Keep the last successful snapshot
+            // visible; on a first offline open, render the normal empty state.
+            final hasRenderableData =
+                snapshot.hasData || _lastConversations.isNotEmpty;
+            if (!hasRenderableData && snapshot.hasError) {
               return _StateView(
                 icon: AppIcons.chat,
-                title: 'تعذر تحميل المحادثات',
-                subtitle: 'تحقق من الاتصال ثم حاول مرة أخرى.',
-                action: FilledButton.icon(
-                  onPressed: () => setState(() {}),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('إعادة المحاولة'),
-                ),
+                title: 'لا توجد محادثات محفوظة',
+                subtitle: 'أنت غير متصل حالياً. ستظهر محادثاتك تلقائياً عند عودة الاتصال.',
               );
             }
-            if (!snapshot.hasData && _lastConversations.isEmpty) {
+            if (!hasRenderableData) {
               return const Center(child: CircularProgressIndicator());
             }
             final conversations = snapshot.data ?? _lastConversations;
