@@ -10,6 +10,7 @@ import 'package:memochat/features/chat/services/status_service.dart';
 import 'add_status_screen.dart';
 import 'story_viewer_screen.dart';
 import 'package:memochat/features/chat/presentation/chat_room_screen.dart' show ChatRoomScreen;
+import 'package:memochat/features/chat/presentation/chat_navigation.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -166,12 +167,7 @@ class _CallsScreenState extends State<CallsScreen> {
             final otherId = outgoing ? call.receiverId : call.callerId;
             final otherName = outgoing ? call.receiverName : call.callerName;
             final otherPhoto = outgoing ? call.receiverPhotoUrl : call.callerPhotoUrl;
-            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-              chatId: call.chatId,
-              otherUserId: otherId,
-              otherUserName: otherName,
-              otherUserImage: otherPhoto,
-            )));
+            await ChatNavigation.openRoom(context,chatId:call.chatId,otherUserId:otherId,otherUserName:otherName,otherUserImage:otherPhoto);
           },
           child: const Text('المحادثة'),
         ),
