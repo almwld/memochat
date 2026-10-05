@@ -54,71 +54,101 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   @override
-  Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
+  Future<String> createConversation({
+    required String otherUserId,
+    required String otherUserName,
+    String? otherUserPhoto,
+  }) async {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
     final otherId = otherUserId.trim();
-    if (otherId.isEmpty || otherId == _uid) throw StateError('معرّف المستخدم الآخر غير صالح');
+    if (otherId.isEmpty || otherId == _uid) {
+      throw StateError('معرّف المستخدم الآخر غير صالح');
+    }
 
-    // Use a stable pair id for new DMs. This avoids relying on a collection
-    // query that can be rejected by a restrictive Firestore deployment.
-    final pair = <String>[_uid, otherId]..sort();
-    final stableId = 'dm_${pair[0]}_${pair[1]}';
-    final stableRef = _chats().doc(stableId);
-    final me = FirebaseAuth.instance.currentUser;
-
-    // Resolve an existing DM before attempting a write. A legacy DM can have
-    // the same participant pair but a different document id; resolving it
-    // first avoids turning a normal open-chat action into a permission error.
+    // Keep the same contract as Sehatak: resolve an existing direct room
+    // first, never reuse a group room, then create one canonical DM document.
     try {
       final existing = await _chats()
           .where('participants', arrayContains: _uid)
           .limit(100)
           .get();
       for (final doc in existing.docs) {
+        final data = doc.data();
         final participants = List<String>.from(
-          (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+          (data['participants'] as List?)?.map((e) => e.toString()) ?? const [],
         );
-        if (participants.length == 2 && participants.contains(otherId)) {
+        if (participants.length == 2 &&
+            participants.contains(otherId) &&
+            data['isGroup'] != true) {
           return doc.id;
         }
       }
     } on FirebaseException catch (e) {
-      // Continue to the canonical create path when the lookup itself is unavailable.
+      // A restrictive/temporarily unavailable list query must not prevent a
+      // valid create. The create rule authorizes the new participant pair.
       if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+      debugPrint('DM lookup skipped: ${e.code}');
     }
 
+    final ref = _chats().doc();
+    final me = FirebaseAuth.instance.currentUser;
+    final myName = me?.displayName?.trim().isNotEmpty == true
+        ? me!.displayName!.trim()
+        : 'مستخدم';
+    final theirName = otherUserName.trim().isNotEmpty
+        ? otherUserName.trim()
+        : 'مستخدم';
+
+    final payload = <String, dynamic>{
+      'participants': [_uid, otherId],
+      'participantDetails': {
+        _uid: {'name': myName, 'photoUrl': me?.photoURL ?? ''},
+        otherId: {'name': theirName, 'photoUrl': otherUserPhoto ?? ''},
+      },
+      'participantNames': {
+        _uid: myName,
+        otherId: theirName,
+      },
+      'participantPhotos': {
+        _uid: me?.photoURL ?? '',
+        otherId: otherUserPhoto ?? '',
+      },
+      'lastMessage': '',
+      'lastMessageTime': null,
+      'lastMessageSenderId': null,
+      'unreadCount': {_uid: 0, otherId: 0},
+      'isGroup': false,
+      'isArchived': false,
+      'isPinned': false,
+      'isMuted': false,
+      'pinnedFor': {_uid: false, otherId: false},
+      'mutedFor': {_uid: false, otherId: false},
+      'typing': {_uid: false, otherId: false},
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
     try {
-      await stableRef.set({
-        'participants': [_uid, otherId],
-        'participantNames': {
-          _uid: me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
-          otherId: otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
-        },
-        'participantPhotos': {
-          _uid: me?.photoURL ?? '',
-          otherId: otherUserPhoto ?? '',
-        },
-        'participantDetails': {
-          _uid: {'name': me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم', 'photoUrl': me?.photoURL ?? ''},
-          otherId: {'name': otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم', 'photoUrl': otherUserPhoto ?? ''},
-        },
-        'isGroup': false,
-        'isArchived': false,
-        'isPinned': false,
-        'isMuted': false,
-        'unreadCount': {_uid: 0, otherId: 0},
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return stableId;
+      await ref.set(payload);
+      return ref.id;
     } on FirebaseException catch (e) {
-      // A legacy/random DM may already exist. Fall back to the old lookup
-      // before surfacing the write error.
+      // A concurrent client may have already created the same DM while the
+      // lookup was racing. Resolve it before surfacing the failure.
       if (e.code == 'permission-denied' || e.code == 'already-exists') {
-        final existingChats = await _chats().where('participants', arrayContains: _uid).limit(100).get();
-        for (final doc in existingChats.docs) {
-          final participants = List<String>.from((doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const []);
-          if (participants.length == 2 && participants.contains(otherId)) return doc.id;
+        final existing = await _chats()
+            .where('participants', arrayContains: _uid)
+            .limit(100)
+            .get();
+        for (final doc in existing.docs) {
+          final data = doc.data();
+          final participants = List<String>.from(
+            (data['participants'] as List?)?.map((v) => v.toString()) ?? const [],
+          );
+          if (participants.length == 2 &&
+              participants.contains(otherId) &&
+              data['isGroup'] != true) {
+            return doc.id;
+          }
         }
       }
       rethrow;
