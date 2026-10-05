@@ -426,6 +426,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   void _listen() {
     _roomLoadTimer?.cancel();
+    // Retries replace subscriptions; never accumulate duplicate listeners.
+    unawaited(_chatSub?.cancel());
+    _chatSub = null;
+    unawaited(_userSub?.cancel());
+    _userSub = null;
     _chatSub = _firestore
         .collection('chats')
         .doc(widget.chatId)
