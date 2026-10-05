@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/models/chat_model.dart';
 import 'package:memochat/features/chat/presentation/widgets/unified_search_bar.dart';
 import 'chat_room_screen.dart';
+import 'chat_navigation.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -60,11 +61,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (otherId.isEmpty && !chat.isGroup) return;
     final name = chat.getDisplayName(uid);
     final photo = chat.getDisplayPhoto(uid);
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-      chatId: chat.id, otherUserId: otherId, otherUserName: name,
-      otherUserImage: photo.isEmpty ? null : photo, isGroup: chat.isGroup,
-      groupImage: chat.groupPhoto, lastMessage: chat.lastMessage,
-    )));
+    ChatNavigation.openRoom(context,chatId:chat.id,otherUserId:otherId,otherUserName:name,otherUserImage:photo.isEmpty?null:photo,isGroup:chat.isGroup,groupImage:chat.groupPhoto,lastMessage:chat.lastMessage);
   }
 
   @override
