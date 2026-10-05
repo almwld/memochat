@@ -30,12 +30,8 @@ class VoiceService {
   Timer? _recordingTimer;
   StreamSubscription<void>? _playerCompleteSubscription;
 
-  Future<bool> checkPermissions() => _recorder.hasPermission();
-
   Future<void> startRecording() async {
     if (_isRecording) return;
-    if (!await checkPermissions()) throw Exception('لا توجد أذونات للتسجيل');
-
     final tempDir = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     _recordingPath = '${tempDir.path}/voice_$timestamp.m4a';
