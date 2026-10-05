@@ -151,10 +151,46 @@ class _CallScreenState extends State<CallScreen> {
     return 'تعذر بدء المكالمة. حاول مرة أخرى.';
   }
 
+  Future<Map<Permission, PermissionStatus>> _requestCallPermissions() async {
+    // Match Sehatak: request all media permissions in one Android request.
+    // This avoids the Android PermissionManager race caused by asking for
+    // microphone and camera in separate requests.
+    final permissions = <Permission>[Permission.microphone];
+    if (widget.isVideo) permissions.add(Permission.camera);
+    final statuses = await permissions.request();
+
+    final microphoneGranted =
+        statuses[Permission.microphone]?.isGranted ?? false;
+    final cameraGranted =
+        !widget.isVideo || (statuses[Permission.camera]?.isGranted ?? false);
+
+    if (!microphoneGranted || !cameraGranted) {
+      final permanentlyDenied = permissions.any(
+        (permission) => statuses[permission]?.isPermanentlyDenied ?? false,
+      );
+      if (permanentlyDenied) {
+        throw StateError(
+          'تم رفض أحد أذونات المكالمة نهائياً. افتح إعدادات التطبيق وفعّل '
+          '${widget.isVideo ? 'الكاميرا والميكروفون' : 'الميكروفون'}.',
+        );
+      }
+      throw StateError(
+        'يلزم السماح بـ${widget.isVideo ? 'الكاميرا والميكروفون' : 'الميكروفون'} '
+        'لإجراء المكالمة.',
+      );
+    }
+
+    return statuses;
+  }
+
   Future<void> connect() async {
     if (widget.isOutgoing) ToastService.showInfo('جاري الاتصال...');
     try {
       final user = FirebaseAuth.instance.currentUser;
+      // Request media permissions before creating the call document or
+      // connecting to LiveKit. If Android already granted them this returns
+      // immediately; otherwise both permissions are requested together.
+      await _requestCallPermissions();
       if (user == null) throw StateError('يجب تسجيل الدخول');
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity.isEmpty || connectivity.every((item) => item == ConnectivityResult.none)) {
@@ -291,20 +327,8 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> join(CallModel c, User user) async {
     if (joined || ending || (c.status != CallStatus.connected && widget.isOutgoing)) return;
     try {
-      // LiveKit owns the native media-permission boundary. This mirrors the
-      // proven Sehatak flow: connect first, then let the LiveKit/WebRTC SDK
-      // request/use microphone and camera permissions at the point of capture.
-      // permission_handler is used here only for diagnostics, not as a gate,
-      // because an OEM permission manager can report a stale state while the
-      // native WebRTC layer can still access an already-granted permission.
-      final microphoneStatus = await Permission.microphone.status;
-      final cameraStatus =
-          widget.isVideo ? await Permission.camera.status : null;
-      debugPrint(
-        'CALL PERMISSION DIAGNOSTIC microphone=${microphoneStatus.name} '
-        'camera=${cameraStatus?.name ?? 'not_required'} video=${widget.isVideo}',
-      );
-
+      // Permissions were granted before the call was created. LiveKit can now
+      // start media without racing Android's permission dialog.
       final registry = ActiveCallRegistry.instance;
       if (registry.hasActiveCall && !registry.isActive(c.id)) {
         throw StateError('مكالمة أخرى نشطة');
