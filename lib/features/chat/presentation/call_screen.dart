@@ -151,6 +151,8 @@ class _CallScreenState extends State<CallScreen> {
     if (widget.isOutgoing) ToastService.showInfo('جاري الاتصال...');
     try {
       final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw StateError('يجب تسجيل الدخول');
+      final currentUser = user;
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity.isEmpty || connectivity.every((item) => item == ConnectivityResult.none)) {
         throw StateError('لا يوجد اتصال بالإنترنت');
@@ -161,10 +163,10 @@ class _CallScreenState extends State<CallScreen> {
       if (supplied != null && supplied.isNotEmpty) {
         final loaded = await calls.streamCall(supplied).first;
         if (loaded == null) throw StateError('المكالمة غير موجودة');
-        if (widget.isOutgoing && loaded.callerId != user.uid) {
+        if (widget.isOutgoing && loaded.callerId != currentUser.uid) {
           throw StateError('المكالمة ليست صادرة من المستخدم');
         }
-        if (!widget.isOutgoing && loaded.receiverId != user.uid) {
+        if (!widget.isOutgoing && loaded.receiverId != currentUser.uid) {
           throw StateError('المكالمة ليست موجهة لهذا المستخدم');
         }
         c = loaded;
@@ -203,7 +205,7 @@ class _CallScreenState extends State<CallScreen> {
           if (u.status == CallStatus.connected) {
             final d = u.connectedAt?.toDate();
             if (d != null) setConnectedAt(d);
-            if (!joined) unawaited(join(u, user));
+            if (!joined) unawaited(join(u, currentUser));
           } else if (_terminal(u.status)) {
             unawaited(finishRemote());
           }
@@ -232,7 +234,7 @@ class _CallScreenState extends State<CallScreen> {
       }
 
       if (c.status == CallStatus.connected || !widget.isOutgoing) {
-        await join(c, user);
+        await join(c, currentUser);
       } else if (mounted) {
         setState(() => connecting = false);
       }
