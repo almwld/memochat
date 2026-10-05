@@ -231,6 +231,7 @@ class FirebaseChatRepository implements ChatRepository {
                 updatedAt: previewTime is Timestamp ? previewTime.toDate() : null,
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
                   isArchived: data['isArchived'] == true,
+                  isGroup: isGroup,
                 );
               } catch (error, stackTrace) {
                 // Ignore one malformed/legacy chat document instead of terminating
