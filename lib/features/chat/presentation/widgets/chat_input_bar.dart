@@ -456,10 +456,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   Future<void> _startRecording() async {
     if (_sending || _recording || _hasRecording || _hasText) return;
-    if (!await _recorder.hasPermission()) {
-      ToastService.showError('يلزم السماح بالوصول إلى الميكروفون.');
-      return;
-    }
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/memochat_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
     try {
