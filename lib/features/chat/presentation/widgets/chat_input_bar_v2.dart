@@ -193,10 +193,6 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   Future<void> _startRecording() async {
     if (_hasText || _isRecording || _isSending) return;
-    if (!await _recorder.hasPermission()) {
-      ToastService.showError('يلزم السماح بالوصول إلى الميكروفون.');
-      return;
-    }
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/chat_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _recorder.start(
