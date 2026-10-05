@@ -9,6 +9,20 @@ import 'package:memochat/features/chat/presentation/chat_room_screen.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
 
 class ChatNavigation {
+  static final Set<String> _openingRooms = <String>{};
+  static Future<void> openRoom(BuildContext context,{required String chatId,required String otherUserId,required String otherUserName,String? otherUserImage,bool isGroup=false,String? groupImage,String? lastMessage}) async {
+    final id=chatId.trim();
+    if(id.isEmpty||_openingRooms.contains(id)) return;
+    _openingRooms.add(id);
+    try{
+      if(!context.mounted)return;
+      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ChatRoomScreen(
+        chatId:id,otherUserId:otherUserId,otherUserName:otherUserName,otherUserImage:otherUserImage,
+        isGroup:isGroup,groupImage:groupImage,lastMessage:lastMessage,
+      )));
+    } finally { _openingRooms.remove(id); }
+  }
+
   static Future<void> openChat(BuildContext context,{required String userName,required String userId,String? userImage}) async {
     final user=FirebaseAuth.instance.currentUser;
     if(user==null){ToastService.showError('يجب تسجيل الدخول أولاً');return;}
@@ -30,7 +44,7 @@ class ChatNavigation {
       final displayName=userName.trim().isEmpty?'مستخدم':userName.trim();
       final id=await ChatService().createChat(userId:resolvedId,userName:displayName,currentUserName:name,userImage:userImage,currentUserImage:user.photoURL);
       if(!context.mounted)return;
-      await Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatRoomScreen(chatId:id,otherUserId:resolvedId,otherUserName:displayName,groupImage:userImage,isGroup:false)));
+      await openRoom(context,chatId:id,otherUserId:resolvedId,otherUserName:displayName,otherUserImage:userImage,groupImage:userImage,isGroup:false);
     }catch(e){if(context.mounted)ToastService.showError('فشل فتح المحادثة: $e');}
   }
   static Future<void> openCall(BuildContext context,{required String chatId,required String userName,required String userId,required bool isVideo}) async {
