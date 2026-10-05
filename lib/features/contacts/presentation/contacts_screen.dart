@@ -302,12 +302,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         otherUserPhoto: user.avatarUrl,
       );
       if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-        chatId: chatId,
-        otherUserId: user.id,
-        otherUserName: user.displayName,
-        otherUserImage: user.avatarUrl,
-      )));
+      ChatNavigation.openRoom(context,chatId:chatId,otherUserId:user.id,otherUserName:user.displayName,otherUserImage:user.avatarUrl);
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء المحادثة. تحقق من الاتصال والصلاحيات.')));
     }
