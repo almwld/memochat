@@ -346,7 +346,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (!mounted || !_loading) return;
       setState(() {
         _loading = false;
-        _loadError = 'استغرق تجهيز المحادثة وقتاً أطول من المتوقع. تحقق من اتصال Firebase ثم أعد المحاولة.';
+        _loadError = null;
       });
     });
     final uid = _auth.currentUser?.uid;
@@ -364,9 +364,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       try {
         snapshot = await ref.get();
       } on FirebaseException catch (e) {
-        // A stale route can point at a document the current rules reject.
-        // Do not strand the user on an error screen; resolve the canonical DM.
         debugPrint('chat document read failed: ${e.code}');
+        // An unavailable backend must not prevent a valid room from opening.
+        if (e.code == 'unavailable' ||
+            e.code == 'deadline-exceeded' ||
+            e.code == 'failed-precondition') {
+          _listen();
+          return;
+        }
       }
       if (snapshot?.exists == true) {
         final data = snapshot!.data() ?? <String, dynamic>{};
@@ -461,7 +466,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _loadError = 'تعذر تحديث بيانات المحادثة. تحقق من الاتصال ثم أعد المحاولة.';
+        _loadError = null;
       });
     });
 
