@@ -169,7 +169,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         },
       );
     } catch (e) {
-      emit(ChatError(message: e.toString()));
+      // Starting the listener can fail before its first snapshot when the
+      // device is offline. The inbox must still render its last known state.
+      if (_allChats.isNotEmpty) {
+        emit(ChatLoaded(chats: _applySearch(_allChats)));
+      } else {
+        emit(const ChatLoaded(chats: <ChatModel>[]));
+      }
     }
   }
 
@@ -198,7 +204,14 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _ChatsStreamError event,
     Emitter<ChatState> emit,
   ) {
-    emit(ChatError(message: event.message));
+    // Connectivity/Firestore stream failures are transport state, not
+    // conversation state. Never replace an already-rendered inbox with an
+    // error screen, and keep an empty inbox renderable on first offline open.
+    if (_allChats.isNotEmpty) {
+      emit(ChatLoaded(chats: _applySearch(_allChats)));
+    } else {
+      emit(const ChatLoaded(chats: <ChatModel>[]));
+    }
   }
 
   // ============================================================
