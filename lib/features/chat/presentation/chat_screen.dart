@@ -293,9 +293,10 @@ class _ChatScreenState extends State<ChatScreen> {
                             MaterialPageRoute(
                               builder: (_) => ChatRoomScreen(
                                 chatId: item.id,
-                                otherUserId: item.participant.id,
+                                otherUserId: item.isGroup ? '' : item.participant.id,
                                 otherUserName: item.participant.displayName,
                                 otherUserImage: item.participant.avatarUrl,
+                                isGroup: item.isGroup,
                               ),
                             ),
                           ),
