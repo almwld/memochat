@@ -55,19 +55,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ? Map<String, dynamic>.from(details[senderId] as Map)
         : const <String, dynamic>{};
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          chatId: chatId,
-          otherUserId: senderId,
-          otherUserName: names[senderId]?.toString() ??
-              senderDetails['name']?.toString() ??
-              'مستخدم',
-          otherUserImage: photos[senderId]?.toString() ??
-              senderDetails['photoUrl']?.toString(),
-        ),
-      ),
-    );
+    await ChatNavigation.openRoom(context,chatId:chatId,otherUserId:senderId,otherUserName:names[senderId]?.toString()??senderDetails['name']?.toString()??'مستخدم',otherUserImage:photos[senderId]?.toString()??senderDetails['photoUrl']?.toString());
   }
 
   Future<void> _markAllRead() async {
