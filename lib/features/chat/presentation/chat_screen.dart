@@ -8,6 +8,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/widgets/premium_ui.dart';
 import 'chat_room_screen.dart';
+import 'chat_navigation.dart';
 import '../../../core/models/chat_folder.dart';
 import '../../../core/services/chat_folder_service.dart';
 import 'folders_manager_screen.dart';
@@ -73,15 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final data = snap.data() ?? const <String, dynamic>{};
       final groupName = data['groupName']?.toString().trim();
       if (!snap.exists || data['isGroup'] != true) return;
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          chatId: createdId,
-          otherUserId: '',
-          otherUserName: groupName?.isNotEmpty == true ? groupName! : 'مجموعة',
-          otherUserImage: data['groupPhoto']?.toString(),
-          isGroup: true,
-        ),
-      ));
+      await ChatNavigation.openRoom(context,chatId:createdId,otherUserId:'',otherUserName:groupName?.isNotEmpty==true?groupName!:'مجموعة',otherUserImage:data['groupPhoto']?.toString(),isGroup:true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,7 +97,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final participants = List<String>.from(data['participants'] as List? ?? const []);
       final other = participants.firstWhere((v) => v != uid, orElse: () => '');
       if (!mounted || other.isEmpty) return;
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(chatId: id, otherUserId: other, otherUserName: data['groupName']?.toString() ?? 'مجموعة', isGroup: true)));
+      await ChatNavigation.openRoom(context,chatId:id,otherUserId:other,otherUserName:data['groupName']?.toString()??'مجموعة',isGroup:true);
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الانضمام: ' + e.toString()))); }
   }
 
@@ -289,17 +282,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           onMarkUnread: () => widget.repository.markAsUnread(item.id),
                           onArchive: () => _toggleArchive(item),
                           onFolder: () => _assignChatToFolder(item.id),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatRoomScreen(
-                                chatId: item.id,
-                                otherUserId: item.isGroup ? '' : item.participant.id,
-                                otherUserName: item.participant.displayName,
-                                otherUserImage: item.participant.avatarUrl,
-                                isGroup: item.isGroup,
-                              ),
-                            ),
-                          ),
+                          onTap: () => ChatNavigation.openRoom(context,chatId:item.id,otherUserId:item.isGroup?'':item.participant.id,otherUserName:item.participant.displayName,otherUserImage:item.participant.avatarUrl,isGroup:item.isGroup),
                         );
                       },
                     ),
