@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
@@ -129,7 +128,7 @@ class _CallScreenState extends State<CallScreen> {
     await connect();
   }
 
-  String _friendlyCallError(Object value, {bool? permissionsGranted}) {
+  String _friendlyCallError(Object value) {
     final raw = value.toString().toLowerCase();
     if (raw.contains('mediaconnectexception') ||
         raw.contains('peerconnection') ||
@@ -140,10 +139,7 @@ class _CallScreenState extends State<CallScreen> {
       return 'انتهت مهلة الاتصال. تحقق من جودة الإنترنت وحاول مرة أخرى.';
     }
     if (raw.contains('permission') || raw.contains('إذن')) {
-      if (permissionsGranted == true) {
-        return 'تعذر تشغيل الكاميرا أو الميكروفون داخل محرك المكالمة رغم أن أذونات Android مفعلة. أعد المحاولة.';
-      }
-      return 'يلزم السماح بالميكروفون${widget.isVideo ? ' والكاميرا' : ''} لإجراء المكالمة.';
+      return 'تعذر تشغيل الكاميرا أو الميكروفون داخل محرك المكالمة. أعد المحاولة.';
     }
     if (raw.contains('network') || raw.contains('socket')) {
       return 'تعذر الاتصال بالشبكة. تحقق من الإنترنت وحاول مرة أخرى.';
@@ -151,47 +147,10 @@ class _CallScreenState extends State<CallScreen> {
     return 'تعذر بدء المكالمة. حاول مرة أخرى.';
   }
 
-  Future<Map<Permission, PermissionStatus>> _requestCallPermissions() async {
-    // Match Sehatak: request all media permissions in one Android request.
-    // This avoids the Android PermissionManager race caused by asking for
-    // microphone and camera in separate requests.
-    final permissions = <Permission>[Permission.microphone];
-    if (widget.isVideo) permissions.add(Permission.camera);
-    final statuses = await permissions.request();
-
-    final microphoneGranted =
-        statuses[Permission.microphone]?.isGranted ?? false;
-    final cameraGranted =
-        !widget.isVideo || (statuses[Permission.camera]?.isGranted ?? false);
-
-    if (!microphoneGranted || !cameraGranted) {
-      final permanentlyDenied = permissions.any(
-        (permission) => statuses[permission]?.isPermanentlyDenied ?? false,
-      );
-      if (permanentlyDenied) {
-        throw StateError(
-          'تم رفض أحد أذونات المكالمة نهائياً. افتح إعدادات التطبيق وفعّل '
-          '${widget.isVideo ? 'الكاميرا والميكروفون' : 'الميكروفون'}.',
-        );
-      }
-      throw StateError(
-        'يلزم السماح بـ${widget.isVideo ? 'الكاميرا والميكروفون' : 'الميكروفون'} '
-        'لإجراء المكالمة.',
-      );
-    }
-
-    return statuses;
-  }
-
   Future<void> connect() async {
     if (widget.isOutgoing) ToastService.showInfo('جاري الاتصال...');
     try {
       final user = FirebaseAuth.instance.currentUser;
-      // Request media permissions before creating the call document or
-      // connecting to LiveKit. If Android already granted them this returns
-      // immediately; otherwise both permissions are requested together.
-      await _requestCallPermissions();
-      if (user == null) throw StateError('يجب تسجيل الدخول');
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity.isEmpty || connectivity.every((item) => item == ConnectivityResult.none)) {
         throw StateError('لا يوجد اتصال بالإنترنت');
@@ -390,33 +349,8 @@ class _CallScreenState extends State<CallScreen> {
         debugPrint('CALL LIVEKIT CLEANUP $cleanupError');
       }
 
-      final microphoneGranted =
-          (await Permission.microphone.status).isGranted;
-      final cameraGranted =
-          !widget.isVideo || (await Permission.camera.status).isGranted;
-      final raw = e.toString().toLowerCase();
-      final looksLikePermissionFailure =
-          raw.contains('permission') ||
-          raw.contains('notallowed') ||
-          raw.contains('not allowed') ||
-          raw.contains('denied') ||
-          raw.contains('accessdenied');
-      final permissionsGranted = microphoneGranted && cameraGranted;
-
-      final friendly = looksLikePermissionFailure && !permissionsGranted
-          ? _friendlyCallError(
-              StateError('permission denied'),
-              permissionsGranted: false,
-            )
-          : _friendlyCallError(
-              e,
-              permissionsGranted: permissionsGranted,
-            );
-
-      debugPrint(
-        'CALL LIVEKIT ERROR $e permissionsGranted=$permissionsGranted '
-        'microphone=$microphoneGranted camera=$cameraGranted',
-      );
+      final friendly = _friendlyCallError(e);
+      debugPrint('CALL LIVEKIT ERROR $e');
       if (mounted) {
         setState(() {
           connecting = false;
