@@ -12,9 +12,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'chat_service.dart';
+import 'call_sound_coordinator.dart';
 import 'package:memochat/firebase_options.dart';
 
 typedef NotificationTapHandler = Future<void> Function(String? payload);
+
+const callChannelId = 'memochat_calls_v1';
 
 @pragma('vm:entry-point')
 void notificationActionBackgroundHandler(NotificationResponse response) async {
