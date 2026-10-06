@@ -81,8 +81,24 @@ service cloud.firestore {
           'participantDetails',
           'participantPhotos'
         ]) &&
-        request.resource.data.participantDetails.diff(resource.data.participantDetails).affectedKeys().hasOnly([request.auth.uid]) &&
-        request.resource.data.participantPhotos.diff(resource.data.participantPhotos).affectedKeys().hasOnly([request.auth.uid]) &&
+        request.resource.data.participantDetails is map &&
+        request.resource.data.participantPhotos is map &&
+        (
+          !resource.data.keys().hasAny(['participantDetails']) ||
+          (
+            resource.data.participantDetails is map &&
+            request.resource.data.participantDetails.diff(resource.data.participantDetails)
+              .affectedKeys().hasOnly([request.auth.uid])
+          )
+        ) &&
+        (
+          !resource.data.keys().hasAny(['participantPhotos']) ||
+          (
+            resource.data.participantPhotos is map &&
+            request.resource.data.participantPhotos.diff(resource.data.participantPhotos)
+              .affectedKeys().hasOnly([request.auth.uid])
+          )
+        ) &&
         request.resource.data.participantDetails[request.auth.uid].photoUrl ==
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.photoUrl &&
         request.resource.data.participantPhotos[request.auth.uid] ==
