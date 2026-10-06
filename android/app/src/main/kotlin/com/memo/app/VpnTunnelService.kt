@@ -13,13 +13,18 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.security.MessageDigest
+import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 class VpnTunnelService : VpnService() {
     companion object {
         const val ACTION_START = "com.memo.app.vpn.START"
         const val ACTION_STOP = "com.memo.app.vpn.STOP"
         const val EXTRA_HOST = "host"
+        const val EXTRA_FINGERPRINT = "fingerprint"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_ROUTE = "route"
         private const val CHANNEL_ID = "memochat_vpn"
@@ -44,6 +49,7 @@ class VpnTunnelService : VpnService() {
             ACTION_STOP -> stopTunnel()
             ACTION_START -> startTunnel(
                 intent.getStringExtra(EXTRA_HOST).orEmpty(),
+                intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty(),
                 intent.getStringExtra(EXTRA_ADDRESS) ?: "10.254.0.2/32",
                 intent.getStringExtra(EXTRA_ROUTE) ?: "10.254.0.0/24"
             )
@@ -51,7 +57,7 @@ class VpnTunnelService : VpnService() {
         return START_STICKY
     }
 
-    private fun startTunnel(host: String, address: String, route: String) {
+    private fun startTunnel(host: String, fingerprint: String, address: String, route: String) {
         stopTunnel()
         if (host.isBlank()) return
 
@@ -77,7 +83,7 @@ class VpnTunnelService : VpnService() {
 
         connectThread = Thread({
             try {
-                val socket = (javax.net.ssl.SSLSocketFactory.getDefault().createSocket() as SSLSocket)
+                val socket = createSslSocket(host, fingerprint)
                 if (!protect(socket)) throw IllegalStateException("تعذر حماية قناة النفق من مسار TUN")
                 socket.connect(InetSocketAddress(host, 4433), 10000)
                 socket.startHandshake()
@@ -105,6 +111,68 @@ class VpnTunnelService : VpnService() {
         }, "MemoChat-Tunnel-Connect")
         connectThread?.start()
     }
+
+    private fun createSslSocket(host: String, fingerprint: String): SSLSocket {
+        val normalizedPin = normalizeFingerprint(fingerprint)
+        if (normalizedPin.isEmpty()) {
+            val socket = (javax.net.ssl.SSLSocketFactory.getDefault().createSocket() as SSLSocket)
+            socket.sslParameters = socket.sslParameters.apply {
+                endpointIdentificationAlgorithm = "HTTPS"
+            }
+            return socket
+        }
+
+        val base = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        base.init(null)
+        val delegate = base.trustManagers.filterIsInstance<X509TrustManager>().first()
+        val pinned = object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> =
+                delegate.acceptedIssuers
+
+            override fun checkClientTrusted(
+                chain: Array<java.security.cert.X509Certificate>,
+                authType: String
+            ) = delegate.checkClientTrusted(chain, authType)
+
+            override fun checkServerTrusted(
+                chain: Array<java.security.cert.X509Certificate>,
+                authType: String
+            ) {
+                var trustedBySystem = false
+                try {
+                    delegate.checkServerTrusted(chain, authType)
+                    trustedBySystem = true
+                } catch (_: Exception) {
+                    // A private/self-signed gateway may not be in Android's CA store.
+                }
+                val matchesPin = chain.any { certificate ->
+                    sha256(certificate.encoded) == normalizedPin
+                }
+                if (!matchesPin) {
+                    if (trustedBySystem) {
+                        throw java.security.cert.CertificateException("Gateway certificate pin mismatch")
+                    }
+                    throw java.security.cert.CertificateException("Gateway certificate is not trusted or pinned")
+                }
+            }
+        }
+
+        val context = SSLContext.getInstance("TLS")
+        context.init(null, arrayOf(pinned), null)
+        val socket = context.socketFactory.createSocket() as SSLSocket
+        socket.sslParameters = socket.sslParameters.apply {
+            // Certificate pinning is the identity check for private gateways.
+            endpointIdentificationAlgorithm = ""
+        }
+        return socket
+    }
+
+    private fun normalizeFingerprint(value: String): String =
+        value.replace(":", "").replace(" ", "").trim().lowercase()
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
 
     private fun startPacketLoops(fd: ParcelFileDescriptor, socket: SSLSocket) {
         uplinkThread = Thread({
