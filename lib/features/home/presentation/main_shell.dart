@@ -274,18 +274,6 @@ class DiscoverScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const PremiumIconTile(icon: AppIcons.phoneCall, size: 48, iconSize: 23),
-              title: const Text('المكالمات', style: TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: const Text('الوصول السريع إلى سجل المكالمات.'),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CallsScreen()),
-              ),
-            ),
-          ),
         ],
       ),
     );
