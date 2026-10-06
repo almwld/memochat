@@ -14,6 +14,7 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
   final _settings = SecuritySettingsService.instance;
   SecurityLevel _level = SecurityLevel.standard;
   bool _saving = false;
+  bool _encryptionEnabled = false;
 
   @override
   void initState() {
@@ -25,12 +26,18 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
   Future<void> _load() async {
     await _settings.load();
     if (!mounted) return;
-    setState(() => _level = _settings.level);
+    setState(() {
+      _level = _settings.level;
+      _encryptionEnabled = _settings.encryptionEnabled;
+    });
   }
 
   void _onChanged() {
     if (!mounted) return;
-    setState(() => _level = _settings.level);
+    setState(() {
+      _level = _settings.level;
+      _encryptionEnabled = _settings.encryptionEnabled;
+    });
   }
 
   @override
@@ -75,6 +82,58 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
           ),
           const SizedBox(height: 8),
           Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  value: _encryptionEnabled,
+                  onChanged: _saving
+                      ? null
+                      : (value) async {
+                          setState(() => _saving = true);
+                          try {
+                            await _settings.setEncryptionEnabled(value);
+                            if (mounted) setState(() => _encryptionEnabled = value);
+                          } finally {
+                            if (mounted) setState(() => _saving = false);
+                          }
+                        },
+                  title: const Text(
+                    'تشفير الرسائل E2EE',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  subtitle: Text(
+                    _encryptionEnabled
+                        ? 'مفعّل يدويًا. ستستخدم المحادثات Signal عند الإرسال.'
+                        : 'غير مفعّل. الوضع الافتراضي هو الإرسال بدون تشفير.',
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.verified_user_rounded),
+                  title: const Text(
+                    'حالة التشفير',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  subtitle: const Text(
+                    'لا يتم تشغيل Signal أو إنشاء مفاتيحه للمسار العادي. لا يُستخدم إلا بعد اختيار التشفير.',
+                  ),
+                  trailing: Icon(
+                    _encryptionEnabled ? Icons.lock_rounded : Icons.lock_open_rounded,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.tune_rounded),
+              title: const Text('مستويات الحماية الأخرى', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: const Text('هذه الخيارات لا تغيّر مسار الرسائل الأساسي ولا تفعل تشفير E2EE تلقائيًا.'),
+            ),
+          ),
+          /*
+          Card(
             child: ListTile(
               leading: const Icon(Icons.verified_user_rounded),
               title: const Text(
@@ -103,6 +162,7 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
               ),
             ),
           ),
+          */
           const SizedBox(height: 20),
           const Text(
             'مستوى الحماية',
