@@ -132,37 +132,6 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
               subtitle: const Text('هذه الخيارات لا تغيّر مسار الرسائل الأساسي ولا تفعل تشفير E2EE تلقائيًا.'),
             ),
           ),
-          /*
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.verified_user_rounded),
-              title: const Text(
-                'تشفير الرسائل الفعلي',
-                style: TextStyle(fontWeight: FontWeight.w900),
-              ),
-              subtitle: const Text(
-                'الرسائل تستخدم Signal E2EE فعليًا. لا نعرض طبقات Onion أو Post-Quantum أو Mesh كميزات جاهزة ما لم يكن لها تنفيذ حقيقي داخل التطبيق.',
-              ),
-              trailing: IconButton(
-                tooltip: 'تبديل مستوى الحماية',
-                onPressed: _saving
-                    ? null
-                    : () => _applyLevel(
-                          _level == SecurityLevel.standard
-                              ? SecurityLevel.enhanced
-                              : _level == SecurityLevel.enhanced
-                                  ? SecurityLevel.maximum
-                                  : SecurityLevel.standard,
-                        ),
-                icon: Icon(
-                  _level == SecurityLevel.maximum
-                      ? Icons.lock_rounded
-                      : Icons.lock_open_rounded,
-                ),
-              ),
-            ),
-          ),
-          */
           const SizedBox(height: 20),
           const Text(
             'مستوى الحماية',
