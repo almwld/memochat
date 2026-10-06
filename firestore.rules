@@ -69,11 +69,24 @@ service cloud.firestore {
           'mutedFor',
           'typing',
           'typingUpdatedAt',
-          'deletedFor',
-          'participantDetails',
-          'participantNames',
-          'participantPhotos'
+          'deletedFor'
         ]);
+
+      // A user may refresh only their own cached avatar fields. The canonical
+      // source remains users/{uid}; no participant can rewrite another user's
+      // name/photo metadata.
+      allow update: if isChatParticipant(chatId) &&
+        request.resource.data.participants == resource.data.participants &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'participantDetails',
+          'participantPhotos'
+        ]) &&
+        request.resource.data.participantDetails.diff(resource.data.participantDetails).affectedKeys().hasOnly([request.auth.uid]) &&
+        request.resource.data.participantPhotos.diff(resource.data.participantPhotos).affectedKeys().hasOnly([request.auth.uid]) &&
+        request.resource.data.participantDetails[request.auth.uid].photoUrl ==
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.photoUrl &&
+        request.resource.data.participantPhotos[request.auth.uid] ==
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.photoUrl;
 
       // Allow an authenticated user to join an existing group through its
       // invite code, without granting permission to mutate an existing member.
