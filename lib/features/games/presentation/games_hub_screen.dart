@@ -42,7 +42,55 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
-          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), gradient: LinearGradient(colors: [scheme.primary, Color.lerp(scheme.primary, const Color(0xFF164C72), .55)!], begin: Alignment.topRight, end: Alignment.bottomLeft), boxShadow: [BoxShadow(color: scheme.primary.withOpacity(.25), blurRadius: 22, offset: const Offset(0, 12))]), child: Row(children: [Container(width: 62, height: 62, decoration: BoxDecoration(color: Colors.white.withOpacity(.18), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.sports_esports_rounded, color: Colors.white, size: 34)), const SizedBox(width: 14), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('وقت اللعب', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900)), SizedBox(height: 5), Text('55 تحدياً فعلياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Colors.white70, height: 1.4))]))])),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    Icons.sports_esports_rounded,
+                    color: scheme.primary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'وقت اللعب',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '55 تحدياً فعلياً بنقاط ومستويات ونتائج شخصية.',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer.withOpacity(.78),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(onChanged: (value) => setState(() => _query = value), decoration: InputDecoration(hintText: 'ابحث في الألعاب...', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: _query.isEmpty ? null : IconButton(onPressed: () => setState(() => _query = ''), icon: const Icon(Icons.close_rounded)))),
           const SizedBox(height: 14),
