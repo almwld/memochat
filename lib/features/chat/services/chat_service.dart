@@ -211,33 +211,28 @@ class ChatService {
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration}) async {
     final id=_uid(); final user=_auth.currentUser!; final chat=await _authorizedChat(chatId);
     await _security.ensureReady();
-    final encryptionEnabled = _security.isEncryptionEnabledForChat(chatId);
+    final useEncryption=_security.isEncryptionEnabledForChat(chatId);
+    if(useEncryption) await SignalSessionManager.instance.ensureReady();
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
     final participants=List<String>.from(chat.data()?['participants']??const []);
     final receiverIds=participants.where((p)=>p!=id).toList();
     final type=metadata?['kind']=='contact'?'contact':metadata?['kind']=='game_invite'?'game_invite':imageUrl!=null?'image':videoUrl!=null?'video':audioUrl!=null?'audio':fileUrl!=null?'file':locationUrl!=null?'location':'text';
-    Map<String,dynamic>? replyPreview;
-    if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final d=await _decryptMessageData(id,rr.data()??{});replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':d['text']?.toString()??'مرفق','type':d['type']?.toString()??'text'};}}
     final ref=(messageId?.isNotEmpty==true)?_chatRef(chatId).collection('messages').doc(messageId):_chatRef(chatId).collection('messages').doc();
     if(messageId?.isNotEmpty==true){final existing=await ref.get();if(existing.exists)return ref.id;}
-    final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'replyToId':replyToId,'replyPreview':replyPreview};
-    final delivered=false;
+    Map<String,dynamic>? replyPreview;
+    if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final d=await _decryptMessageData(id,rr.data()??{});replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':d['text']?.toString()??'مرفق','type':d['type']?.toString()??'text'};}}
     final batch=_firestore.batch();
-    final messageData=<String,dynamic>{'chatId':chatId,'senderId':id,'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey};
-    if (encryptionEnabled) {
-      await SignalSessionManager.instance.ensureReady();
+    if(useEncryption){
+      final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'replyToId':replyToId,'replyPreview':replyPreview};
       final encryptedRecipients=<String,dynamic>{};
-      for(final recipient in <String>{...receiverIds,id}){
-        final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);
-        encryptedRecipients[recipient]=base64Encode(e);
-      }
-      messageData.addAll({'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId)});
+      for(final recipient in <String>{...receiverIds,id}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);encryptedRecipients[recipient]=base64Encode(e);}
+      batch.set(ref,{'chatId':chatId,'senderId':id,'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId),'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
     } else {
-      messageData.addAll(payload);
+      final delivered=false;
+      batch.set(ref,{'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'timestamp':FieldValue.serverTimestamp(),'createdAt':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':delivered?MessageStatus.delivered.name:MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'replyPreview':replyPreview,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
     }
-    batch.set(ref,messageData);
-    final preview=encryptionEnabled ? (type=='text'?'رسالة مشفرة':type=='image'?'صورة مشفرة':type=='video'?'فيديو مشفر':type=='audio'?'رسالة صوتية مشفرة':type=='file'?'ملف مشفر':'مرفق مشفر') : (type=='text'?text.trim():(type=='image'?'📷 صورة':type=='video'?'🎬 فيديو':type=='audio'?'🎤 رسالة صوتية':type=='file'?'📎 ملف':'مرفق'));
-    final update=<String,dynamic>{'lastMessage':preview,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':encryptionEnabled ? _security.summarySenderId(chatId,id) : id,'updatedAt':FieldValue.serverTimestamp()};
+    final preview=useEncryption?(type=='text'?'رسالة مشفرة':type=='image'?'صورة مشفرة':type=='video'?'فيديو مشفر':type=='audio'?'رسالة صوتية مشفرة':type=='file'?'ملف مشفر':'مرفق مشفر'):(text.trim().isNotEmpty?text.trim():type=='image'?'📷 صورة':type=='video'?'🎬 فيديو':type=='audio'?'🎤 رسالة صوتية':type=='file'?'📎 ملف':'مرفق');
+    final update=<String,dynamic>{'lastMessage':preview,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':useEncryption?_security.summarySenderId(chatId,id):id,'updatedAt':FieldValue.serverTimestamp()};
     for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
     batch.update(_chatRef(chatId),update);
     await batch.commit();
@@ -254,24 +249,22 @@ class ChatService {
 Future<String> sendSystemMessage({required String chatId,required String text,String? idempotencyKey,Map<String,dynamic>? metadata}) async {
   final id=_uid(); final user=_auth.currentUser!; final chat=await _authorizedChat(chatId);
   await _security.ensureReady();
-  final encryptionEnabled = _security.isEncryptionEnabledForChat(chatId);
+  final useEncryption=_security.isEncryptionEnabledForChat(chatId);
+  if(useEncryption) await SignalSessionManager.instance.ensureReady();
   if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
   final participants=List<String>.from(chat.data()?['participants']??const []);
   final type=metadata?['callId']!=null?'call':'system';
   final ref=_chatRef(chatId).collection('messages').doc();
-  final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'metadata':metadata??<String,dynamic>{}};
   final batch=_firestore.batch();
-  final messageData=<String,dynamic>{'chatId':chatId,'senderId':id,'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey};
-  if (encryptionEnabled) {
-    await SignalSessionManager.instance.ensureReady();
+  if(useEncryption){
+    final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'metadata':metadata??<String,dynamic>{}};
     final encryptedRecipients=<String,dynamic>{};
     for(final recipient in <String>{...participants}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);encryptedRecipients[recipient]=base64Encode(e);}
-    messageData.addAll({'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId)});
+    batch.set(ref,{'chatId':chatId,'senderId':id,'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId),'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
   } else {
-    messageData.addAll(payload);
+    batch.set(ref,{'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'metadata':metadata??<String,dynamic>{},'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
   }
-  batch.set(ref,messageData);
-  final update=<String,dynamic>{'lastMessage':encryptionEnabled ? (type=='call'?'مكالمة مشفرة':'رسالة نظامية مشفرة') : (type=='call'?'مكالمة':'رسالة نظامية'),'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':id,'updatedAt':FieldValue.serverTimestamp()};
+  final update=<String,dynamic>{'lastMessage':useEncryption?(type=='call'?'مكالمة مشفرة':'رسالة نظامية مشفرة'):text,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':useEncryption?_security.summarySenderId(chatId,id):id,'updatedAt':FieldValue.serverTimestamp()};
   for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
   batch.update(_chatRef(chatId),update);
   await batch.commit();
