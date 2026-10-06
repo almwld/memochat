@@ -251,6 +251,9 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
 
   Future<void> _join() async {
     try {
+      // Permission must be granted before the voice-room token is used to publish
+      // the microphone track; otherwise LiveKit reports TrackPublishException.
+      await _liveKit.ensureMediaPermissions(video: false);
       await _service.joinVoiceRoom(widget.roomId);
       final user = FirebaseAuth.instance.currentUser;
       _room = await _liveKit.connectVoiceRoom(
