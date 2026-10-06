@@ -177,13 +177,13 @@ class _ScrollAwareScaffoldState extends State<ScrollAwareScaffold> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: PreferredSize(
-          preferredSize: widget.appBar.preferredSize,
-          child: AnimatedSlide(
+          preferredSize: Size.fromHeight(_visible ? widget.appBar.preferredSize.height : 0),
+          child: ClipRect(child: AnimatedSlide(
             offset: _visible ? Offset.zero : const Offset(0, -1),
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             child: widget.appBar,
-          ),
+          )),
         ),
         body: NotificationListener<UserScrollNotification>(
           onNotification: _handleScroll,
