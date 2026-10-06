@@ -307,8 +307,29 @@ class _CallScreenState extends State<CallScreen> {
         isVideo: widget.isVideo,
       );
 
-      // The accept transition is already persisted by CallService.
-      // Do not make the LiveKit media UI depend on a second Firestore write.
+      // The receiver is the first participant to establish media. Only after
+      // LiveKit is actually connected do we publish "connected" to Firestore.
+      // The caller waits for this state before joining, which removes the
+      // accept/join race and prevents duplicate LiveKit sessions.
+      if (!widget.isOutgoing) {
+        Object? lastError;
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await calls.markConnected(c.id);
+            lastError = null;
+            break;
+          } catch (e) {
+            lastError = e;
+            if (attempt < 3) {
+              await Future<void>.delayed(
+                Duration(milliseconds: attempt * 400),
+              );
+            }
+          }
+        }
+        if (lastError != null) throw lastError;
+      }
+
       joined = true;
       timeout?.cancel();
       registry.register(c.id);
