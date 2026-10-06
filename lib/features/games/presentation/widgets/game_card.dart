@@ -6,13 +6,13 @@ class GameCard extends StatelessWidget {
   final GameDefinition game; final int index; final VoidCallback onTap;
   const GameCard({super.key,required this.game,required this.index,required this.onTap});
 
-  @override Widget build(BuildContext context){
-    final dark=Theme.of(context).brightness==Brightness.dark;
-    return RepaintBoundary(child: TweenAnimationBuilder<double>(
-      tween:Tween(begin:0,end:1),duration:const Duration(milliseconds:360),
-      curve:Curves.easeOutCubic,child:_card(context,dark),
-      builder:(context,value,child)=>Transform.translate(offset:Offset(0,18*(1-value)),child:Transform.scale(scale:.94+.06*value,child:FadeTransition(opacity:AlwaysStoppedAnimation<double>(value),child:child))),
-    ));
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // The games sheet can contain dozens of cards. Avoid starting an
+    // independent animation for every visible card when the sheet opens;
+    // that can cause a long first-frame stall on low-memory devices.
+    return RepaintBoundary(child: _card(context, dark));
   }
 
   Widget _card(BuildContext context,bool dark)=>Material(
