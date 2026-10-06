@@ -39,9 +39,27 @@ async function sendToUser(uid,payload){
     const message={
       tokens,
       data:Object.fromEntries(Object.entries(payload.data||{}).map(([k,v])=>[k,String(v??'')])),
+      // Chat messages use a real FCM notification payload when the app is
+      // backgrounded/terminated. This avoids relying solely on the Dart
+      // background isolate, which can be skipped by Android under power
+      // restrictions. Calls remain data-only because their dedicated local
+      // call notification/action flow must stay authoritative.
+      ...(isCall ? {} : {
+        notification:{
+          title:String(payload.data?.title||'MemoChat'),
+          body:String(payload.data?.body||'لديك رسالة جديدة في الدردشة'),
+        },
+      }),
       android:{
         priority:'high',
         ttl:isCall?60*1000:60*60*1000,
+        ...(!isCall ? {
+          notification:{
+            channelId:'memochat_messages_v1',
+            sound:'notification',
+            priority:'high',
+          },
+        } : {}),
       },
       apns:{
         headers:isCall
