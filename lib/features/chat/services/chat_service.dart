@@ -41,6 +41,9 @@ class ChatService {
         // Ciphertext is processed only when this conversation is explicitly
         // E2EE-enabled. Plaintext chats must never bootstrap Signal.
         final chatId = data['chatId']?.toString() ?? '';
+        if (chatId.isNotEmpty) {
+          await SecuritySettingsService.instance.load();
+        }
         final e2eeEnabled = chatId.isNotEmpty &&
             SecuritySettingsService.instance.isEncryptionEnabledForChat(chatId);
         if (data['type'] == 'encrypted' && e2eeEnabled) {
