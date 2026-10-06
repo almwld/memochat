@@ -13,7 +13,7 @@ enum NotificationType {
 
 enum NotificationPriority { low, normal, high }
 
-enum NotificationChannel { messages, calls, missedCalls, system }
+enum NotificationChannel { messages, system }
 
 extension NotificationTypeWireName on NotificationType {
   String get wireName => switch (this) {
