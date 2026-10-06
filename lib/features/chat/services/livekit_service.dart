@@ -257,10 +257,10 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
-    // Keep the media preflight inside the service as the final guard. CallScreen
-    // also requests permissions, but restored/background/native callers can enter
-    // this service without going through that widget.
-    await ensureMediaPermissions(video: isVideo);
+    // CallScreen performs the single batched Android permission request before
+    // entering LiveKit. Do not request the same permissions again here: Android
+    // can reject the second request while the first dialog/state transition is
+    // still active, which caused the call screen to ask for permissions twice.
     final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
