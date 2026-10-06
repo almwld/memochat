@@ -242,69 +242,13 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Widget _gameBody() {
-    // Direct challenges must use the state-aware classic implementations.
-    // Dedicated renderers remain available for solo play until they expose
-    // the same GameService state contract.
-    if (widget.chatId.trim().isNotEmpty) {
-      switch (widget.type) {
-        case GameType.xo:
-          return _xoGame();
-        case GameType.reactionRace:
-          return _reactionGame();
-        case GameType.diceRoll:
-          return _diceGame();
-        case GameType.drawGuess:
-          return _drawGame();
-        case GameType.wordChain:
-          return _wordGame();
-        case GameType.wouldYouRather:
-          return _choiceGame('ماذا تفضل؟', const ['الخيار الأول', 'الخيار الثاني']);
-        case GameType.quickTap:
-          return _quickTapGame();
-        case GameType.speedMath:
-          return _speedMathGame();
-        case GameType.sudokuDuel:
-          return _sudokuGame();
-        default:
-          break;
-      }
-    }
-
-    final dedicated = DedicatedGameFactory.build(widget.type);
-    if (dedicated != null) return dedicated;
-    const extended = {
-      GameType.colorRush, GameType.higherLower, GameType.numberGuess, GameType.wordScramble,
-      GameType.emojiMemory, GameType.patternTap, GameType.oddOneOut, GameType.fourInRow,
-      GameType.dotsAndBoxes, GameType.reactionRace, GameType.cardFlip, GameType.treasureHunt,
-      GameType.mazeRunner, GameType.stackTower, GameType.targetHit, GameType.bubblePop,
-      GameType.colorMatch, GameType.shapeMatch, GameType.sequenceRecall, GameType.fastChoice,
-      GameType.trueFalse, GameType.flagQuiz, GameType.animalQuiz, GameType.foodQuiz,
-      GameType.geographyQuiz, GameType.scienceQuiz, GameType.historyQuiz, GameType.languageQuiz,
-      GameType.riddleRush, GameType.anagramBattle, GameType.mathDuel, GameType.codeBreaker,
-      GameType.lightSwitch, GameType.connectPairs, GameType.wordGuess, GameType.picturePuzzle,
-      GameType.balanceBeam, GameType.rocketRace, GameType.galaxyCatch, GameType.rhythmTap,
-    };
-    if (extended.contains(widget.type)) {
-      return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId, gameId: widget.gameId);
-    }
-    switch (widget.type) {
-      case GameType.xo: return XoGame(key: ValueKey(widget.chatId));
-      case GameType.quizBattle: return QuizBattleGame(key: ValueKey(widget.chatId));
-      case GameType.emojiReaction: return EmojiReactionGame(key: ValueKey(widget.chatId));
-      case GameType.diceRoll: return DiceRollGame(key: ValueKey(widget.chatId));
-      case GameType.drawGuess: return DrawGuessGame(key: ValueKey(widget.chatId));
-      case GameType.wordChain: return WordChainGame(key: ValueKey(widget.chatId));
-      case GameType.truthDare: return TruthDareGame(key: ValueKey(widget.chatId));
-      case GameType.guessSong: return GuessSongGame(key: ValueKey(widget.chatId));
-      case GameType.memoryMatch: return MemoryMatchGame(key: ValueKey(widget.chatId));
-      case GameType.trivia: return TriviaGame(key: ValueKey(widget.chatId));
-      case GameType.quickTap: return QuickTapGame(key: ValueKey(widget.chatId));
-      case GameType.wouldYouRather: return WouldYouRatherGame(key: ValueKey(widget.chatId));
-      case GameType.speedMath: return SpeedMathGame(key: ValueKey(widget.chatId));
-      case GameType.movieQuiz: return MovieQuizGame(key: ValueKey(widget.chatId));
-      case GameType.sudokuDuel: return SudokuDuelGame(key: ValueKey(widget.chatId));
-      default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId, gameId: widget.gameId);
-    }
+    // All catalog games now use the real-time arcade runtime.
+    // Multiplayer context is passed through so score updates remain durable.
+    return DedicatedGameFactory.build(
+      widget.type,
+      chatId: widget.chatId,
+      gameId: widget.gameId,
+    )!;
   }
 
   Widget _header(String subtitle) => Column(
