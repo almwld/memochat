@@ -292,7 +292,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ])),
           ]),
           _Section(title: 'المظهر وإمكانية الوصول', children: [
-            _Row(Icons.palette_outlined, 'المظهر', _theme == ThemeMode.system ? 'حسب الجهاز' : _theme == ThemeMode.dark ? 'داكن' : 'فاتح', _theme),
+            _Row(Icons.palette_outlined, 'المظهر', _themeMode == ThemeMode.system ? 'حسب الجهاز' : _themeMode == ThemeMode.dark ? 'داكن' : 'فاتح', _themePicker),
             _Row(Icons.accessibility_new_outlined, 'إمكانية الوصول', 'الحركة والتباين وتشغيل الوسائط', () => _open('إمكانية الوصول', Icons.accessibility_new_outlined, const [
               _SettingItem('تقليل الحركة', 'تقليل الانتقالات', Icons.motion_photos_off_outlined, switchable: true),
               _SettingItem('تباين أعلى', 'زيادة وضوح الواجهة', Icons.contrast_outlined, switchable: true),
@@ -317,13 +317,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(child: ListTile(
             leading: Icon(Icons.logout_rounded, color: Theme.of(context).colorScheme.error),
             title: Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.error)),
-            onTap: _signOut,
+            onTap: _confirmSignOut,
           )),
         ],
       ),
     );
   }
 
+}
+
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.children});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+            ),
+            ...children,
+          ],
+        ),
+      );
+}
+
+class _Row extends StatelessWidget {
+  const _Row(this.icon, this.title, this.subtitle, this.onTap);
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        leading: Icon(icon),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_left_rounded),
+        onTap: onTap,
+      );
 }
 
 class _SettingItem {
@@ -416,7 +455,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
     }
     if (item.title == 'إصدار التطبيق') {
       if (!mounted) return;
-      await showAboutDialog(context: context, applicationName: 'MemoChat', applicationLegalese: 'تطبيق مراسلة خاص', children: const [Text('معلومات الإصدار تعتمد على حزمة التطبيق المثبتة.')]);
+      showAboutDialog(context: context, applicationName: 'MemoChat', applicationLegalese: 'تطبيق مراسلة خاص', children: const [Text('معلومات الإصدار تعتمد على حزمة التطبيق المثبتة.')]);
       return;
     }
     if (item.title == 'المصادر المفتوحة') {
@@ -550,46 +589,3 @@ class _AccountCard extends StatelessWidget {
       );
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-  final String title;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
-        child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-      );
-}
-
-class _CardGroup extends StatelessWidget {
-  const _CardGroup({required this.children});
-  final List<Widget> children;
-  @override
-  Widget build(BuildContext context) => Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(children: children),
-      );
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-  final AppIconData icon;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) => SwitchListTile(
-        secondary: PremiumIconTile(icon: icon, size: 42, iconSize: 20),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(subtitle),
-        value: value,
-        onChanged: onChanged,
-      );
-}
