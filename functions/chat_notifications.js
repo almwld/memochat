@@ -43,7 +43,7 @@ async function sendToUser(uid,payload){
       android:{
         priority:'high',
         ttl:60*60*1000,
-        notification:{channelId:'memochat_messages_v1',sound:'notification',priority:'high'},
+        notification:{channelId:'memochat_messages_v1',sound:'message_tone',priority:'high'},
       },
       apns:{
         headers:{'apns-priority':'5','apns-push-type':'background'},
