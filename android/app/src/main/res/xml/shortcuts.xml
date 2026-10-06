@@ -12,12 +12,6 @@
         <intent android:action="android.intent.action.VIEW" android:targetPackage="com.memo.app"
             android:targetClass="com.memo.app.MainActivity" android:data="memochat://quick/chat" />
     </shortcut>
-    <shortcut android:shortcutId="calls" android:enabled="true" android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/shortcut_calls_short"
-        android:shortcutLongLabel="@string/shortcut_calls_long">
-        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.memo.app"
-            android:targetClass="com.memo.app.MainActivity" android:data="memochat://quick/calls" />
-    </shortcut>
     <shortcut android:shortcutId="social" android:enabled="true" android:icon="@mipmap/ic_launcher"
         android:shortcutShortLabel="@string/shortcut_social_short"
         android:shortcutLongLabel="@string/shortcut_social_long">
