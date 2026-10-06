@@ -32,9 +32,6 @@ class SecuritySettingsService extends ChangeNotifier {
   bool isOperational(SecurityProtocol protocol) {
     switch (protocol) {
       case SecurityProtocol.metadataProtection:
-      case SecurityProtocol.websocketFallback:
-      case SecurityProtocol.httpsFallback:
-        return true;
       case SecurityProtocol.onionRouting:
       case SecurityProtocol.sealedSender:
       case SecurityProtocol.postQuantumHybrid:
@@ -172,8 +169,6 @@ class SecuritySettingsService extends ChangeNotifier {
     // transport/backend implementation is shipped.
     if (level == SecurityLevel.enhanced || level == SecurityLevel.maximum) {
       _protocols[SecurityProtocol.metadataProtection] = true;
-      _protocols[SecurityProtocol.websocketFallback] = true;
-      _protocols[SecurityProtocol.httpsFallback] = true;
     }
   }
 
