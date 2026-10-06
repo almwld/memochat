@@ -81,10 +81,29 @@ class StatusService {
     final activeStories = existingModel != null && existingModel.isValid ? existingModel.stories : <StoryItem>[];
     final allStories = [...activeStories, ...stories];
 
+    // The uploaded avatar is stored in Firestore by AvatarService; FirebaseAuth.photoURL
+    // can remain stale or empty. Prefer the canonical profile document when publishing.
+    String? resolvedUserImage = userImage?.trim();
+    if (resolvedUserImage?.isEmpty != false) {
+      try {
+        final profile = await _firestore.collection('users').doc(user.uid).get();
+        final data = profile.data() ?? const <String, dynamic>{};
+        final stored = data['photoUrl']?.toString().trim();
+        final legacy = data['photoURL']?.toString().trim();
+        resolvedUserImage = stored?.isNotEmpty == true
+            ? stored
+            : legacy?.isNotEmpty == true
+                ? legacy
+                : user.photoURL;
+      } catch (_) {
+        resolvedUserImage = user.photoURL;
+      }
+    }
+
     await ref.set({
       'userId': user.uid,
       'userName': (userName ?? user.displayName ?? 'مستخدم').trim(),
-      'userImage': userImage ?? user.photoURL,
+      'userImage': resolvedUserImage,
       'stories': allStories.map((story) => story.toMap()).toList(),
       'createdAt': Timestamp.fromDate(now),
       'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 24))),
