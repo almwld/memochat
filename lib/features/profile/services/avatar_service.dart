@@ -87,6 +87,43 @@ class AvatarService {
     }
   }
 
+  Future<AvatarUpdateResult> uploadAndSetCover({
+    required String uid,
+    required File file,
+  }) async {
+    final current = _auth.currentUser;
+    if (current == null || current.uid != uid) return const AvatarUpdateResult(error: 'يجب تسجيل الدخول لتغيير الغلاف');
+    if (!await file.exists()) return const AvatarUpdateResult(error: 'صورة الغلاف غير موجودة');
+    if (await file.length() > 15 * 1024 * 1024) return const AvatarUpdateResult(error: 'حجم الغلاف أكبر من الحد المسموح');
+    try {
+      await _nextcloud.loadConfig();
+      final extension = _extension(file.path);
+      final result = await _nextcloud.uploadFile(
+        file: file,
+        path: 'profile-covers',
+        fileName: 'cover_' + uid + extension,
+        mimeType: _mimeType(extension),
+        createShare: true,
+      );
+      if (!result.success || result.url == null || result.url!.isEmpty) {
+        return AvatarUpdateResult(error: result.error ?? 'تعذر رفع الغلاف', path: result.path);
+      }
+      await _db.collection('users').doc(uid).set({
+        'coverUrl': result.url,
+        'cover': {
+          'provider': 'nextcloud',
+          'path': result.path,
+          'fileName': result.fileName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return AvatarUpdateResult(url: result.url, path: result.path);
+    } catch (e) {
+      return AvatarUpdateResult(error: e.toString());
+    }
+  }
+
   Future<void> _propagateAvatarToConversations(String uid, String url) async {
     final snapshot = await _db.collection('chats').where('participants', arrayContains: uid).get();
     if (snapshot.docs.isEmpty) return;
