@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/repositories/chat_repository.dart';
 import '../core/repositories/firebase_chat_repository.dart';
-import '../core/crypto/signal_session_manager.dart';
 import '../core/theme/app_theme.dart';
 import '../core/services/firebase_bootstrap.dart';
 import '../core/services/identity_state_service.dart';
@@ -168,9 +167,6 @@ class _MemoChatAppState extends State<MemoChatApp>
       'photoUrl': user.photoURL ?? '',
     }, SetOptions(merge: true));
     await _identity.syncSession();
-    // Publish the local Signal identity/pre-key bundle before this user can
-    // receive encrypted messages. This is required even before the first send.
-    await SignalSessionManager.instance.ensureReady();
   }
 
   Future<void> _signOut() async {
