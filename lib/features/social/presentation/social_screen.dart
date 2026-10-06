@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../data/social_service.dart';
 import 'reels_screen.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
 import '../../../core/widgets/user_name.dart';
 
 class SocialScreen extends StatefulWidget {
@@ -49,12 +50,10 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
             icon: const Icon(Icons.search_rounded),
           ),
           IconButton(
-            tooltip: 'النشاط',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const AlertDialog(
-                title: Text('نشاط Memo'),
-                content: Text('الإعجابات والتعليقات والمشاركات والمتابعات ستظهر هنا.'),
+            tooltip: 'النشاط والإشعارات',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const NotificationCenterScreen(),
               ),
             ),
             icon: const Icon(Icons.notifications_none_rounded),
