@@ -108,6 +108,7 @@ class CallSoundCoordinator {
       final receiverId = data['receiverId']?.toString() ?? '';
       final callerId = data['callerId']?.toString() ?? '';
       final status = data['status']?.toString() ?? '';
+      final answered = data['isAnswered'] == true;
       final chatId = data['chatId']?.toString().trim() ?? '';
       debugPrint('📋 CALL PRESENT: callId=$normalized status=$status caller=$callerId receiver=$receiverId chatId=${chatId.isEmpty ? '(empty)' : chatId} currentUid=${user.uid}');
       if (receiverId != user.uid) {
@@ -118,8 +119,8 @@ class CallSoundCoordinator {
         debugPrint('❌ CALL PRESENT: invalid callerId=$callerId callId=$normalized');
         return;
       }
-      if (status != CallStatus.calling.name && status != CallStatus.ringing.name) {
-        debugPrint('⚠️ CALL PRESENT: terminal/non-ringing status=$status callId=$normalized');
+      if (answered || (status != CallStatus.calling.name && status != CallStatus.ringing.name)) {
+        debugPrint('⚠️ CALL PRESENT: already answered or terminal status=$status answered=$answered callId=$normalized');
         return;
       }
 
