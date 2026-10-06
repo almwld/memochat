@@ -12,9 +12,7 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
-    private val callAudioChannel = "com.memo.app/call_audio"
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
-    private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
     private val quickActionsChannel = "com.memo.app/quick_actions"
     private val vpnTunnelChannel = "com.memo.app/vpn_tunnel"
     private var pendingQuickAction: String? = null
@@ -22,56 +20,6 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callAudioChannel)
-            .setMethodCallHandler { call, result ->
-                val audio = getSystemService(AUDIO_SERVICE) as AudioManager
-                when (call.method) {
-                    "setSpeakerphone" -> {
-                        val enabled = call.argument<Boolean>("enabled") ?: true
-                        audio.mode = AudioManager.MODE_IN_COMMUNICATION
-                        audio.isSpeakerphoneOn = enabled
-                        result.success(null)
-                    }
-                    "getCallVolume" -> {
-                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-                        val current = audio.getStreamVolume(AudioManager.STREAM_VOICE_CALL)
-                        result.success(current.toDouble() / max.toDouble())
-                    }
-                    "setCallVolume" -> {
-                        val normalized = (call.argument<Double>("value") ?: 0.75).coerceIn(0.0, 1.0)
-                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-                        val volume = kotlin.math.round(normalized * max).toInt().coerceIn(0, max)
-                        audio.setStreamVolume(AudioManager.STREAM_VOICE_CALL, volume, 0)
-                        result.success(volume.toDouble() / max.toDouble())
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callForegroundServiceChannel)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "start" -> {
-                        val intent = Intent(this, CallForegroundService::class.java).apply {
-                            action = CallForegroundService.ACTION_START
-                            putExtra(CallForegroundService.EXTRA_CALL_ID, call.argument<String>("callId"))
-                            putExtra(CallForegroundService.EXTRA_CALLER_NAME, call.argument<String>("callerName"))
-                        }
-                        if (android.os.Build.VERSION.SDK_INT >= 26) {
-                            startForegroundService(intent)
-                        } else {
-                            startService(intent)
-                        }
-                        result.success(true)
-                    }
-                    "stop" -> {
-                        stopService(Intent(this, CallForegroundService::class.java))
-                        result.success(true)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, vpnTunnelChannel)
             .setMethodCallHandler { call, result ->
