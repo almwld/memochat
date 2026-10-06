@@ -334,6 +334,10 @@ app.post('/voice-token', async (req, res) => {
     if (!memberSnapshot.exists) {
       return res.status(403).json({ success: false, message: 'انضم إلى الغرفة أولاً' });
     }
+    const member = memberSnapshot.data() || {};
+    const role = String(member.role || 'listener').trim().toLowerCase();
+    const canPublish = role === 'host' || role === 'speaker' || role === 'moderator';
+    const canPublishData = canPublish;
 
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
@@ -349,9 +353,9 @@ app.post('/voice-token', async (req, res) => {
     token.addGrant({
       roomJoin: true,
       room: roomName,
-      canPublish: true,
+      canPublish,
       canSubscribe: true,
-      canPublishData: true,
+      canPublishData,
     });
 
     return res.json({
