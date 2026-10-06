@@ -43,7 +43,12 @@ async function sendToUser(uid,payload){
       android:{
         priority:'high',
         ttl:60*60*1000,
-        notification:{channelId:'memochat_messages_v1',sound:'message_tone',priority:'high'},
+        notification:{
+          channelId:'memochat_messages_v1',
+          sound:'message_tone',
+          priority:'high',
+          icon:'ic_launcher',
+        },
       },
       apns:{
         headers:{'apns-priority':'5','apns-push-type':'background'},
@@ -60,7 +65,7 @@ async function sendToUser(uid,payload){
     console.error(`FCM send failed for ${uid}:`,e.message);
     if(['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(e.code)){
       const invalid = String(e.token || '').trim();
-      if (invalid) await db.collection('users').doc(uid).collection('private').doc('tokens').update({tokens: admin.firestore.FieldValue.arrayRemove(invalid),updatedAt: admin.firestore.FieldValue.serverTimestamp()});
+      if (invalid) await db.collection('users').doc(uid).collection('private').doc('tokens').update({tokens: admin.firestore.FieldValue.arrayRemove(invalid),updatedAt:admin.firestore.FieldValue.serverTimestamp()});
     }
   }
 }
@@ -100,17 +105,12 @@ exports.notifyNewChatMessage=onDocumentCreated('chats/{chatId}/messages/{message
   const type=encryptedMessage?'encrypted':String(m.type||'text'),text=encryptedMessage?'':String(m.text||'').trim();
   const body=encryptedMessage?'لديك رسالة جديدة في الدردشة':({image:'📷 أرسل صورة',video:'🎬 أرسل فيديو',audio:'🎵 أرسل رسالة صوتية',file:'📎 أرسل ملف',location:'📍 شارك موقعاً'}[type]||text||'أرسل رسالة جديدة');
   const senderName=(encryptedMessage || metadataProtected)?'جهة اتصال':String(m.senderName||'مستخدم');
-
-  // Delivery is distinct from sending: a message is delivered only when at
-  // least one receiver is actually online. Opening the chat also marks it
-  // delivered/read from the Flutter client.
   const receiverSnapshots=await Promise.all(receivers.map(uid=>db.collection('users').doc(uid).get()));
   const delivered=receiverSnapshots.some(snap=>snap.data()?.isOnline===true);
   await s.ref.update({
     isDelivered:delivered,
     deliveredAt:delivered?admin.firestore.FieldValue.serverTimestamp():null,
   });
-
   await Promise.all(notifyReceivers.map(async uid=>{
     const data={
       type:'new_message',
@@ -150,9 +150,6 @@ function notificationPayload(type, title, body, extra = {}) {
     },
   };
 }
-
-
-
 
 exports.notifyGroupMemberAdded=onDocumentUpdated('chats/{chatId}',async event=>{
   const before=event.data?.before?.data()||{};
@@ -217,7 +214,6 @@ exports.notifyVoiceRoomInvite=onDocumentCreated('voiceRoomInvites/{inviteId}',as
   await archiveNotification(uid,{data});
   await sendToUser(uid,{data});
 });
-
 
 exports.notifyFriendRequest=onDocumentCreated('friendRequests/{requestId}',async event=>{
   const snap=event.data;if(!snap)return;
