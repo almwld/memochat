@@ -9,6 +9,7 @@ import '../data/social_service.dart';
 import 'reels_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../../core/widgets/user_name.dart';
+import '../../../core/widgets/premium_ui.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key, this.service});
@@ -462,6 +463,7 @@ class _ComposerState extends State<_Composer> {
         final isVideo = file != null &&
             RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)$', caseSensitive: false).hasMatch(file.path);
         await widget.service.createPost(text: text.text, media: file, video: isVideo);
+      }
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر النشر: $error')));
     } finally {
