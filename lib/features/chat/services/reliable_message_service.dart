@@ -62,6 +62,22 @@ class ReliableMessageService {
     } on SocketException {
       await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
       return stableMessageId;
+    } on StateError catch (e) {
+      // Signal may not be published yet on the other device (for example
+      // immediately after first login). Keep the message durable instead of
+      // dropping it, but never queue security failures such as an identity
+      // change or trust violation.
+      final message = e.message.toString();
+      if (message.contains('حزمة Signal للمستلم غير متاحة')) {
+        await _pendingQueue.enqueue(PendingMessage(
+          id: stableMessageId,
+          conversationId: chatId,
+          text: value,
+          createdAt: effectiveTimestamp.toDate(),
+        ));
+        return stableMessageId;
+      }
+      rethrow;
     }
   }
 
