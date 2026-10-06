@@ -458,9 +458,6 @@ class _StoryContentState extends State<_StoryContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onReady?.call();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onReady();
-    });
     return _textContent(widget.story.text ?? '');
   }
 

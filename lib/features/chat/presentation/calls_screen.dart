@@ -46,7 +46,7 @@ class _CallsScreenState extends State<CallsScreen> {
           });
         return Column(
           children: [
-            _buildStatusHeader(context, statuses, mine, isDark),
+            _buildStatusHeader(context, statuses, mine, others, isDark),
             Expanded(
               child: StreamBuilder<List<CallModel>>(
                 stream: CallService().streamCallHistory(limit: 50),
@@ -72,7 +72,7 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
-  Widget _buildStatusHeader(BuildContext context, List<UserStatusModel> statuses, UserStatusModel? mine, bool isDark) {
+  Widget _buildStatusHeader(BuildContext context, List<UserStatusModel> statuses, UserStatusModel? mine, List<UserStatusModel> others, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
