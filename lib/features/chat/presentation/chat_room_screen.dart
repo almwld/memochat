@@ -146,7 +146,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   final _auth = FirebaseAuth.instance;
   final _chat = ChatService();
   final _statusService = StatusService();
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesSub;
+  StreamSubscription<MessagePaginationResult>? _messagesSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _chatSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
   Timer? _pendingRefreshTimer;
@@ -522,25 +522,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
 
     await _messagesSub?.cancel();
-    _messagesSub = _messagesRef
-        .orderBy('timestamp', descending: true)
-        .limit(100)
-        .snapshots()
-        .listen((snapshot) {
+    // Messages are encrypted at rest. The room must consume ChatService's
+    // canonical decrypted stream rather than parsing the encrypted Firestore
+    // envelope directly. Parsing the envelope made text/media fields null and
+    // rendered an apparently empty bubble for every E2EE message.
+    _messagesSub = _chat.streamMessages(_chatId, limit: 100).listen((page) {
       if (!mounted) return;
       _roomLoadTimer?.cancel();
-      _oldestMessageDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : _oldestMessageDocument;
-      _hasMoreMessages = snapshot.docs.length >= 100;
+      _oldestMessageDocument =
+          page.lastDocument ?? _oldestMessageDocument;
+      _hasMoreMessages = page.hasMore;
       final liveMessages = <MessageModel>[];
-      for (final doc in snapshot.docs) {
+      for (final message in page.messages) {
         try {
-          final message = MessageModel.fromFirestore(doc.id, doc.data());
           if (!_hiddenForCurrentUser(message.toFirestore())) {
             liveMessages.add(message);
           }
         } catch (error, stackTrace) {
-          // One malformed legacy message must never blank the whole room.
-          debugPrint('Skipping malformed message ${doc.id}: $error');
+          debugPrint('Skipping malformed message ${message.id}: $error');
           debugPrintStack(stackTrace: stackTrace);
         }
       }
