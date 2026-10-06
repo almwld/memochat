@@ -7,6 +7,7 @@ import '../../../features/chat/presentation/chat_navigation.dart';
 import '../../../features/chat/services/call_service.dart';
 import '../../../features/advanced/presentation/advanced_hub_screen.dart';
 import '../../../features/communities/presentation/communities_screen.dart';
+import '../../../features/communities/data/community_service.dart';
 import '../../../features/contacts/presentation/contacts_screen.dart';
 import '../../../core/repositories/firebase_chat_repository.dart';
 
