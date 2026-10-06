@@ -300,7 +300,19 @@ class _CallScreenState extends State<CallScreen> {
       // Request media access immediately before LiveKit publication. This covers
       // outgoing calls as well as restored/retried call screens and avoids the
       // publish attempt racing Android's permission state.
-      await live.ensureMediaPermissions(video: widget.isVideo);
+      try {
+        // Acceptance is the permission boundary: only now may Android ask for
+        // microphone/camera access. If the user denies it, close the accepted
+        // call instead of leaving a ringing/answered Firestore session behind.
+        await live.ensureMediaPermissions(video: widget.isVideo);
+      } catch (permissionError) {
+        try {
+          await calls.endCall(c.id, durationSeconds: 0);
+        } catch (endError) {
+          debugPrint('CALL PERMISSION END ERROR $endError');
+        }
+        rethrow;
+      }
       final registry = ActiveCallRegistry.instance;
       if (registry.hasActiveCall && !registry.isActive(c.id)) {
         throw StateError('مكالمة أخرى نشطة');
