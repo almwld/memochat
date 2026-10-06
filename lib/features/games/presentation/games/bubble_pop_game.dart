@@ -63,9 +63,9 @@ class _BubblePopGameState extends State<BubblePopGame> {
               onPointerDown: (event) {
                 final box = context.findRenderObject() as RenderBox;
                 final point = box.globalToLocal(event.position);
-                // The game occupies the lower portion of the screen.
-                final headerHeight = 58.0;
-                _game.tap(Vector2(point.dx, point.dy - headerHeight));
+                // Listener is attached directly to the GameWidget, so its
+                // local coordinates already start at the game surface.
+                _game.tap(Vector2(point.dx, point.dy));
               },
               child: GameWidget(game: _game),
             ),
