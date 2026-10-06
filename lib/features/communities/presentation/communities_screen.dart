@@ -104,6 +104,38 @@ class CommunityDetailScreen extends StatelessWidget {
   final String name;
   final CommunityService service;
 
+  Future<void> _inviteUser(BuildContext context) async {
+    final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final candidates = snap.docs.where((doc) => doc.id != uid && doc.data()['hideFromContacts'] != true).toList();
+    if (!context.mounted) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: candidates.length,
+        itemBuilder: (_, index) {
+          final doc = candidates[index];
+          final d = doc.data();
+          final name = d['displayName']?.toString().trim().isNotEmpty == true ? d['displayName'].toString().trim() : 'مستخدم';
+          return ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+            title: Text(name),
+            onTap: () => Navigator.pop(context, doc.id),
+          );
+        },
+      ),
+    );
+    if (selected == null) return;
+    try {
+      await service.inviteToCommunity(communityId: communityId, recipientId: selected);
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال دعوة المجتمع.')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الدعوة: $e')));
+    }
+  }
+
   Future<void> _createChannel(BuildContext context) async {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
@@ -145,6 +177,11 @@ class CommunityDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(name),
         actions: [
+          IconButton(
+            tooltip: 'دعوة عضو',
+            onPressed: () => _inviteUser(context),
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+          ),
           IconButton(
             tooltip: 'إنشاء قناة',
             onPressed: () => _createChannel(context),
