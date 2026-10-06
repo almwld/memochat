@@ -91,7 +91,12 @@ class FirebaseChatRepository implements ChatRepository {
       debugPrint('DM lookup skipped: ${e.code}');
     }
 
-    final ref = _chats().doc();
+    // Deterministic DM id removes the remaining race where two devices create
+    // parallel rooms between the same two users at the same time.
+    final pair = <String>[_uid, otherId]..sort();
+    final ref = _chats().doc('dm_${pair[0]}_${pair[1]}');
+    final existingCanonical = await ref.get();
+    if (existingCanonical.exists) return ref.id;
     final me = FirebaseAuth.instance.currentUser;
     final myName = me?.displayName?.trim().isNotEmpty == true
         ? me!.displayName!.trim()
@@ -245,12 +250,31 @@ class FirebaseChatRepository implements ChatRepository {
 
           // Match Sehatak's list semantics: updatedAt is the source of truth,
           // including newly-created chats that do not have a last message yet.
-          conversations.sort((a, b) {
+          // Legacy data may contain multiple direct documents for the same
+          // participant pair. Collapse them at the repository boundary so the
+          // UI never shows duplicate conversations, while keeping the newest
+          // room (the one with the latest activity).
+          final unique = <String, Conversation>{};
+          for (final conversation in conversations) {
+            final key = conversation.isGroup
+                ? 'group:${conversation.id}'
+                : 'dm:${conversation.participant.id}';
+            final previous = unique[key];
+            if (previous == null) {
+              unique[key] = conversation;
+              continue;
+            }
+            final previousTime = previous.updatedAt ?? previous.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final currentTime = conversation.updatedAt ?? conversation.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            if (currentTime.isAfter(previousTime)) unique[key] = conversation;
+          }
+          final deduplicated = unique.values.toList();
+          deduplicated.sort((a, b) {
             final aTime = a.updatedAt ?? a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
             final bTime = b.updatedAt ?? b.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
             return bTime.compareTo(aTime);
           });
-          return conversations;
+          return deduplicated;
         });
   }
 
