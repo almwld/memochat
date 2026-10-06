@@ -2,11 +2,15 @@ import 'dart:math' as math;
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/game_service.dart';
 import '../models/game.dart';
 
 class MemoArcadeScreen extends StatefulWidget {
-  const MemoArcadeScreen({super.key, required this.type});
+  const MemoArcadeScreen({super.key, required this.type, this.chatId = '', this.gameId});
   final GameType type;
+  final String chatId;
+  final String? gameId;
   @override State<MemoArcadeScreen> createState() => _MemoArcadeScreenState();
 }
 
@@ -14,7 +18,7 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> {
   late final MemoArcadeGame game;
   @override void initState() {
     super.initState();
-    game = MemoArcadeGame(type: widget.type, onScore: (_) { if (mounted) setState(() {}); });
+    game = MemoArcadeGame(type: widget.type, chatId: widget.chatId, gameId: widget.gameId, onScore: (_) { if (mounted) setState(() {}); });
   }
   @override void dispose() { game.pauseEngine(); super.dispose(); }
   @override Widget build(BuildContext context) => Scaffold(
@@ -36,10 +40,12 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> {
 }
 
 class MemoArcadeGame extends FlameGame {
-  MemoArcadeGame({required this.type, required this.onScore})
+  MemoArcadeGame({required this.type, required this.onScore, this.chatId = '', this.gameId})
       : title = _titles[type] ?? 'Memo Arcade';
   final GameType type;
   final ValueChanged<int> onScore;
+  final String chatId;
+  final String? gameId;
   final String title;
   final math.Random random = math.Random();
   final List<Target> targets = <Target>[];
@@ -142,6 +148,22 @@ class MemoArcadeGame extends FlameGame {
     score+=gain; comboClock=0;
     for(var i=0;i<8;i++){final a=random.nextDouble()*math.pi*2;particles.add(Particle(position:hit.position.clone(),velocity:Vector2(math.cos(a),math.sin(a))*(35+random.nextDouble()*65),radius:2+random.nextDouble()*3,kind:hit.kind));}
     onScore(score);
+    _syncScore();
+  }
+
+  Future<void> _syncScore() async {
+    final id = gameId?.trim();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || id.isEmpty || uid == null || chatId.trim().isEmpty) return;
+    try {
+      await GameService.instance.updatePlayerState(
+        chatId: chatId,
+        gameId: id,
+        uid: uid,
+        state: {'score': score, 'action': 'arcade_hit', 'gameType': type.name},
+        score: score,
+      );
+    } catch (_) {}
   }
 
   static const _titles=<GameType,String>{
