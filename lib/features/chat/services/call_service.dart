@@ -304,48 +304,59 @@ class CallService {
     await CallSoundCoordinator.instance.presentIncomingCallById(normalizedId);
   }
 
+  /// Answers a notification action without opening a second permission flow.
+  /// CallScreen remains the single owner of media permission and LiveKit startup.
   Future<void> answerIncomingCallById(BuildContext context, String id) async {
     final normalizedId = id.trim();
     if (normalizedId.isEmpty || !context.mounted) return;
-    final snap = await _retry(() => _firestore.collection('calls').doc(normalizedId).get());
+
+    final snap = await _retry(
+      () => _firestore.collection('calls').doc(normalizedId).get(),
+    );
     if (!snap.exists || !context.mounted) return;
+
     final data = snap.data() ?? <String, dynamic>{};
-    final receiverId = data['receiverId']?.toString();
-    if (receiverId != null && receiverId.isNotEmpty && receiverId != currentUserId) return;
-    final status = data['status']?.toString();
-    if (status != CallStatus.calling.name && status != CallStatus.ringing.name) return;
+    final receiverId = data['receiverId']?.toString() ?? '';
+    if (receiverId.isNotEmpty && receiverId != currentUserId) return;
+
+    final status = data['status']?.toString() ?? '';
+    if (status != CallStatus.calling.name && status != CallStatus.ringing.name) {
+      return;
+    }
+
     final chatId = data['chatId']?.toString() ?? '';
-    if (chatId.isEmpty) return;
+    final callerId = data['callerId']?.toString() ?? '';
+    if (chatId.isEmpty || callerId.isEmpty) return;
 
-    await HapticFeedback.mediumImpact();
-
-    final permissions = <Permission>[Permission.microphone];
-    final isVideo = data['isVideoCall'] == true || data['callType']?.toString() == 'video';
-    if (isVideo) permissions.add(Permission.camera);
-
-    final result = await permissions.request();
-    final mediaGranted = result[Permission.microphone]?.isGranted == true &&
-        (!isVideo || result[Permission.camera]?.isGranted == true);
-    if (!mediaGranted) {
-      await endCall(normalizedId);
+    final registry = ActiveCallRegistry.instance;
+    if (registry.hasActiveCall && !registry.isActive(normalizedId)) {
+      await markBusy(normalizedId);
       return;
     }
 
     try {
+      await HapticFeedback.mediumImpact();
       await acceptCall(normalizedId);
-    } catch (_) {
-      await endCall(normalizedId);
-      rethrow;
+    } catch (e) {
+      debugPrint('CALL NOTIFICATION ANSWER ERROR: $e');
+      if (context.mounted) {
+        ToastService.showError('تعذر قبول المكالمة. حاول مرة أخرى.');
+      }
+      return;
     }
 
     if (!context.mounted) return;
+
+    final isVideo =
+        data['isVideoCall'] == true || data['callType']?.toString() == 'video';
+
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => CallScreen(
           callId: normalizedId,
           chatId: chatId,
           userName: data['callerName']?.toString() ?? 'مستخدم',
-          userId: data['callerId']?.toString() ?? '',
+          userId: callerId,
           userImage: data['callerPhotoUrl']?.toString(),
           isVideo: isVideo,
           isOutgoing: false,
