@@ -42,13 +42,7 @@ class SignalSessionManager {
 
     final signed = await signedPreKeyStore.loadSignedPreKeys();
     final now = DateTime.now().millisecondsSinceEpoch;
-    final valid = signed.where(
-      (record) =>
-          now - record.timestamp.toInt() <
-          const Duration(days: 7).inMilliseconds,
-    );
-
-    final newest = signed.isEmpty ? null : signed.last;
+        final newest = signed.isEmpty ? null : signed.last;
     if (newest == null || now - newest.timestamp.toInt() >= const Duration(days: 7).inMilliseconds) {
       final id = now ~/ 1000;
       final identity = await identityStore.getIdentityKeyPair();
