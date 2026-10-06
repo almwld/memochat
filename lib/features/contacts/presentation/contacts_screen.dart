@@ -46,7 +46,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => ScrollAwareScaffold(
     appBar: AppBar(
       title: const Text('تواصل', style: TextStyle(fontWeight: FontWeight.w900)),
       actions: [
