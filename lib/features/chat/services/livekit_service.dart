@@ -257,6 +257,10 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
+    // Keep the media preflight inside the service as the final guard. CallScreen
+    // also requests permissions, but restored/background/native callers can enter
+    // this service without going through that widget.
+    await ensureMediaPermissions(video: isVideo);
     final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
