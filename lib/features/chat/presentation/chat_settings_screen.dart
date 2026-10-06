@@ -62,7 +62,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     finally { if (mounted) setState(() => _saving = false); }
   }
 
-  @override Widget build(BuildContext context) => Scaffold(
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -72,46 +73,162 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           IconButton(
             tooltip: 'حفظ',
             icon: _saving
-                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary))
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: scheme.primary,
+                    ),
+                  )
                 : const Icon(Icons.save_outlined),
             onPressed: _saving ? null : _saveSettings,
           ),
         ],
       ),
-    body: ListView(children: [
-      _buildSection(title: 'المظهر', children: [
-        SwitchListTile(title: const Text('الوضع المظلم'), subtitle: const Text('تفعيل الوضع المظلم في الدردشة'), value: _darkMode, onChanged: (v) => setState(() => _darkMode = v), activeColor: scheme.primary),
-        ListTile(leading: Icon(Icons.text_fields, color: scheme.primary), title: const Text('حجم الخط'), subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.remove, size: 20), onPressed: () { if (_fontSize > 10) setState(() => _fontSize--); }), IconButton(icon: const Icon(Icons.add, size: 20), onPressed: () { if (_fontSize < 24) setState(() => _fontSize++); })])),
-      ]),
-      if (widget.chatId != null && widget.chatId!.isNotEmpty)
-        _buildSection(title: 'تخصيص هذه المحادثة', children: [
-          ListTile(leading: const Icon(Icons.wallpaper_outlined, color: AppColors.primary), title: const Text('خلفية المحادثة'), subtitle: Text(_wallpaperLabel(_wallpaper)), onTap: _chooseWallpaper),
-          ListTile(
-            leading: const Icon(Icons.text_fields, color: AppColors.primary),
-            title: const Text('حجم الخط لهذه المحادثة'),
-            subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'),
-            trailing: SizedBox(
-              width: 150,
-              child: Slider(
-                min: 10,
-                max: 24,
-                divisions: 14,
-                value: _fontSize,
-                onChanged: (v) => setState(() => _fontSize = v),
+      body: ListView(
+        padding: const EdgeInsetsDirectional.only(bottom: 24),
+        children: [
+          _buildSection(
+            title: 'المظهر',
+            children: [
+              SwitchListTile(
+                title: const Text('الوضع المظلم'),
+                subtitle: const Text('تفعيل الوضع المظلم في الدردشة'),
+                value: _darkMode,
+                onChanged: (v) => setState(() => _darkMode = v),
+                activeColor: scheme.primary,
+              ),
+              ListTile(
+                leading: Icon(Icons.text_fields, color: scheme.primary),
+                title: const Text('حجم الخط'),
+                subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'تصغير',
+                      icon: const Icon(Icons.remove_rounded, size: 20),
+                      onPressed: () {
+                        if (_fontSize > 10) setState(() => _fontSize--);
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'تكبير',
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      onPressed: () {
+                        if (_fontSize < 24) setState(() => _fontSize++);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (widget.chatId != null && widget.chatId!.isNotEmpty)
+            _buildSection(
+              title: 'تخصيص هذه المحادثة',
+              children: [
+                ListTile(
+                  leading: Icon(Icons.wallpaper_outlined, color: scheme.primary),
+                  title: const Text('خلفية المحادثة'),
+                  subtitle: Text(_wallpaperLabel(_wallpaper)),
+                  onTap: _chooseWallpaper,
+                ),
+                ListTile(
+                  leading: Icon(Icons.text_fields, color: scheme.primary),
+                  title: const Text('حجم الخط لهذه المحادثة'),
+                  subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'),
+                  trailing: SizedBox(
+                    width: 150,
+                    child: Slider(
+                      min: 10,
+                      max: 24,
+                      divisions: 14,
+                      value: _fontSize,
+                      onChanged: (v) => setState(() => _fontSize = v),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          _buildSection(
+            title: 'الإشعارات',
+            children: [
+              SwitchListTile(
+                title: const Text('الإشعارات'),
+                subtitle: const Text('تفعيل إشعارات الدردشة'),
+                value: _notifications,
+                onChanged: (v) => setState(() => _notifications = v),
+                activeColor: scheme.primary,
+              ),
+              SwitchListTile(
+                title: const Text('الصوت'),
+                subtitle: const Text('تشغيل صوت الإشعارات'),
+                value: _sound,
+                onChanged: (v) => setState(() => _sound = v),
+                activeColor: scheme.primary,
+              ),
+              SwitchListTile(
+                title: const Text('الاهتزاز'),
+                subtitle: const Text('تفعيل الاهتزاز مع الإشعارات'),
+                value: _vibration,
+                onChanged: (v) => setState(() => _vibration = v),
+                activeColor: scheme.primary,
+              ),
+            ],
+          ),
+          _buildSection(
+            title: 'البيانات',
+            children: [
+              ListTile(
+                leading: Icon(Icons.delete_forever_outlined, color: scheme.error),
+                title: Text('حذف جميع المحادثات', style: TextStyle(color: scheme.error)),
+                subtitle: Text('حذف جميع المحادثات نهائياً', style: TextStyle(color: scheme.error)),
+                onTap: _showDeleteConfirmation,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection({
+    required String title,
+    required List<Widget> children,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 18, 8),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ),
-        ]),
-      _buildSection(title: 'الإشعارات', children: [
-        SwitchListTile(title: const Text('الإشعارات'), subtitle: const Text('تفعيل إشعارات الدردشة'), value: _notifications, onChanged: (v) => setState(() => _notifications = v), activeColor: AppColors.primary),
-        SwitchListTile(title: const Text('الصوت'), subtitle: const Text('تشغيل صوت الإشعارات'), value: _sound, onChanged: (v) => setState(() => _sound = v), activeColor: AppColors.primary),
-        SwitchListTile(title: const Text('الاهتزاز'), subtitle: const Text('تفعيل الاهتزاز مع الإشعارات'), value: _vibration, onChanged: (v) => setState(() => _vibration = v), activeColor: AppColors.primary),
-      ]),
-      _buildSection(title: 'البيانات', children: [ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text('حذف جميع المحادثات', style: TextStyle(color: Colors.red)), subtitle: const Text('حذف جميع المحادثات نهائياً', style: TextStyle(color: Colors.red)), onTap: _showDeleteConfirmation)]),
-    ]),
-  );
-
-  Widget _buildSection({required String title, required List<Widget> children}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[600]))), Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)), child: Column(children: children))]);
+          Container(
+            margin: const EdgeInsetsDirectional.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
 
   String _wallpaperLabel(String value) => switch (value) {
     'mint' => 'نعناعي',
