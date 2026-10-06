@@ -70,6 +70,31 @@ class ChatService {
     return ref.id;
   }
 
+  Future<void> addMemberToGroup(String chatId, String memberId, {String? memberName, String? memberPhoto}) async {
+    final uid = _uid();
+    final chat = await _authorizedChat(chatId);
+    final data = chat.data() ?? <String, dynamic>{};
+    if (data['isGroup'] != true) throw StateError('هذه ليست مجموعة');
+    final roles = Map<String, dynamic>.from(data['memberRoles'] as Map? ?? const {});
+    if (roles[uid] != 'owner' && roles[uid] != 'admin') throw StateError('لا تملك صلاحية إضافة أعضاء');
+    final target = memberId.trim();
+    if (target.isEmpty || target == uid) throw StateError('عضو غير صالح');
+    final participants = List<String>.from(data['participants'] as List? ?? const []);
+    if (participants.contains(target)) return;
+    participants.add(target);
+    final details = Map<String, dynamic>.from(data['participantDetails'] as Map? ?? const {});
+    details[target] = {'name': memberName?.trim().isNotEmpty == true ? memberName!.trim() : 'مستخدم', 'photoUrl': memberPhoto ?? ''};
+    roles[target] = 'member';
+    final unread = Map<String, dynamic>.from(data['unreadCount'] as Map? ?? const {})..[target] = 0;
+    await _chatRef(chatId).update({
+      'participants': participants,
+      'participantDetails': details,
+      'memberRoles': roles,
+      'unreadCount': unread,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> promoteToAdmin(String chatId, String memberId) async {
     final uid=_uid(); final chat=await _authorizedChat(chatId); final data=chat.data() ?? {};
     final roles=Map<String,dynamic>.from(data['memberRoles'] as Map? ?? const {});
