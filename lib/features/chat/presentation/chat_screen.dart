@@ -7,6 +7,7 @@ import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../../core/widgets/advanced_feature_carousel.dart';
 import 'chat_room_screen.dart';
 import 'chat_navigation.dart';
 import '../../../core/models/chat_folder.dart';
@@ -204,16 +205,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                    child: PremiumHero(
-                      icon: AppIcons.chat,
+                    child: AdvancedFeatureCarousel(
                       title: 'مساحتك الخاصة',
-                      subtitle: 'كل محادثاتك ورسائلك في مكان واحد، بتجربة عربية سريعة ومرتبة.',
-                      action: IconButton(
-                        tooltip: 'محادثة جديدة',
-                        onPressed: widget.onNewChat,
-                        color: Colors.white,
-                        icon: const Icon(Icons.add_rounded),
-                      ),
+                      onClose: null,
                     ),
                   ),
                 ),
