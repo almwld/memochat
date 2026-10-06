@@ -10,6 +10,7 @@ import 'reels_screen.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import '../../../core/widgets/user_name.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../../core/widgets/advanced_feature_carousel.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key, this.service});
@@ -68,11 +69,21 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
           ],
         ),
       ),
-      body: TabBarView(
-        controller: tabs,
+      body: Column(
         children: [
-          _Feed(service: service),
-          ReelsScreen(service: service),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: AdvancedFeatureCarousel(title: 'تجربة MemoChat المتقدمة'),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: tabs,
+              children: [
+                _Feed(service: service),
+                ReelsScreen(service: service),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: Padding(
