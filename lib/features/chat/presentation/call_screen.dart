@@ -145,10 +145,29 @@ class _CallScreenState extends State<CallScreen> {
     if (raw.contains('timeout') || raw.contains('timed out')) {
       return 'انتهت مهلة الاتصال. تحقق من جودة الإنترنت وحاول مرة أخرى.';
     }
-    if (raw.contains('permission') || raw.contains('إذن')) {
+    // A LiveKit publish failure is not necessarily an Android permission
+    // failure (camera already in use, audio source initialization, or WebRTC
+    // device errors can all surface through the same generic exception text).
+    // Only map explicit permission-denied errors to the permission message.
+    final explicitPermission = raw.contains('permissiondenied') ||
+        raw.contains('permission denied') ||
+        raw.contains('not permitted') ||
+        raw.contains('denied by user') ||
+        raw.contains('إذن مرفوض') ||
+        raw.contains('تم رفض الإذن');
+    if (explicitPermission) {
       return widget.isVideo
-          ? 'يلزم السماح بالكاميرا والميكروفون لإجراء مكالمة الفيديو.'
-          : 'يلزم السماح بالميكروفون لإجراء المكالمة الصوتية.';
+          ? 'تم رفض صلاحية الكاميرا أو الميكروفون. افتح إعدادات التطبيق وتأكد من السماح بهما.'
+          : 'تم رفض صلاحية الميكروفون. افتح إعدادات التطبيق وتأكد من السماح به.';
+    }
+    if (raw.contains('trackpublishexception') ||
+        raw.contains('failed to publish') ||
+        raw.contains('could not publish') ||
+        raw.contains('audio source') ||
+        raw.contains('video source')) {
+      return widget.isVideo
+          ? 'تعذر تشغيل مسار الصوت أو الكاميرا داخل المكالمة. أغلق أي تطبيق يستخدم الميكروفون/الكاميرا ثم أعد المحاولة.'
+          : 'تعذر تشغيل الميكروفون داخل المكالمة. أغلق أي تطبيق يستخدم الميكروفون ثم أعد المحاولة.';
     }
     if (raw.contains('network') || raw.contains('socket')) {
       return 'تعذر الاتصال بالشبكة. تحقق من الإنترنت وحاول مرة أخرى.';
