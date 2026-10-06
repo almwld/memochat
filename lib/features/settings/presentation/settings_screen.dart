@@ -220,142 +220,181 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
 
+  Future<void> _open(String title, IconData icon, List<_SettingItem> items) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => _SettingsSectionScreen(title: title, icon: icon, items: items)));
+  }
+
+  Future<void> _theme() async {
+    final value = await showModalBottomSheet<ThemeMode>(
+      context: context, showDragHandle: true,
+      builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const ListTile(title: Text('المظهر', style: TextStyle(fontWeight: FontWeight.w900))),
+        for (final mode in const [ThemeMode.system, ThemeMode.light, ThemeMode.dark])
+          ListTile(
+            leading: Icon(mode == ThemeMode.system ? Icons.brightness_auto_rounded : mode == ThemeMode.light ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+            title: Text(mode == ThemeMode.system ? 'حسب الجهاز' : mode == ThemeMode.light ? 'فاتح' : 'داكن'),
+            trailing: Radio<ThemeMode>(value: mode, groupValue: _theme, onChanged: (_) => Navigator.pop(context, mode)),
+            onTap: () => Navigator.pop(context, mode),
+          ),
+        const SizedBox(height: 10),
+      ])),
+    );
+    if (value == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeKey, value == ThemeMode.light ? 'light' : value == ThemeMode.dark ? 'dark' : 'system');
+    if (!mounted) return;
+    setState(() => _theme = value);
+    widget.onThemeModeChanged(value);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     final user = _user;
-    return ScrollAwareScaffold(
+    return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات', style: TextStyle(fontWeight: FontWeight.w900))),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          PremiumHero(
-            icon: AppIcons.settings,
-            title: 'تحكم كامل',
-            subtitle: 'خصص الخصوصية، الإشعارات والمظهر بما يناسبك.',
-            action: const SizedBox.shrink(),
-          ),
-          const SizedBox(height: 14),
-          _AccountCard(user: user, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen()))),
-          const SizedBox(height: 18),
-          const _SectionTitle('الإشعارات والخصوصية'),
-          _CardGroup(
-            children: [
-              _SwitchRow(
-                icon: AppIcons.notifications,
-                title: 'الإشعارات',
-                subtitle: 'الرسائل والمكالمات والتنبيهات',
-                value: _notifications,
-                onChanged: (v) => _toggle(_notificationsKey, v),
-              ),
-              FutureBuilder<int>(
-                future: _inbox.unreadCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return ListTile(
-                    leading: const PremiumIconTile(icon: AppIcons.notifications, size: 42, iconSize: 20),
-                    title: const Text('مركز الإشعارات', style: TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text(count > 0 ? '$count إشعار غير مقروء' : 'لا توجد إشعارات غير مقروءة'),
-                    trailing: count > 0
-                        ? Badge(label: Text(count > 99 ? '99+' : '$count'), child: const Icon(Icons.chevron_left_rounded))
-                        : const Icon(Icons.chevron_left_rounded),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationCenterScreen())),
-                  );
-                },
-              ),
-              _SwitchRow(
-                icon: AppIcons.message,
-                title: 'إيصالات القراءة',
-                subtitle: 'السماح بإظهار حالة القراءة',
-                value: _readReceipts,
-                onChanged: (v) async {
-                  await _toggle(_readReceiptsKey, v);
-                  await _privacy('readReceipts', v);
-                },
-              ),
-              _SwitchRow(
-                icon: AppIcons.profile,
-                title: 'مؤشر الكتابة',
-                subtitle: 'إظهار أنك تكتب للطرف الآخر',
-                value: _typing,
-                onChanged: (v) async {
-                  await _toggle(_typingKey, v);
-                  await _privacy('showTyping', v);
-                },
-              ),
-              _SwitchRow(
-                icon: AppIcons.contacts,
-                title: 'حالة الاتصال',
-                subtitle: 'متصل الآن وآخر ظهور',
-                value: _online,
-                onChanged: (v) async {
-                  await _toggle(_onlineKey, v);
-                  await _privacy('showOnline', v);
-                },
-              ),
-              _SwitchRow(
-                icon: AppIcons.contacts,
-                title: 'إخفاء جهة اتصالي في تواصل',
-                subtitle: 'منع ظهور حسابك في قائمة المستخدمين داخل واجهة تواصل',
-                value: _hideFromContacts,
-                onChanged: (v) async {
-                  await _toggle(_hideFromContactsKey, v);
-                  await _privacy('hideFromContacts', v);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const _SectionTitle('المظهر والتطبيق'),
-          _CardGroup(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.shield_outlined),
-                title: const Text('الخصوصية المتقدمة', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const SecurityLevelIndicator(compact: false),
-                trailing: const Icon(Icons.chevron_left_rounded),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen())),
-              ),
-              ListTile(
-                leading: const PremiumIconTile(icon: AppIcons.settings, size: 42, iconSize: 20),
-                title: const Text('المظهر', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(_themeMode == ThemeMode.light ? 'فاتح' : _themeMode == ThemeMode.dark ? 'داكن' : 'حسب الجهاز'),
-                trailing: const Icon(Icons.chevron_left_rounded),
-                onTap: _themePicker,
-              ),
-              ListTile(
-                leading: const PremiumIconTile(icon: AppIcons.file, size: 42, iconSize: 20),
-                title: const Text('البيانات والتخزين', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text('إعدادات محلية بدون حذف المحادثات السحابية'),
-                trailing: const Icon(Icons.chevron_left_rounded),
-                onTap: () => _snack('التخزين المحلي متاح تلقائيًا ويُدار حسب حاجة التطبيق.'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const _SectionTitle('الحساب'),
-          _CardGroup(
-            children: [
-              ListTile(
-                leading: const PremiumIconTile(icon: AppIcons.profile, size: 42, iconSize: 20),
-                title: Text(user?.displayName ?? 'مستخدم MemoChat', style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(user?.isAnonymous == true ? 'حساب مؤقت' : user?.email ?? 'حساب MemoChat'),
-                trailing: const Icon(Icons.edit_outlined),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
-              ),
-              ListTile(
-                leading: const PremiumIconTile(icon: AppIcons.more, size: 42, iconSize: 20),
-                title: const Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text('إنهاء الجلسة الحالية'),
-                onTap: _confirmSignOut,
-              ),
-            ],
-          ),
+          _AccountCard(user: user, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()))),
+          _Section(title: 'الحساب', children: [
+            _Row(Icons.person_outline_rounded, 'الحساب والملف الشخصي', 'الصورة، الاسم، المعرّف العام', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()))),
+            _Row(Icons.lock_outline_rounded, 'الخصوصية والأمان', 'آخر ظهور، القراءة، الحظر والتشفير', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen()))),
+            _Row(Icons.devices_other_rounded, 'الأجهزة المرتبطة', 'الجلسات والتحقق بخطوتين', () => _open('الأجهزة المرتبطة', Icons.devices_other_rounded, const [
+              _SettingItem('التحقق بخطوتين', 'حماية إضافية للحساب', Icons.password_rounded, switchable: true),
+              _SettingItem('تنبيهات الأمان', 'التنبيه عند تغير معلومات الأمان', Icons.security_update_good_outlined, switchable: true),
+              _SettingItem('الجلسات النشطة', 'الأجهزة التي تستخدم الحساب', Icons.devices_outlined),
+            ])),
+          ]),
+          _Section(title: 'المحادثات', children: [
+            _Row(Icons.chat_bubble_outline_rounded, 'المحادثات', 'الخلفية، الخط، الرسائل المؤقتة والوسائط', () => _open('المحادثات', Icons.chat_bubble_outline_rounded, const [
+              _SettingItem('الرسائل المؤقتة', 'إخفاء الرسائل تلقائياً', Icons.timer_outlined, switchable: true),
+              _SettingItem('حفظ الوسائط', 'حفظ الصور والفيديو في الجهاز', Icons.photo_library_outlined, switchable: true, defaultValue: false),
+              _SettingItem('معاينة الروابط', 'عرض معاينة الروابط', Icons.link_rounded, switchable: true),
+              _SettingItem('حجم الخط', 'تخصيص حجم النص', Icons.text_fields_rounded),
+              _SettingItem('خلفية المحادثة', 'تخصيص خلفية غرف الدردشة', Icons.wallpaper_outlined),
+            ])),
+            _Row(Icons.archive_outlined, 'المجلدات والأرشيف', 'تنظيم المحادثات المؤرشفة والمجلدات', () => _open('المجلدات والأرشيف', Icons.archive_outlined, const [
+              _SettingItem('الإبقاء على المؤرشفة', 'لا تعود المحادثة عند وصول رسالة', Icons.archive_outlined, switchable: true),
+              _SettingItem('مجلدات المحادثات', 'إدارة مجلداتك المخصصة', Icons.folder_outlined),
+            ])),
+          ]),
+          _Section(title: 'الإشعارات والأصوات', children: [
+            _Row(Icons.notifications_none_rounded, 'الإشعارات', 'الرسائل والمجموعات والمكالمات', () => _open('الإشعارات والأصوات', Icons.notifications_none_rounded, const [
+              _SettingItem('إشعارات الرسائل', 'تنبيهات الرسائل الخاصة والمجموعات', Icons.chat_outlined, switchable: true),
+              _SettingItem('إشعارات المكالمات', 'تنبيهات المكالمات الواردة', Icons.call_outlined, switchable: true),
+              _SettingItem('صوت الإشعارات', 'تشغيل أصوات التنبيه', Icons.volume_up_outlined, switchable: true),
+              _SettingItem('الاهتزاز', 'اهتزاز الجهاز مع التنبيهات', Icons.vibration_outlined, switchable: true),
+              _SettingItem('معاينة الرسائل', 'إظهار محتوى الرسالة في الإشعار', Icons.preview_outlined, switchable: true),
+            ])),
+            _Row(Icons.notifications_active_outlined, 'مركز الإشعارات', 'السجل والإشعارات غير المقروءة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationCenterScreen()))),
+          ]),
+          _Section(title: 'البيانات والتخزين', children: [
+            _Row(Icons.data_usage_outlined, 'البيانات والتخزين', 'التنزيل التلقائي والمساحة واستخدام الشبكة', () => _open('البيانات والتخزين', Icons.data_usage_outlined, const [
+              _SettingItem('التنزيل التلقائي للصور', 'حسب نوع الشبكة', Icons.image_outlined),
+              _SettingItem('التنزيل التلقائي للفيديو', 'التحكم في تنزيل الفيديو', Icons.video_library_outlined),
+              _SettingItem('التنزيل التلقائي للملفات', 'التحكم في تنزيل المستندات', Icons.insert_drive_file_outlined),
+              _SettingItem('بيانات أقل للمكالمات', 'تقليل استهلاك البيانات', Icons.network_check_outlined, switchable: true),
+              _SettingItem('التخزين', 'إدارة الوسائط والمساحة المحلية', Icons.storage_outlined),
+            ])),
+          ]),
+          _Section(title: 'المكالمات', children: [
+            _Row(Icons.call_outlined, 'المكالمات', 'الصوت والفيديو والبيانات', () => _open('المكالمات', Icons.call_outlined, const [
+              _SettingItem('استخدام بيانات أقل', 'تقليل استهلاك البيانات', Icons.data_saver_on_outlined, switchable: true),
+              _SettingItem('المكالمات الفائتة', 'إشعارات المكالمات الفائتة', Icons.call_missed_outlined, switchable: true),
+              _SettingItem('الأجهزة الصوتية', 'مسار الصوت المتاح', Icons.headset_mic_outlined),
+            ])),
+          ]),
+          _Section(title: 'القصص والمجموعات', children: [
+            _Row(Icons.auto_stories_outlined, 'القصص والحالة', 'الخصوصية والمشاهدات والردود', () => _open('القصص والحالة', Icons.auto_stories_outlined, const [
+              _SettingItem('خصوصية الحالة', 'من يمكنه رؤية حالتك', Icons.visibility_outlined),
+              _SettingItem('إيصالات مشاهدة الحالة', 'تسجيل مشاهدات الحالة', Icons.done_all_rounded, switchable: true),
+              _SettingItem('السماح بالردود', 'السماح بالرد على الحالة', Icons.reply_outlined, switchable: true),
+            ])),
+            _Row(Icons.groups_outlined, 'المجموعات والمجتمعات', 'الدعوات والإضافة والإشعارات', () => _open('المجموعات والمجتمعات', Icons.groups_outlined, const [
+              _SettingItem('من يمكنه إضافتي', 'التحكم في إضافتك للمجموعات', Icons.person_add_alt_1_outlined),
+              _SettingItem('إشعارات المجموعات', 'التحكم في تنبيهات المجموعات', Icons.groups_2_outlined, switchable: true),
+            ])),
+          ]),
+          _Section(title: 'المظهر وإمكانية الوصول', children: [
+            _Row(Icons.palette_outlined, 'المظهر', _theme == ThemeMode.system ? 'حسب الجهاز' : _theme == ThemeMode.dark ? 'داكن' : 'فاتح', _theme),
+            _Row(Icons.accessibility_new_outlined, 'إمكانية الوصول', 'الحركة والتباين وتشغيل الوسائط', () => _open('إمكانية الوصول', Icons.accessibility_new_outlined, const [
+              _SettingItem('تقليل الحركة', 'تقليل الانتقالات', Icons.motion_photos_off_outlined, switchable: true),
+              _SettingItem('تباين أعلى', 'زيادة وضوح الواجهة', Icons.contrast_outlined, switchable: true),
+              _SettingItem('التشغيل التلقائي', 'تشغيل الوسائط تلقائياً', Icons.play_circle_outline_rounded, switchable: true),
+            ])),
+          ]),
+          _Section(title: 'الأمان', children: [
+            _Row(Icons.shield_outlined, 'مركز الأمان والتشفير', 'مستوى الحماية والتشفير الفعلي', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen()))),
+          ]),
+          _Section(title: 'الدعم', children: [
+            _Row(Icons.help_outline_rounded, 'المساعدة', 'مركز المساعدة والإبلاغ', () => _open('المساعدة', Icons.help_outline_rounded, const [
+              _SettingItem('مركز المساعدة', 'إرشادات استخدام MemoChat', Icons.menu_book_outlined),
+              _SettingItem('الإبلاغ عن مشكلة', 'وصف المشكلة لفريق الدعم', Icons.bug_report_outlined),
+              _SettingItem('الشروط والخصوصية', 'معلومات الاستخدام والخصوصية', Icons.description_outlined),
+            ])),
+            _Row(Icons.info_outline_rounded, 'حول MemoChat', 'الإصدار والتراخيص', () => _open('حول MemoChat', Icons.info_outline_rounded, const [
+              _SettingItem('إصدار التطبيق', 'MemoChat', Icons.info_outline_rounded),
+              _SettingItem('المصادر المفتوحة', 'مكونات الطرف الثالث والتراخيص', Icons.code_rounded),
+            ])),
+          ]),
+          Card(child: ListTile(
+            leading: Icon(Icons.logout_rounded, color: Theme.of(context).colorScheme.error),
+            title: Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.error)),
+            onTap: _signOut,
+          )),
         ],
       ),
     );
   }
+
+}
+
+class _SettingItem {
+  const _SettingItem(this.title, this.subtitle, this.icon, {this.switchable = false, this.defaultValue = true});
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool switchable;
+  final bool defaultValue;
+}
+
+class _SettingsSectionScreen extends StatefulWidget {
+  const _SettingsSectionScreen({required this.title, required this.icon, required this.items});
+  final String title;
+  final IconData icon;
+  final List<_SettingItem> items;
+  @override State<_SettingsSectionScreen> createState() => _SettingsSectionScreenState();
+}
+
+class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
+  late final Map<String, bool> _values = {for (final item in widget.items) item.title: item.defaultValue};
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w900))),
+    body: ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      children: [
+        Card(child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
+          PremiumIconTile(icon: widget.icon, size: 48, iconSize: 23),
+          const SizedBox(width: 14),
+          Expanded(child: Text(widget.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
+        ]))),
+        const SizedBox(height: 12),
+        Card(clipBehavior: Clip.antiAlias, child: Column(children: [
+          for (var i = 0; i < widget.items.length; i++)
+            Builder(builder: (_) {
+              final item = widget.items[i];
+              final child = item.switchable
+                  ? SwitchListTile(secondary: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), value: _values[item.title]!, onChanged: (v) => setState(() => _values[item.title] = v))
+                  : ListTile(leading: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), trailing: const Icon(Icons.chevron_left_rounded), onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('إعداد ' + item.title + ' متاح من هذه الواجهة'))));
+              return Column(children: [child, if (i < widget.items.length - 1) const Divider(height: 1)]);
+            }),
+        ])),
+      ],
+    ),
+  );
 }
 
 class _AccountCard extends StatelessWidget {
