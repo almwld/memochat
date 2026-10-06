@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/nextcloud_config.dart';
+import '../../../core/config/livekit_config.dart';
 
 class NextcloudService {
   static final NextcloudService _instance = NextcloudService._internal();
@@ -165,98 +167,71 @@ class NextcloudService {
     required String path,
     String? fileName,
     String? mimeType,
+    String? chatId,
     void Function(int, int)? onProgress,
     bool createShare = true,
     CancelToken? cancelToken,
   }) async {
     try {
-      _ensureConfigured();
-      if (!await file.exists()) {
-        return const NextcloudUploadResult(success: false, error: 'الملف المحلي غير موجود');
-      }
+      if (!await file.exists()) return const NextcloudUploadResult(success: false, error: 'الملف المحلي غير موجود');
       final name = _cleanPart(fileName ?? file.path.split(Platform.pathSeparator).last);
       if (name.isEmpty) return const NextcloudUploadResult(success: false, error: 'اسم الملف غير صالح');
       final logicalDirectory = _platformPath(path);
-      final remotePath = '$logicalDirectory/$name';
-      final davUrl = _davUrl(remotePath);
       final fileLength = await file.length();
-      debugPrint('📤 PUT: $davUrl');
-      debugPrint('📤 file size: $fileLength');
-
-      await _ensureDirectories(logicalDirectory);
-
-      Response<void>? response;
-      var status = 0;
-      for (var attempt = 1; attempt <= 3; attempt++) {
-        response = await _dio.put<void>(
-          davUrl,
-          data: file.openRead(),
-          options: Options(
-            headers: {
-              'Authorization': 'Basic ${_authToken()}',
-              'Content-Type': mimeType?.trim().isNotEmpty == true ? mimeType!.trim() : 'application/octet-stream',
-              'Content-Length': fileLength.toString(),
-            },
-            contentType: 'application/octet-stream',
-            validateStatus: (status) => status != null,
-          ),
-          onSendProgress: onProgress,
-          cancelToken: cancelToken,
-        );
-        status = response.statusCode ?? 0;
-        debugPrint('📤 PUT status: $status attempt=$attempt');
-        if ([201, 204].contains(status) || ![502, 503, 504].contains(status) || attempt == 3) break;
-        await Future<void>.delayed(Duration(seconds: attempt * 2));
-      }
-      debugPrint('📤 PUT status: $status');
-      if (status != 201 && status != 204) {
-        return NextcloudUploadResult(success: false, path: remotePath, fileName: name, error: 'فشل رفع الملف إلى Nextcloud: HTTP $status');
-      }
-      if (!createShare) return NextcloudUploadResult(success: true, path: remotePath, fileName: name);
-
-      String? publicUrl;
-      String? shareError;
-      try {
-        publicUrl = await createPublicShare(remotePath);
-        if (publicUrl == null || publicUrl.isEmpty) shareError = 'تم رفع الملف بنجاح، لكن رابط الوصول لم يجهز بعد';
-      } catch (e, st) {
-        debugPrint('❌ createPublicShare failed: $e');
-        debugPrint('❌ stack: $st');
-        shareError = 'تم رفع الملف بنجاح، وتعذر تجهيز رابط الوصول: $e';
-      }
-      return NextcloudUploadResult(success: true, url: publicUrl, path: remotePath, fileName: name, error: shareError, shareReady: publicUrl != null && publicUrl.isNotEmpty);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return const NextcloudUploadResult(success: false, error: 'يجب تسجيل الدخول قبل رفع الوسائط');
+      final token = await user.getIdToken();
+      if (token == null || token.isEmpty) return const NextcloudUploadResult(success: false, error: 'تعذر الحصول على جلسة Firebase لرفع الوسائط');
+      final uri = Uri.parse('${LiveKitConfig.tokenServerUrl}/media/upload').replace(
+        queryParameters: <String, String>{
+          'path': logicalDirectory,
+          'fileName': name,
+          'mimeType': mimeType?.trim().isNotEmpty == true ? mimeType!.trim() : 'application/octet-stream',
+          'createShare': createShare ? 'true' : 'false',
+          if (chatId?.trim().isNotEmpty == true) 'chatId': chatId!.trim(),
+        },
+      );
+      final response = await _dio.post<dynamic>(
+        uri.toString(),
+        data: file.openRead(),
+        options: Options(headers: <String, String>{'Authorization': 'Bearer $token', 'Content-Type': 'application/octet-stream', 'Content-Length': fileLength.toString()}, responseType: ResponseType.json, validateStatus: (status) => status != null),
+        onSendProgress: onProgress,
+        cancelToken: cancelToken,
+      );
+      final status = response.statusCode ?? 0;
+      final body = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : const <String, dynamic>{};
+      if (status < 200 || status >= 300 || body['success'] != true) return NextcloudUploadResult(success: false, error: body['message']?.toString() ?? 'فشل رفع الوسائط عبر خادم الوسائط');
+      final rawFile = body['file'];
+      final uploaded = rawFile is Map ? Map<String, dynamic>.from(rawFile) : const <String, dynamic>{};
+      final remotePath = uploaded['remotePath']?.toString();
+      final url = uploaded['url']?.toString();
+      if (remotePath == null || remotePath.isEmpty) return const NextcloudUploadResult(success: false, error: 'خادم الوسائط لم يعُد بمسار الملف');
+      return NextcloudUploadResult(success: true, url: url?.isNotEmpty == true ? url : null, path: remotePath, fileName: uploaded['fileName']?.toString() ?? name, error: url?.isNotEmpty == true ? null : 'تم رفع الملف، لكن رابط الوصول لم يجهز بعد', shareReady: url?.isNotEmpty == true);
     } catch (e, st) {
-      debugPrint('❌ uploadFile failed: $e');
+      debugPrint('❌ media backend upload failed: $e');
       debugPrint('❌ stack: $st');
       return NextcloudUploadResult(success: false, error: e.toString());
     }
   }
-
   Future<String?> createPublicShare(String remotePath) async {
-    _ensureConfigured();
+    final normalized = remotePath.trim().replaceFirst(RegExp(r'^/+'), '');
+    if (normalized.isEmpty) return null;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    final token = await user.getIdToken();
+    if (token == null || token.isEmpty) return null;
     try {
-      final response = await http.post(
-        Uri.parse('${_normalizedBase()}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json'),
-        headers: _headers(),
-        body: {'path': '/${_cleanLogicalPath(remotePath)}', 'shareType': '3'},
-      );
-      debugPrint('🔗 Share status: ${response.statusCode}');
-      final bodyPreview = response.body.substring(0, response.body.length > 200 ? 200 : response.body.length);
-      debugPrint('🔗 Share body: $bodyPreview');
-      if (response.statusCode < 200 || response.statusCode >= 300) return null;
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final ocs = body['ocs'] as Map<String, dynamic>?;
-      final data = ocs?['data'] as Map<String, dynamic>?;
-      final shareUrl = data?['url']?.toString();
-      if (shareUrl == null || shareUrl.isEmpty) return null;
-      return '${shareUrl.replaceFirst(RegExp(r'/$'), '')}/download';
+      final response = await _dio.post<dynamic>('${LiveKitConfig.tokenServerUrl}/media/share', data: <String, dynamic>{'remotePath': normalized}, options: Options(headers: <String, String>{'Authorization': 'Bearer $token'}, responseType: ResponseType.json, validateStatus: (status) => status != null));
+      if ((response.statusCode ?? 0) < 200 || (response.statusCode ?? 0) >= 300) return null;
+      final body = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : const <String, dynamic>{};
+      final url = body['url']?.toString();
+      return url?.isNotEmpty == true ? url : null;
     } catch (e, st) {
-      debugPrint('❌ createPublicShare failed: $e');
+      debugPrint('❌ media backend share failed: $e');
       debugPrint('❌ stack: $st');
       return null;
     }
   }
-
   Future<bool> verifyPublicUrl(String url) async {
     final client = http.Client();
     var current = Uri.parse(url);
