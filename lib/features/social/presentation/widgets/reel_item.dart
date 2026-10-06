@@ -26,7 +26,7 @@ class ReelItem extends StatefulWidget {
   State<ReelItem> createState() => _ReelItemState();
 }
 
-class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin {
+class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   VideoPlayerController? _player;
   bool _liked = false;
   bool _saved = false;
@@ -37,6 +37,7 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _liked = false;
     _initPlayer();
   }
@@ -73,7 +74,19 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final player = _player;
+    if (player == null) return;
+    if (state == AppLifecycleState.resumed && widget.active && player.value.isInitialized) {
+      player.play();
+    } else if (state != AppLifecycleState.resumed) {
+      player.pause();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _player?.dispose();
     super.dispose();
   }
