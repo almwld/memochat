@@ -42,7 +42,36 @@ Future<void> showCommentSheet(BuildContext context, SocialService service, Strin
                           child: (data['userPhoto']?.toString().isNotEmpty ?? false) ? null : const Icon(Icons.person),
                         ),
                         subtitle: Text(data['text']?.toString() ?? ''),
-                        trailing: mine ? IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => service.deleteComment(reelId, doc.id)) : null,
+                        trailing: mine
+                            ? PopupMenuButton<String>(
+                                onSelected: (value) async {
+                                  if (value == 'delete') {
+                                    await service.deleteComment(reelId, doc.id);
+                                  } else if (value == 'edit') {
+                                    final controller = TextEditingController(text: data['text']?.toString() ?? '');
+                                    final edited = await showDialog<String>(
+                                      context: sheetContext,
+                                      builder: (dialogContext) => AlertDialog(
+                                        title: const Text('تعديل التعليق'),
+                                        content: TextField(controller: controller, maxLines: 4, maxLength: 1000),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                                          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                                        ],
+                                      ),
+                                    );
+                                    controller.dispose();
+                                    if (edited != null && edited.isNotEmpty) {
+                                      await service.editComment(reelId, doc.id, edited);
+                                    }
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                                  PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                ],
+                              )
+                            : null,
                       );
                     },
                   );
