@@ -3,7 +3,6 @@ import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/scheduler.dart';
 import '../../services/game_service.dart';
 import '../../models/game.dart';
 
