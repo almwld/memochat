@@ -61,6 +61,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   bool _paused = false;
   bool _sending = false;
   bool _attachments = false;
+  bool _gamesOpening = false;
   bool _loadingRecent = false;
   List<AssetEntity> _recentAssets = const [];
 
@@ -94,6 +95,22 @@ class _ChatInputBarState extends State<ChatInputBar> {
     _focus.dispose();
     _recorder.dispose();
     super.dispose();
+  }
+
+  Future<void> _openGames() async {
+    if (_sending || _gamesOpening || !mounted) return;
+    setState(() => _gamesOpening = true);
+    _focus.unfocus(disposition: UnfocusDisposition.scope);
+    FocusScope.of(context).unfocus(disposition: UnfocusDisposition.scope);
+    FocusManager.instance.primaryFocus?.unfocus();
+    try {
+      await showGamesSheet(context, chatId: widget.chatId);
+    } catch (e) {
+      debugPrint('games sheet: $e');
+      if (mounted) ToastService.showError('تعذر فتح الألعاب. أعد المحاولة.');
+    } finally {
+      if (mounted) setState(() => _gamesOpening = false);
+    }
   }
 
   Future<void> _toggleAttachments() async {
@@ -679,7 +696,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                           ),
                           IconButton(
                             tooltip: 'الألعاب',
-                            onPressed: _sending ? null : () => showGamesSheet(context, chatId: widget.chatId),
+                            onPressed: (_sending || _gamesOpening) ? null : _openGames,
                             icon: Icon(Icons.sports_esports_outlined, color: iconColor),
                             splashRadius: 21,
                           ),
