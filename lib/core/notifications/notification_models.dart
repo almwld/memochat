@@ -9,6 +9,7 @@ enum NotificationType {
   reply,
   system,
   general,
+  call,
 }
 
 enum NotificationPriority { low, normal, high }
@@ -25,15 +26,22 @@ extension NotificationTypeWireName on NotificationType {
         NotificationType.reply => 'reply',
         NotificationType.system => 'system',
         NotificationType.general => 'general',
+        NotificationType.call => 'call',
       };
 
 }
 
 abstract final class NotificationTypeCodec {
-  static NotificationType parse(String? value) => NotificationType.values.firstWhere(
-        (type) => type.wireName == value,
-        orElse: () => NotificationType.general,
-      );
+  static NotificationType parse(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    if (normalized == 'incoming_call' || normalized == 'incoming_video_call' || normalized == 'call') {
+      return NotificationType.call;
+    }
+    return NotificationType.values.firstWhere(
+      (type) => type.wireName == value,
+      orElse: () => NotificationType.general,
+    );
+  }
 }
 
 class AppNotification {
@@ -45,6 +53,7 @@ class AppNotification {
     required this.timestamp,
     this.chatId,
     this.messageId,
+    this.callId,
     this.senderId,
     this.route,
     this.priority = NotificationPriority.normal,
@@ -60,6 +69,7 @@ class AppNotification {
   final DateTime timestamp;
   final String? chatId;
   final String? messageId;
+  final String? callId;
   final String? senderId;
   final String? route;
   final NotificationPriority priority;
@@ -67,13 +77,14 @@ class AppNotification {
   final bool sound;
   final bool vibration;
 
-  String get dedupeKey => messageId ?? '$type:$id';
+  String get dedupeKey => callId ?? messageId ?? '$type:$id';
 
   Map<String, dynamic> toJson() => {
         'type': type.wireName,
         'notificationId': id,
         'chatId': chatId,
         'messageId': messageId,
+        'callId': callId,
         'senderId': senderId,
         'route': route,
         'timestamp': timestamp.toIso8601String(),
@@ -83,6 +94,8 @@ class AppNotification {
 
   String encode() => jsonEncode(toJson());
 
+  bool get isCall => type == NotificationType.call || (callId?.isNotEmpty ?? false);
+
   factory AppNotification.fromRemote(Map<String, dynamic> data, {
     String? fallbackId,
     String? fallbackTitle,
@@ -90,8 +103,9 @@ class AppNotification {
   }) {
     final type = NotificationTypeCodec.parse(data['type']?.toString());
     final messageId = data['messageId']?.toString();
+    final callId = data['callId']?.toString();
     final id = data['notificationId']?.toString() ?? messageId ?? fallbackId ?? DateTime.now().microsecondsSinceEpoch.toString();
-    final route = data['route']?.toString();
+    final route = data['route']?.toString() ?? (callId != null && callId.isNotEmpty ? 'call:$callId' : null);
     return AppNotification(
       id: id,
       type: type,
@@ -100,10 +114,11 @@ class AppNotification {
       timestamp: DateTime.tryParse(data['timestamp']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
       chatId: data['chatId']?.toString(),
       messageId: messageId,
+      callId: callId,
       senderId: data['senderId']?.toString(),
       route: route,
       priority: data['priority']?.toString() == 'high' ? NotificationPriority.high : NotificationPriority.normal,
-      channel: NotificationChannel.messages,
+      channel: callId != null && callId.isNotEmpty ? NotificationChannel.calls : NotificationChannel.messages,
       sound: data['sound']?.toString() != 'false',
       vibration: data['vibration']?.toString() != 'false',
     );
