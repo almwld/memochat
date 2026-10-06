@@ -379,6 +379,111 @@ app.post('/voice-token', async (req, res) => {
 });
 
 // ============================================================
+// Incoming call FCM bridge
+// ============================================================
+// Firestore remains the source of truth. This endpoint only wakes the
+// receiver with a high-priority data-only FCM message.
+app.post('/call-notification', async (req, res) => {
+  const requestId = `call-notify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    const decodedToken = await verifyFirebaseUser(req);
+    const callId = String(req.body?.callId || '').trim();
+    if (!callId) return res.status(400).json({ success: false, message: 'callId is required', requestId });
+
+    const callSnapshot = await db.collection('calls').doc(callId).get();
+    if (!callSnapshot.exists) return res.status(404).json({ success: false, message: 'Call not found', requestId });
+
+    const call = callSnapshot.data() || {};
+    const callerId = String(call.callerId || '');
+    const receiverId = String(call.receiverId || '').trim();
+    const status = String(call.status || '').trim();
+    const chatId = String(call.chatId || '').trim();
+
+    if (callerId !== decodedToken.uid) {
+      return res.status(403).json({ success: false, message: 'Caller is not authorized for this call', requestId });
+    }
+    if (!['calling', 'ringing'].includes(status)) {
+      return res.status(409).json({ success: false, message: 'Call is no longer ringing', status, requestId });
+    }
+    if (!receiverId || receiverId === decodedToken.uid || !chatId) {
+      return res.status(400).json({ success: false, message: 'Invalid call participants', requestId });
+    }
+
+    const tokenSnapshot = await db.collection('users').doc(receiverId)
+      .collection('private').doc('tokens').get();
+    const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
+    const fcmTokens = Array.isArray(tokenData.tokens)
+      ? [...new Set(tokenData.tokens.map(v => String(v || '').trim()).filter(Boolean))]
+      : [];
+
+    if (!fcmTokens.length) {
+      return res.status(200).json({
+        success: true, sent: false, reason: 'fcm_token_missing', receiverId, requestId,
+      });
+    }
+
+    const message = {
+      tokens: fcmTokens,
+      data: {
+        type: 'incoming_call',
+        callId,
+        chatId,
+        callerId,
+        receiverId,
+        userId: receiverId,
+        callerName: String(call.callerName || 'مستخدم'),
+        callerPhotoUrl: String(call.callerPhotoUrl || ''),
+        isVideo: (call.isVideoCall === true || call.isVideo === true) ? 'true' : 'false',
+        callType: String(call.callType || ((call.isVideoCall || call.isVideo) ? 'video' : 'audio')),
+      },
+      android: { priority: 'high', ttl: 60 * 1000 },
+    };
+
+    const response = await admin.messaging().sendEachForMulticast(message);
+    const invalidTokens = [];
+    response.responses.forEach((result, index) => {
+      if (!result.success && [
+        'messaging/registration-token-not-registered',
+        'messaging/invalid-registration-token',
+      ].includes(result.error?.code)) {
+        invalidTokens.push(fcmTokens[index]);
+      }
+    });
+    if (invalidTokens.length) {
+      await db.collection('users').doc(receiverId).collection('private').doc('tokens')
+        .update({ tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens) });
+    }
+
+    if (response.successCount === 0) {
+      const firstError = response.responses.find(result => !result.success)?.error;
+      return res.status(502).json({
+        success: false, sent: false,
+        reason: firstError?.code || 'fcm_send_failed',
+        requestId,
+      });
+    }
+
+    return res.json({
+      success: true,
+      sent: true,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      callId,
+      receiverId,
+      requestId,
+    });
+  } catch (error) {
+    const status = Number(error.statusCode) || 500;
+    console.error('Call notification error:', error.message || error);
+    return res.status(status).json({
+      success: false,
+      message: error.message || 'Unable to send incoming call notification',
+      requestId,
+    });
+  }
+});
+
+// ============================================================
 // Firestore -> FCM: New chat message listener
 // ============================================================
 function buildMessagePayload(opts) {
