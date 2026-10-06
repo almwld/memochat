@@ -105,9 +105,10 @@ exports.notifyNewChatMessage=onDocumentCreated('chats/{chatId}/messages/{message
   const notifyReceivers=receivers.filter(uid=>mutedFor[uid]!==true);
   if(!notifyReceivers.length)return;
   const encryptedMessage=Boolean(m.e2eePayloads && typeof m.e2eePayloads==='object');
+  const metadataProtected=Boolean(m.security && m.security.metadataProtection===true);
   const type=encryptedMessage?'encrypted':String(m.type||'text'),text=encryptedMessage?'':String(m.text||'').trim();
   const body=encryptedMessage?'لديك رسالة جديدة في الدردشة':({image:'📷 أرسل صورة',video:'🎬 أرسل فيديو',audio:'🎵 أرسل رسالة صوتية',file:'📎 أرسل ملف',location:'📍 شارك موقعاً'}[type]||text||'أرسل رسالة جديدة');
-  const senderName=encryptedMessage?'مستخدم':String(m.senderName||'مستخدم');
+  const senderName=(encryptedMessage || metadataProtected)?'جهة اتصال':String(m.senderName||'مستخدم');
 
   // Delivery is distinct from sending: a message is delivered only when at
   // least one receiver is actually online. Opening the chat also marks it
@@ -124,9 +125,9 @@ exports.notifyNewChatMessage=onDocumentCreated('chats/{chatId}/messages/{message
       type:'new_message',
       chatId,
       messageId:event.params.messageId,
-      senderId,
+      ...(metadataProtected ? {} : {senderId}),
       senderName,
-      senderPhotoUrl:String(m.senderPhotoUrl || m.senderAvatar || ''),
+      senderPhotoUrl:metadataProtected?'':String(m.senderPhotoUrl || m.senderAvatar || ''),
       messageType:type,
       imageUrl:encryptedMessage?'':String(m.imageUrl || ''),
       videoUrl:encryptedMessage?'':String(m.videoUrl || ''),
