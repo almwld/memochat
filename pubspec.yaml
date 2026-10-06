@@ -89,3 +89,4 @@ dependency_overrides:
   record_platform_interface: 1.2.0
   font_awesome_flutter: 10.8.0
   hand_signature: 3.0.3
+  screenshot: 3.0.0
