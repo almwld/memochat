@@ -524,10 +524,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
 
     await _messagesSub?.cancel();
-    // Messages are encrypted at rest. The room must consume ChatService's
-    // canonical decrypted stream rather than parsing the encrypted Firestore
-    // envelope directly. Parsing the envelope made text/media fields null and
-    // rendered an apparently empty bubble for every E2EE message.
+    // The room consumes ChatService's canonical Firestore stream.
+    // Encryption layers are intentionally suspended for this transport path.
     _messagesSub = _chat.streamMessages(_chatId, limit: 100).listen((page) {
       if (!mounted) return;
       _roomLoadTimer?.cancel();
