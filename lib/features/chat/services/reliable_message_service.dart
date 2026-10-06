@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'chat_reply_context.dart';
 import 'chat_service.dart';
+import '../../../core/offline/pending_message_queue.dart';
 
 /// Single authoritative text-message path.
 ///
@@ -14,6 +18,7 @@ class ReliableMessageService {
 
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final ReliableMessageService instance = ReliableMessageService._();
+  static final PendingMessageQueue _pendingQueue = PendingMessageQueue();
 
   static Future<String> sendText({
     required String chatId,
@@ -40,20 +45,33 @@ class ReliableMessageService {
         ? replyToId!.trim()
         : reply?.id;
 
-    final id = await ChatService().sendMessage(
-      chatId: chatId,
-      text: value,
-      messageId: stableMessageId,
-      replyToId: effectiveReplyId,
-      idempotencyKey: 'text_$stableMessageId',
-    );
-
-    if (effectiveReplyId != null && effectiveReplyId.isNotEmpty) {
-      ChatReplyContext.instance.clear(chatId);
+    try {
+      final id = await ChatService().sendMessage(
+        chatId: chatId, text: value, messageId: stableMessageId,
+        replyToId: effectiveReplyId, idempotencyKey: 'text_$stableMessageId',
+      );
+      if (effectiveReplyId != null && effectiveReplyId.isNotEmpty) {
+        ChatReplyContext.instance.clear(chatId);
+      }
+      unawaited(flushPending());
+      return id;
+    } on FirebaseException catch (e) {
+      if (!_isTransientFirestoreError(e.code)) rethrow;
+      await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
+      return stableMessageId;
+    } on SocketException {
+      await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
+      return stableMessageId;
     }
-    return id;
   }
 
+  static bool _isTransientFirestoreError(String code) => code == 'unavailable' || code == 'deadline-exceeded' || code == 'aborted' || code == 'resource-exhausted' || code == 'network-request-failed';
+
+  static Future<void> flushPending() async {
+    await _pendingQueue.flush((message) async {
+      await ChatService().sendMessage(chatId: message.conversationId, text: message.text, messageId: message.id, idempotencyKey: 'text_${message.id}');
+    });
+  }
   Future<void> acknowledgeDelivered({
     required String chatId,
     required List<String> messageIds,
