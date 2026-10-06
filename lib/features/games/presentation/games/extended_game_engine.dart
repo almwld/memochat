@@ -62,7 +62,7 @@ class _ExtendedGameEngineState extends State<ExtendedGameEngine>
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 240),
       lowerBound: .96,
       upperBound: 1.0,
     )..repeat(reverse: true);

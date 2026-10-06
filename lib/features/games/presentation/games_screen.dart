@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../data/games_catalog.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
@@ -6,6 +7,7 @@ import 'package:memochat/features/games/models/game.dart';
 import '../services/game_service.dart';
 import 'game_room_screen.dart';
 import 'game_play_screen.dart';
+import '../services/game_challenge_service.dart';
 import 'widgets/game_grid.dart';
 import 'widgets/game_art.dart';
 
@@ -51,14 +53,32 @@ class _GamesScreenState extends State<GamesScreen> {
         timeLimit: _limit,
       ).timeout(const Duration(seconds: 4));
       try {
+        final chat = await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).get();
+        final participants = (chat.data()?['participants'] as List?)?.map((value) => value.toString()).toList() ?? const <String>[];
+        final opponents = participants.where((participant) => participant != uid).toSet();
+        final challengeIds = <String>[];
+        for (final opponent in opponents) {
+          try {
+            final challengeId = await GameChallengeService.instance.create(
+              gameId: id,
+              opponentUid: opponent,
+              chatId: widget.chatId,
+              gameType: definition.type.name,
+            );
+            if (challengeId != null) challengeIds.add(challengeId);
+          } catch (error) {
+            debugPrint('Signal game challenge unavailable: $error');
+          }
+        }
         await ChatService().sendMessage(
           chatId: widget.chatId,
-          text: '🎮 ${definition.title} — دعوة للعب',
+          text: '${definition.title} — دعوة تحدٍ مباشرة مشفرة',
           metadata: {
-            'kind': 'game_invite',
+            'kind': 'signal_game_challenge',
             'gameId': id,
             'gameType': definition.type.name,
             'timeLimit': _limit.name,
+            'challengeIds': challengeIds,
           },
         ).timeout(const Duration(seconds: 4));
       } catch (e) {

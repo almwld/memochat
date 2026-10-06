@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import '../../app/app.dart';
 import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
@@ -24,13 +26,23 @@ class PushNotificationService {
   final RingtoneService _ringtone;
 
   Future<void> initialize() async {
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
-    await _syncToken(await _messaging.getToken());
-    FirebaseMessaging.instance.onTokenRefresh.listen(_syncToken);
+    try {
+      await _messaging.requestPermission(alert: true, badge: true, sound: true).timeout(const Duration(seconds: 8));
+    } catch (error) {
+      // Android can reject or delay the runtime prompt; local notifications
+      // must remain usable and FCM listeners must still be installed.
+      debugPrint('FCM permission request skipped: $error');
+    }
+    _messaging.onTokenRefresh.listen((token) => unawaited(_syncToken(token).catchError((error) => debugPrint('FCM token sync failed: $error'))));
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
+    try {
+      await _syncToken(await _messaging.getToken().timeout(const Duration(seconds: 8)));
+    } catch (error) {
+      debugPrint('FCM token unavailable: $error');
+    }
     final initial = await _messaging.getInitialMessage();
     if (initial != null) await _handleOpened(initial);
   }
@@ -72,14 +84,6 @@ class PushNotificationService {
     final notification = _parse(message);
     if (notification.senderId != null && notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
     if (!await _inbox.addNotification(notification)) return;
-    await _history.add(
-      notification.type.wireName,
-      notification.title,
-      notification.body,
-      route: notification.route,
-      data: notification.toJson(),
-      id: notification.id,
-    );
     if (notification.isCall) {
       await _localNotifications.showIncomingCallNotification(
         callerName: notification.title,
@@ -98,6 +102,18 @@ class PushNotificationService {
         playSound: notification.sound,
       );
       if (notification.sound) await _ringtone.playMessageSound(vibrate: notification.vibration);
+    }
+    try {
+      await _history.add(
+        notification.type.wireName,
+        notification.title,
+        notification.body,
+        route: notification.route,
+        data: notification.toJson(),
+        id: notification.id,
+      );
+    } catch (error) {
+      debugPrint('notification history unavailable: $error');
     }
   }
   Future<void> _handleOpened(RemoteMessage message) async {
@@ -138,14 +154,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
   final inbox = NotificationInbox();
   if (!await inbox.addNotification(notification)) return;
-  await NotificationHistoryService().add(
-    notification.type.wireName,
-    notification.title,
-    notification.body,
-    route: notification.route,
-    data: notification.toJson(),
-    id: notification.id,
-  );
   if (message.notification == null) {
     final local = NotificationService();
     await local.initialize(startCallCoordinator: false);
@@ -166,5 +174,17 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         playSound: notification.sound,
       );
     }
+  }
+  try {
+    await NotificationHistoryService().add(
+      notification.type.wireName,
+      notification.title,
+      notification.body,
+      route: notification.route,
+      data: notification.toJson(),
+      id: notification.id,
+    );
+  } catch (error) {
+    debugPrint('background notification history unavailable: $error');
   }
 }

@@ -264,7 +264,7 @@ class NotificationService {
   static const _messageChannel = AndroidNotificationChannel(
     messageChannelId, 'MemoChat - الرسائل',
     description: 'إشعارات الرسائل الجديدة في الدردشة', importance: Importance.high,
-    playSound: true, sound: RawResourceAndroidNotificationSound('notification'),
+    playSound: true, sound: RawResourceAndroidNotificationSound('message_tone'),
   );
   static const _promotionalChannel = AndroidNotificationChannel(
     promotionalChannelId, 'MemoChat - العروض',
@@ -492,7 +492,7 @@ class NotificationService {
             : Priority.defaultPriority,
         playSound: resolvedSound,
         sound: resolvedSound
-            ? const RawResourceAndroidNotificationSound('notification')
+            ? const RawResourceAndroidNotificationSound('message_tone')
             : null,
         category: _categoryFor(family),
         visibility: NotificationVisibility.public,
@@ -644,7 +644,7 @@ class NotificationService {
         priority: Priority.high,
         playSound: resolvedSound,
         sound: resolvedSound
-            ? const RawResourceAndroidNotificationSound('notification')
+            ? const RawResourceAndroidNotificationSound('message_tone')
             : null,
         category: AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,

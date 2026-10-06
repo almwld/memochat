@@ -26,6 +26,8 @@ import 'package:memochat/features/chat/presentation/widgets/media_upload_status_
 import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
 import 'package:memochat/core/services/chat_preferences_service.dart';
 import 'package:memochat/features/chat/presentation/chat_settings_screen.dart';
+import 'package:memochat/features/games/presentation/game_room_screen.dart';
+import 'package:memochat/features/games/services/game_challenge_service.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatId;
@@ -167,6 +169,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   Set<String> _newMessageIds = <String>{};
   bool _hasInitialMessageSnapshot = false;
   bool _loading = true;
+  bool _listening = false;
   String? _loadError;
   bool _online = false;
   bool get _selectionMode => _selectedMessageIds.isNotEmpty;
@@ -360,6 +363,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
     try {
       final ref = _firestore.collection('chats').doc(widget.chatId);
+      // Start the live listeners before the optional validation read. The
+      // first cached/server snapshot can render messages while the route is
+      // still resolving stale legacy chat ids.
+      _listen();
       DocumentSnapshot<Map<String, dynamic>>? snapshot;
       try {
         snapshot = await ref.get();
@@ -375,7 +382,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
           if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
           return;
         }
-        _listen();
         return;
       }
 
@@ -405,7 +411,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         ));
         return;
       }
-      _listen();
     } catch (e) {
       debugPrint('chat room initialization failed: $e');
       if (mounted) setState(() { _loading = false; _loadError = 'تعذر تجهيز المحادثة حالياً. تحقق من الاتصال ثم حاول مرة أخرى.'; });
@@ -413,6 +418,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   void _listen() {
+    if (_listening) return;
+    _listening = true;
     _roomLoadTimer?.cancel();
     _chatSub = _firestore
         .collection('chats')
@@ -524,7 +531,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       });
       _messageStreamRetry?.cancel();
       _messageStreamRetry = Timer(const Duration(seconds: 2), () {
-        if (mounted) _listen();
+        if (mounted) {
+          _listening = false;
+          _listen();
+        }
       });
     });
   }
@@ -1366,6 +1376,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                           ? (emoji) => _chat.addReaction(
                               widget.chatId, messageId, emoji)
                           : null);
+                  final rawMetadata = message['metadata'];
+                  final metadata = rawMetadata is Map ? Map<String, dynamic>.from(rawMetadata) : const <String, dynamic>{};
+                  final challengeIds = (metadata['challengeIds'] as List?)?.map((value) => value.toString()).toList() ?? const <String>[];
+                  final challengeGameId = metadata['gameId']?.toString() ?? '';
+                  final isChallenge = metadata['kind'] == 'signal_game_challenge' && challengeGameId.isNotEmpty && message['senderId'] != _auth.currentUser?.uid;
+                  if (isChallenge) {
+                    bubble = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      bubble,
+                      _GameChallengeCard(chatId: widget.chatId, gameId: challengeGameId, challengeId: challengeIds.isEmpty ? null : challengeIds.first, title: metadata['gameType']?.toString() ?? 'تحدي لعبة'),
+                    ]);
+                  }
                   if (messageId != null && _newMessageIds.contains(messageId)) {
                     bubble = TweenAnimationBuilder<double>(
                         key: ValueKey('entrance-$messageId'),
@@ -1553,5 +1574,53 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       default:
         return 'رسالة';
     }
+  }
+}
+
+
+class _GameChallengeCard extends StatefulWidget {
+  const _GameChallengeCard({required this.chatId, required this.gameId, required this.challengeId, required this.title});
+  final String chatId;
+  final String gameId;
+  final String? challengeId;
+  final String title;
+  @override State<_GameChallengeCard> createState() => _GameChallengeCardState();
+}
+
+class _GameChallengeCardState extends State<_GameChallengeCard> {
+  bool _busy = false;
+  bool _closed = false;
+
+  Future<void> _respond(bool accept) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (widget.challengeId != null) {
+        await GameChallengeService.instance.respond(challengeId: widget.challengeId!, accept: accept);
+      }
+      if (!mounted) return;
+      if (accept) {
+        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameRoomScreen(chatId: widget.chatId, gameId: widget.gameId)));
+      }
+      if (mounted) setState(() => _closed = true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تحديث التحدي: $error')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_closed) return const SizedBox.shrink();
+    final color = Theme.of(context).colorScheme.primary;
+    return Card(margin: const EdgeInsetsDirectional.only(start: 42, end: 8, top: 4, bottom: 8), color: color.withOpacity(.08), child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.lock_rounded, color: color, size: 18), const SizedBox(width: 6), const Text('تحدي مباشر مشفر', style: TextStyle(fontWeight: FontWeight.w900)), const Spacer(), Text(widget.title, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700))]),
+      const SizedBox(height: 6),
+      const Text('انضم إلى غرفة اللعبة وابدأ التحدي مع صديقك.', style: TextStyle(fontSize: 12)),
+      const SizedBox(height: 10),
+      Row(children: [Expanded(child: OutlinedButton(onPressed: _busy ? null : () => _respond(false), child: const Text('ليس الآن'))), const SizedBox(width: 8), Expanded(child: FilledButton.icon(onPressed: _busy ? null : () => _respond(true), icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.sports_esports_rounded, size: 17), label: const Text('انضم')))]),
+    ])));
   }
 }

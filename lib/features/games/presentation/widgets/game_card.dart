@@ -9,7 +9,7 @@ class GameCard extends StatelessWidget {
   @override Widget build(BuildContext context){
     final dark=Theme.of(context).brightness==Brightness.dark;
     return RepaintBoundary(child: TweenAnimationBuilder<double>(
-      tween:Tween(begin:0,end:1),duration:const Duration(milliseconds:360),
+      tween:Tween(begin:0,end:1),duration:const Duration(milliseconds:240),
       curve:Curves.easeOutCubic,child:_card(context,dark),
       builder:(context,value,child)=>Transform.translate(offset:Offset(0,18*(1-value)),child:Transform.scale(scale:.94+.06*value,child:FadeTransition(opacity:AlwaysStoppedAnimation<double>(value),child:child))),
     ));

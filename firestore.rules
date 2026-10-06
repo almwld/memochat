@@ -145,6 +145,20 @@ service cloud.firestore {
 
         allow delete: if false;
       }
+
+      match /games/{gameId} {
+        allow read: if isChatParticipant(chatId);
+        allow create: if isChatParticipant(chatId) &&
+          request.resource.data.type is string &&
+          request.resource.data.players is list &&
+          request.auth.uid in request.resource.data.players;
+        allow update: if isChatParticipant(chatId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'players', 'status', 'state', 'scores', 'currentTurn',
+            'startedAt', 'endedAt', 'updatedAt', 'timeLimit'
+          ]);
+        allow delete: if false;
+      }
     }
 
     match /callLocks/{lockId} {
@@ -579,6 +593,44 @@ service cloud.firestore {
       allow update: if signedIn() &&
         resource.data.ownerId == request.auth.uid &&
         request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if false;
+    }
+
+    match /gameChallenges/{challengeId} {
+      allow read: if signedIn() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if signedIn() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.toUid is string &&
+        request.resource.data.toUid != request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.signalProtocol == 'libsignal' &&
+        request.resource.data.signalPayload is string &&
+        request.resource.data.signalPayload.size() > 0;
+      allow update: if signedIn() &&
+        resource.data.toUid == request.auth.uid &&
+        request.resource.data.fromUid == resource.data.fromUid &&
+        request.resource.data.toUid == resource.data.toUid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt']) &&
+        request.resource.data.status in ['accepted', 'declined'];
+      allow delete: if false;
+    }
+
+    match /gameLeaderboard/{gameId}/scores/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.bestScore is number &&
+        request.resource.data.bestScore >= 0;
+      allow delete: if false;
+    }
+
+    match /globalLeaderboard/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.totalPoints is number &&
+        request.resource.data.totalPoints >= 0;
       allow delete: if false;
     }
 

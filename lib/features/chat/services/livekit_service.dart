@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
 import 'package:memochat/core/config/livekit_config.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LiveKitService {
   static final LiveKitService _instance = LiveKitService._internal();
@@ -24,6 +25,16 @@ class LiveKitService {
   bool get isSpeakerOn => _isSpeakerOn;
   bool get isCameraEnabled => _isCameraEnabled;
   bool get isMicrophoneEnabled => _isMicrophoneEnabled;
+
+  Future<void> _ensureMediaPermissions({required bool video}) async {
+    final requested = <Permission>[Permission.microphone, if (video) Permission.camera];
+    final result = await requested.request();
+    final microphone = result[Permission.microphone];
+    final camera = video ? result[Permission.camera] : PermissionStatus.granted;
+    if (microphone?.isGranted != true || camera?.isGranted != true) {
+      throw StateError('يلزم السماح بالميكروفون${video ? ' والكاميرا' : ''} من إعدادات التطبيق');
+    }
+  }
 
   Future<Map<String, dynamic>> _requestLiveKitToken({
     required String roomName,
@@ -160,6 +171,7 @@ class LiveKitService {
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول قبل دخول غرفة الصوت');
+    await _ensureMediaPermissions(video: false);
 
     final idToken = await user.getIdToken();
     if (idToken == null || idToken.isEmpty) {
@@ -227,6 +239,7 @@ class LiveKitService {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('يجب تسجيل الدخول قبل إجراء المكالمة');
+      await _ensureMediaPermissions(video: false);
       final name = participantName?.trim().isNotEmpty == true
           ? participantName!.trim()
           : (user.displayName?.trim().isNotEmpty == true
@@ -254,6 +267,7 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
+    await _ensureMediaPermissions(video: isVideo);
     final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
@@ -291,10 +305,20 @@ class LiveKitService {
     final p = _room?.localParticipant;
     if (p == null) throw StateError('غرفة LiveKit غير متصلة');
     try {
-      final publication = await p.setCameraEnabled(true);
-      if (publication == null || publication.track == null) throw StateError('لم يتم إنشاء مسار فيديو للكاميرا');
+      LocalTrackPublication? publication;
+      Object? last;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          publication = await p.setCameraEnabled(true);
+          if (publication?.track != null) break;
+        } catch (e) {
+          last = e;
+        }
+        if (attempt < 3) await Future<void>.delayed(const Duration(milliseconds: 350));
+      }
+      if (publication?.track == null) throw last ?? StateError('لم يتم إنشاء مسار فيديو للكاميرا');
       _isCameraEnabled = true;
-      debugPrint('LIVEKIT CAMERA ENABLED sid=${publication.sid} source=${publication.source}');
+      debugPrint('LIVEKIT CAMERA ENABLED sid=${publication!.sid} source=${publication.source}');
     } catch (e) {
       _isCameraEnabled = false;
       debugPrint('LIVEKIT CAMERA ERROR: $e');
@@ -306,8 +330,18 @@ class LiveKitService {
     final p = _room?.localParticipant;
     if (p == null) throw StateError('غرفة LiveKit غير متصلة');
     try {
-      final publication = await p.setMicrophoneEnabled(true);
-      if (publication == null) throw StateError('لم يتم نشر الميكروفون');
+      LocalTrackPublication? publication;
+      Object? last;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          publication = await p.setMicrophoneEnabled(true);
+          if (publication?.track != null) break;
+        } catch (e) {
+          last = e;
+        }
+        if (attempt < 3) await Future<void>.delayed(const Duration(milliseconds: 350));
+      }
+      if (publication?.track == null) throw last ?? StateError('لم يتم نشر الميكروفون في غرفة LiveKit');
       _isMicrophoneEnabled = true;
     } catch (e) {
       _isMicrophoneEnabled = false;
