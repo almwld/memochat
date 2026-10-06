@@ -595,14 +595,25 @@ service cloud.firestore {
       allow delete: if false;
 
       match /members/{memberId} {
-        allow read: if signedIn() && get(/databases/$(database)/documents/voiceRooms/$(roomId)).data.active == true;
+        allow read: if signedIn() &&
+          get(/databases/$(database)/documents/voiceRooms/$(roomId)).data.active == true;
         allow create: if signedIn() &&
           memberId == request.auth.uid &&
           get(/databases/$(database)/documents/voiceRooms/$(roomId)).data.active == true &&
-          request.resource.data.userId == request.auth.uid;
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.role is string &&
+          (
+            request.resource.data.role == 'listener' ||
+            (
+              request.resource.data.role == 'host' &&
+              get(/databases/$(database)/documents/voiceRooms/$(roomId)).data.ownerId == request.auth.uid
+            )
+          );
         allow delete: if signedIn() && memberId == request.auth.uid;
-        allow update: if signedIn() && memberId == request.auth.uid &&
-          request.resource.data.userId == resource.data.userId;
+        allow update: if signedIn() &&
+          memberId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.role == resource.data.role;
       }
     }
 
