@@ -26,6 +26,7 @@ import 'package:memochat/features/chat/presentation/widgets/media_upload_status_
 import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
 import 'package:memochat/core/services/chat_preferences_service.dart';
 import 'package:memochat/features/chat/presentation/chat_settings_screen.dart';
+import 'package:memochat/features/chat/presentation/account_info_screen.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatId;
@@ -1273,6 +1274,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 avatar,
                 const SizedBox(width: 10),
               Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.isGroup ? null : () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AccountInfoScreen(
+                        userId: widget.otherUserId,
+                        fallbackName: widget.otherUserName,
+                        fallbackPhoto: widget.otherUserImage,
+                      ),
+                    ),
+                  ),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1292,7 +1304,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                             color: _otherTyping
                                 ? AppColors.primary
                                 : (_online ? Colors.green : Colors.grey)))
-                  ]))
+                  ])),
+                ),
               ]);
             },
           ),
