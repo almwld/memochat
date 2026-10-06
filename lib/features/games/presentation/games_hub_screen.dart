@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/premium_ui.dart';
 import '../data/games_catalog.dart';
 import '../models/game.dart';
 import 'game_play_screen.dart';
@@ -36,7 +37,7 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
     final scheme = Theme.of(context).colorScheme;
     final categories = ['الكل', 'سرعة', 'ذاكرة', 'منطق', 'كلمات', 'معرفة', 'مغامرة', 'تحديات'];
     final featured = GamesCatalog.all.take(6).toList();
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('ألعاب MemoChat', style: TextStyle(fontWeight: FontWeight.w900)), actions: [IconButton(onPressed: () => _showInfo(context), icon: const Icon(Icons.info_outline_rounded), tooltip: 'عن الألعاب')]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
