@@ -84,7 +84,39 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
               subtitle: const Text(
                 'الرسائل تستخدم Signal E2EE فعليًا. لا نعرض طبقات Onion أو Post-Quantum أو Mesh كميزات جاهزة ما لم يكن لها تنفيذ حقيقي داخل التطبيق.',
               ),
-              trailing: const Icon(Icons.lock_rounded),
+              trailing: IconButton(
+                tooltip: 'تبديل مستوى الحماية',
+                onPressed: _saving
+                    ? null
+                    : () => _applyLevel(
+                          _level == SecurityLevel.standard
+                              ? SecurityLevel.enhanced
+                              : _level == SecurityLevel.enhanced
+                                  ? SecurityLevel.maximum
+                                  : SecurityLevel.standard,
+                        ),
+                icon: Icon(
+                  _level == SecurityLevel.maximum
+                      ? Icons.lock_rounded
+                      : Icons.lock_open_rounded,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'مستوى الحماية',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                _levelTile(SecurityLevel.standard, 'قياسي', 'حماية أساسية مع التشفير الفعلي.'),
+                _levelTile(SecurityLevel.enhanced, 'متقدم', 'يفعّل قدرات الحماية الفعلية المتاحة فقط.'),
+                _levelTile(SecurityLevel.maximum, 'أقصى', 'أقصى إعدادات الحماية المتاحة حاليًا دون تفعيل ميزات وهمية.'),
+                _levelTile(SecurityLevel.custom, 'مخصص', 'إعدادات يدوية للبروتوكولات المتاحة.'),
+              ],
             ),
           ),
           const SizedBox(height: 20),
