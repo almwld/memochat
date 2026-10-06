@@ -14,7 +14,7 @@ class TransportSelector {
     Future<bool> Function()? webSocketAvailable,
   })  : _settings = settings ?? SecuritySettingsService.instance,
         _quicAvailable = quicAvailable ?? (() async => false),
-        _webSocketAvailable = webSocketAvailable ?? (() async => true);
+        _webSocketAvailable = webSocketAvailable ?? (() async => false);
 
   final SecuritySettingsService _settings;
   final Future<bool> Function() _quicAvailable;
