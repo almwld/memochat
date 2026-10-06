@@ -74,6 +74,13 @@ class ReliableMessageService {
       if (!_isTransientFirestoreError(e.code)) rethrow;
       await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
       return stableMessageId;
+    } on StateError catch (e) {
+      final message = e.message.toString();
+      if (message.contains('حزمة Signal للمستلم غير متاحة')) {
+        await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
+        return stableMessageId;
+      }
+      rethrow;
     } on SocketException {
       await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
       return stableMessageId;
