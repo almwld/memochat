@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
 import 'package:memochat/features/chat/presentation/chat_room_screen.dart';
+import 'package:memochat/features/chat/presentation/call_screen.dart';
 
 class ChatNavigation {
   static final Set<String> _openingRooms = <String>{};
@@ -55,5 +56,14 @@ class ChatNavigation {
       await openRoom(context,chatId:id,otherUserId:resolvedId,otherUserName:displayName,otherUserImage:userImage,groupImage:userImage,isGroup:false);
     }catch(e){if(context.mounted)ToastService.showError('فشل فتح المحادثة: $e');}
     finally { _openingUsers.remove(requestedId); }
+  }
+  static Future<void> openCall(BuildContext context,{required String chatId,required String userName,required String userId,required bool isVideo,String? userImage}) async {
+    final normalizedChat=chatId.trim(), normalizedUser=userId.trim();
+    if(normalizedChat.isEmpty||normalizedUser.isEmpty){ToastService.showError('بيانات المكالمة غير صالحة');return;}
+    if(!context.mounted)return;
+    await Navigator.of(context,rootNavigator:true).push(MaterialPageRoute<void>(builder:(_)=>CallScreen(
+      chatId: normalizedChat, userName: userName, userId: normalizedUser, userImage: userImage,
+      isVideo: isVideo, isOutgoing: true,
+    )));
   }
 }

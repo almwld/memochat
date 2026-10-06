@@ -33,9 +33,10 @@ class MessageBubble extends StatefulWidget {
   final VoidCallback? onForward;
   final VoidCallback? onStar;
   final VoidCallback? onSelect;
+  final void Function(String type)? onCallAgain;
   final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.fontSize = 14});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.onCallAgain, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
