@@ -178,6 +178,55 @@ class SocialService {
     });
   }
 
+  Future<void> editPost(String postId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.length > 5000) throw ArgumentError('المنشور طويل');
+    final ref = _c('socialPosts').doc(postId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['authorId']?.toString() != _uid) throw StateError('لا تملك هذا المنشور');
+    await ref.update({'text': body, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deletePost(String postId) async {
+    _authz();
+    final ref = _c('socialPosts').doc(postId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['authorId']?.toString() != _uid) throw StateError('لا تملك هذا المنشور');
+    await ref.delete();
+  }
+
+  Future<void> editPostComment(String postId, String commentId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.isEmpty || body.length > 1000) throw ArgumentError('التعليق يجب أن يكون بين 1 و1000 حرف');
+    final ref = _c('socialPosts').doc(postId).collection('comments').doc(commentId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != _uid) throw StateError('لا تملك هذا التعليق');
+    await ref.update({'text': body, 'editedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deletePostComment(String postId, String commentId) async {
+    _authz();
+    final ref = _c('socialPosts').doc(postId).collection('comments').doc(commentId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != _uid) throw StateError('لا تملك هذا التعليق');
+    await _db.runTransaction((tx) async {
+      tx.delete(ref);
+      tx.update(_c('socialPosts').doc(postId), {'commentsCount': FieldValue.increment(-1), 'updatedAt': FieldValue.serverTimestamp()});
+    });
+  }
+
+  Future<void> editComment(String reelId, String commentId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.isEmpty || body.length > 1000) throw ArgumentError('التعليق يجب أن يكون بين 1 و1000 حرف');
+    final ref = _c('socialReels').doc(reelId).collection('comments').doc(commentId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != _uid) throw StateError('لا تملك هذا التعليق');
+    await ref.update({'text': body, 'editedAt': FieldValue.serverTimestamp()});
+  }
+
   Future<void> recordPostShare(String postId) async {
     _authz();
     await _c('socialPosts').doc(postId).update({
@@ -191,8 +240,8 @@ class SocialService {
     final snap = await _c('socialPosts').doc(postId).get();
     final data = snap.data() ?? <String, dynamic>{};
     final text = data['text']?.toString().trim() ?? '';
-    final url = data['mediaUrl']?.toString().trim() ?? '';
-    final payload = [text, url].where((v) => v.isNotEmpty).join('\n');
+    final appLink = 'memochat://post/' + Uri.encodeComponent(postId);
+    final payload = [text, appLink].where((v) => v.isNotEmpty).join('\n');
     if (payload.isEmpty) throw StateError('محتوى المنشور غير متاح');
     await Share.share(payload);
     await recordPostShare(postId);
@@ -301,9 +350,10 @@ class SocialService {
   Future<void> shareReel(String reelId) async {
     _authz();
     final snap = await _c('socialReels').doc(reelId).get();
-    final url = snap.data()?['videoUrl']?.toString() ?? '';
-    if (url.isEmpty) throw StateError('رابط الريل غير متاح');
-    await Share.share(url);
+    if (!snap.exists) throw StateError('الريل غير متاح');
+    final caption = snap.data()?['caption']?.toString().trim() ?? '';
+    final appLink = 'memochat://reel/' + Uri.encodeComponent(reelId);
+    await Share.share([caption, appLink].where((v) => v.isNotEmpty).join('\n'));
     await recordShare(reelId);
   }
 
