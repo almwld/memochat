@@ -124,6 +124,24 @@ service cloud.firestore {
         request.resource.data.memberRoles[request.auth.uid] == 'member' &&
         request.resource.data.unreadCount[request.auth.uid] == 0;
 
+      // Group owners/admins may add exactly one new member while preserving existing membership metadata.
+      allow update: if signedIn() &&
+        resource.data.isGroup == true &&
+        resource.data.memberRoles is map &&
+        resource.data.memberRoles[request.auth.uid] in ['owner', 'admin'] &&
+        request.resource.data.participants is list &&
+        request.resource.data.participants.size() == resource.data.participants.size() + 1 &&
+        request.resource.data.participants.hasOnly(resource.data.participants.concat([])) == false &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'participants',
+          'participantDetails',
+          'memberRoles',
+          'unreadCount',
+          'updatedAt'
+        ]) &&
+        request.resource.data.memberRoles[request.auth.uid] == resource.data.memberRoles[request.auth.uid] &&
+        request.resource.data.unreadCount[request.auth.uid] == resource.data.unreadCount[request.auth.uid];
+
       allow delete: if false;
 
       match /games/{gameId} {
@@ -697,6 +715,36 @@ service cloud.firestore {
     }
 
     // Business profiles are keyed by the owner's UID and are publicly discoverable only to signed-in users.
+    match /communityInvites/{inviteId} {
+      allow create: if signedIn() &&
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.recipientId is string &&
+        request.resource.data.recipientId != request.auth.uid &&
+        request.resource.data.communityId is string &&
+        request.resource.data.state == 'pending';
+      allow read: if signedIn() &&
+        (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+      allow update: if signedIn() &&
+        resource.data.recipientId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /voiceRoomInvites/{inviteId} {
+      allow create: if signedIn() &&
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.recipientId is string &&
+        request.resource.data.recipientId != request.auth.uid &&
+        request.resource.data.roomId is string &&
+        request.resource.data.state == 'pending';
+      allow read: if signedIn() &&
+        (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid);
+      allow update: if signedIn() &&
+        resource.data.recipientId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'updatedAt']);
+      allow delete: if false;
+    }
+
     match /businessProfiles/{userId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == userId;
