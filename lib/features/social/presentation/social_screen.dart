@@ -75,7 +75,6 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
           ReelsScreen(service: service),
         ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 86),
         child: FloatingActionButton.extended(

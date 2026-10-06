@@ -460,7 +460,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
     }
     if (item.title == 'المصادر المفتوحة') {
       if (!mounted) return;
-      await showLicensePage(context: context, applicationName: 'MemoChat');
+      showLicensePage(context: context, applicationName: 'MemoChat');
       return;
     }
     if (item.title == 'الإبلاغ عن مشكلة') {

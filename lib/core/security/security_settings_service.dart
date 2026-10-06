@@ -40,6 +40,7 @@ class SecuritySettingsService extends ChangeNotifier {
       case SecurityProtocol.meshOffline:
       case SecurityProtocol.quicTransport:
       case SecurityProtocol.websocketFallback:
+      case SecurityProtocol.httpsFallback:
         return false;
     }
   }

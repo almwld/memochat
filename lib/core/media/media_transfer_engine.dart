@@ -444,7 +444,7 @@ class MediaTransferEngine {
         remoteDirectory: _remoteDirectory(job),
         fileName: job['file_name'].toString(),
         mimeType: job['mime_type']?.toString(),
-        chatId: job['chat_id']?.toString(),
+        chatId: chatId,
       );
       if (!result.success) {
         throw StateError(result.error ?? 'تعذر رفع الوسائط');
@@ -515,6 +515,7 @@ class MediaTransferEngine {
     required String remoteDirectory,
     required String fileName,
     required String? mimeType,
+    String? chatId,
   }) async {
     final nc = NextcloudService();
     await nc.loadConfig();
