@@ -87,6 +87,7 @@ class MainActivity : FlutterFragmentActivity() {
                         val intent = Intent(this, VpnTunnelService::class.java).apply {
                             action = VpnTunnelService.ACTION_START
                             putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
+                            putExtra(VpnTunnelService.EXTRA_FINGERPRINT, call.argument<String>("fingerprint"))
                             putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
                             putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
                         }
