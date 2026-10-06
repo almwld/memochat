@@ -187,3 +187,57 @@ class _ChatWallpaperPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ChatWallpaperPainter oldDelegate) => false;
 }
+
+class ScrollAwareScaffold extends StatefulWidget {
+  const ScrollAwareScaffold({
+    required this.appBar,
+    required this.body,
+    this.floatingActionButton,
+    this.bottomNavigationBar,
+    this.backgroundColor,
+    this.resizeToAvoidBottomInset,
+    super.key,
+  });
+
+  final PreferredSizeWidget appBar;
+  final Widget body;
+  final Widget? floatingActionButton;
+  final Widget? bottomNavigationBar;
+  final Color? backgroundColor;
+  final bool? resizeToAvoidBottomInset;
+
+  @override
+  State<ScrollAwareScaffold> createState() => _ScrollAwareScaffoldState();
+}
+
+class _ScrollAwareScaffoldState extends State<ScrollAwareScaffold> {
+  bool _visible = true;
+
+  bool _handleScroll(UserScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false;
+    final next = n.metrics.pixels <= 0 || n.direction == ScrollDirection.forward;
+    if (next != _visible) setState(() => _visible = next);
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: PreferredSize(
+      preferredSize: widget.appBar.preferredSize,
+      child: AnimatedSlide(
+        offset: _visible ? Offset.zero : const Offset(0, -1),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: widget.appBar,
+      ),
+    ),
+    body: NotificationListener<UserScrollNotification>(
+      onNotification: _handleScroll,
+      child: widget.body,
+    ),
+    floatingActionButton: widget.floatingActionButton,
+    bottomNavigationBar: widget.bottomNavigationBar,
+    backgroundColor: widget.backgroundColor,
+    resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
+  );
+}
