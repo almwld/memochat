@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../app/app.dart';
 import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
+import '../services/fcm_token_service.dart';
 import 'notification_inbox.dart';
 import 'notification_models.dart';
 import '../services/notification_history_service.dart';
@@ -27,8 +28,8 @@ class PushNotificationService {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
-    await _syncToken(await _messaging.getToken());
-    FirebaseMessaging.instance.onTokenRefresh.listen(_syncToken);
+    await FcmTokenService.instance.start();
+    await FcmTokenService.instance.syncCurrentToken();
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
     final initial = await _messaging.getInitialMessage();
@@ -38,22 +39,6 @@ class PushNotificationService {
     final token = await _messaging.getToken();
     await _syncToken(token);
     return token;
-  }
-
-  Future<void> _syncToken(String? token) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final normalized = token?.trim() ?? '';
-    if (uid == null || uid.isEmpty || normalized.isEmpty) return;
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('private')
-        .doc('tokens');
-    await ref.set({
-      'tokens': FieldValue.arrayUnion([normalized]),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'platform': 'android',
-    }, SetOptions(merge: true));
   }
 
   int _tokenId(String value) {
