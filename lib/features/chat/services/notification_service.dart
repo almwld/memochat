@@ -414,7 +414,7 @@ class NotificationService {
         category: _categoryFor(family),
         visibility: NotificationVisibility.public,
         styleInformation: style,
-        icon: 'ic_notification',
+        icon: 'ic_memochat_notification',
         color: const Color(0xFF0A8F83),
       ),
       iOS: DarwinNotificationDetails(
@@ -568,7 +568,7 @@ class NotificationService {
         styleInformation: style,
         largeIcon:
             avatarBytes == null ? null : ByteArrayAndroidBitmap(avatarBytes),
-        icon: 'ic_notification',
+        icon: 'ic_memochat_notification',
         color: const Color(0xFF0A8F83),
         actions: actions,
         groupKey: chatId.isEmpty ? null : 'memochat_chat_$chatId',

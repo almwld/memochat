@@ -47,7 +47,7 @@ async function sendToUser(uid,payload){
           channelId:'memochat_messages_v1',
           sound:'message_tone',
           priority:'high',
-          icon:'ic_launcher',
+          icon:'ic_memochat_notification',
         },
       },
       apns:{
