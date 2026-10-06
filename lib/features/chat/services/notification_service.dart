@@ -11,7 +11,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'call_sound_coordinator.dart';
 import 'chat_service.dart';
 import 'package:memochat/firebase_options.dart';
 
@@ -25,10 +24,6 @@ void notificationActionBackgroundHandler(NotificationResponse response) async {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
     debugPrint('❌ background notification action Firebase init failed: $e');
-    return;
-  }
-  if (action == 'call_answer' || action == 'call_reject') {
-    await handleCallNotificationAction(action: action, payload: response.payload);
     return;
   }
   if (['message_reply', 'message_read', 'message_mute'].contains(action)) {
@@ -97,43 +92,6 @@ Future<void> flushPendingNotificationReplies() async {
   await prefs.setStringList(_pendingReplyKey, remaining);
 }
 
-Future<void> handleCallNotificationAction({
-  required String action,
-  String? payload,
-}) async {
-  if (!['call_answer', 'call_reject'].contains(action)) return;
-  final envelope = await _decodeNotificationEnvelope(payload);
-  final data = envelope?['data'] is Map
-      ? Map<String, dynamic>.from(envelope!['data'])
-      : <String, dynamic>{};
-  final callId = data['callId']?.toString().trim() ?? '';
-  if (callId.isEmpty) return;
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null || uid.isEmpty) {
-    debugPrint('⚠️ call action skipped: no authenticated UID in background isolate');
-    return;
-  }
-  final ref = FirebaseFirestore.instance.collection('calls').doc(callId);
-  final snap = await ref.get();
-  if (!snap.exists) return;
-  final call = snap.data() ?? <String, dynamic>{};
-  if ((call['receiverId']?.toString() ?? '') != uid) return;
-  final status = call['status']?.toString() ?? '';
-  if (status != 'calling' && status != 'ringing') return;
-  if (action == 'call_answer') {
-    // Answer actions are configured with showsUserInterface=true. The
-    // foreground notification tap handler owns the actual accept + LiveKit
-    // startup. Never mark a call connected from the background isolate.
-    debugPrint('CALL ANSWER: foreground UI will complete LiveKit startup callId=$callId');
-    return;
-  } else {
-    await ref.update(<String, dynamic>{
-      'status': 'rejected',
-      'endedAt': FieldValue.serverTimestamp(),
-    });
-  }
-}
-
 Future<void> handleMessageNotificationAction({
   required String action,
   String? input,
@@ -175,7 +133,6 @@ Future<void> handleMessageNotificationAction({
 
 enum MemoChatNotificationType {
   newMessage,
-  call,
   promotional,
   system,
   social,
@@ -184,7 +141,6 @@ enum MemoChatNotificationType {
 extension MemoChatNotificationTypeValue on MemoChatNotificationType {
   String get wireValue => switch (this) {
     MemoChatNotificationType.newMessage => 'new_message',
-    MemoChatNotificationType.call => 'incoming_call',
     MemoChatNotificationType.promotional => 'promotional',
     MemoChatNotificationType.system => 'system',
     MemoChatNotificationType.social => 'social',
@@ -195,9 +151,6 @@ extension MemoChatNotificationTypeValue on MemoChatNotificationType {
       case 'new_message':
       case 'message':
         return MemoChatNotificationType.newMessage;
-      case 'incoming_call':
-      case 'call':
-        return MemoChatNotificationType.call;
       case 'promotional':
         return MemoChatNotificationType.promotional;
       case 'system':
@@ -227,7 +180,6 @@ class NotificationService {
   NotificationTapHandler? _tapHandler;
   Future<void>? _initialization;
   bool _initialized = false;
-  bool _callCoordinatorStarted = false;
 
   static const MethodChannel _fullScreenChannel =
       MethodChannel('com.memo.app/full_screen_intent');
@@ -259,7 +211,6 @@ class NotificationService {
   static const promotionalChannelId = 'memochat_promotions_v1';
   static const systemChannelId = 'memochat_system_v1';
   static const socialChannelId = 'memochat_social_v1';
-  static const callChannelId = 'memochat_calls_v1';
 
   static const _messageChannel = AndroidNotificationChannel(
     messageChannelId, 'MemoChat - الرسائل',
@@ -278,33 +229,18 @@ class NotificationService {
     socialChannelId, 'MemoChat - الاجتماعي',
     description: 'التفاعلات الاجتماعية', importance: Importance.defaultImportance,
   );
-  static const _callChannel = AndroidNotificationChannel(
-    callChannelId, 'MemoChat - المكالمات',
-    description: 'إشعارات المكالمات الواردة', importance: Importance.max,
-    playSound: true, sound: RawResourceAndroidNotificationSound('call_ringtone'),
-  );
 
   void setNotificationTapHandler(NotificationTapHandler? handler) => _tapHandler = handler;
 
-  Future<void> initialize({bool startCallCoordinator = true}) {
+  Future<void> initialize() {
     final existing = _initialization;
-    if (existing != null) {
-      if (startCallCoordinator && !_callCoordinatorStarted) {
-        unawaited(existing.then((_) {
-          if (!_callCoordinatorStarted) {
-            CallSoundCoordinator.instance.start();
-            _callCoordinatorStarted = true;
-          }
-        }));
-      }
-      return existing;
-    }
-    final future = _initializeCore(startCallCoordinator: startCallCoordinator);
+    if (existing != null) return existing;
+    final future = _initializeCore();
     _initialization = future;
     return future;
   }
 
-  Future<void> _initializeCore({required bool startCallCoordinator}) async {
+  Future<void> _initializeCore() async {
     try {
       const settings = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -329,37 +265,15 @@ class NotificationService {
       await android?.createNotificationChannel(_promotionalChannel);
       await android?.createNotificationChannel(_systemChannel);
       await android?.createNotificationChannel(_socialChannel);
-      await android?.createNotificationChannel(_callChannel);
-      // ⚡ Full Screen Intent is UI-only. The FCM background isolate
-      // initializes this service with startCallCoordinator=false, so it must
-      // never touch the MainActivity-backed MethodChannel.
-      if (startCallCoordinator && Platform.isAndroid) {
-        try {
-          final canUse = await canUseFullScreenIntent();
-          debugPrint('📱 Full Screen Intent available: $canUse');
-          if (canUse == false) {
-            debugPrint('Full Screen Intent NOT granted — UI must prompt');
-          } else if (canUse == null) {
-            debugPrint('ℹ️ Full Screen Intent check unavailable');
-          }
-        } catch (e) {
-          debugPrint('⚠️ Full Screen Intent check failed: $e');
-        }
-      }
       final ios = _notifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
       _initialized = true;
       unawaited(Future<void>(() async {
         try { await android?.requestNotificationsPermission(); } catch (_) {}
         try { await ios?.requestPermissions(alert: true, badge: true, sound: true); } catch (_) {}
       }));
-      if (startCallCoordinator && !_callCoordinatorStarted) {
-        CallSoundCoordinator.instance.start();
-        _callCoordinatorStarted = true;
-      }
     } catch (e) {
       _initialization = null;
       _initialized = false;
-      _callCoordinatorStarted = false;
       rethrow;
     }
   }
@@ -367,7 +281,7 @@ class NotificationService {
   bool get isInitialized => _initialized;
 
   Future<bool> requestNotificationPermission() async {
-    await initialize(startCallCoordinator: false);
+    await initialize();
     try {
       final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final granted = await android?.requestNotificationsPermission();
@@ -378,7 +292,7 @@ class NotificationService {
   }
 
   Future<String?> getLaunchPayload() async {
-    await initialize(startCallCoordinator: false);
+    await initialize();
     final details = await _notifications.getNotificationAppLaunchDetails();
     if (details?.didNotificationLaunchApp != true) return null;
     final response = details?.notificationResponse;
@@ -418,7 +332,7 @@ class NotificationService {
     String? payload,
     bool? playSound,
   }) async {
-    await initialize(startCallCoordinator: false);
+    await initialize();
     final family = MemoChatNotificationTypeValue.fromWireValue(type);
     if (family == null) {
       await showMessageNotification(
@@ -526,7 +440,7 @@ class NotificationService {
     Map<String, dynamic>? data,
     bool? playSound,
   }) async {
-    await initialize(startCallCoordinator: false);
+    await initialize();
     final resolvedSound = playSound ?? true;
     final notificationData = data ?? const <String, dynamic>{};
     final chatId = notificationData['chatId']?.toString().trim() ?? '';
@@ -682,7 +596,7 @@ class NotificationService {
   /// terminal state (answered, rejected, cancelled, missed or ended).
   /// No artificial 500ms icon swap and no timeoutAfter are used.
   Future<void> showIncomingCallNotification({required String callerName, required String callId, required bool isVideo, bool silent = false}) async {
-    await initialize(startCallCoordinator: false);
+    await initialize();
     if (silent) unawaited(CallSoundCoordinator.instance.presentIncomingCallById(callId));
     final id = _callNotificationId(callId);
     await _showCallNotification(
@@ -765,14 +679,14 @@ class NotificationService {
   Future<void> cancelIncomingCallNotification(String callId) async {
     final normalized = callId.trim();
     if (normalized.isEmpty) return;
-    await initialize(startCallCoordinator: false);
+    await initialize();
     await _notifications.cancel(_callNotificationId(normalized));
   }
 
   Future<void> cancelChatNotifications(String chatId) async {
     final normalized = chatId.trim();
     if (normalized.isEmpty) return;
-    await initialize(startCallCoordinator: false);
+    await initialize();
     await _notifications.cancel(_chatNotificationId(normalized));
   }
 
@@ -785,7 +699,6 @@ class NotificationService {
 
   String _channelFor(MemoChatNotificationType type) => switch (type) {
     MemoChatNotificationType.newMessage => messageChannelId,
-    MemoChatNotificationType.call => callChannelId,
     MemoChatNotificationType.promotional => promotionalChannelId,
     MemoChatNotificationType.system => systemChannelId,
     MemoChatNotificationType.social => socialChannelId,
@@ -793,7 +706,6 @@ class NotificationService {
 
   String _channelNameFor(MemoChatNotificationType type) => switch (type) {
     MemoChatNotificationType.newMessage => 'MemoChat - الرسائل',
-    MemoChatNotificationType.call => 'MemoChat - المكالمات',
     MemoChatNotificationType.promotional => 'MemoChat - العروض',
     MemoChatNotificationType.system => 'MemoChat - النظام',
     MemoChatNotificationType.social => 'MemoChat - الاجتماعي',
@@ -801,7 +713,6 @@ class NotificationService {
 
   Importance _importanceFor(MemoChatNotificationType type) => switch (type) {
     MemoChatNotificationType.newMessage => Importance.high,
-    MemoChatNotificationType.call => Importance.max,
     MemoChatNotificationType.promotional => Importance.defaultImportance,
     MemoChatNotificationType.system => Importance.defaultImportance,
     MemoChatNotificationType.social => Importance.defaultImportance,
@@ -809,7 +720,6 @@ class NotificationService {
 
   AndroidNotificationCategory _categoryFor(MemoChatNotificationType type) => switch (type) {
     MemoChatNotificationType.newMessage => AndroidNotificationCategory.message,
-    MemoChatNotificationType.call => AndroidNotificationCategory.call,
     MemoChatNotificationType.promotional => AndroidNotificationCategory.promo,
     MemoChatNotificationType.system => AndroidNotificationCategory.service,
     MemoChatNotificationType.social => AndroidNotificationCategory.social,
