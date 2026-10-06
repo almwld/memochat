@@ -49,7 +49,7 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
       onPointerDown: (e) {
         final box = context.findRenderObject() as RenderBox;
         final p = box.globalToLocal(e.position);
-        game.tap(Vector2(p.dx, p.dy - kToolbarHeight));
+        game.tap(Vector2(p.dx, p.dy));
       },
       child: GameWidget(game: game),
     ),
