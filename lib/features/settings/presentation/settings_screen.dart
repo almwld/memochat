@@ -439,6 +439,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
             'reporterId': user.uid,
             'reason': message.substring(0, message.length > 500 ? 500 : message.length),
             'source': 'settings',
+            'targetUserId': 'app',
             'createdAt': FieldValue.serverTimestamp(),
           });
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ.')));
