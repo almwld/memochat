@@ -140,13 +140,141 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void tap(Vector2 point) {
+    switch (type) {
+      case GameType.memoryMatch:
+      case GameType.cardFlip:
+      case GameType.emojiMemory:
+        _tapMemory(point);
+        return;
+      case GameType.colorMatch:
+      case GameType.colorRush:
+        _tapColor(point);
+        return;
+      case GameType.patternTap:
+      case GameType.sequenceRecall:
+      case GameType.rhythmTap:
+        _tapSequence(point);
+        return;
+      case GameType.stackTower:
+      case GameType.balanceBeam:
+        _tapTiming(point);
+        return;
+      case GameType.mazeRunner:
+      case GameType.treasureHunt:
+        _tapExplorer(point);
+        return;
+      default:
+        _tapTarget(point);
+    }
+  }
+
+  final List<int> _memoryOrder = <int>[];
+  final Set<int> _memoryFound = <int>{};
+  int _memoryFirst = -1;
+  int _sequenceStep = 0;
+  int _colorGoal = 0;
+
+  void _tapMemory(Vector2 point) {
+    if (_memoryOrder.isEmpty) {
+      _memoryOrder.addAll(List<int>.generate(12, (i) => i ~/ 2)..shuffle(random));
+    }
+    final cell = ((point.y - 100) ~/ math.max(1, size.x / 4)).clamp(0, 2) * 4 +
+        (point.x ~/ math.max(1, size.x / 4)).clamp(0, 3);
+    if (_memoryFound.contains(cell)) return;
+    if (_memoryFirst < 0) {
+      _memoryFirst = cell;
+      _memoryFound.add(cell);
+      return;
+    }
+    if (_memoryOrder[cell] == _memoryOrder[_memoryFirst]) {
+      score += 2;
+      _memoryFound.add(cell);
+      _memoryFirst = -1;
+      onScore(score);
+      _syncScore();
+    } else {
+      _memoryFirst = -1;
+      score = math.max(0, score - 1);
+      onScore(score);
+    }
+  }
+
+  void _tapColor(Vector2 point) {
+    final expected = _colorGoal % palette.length;
+    final index = targets.indexWhere((t) => point.distanceTo(t.position) <= t.radius * 1.2);
+    if (index < 0) return;
+    final hit = targets[index];
+    if (hit.kind == expected) {
+      score += 2;
+      _colorGoal++;
+    } else {
+      score = math.max(0, score - 1);
+    }
+    targets.removeAt(index);
+    onScore(score);
+    _syncScore();
+  }
+
+  void _tapSequence(Vector2 point) {
+    if (targets.isEmpty) return;
+    final ordered = targets.toList()..sort((a,b) => a.phase.compareTo(b.phase));
+    final target = ordered[_sequenceStep % ordered.length];
+    if (point.distanceTo(target.position) <= target.radius * 1.25) {
+      score += 2;
+      _sequenceStep++;
+      targets.remove(target);
+      onScore(score);
+      _syncScore();
+    } else {
+      score = math.max(0, score - 1);
+      onScore(score);
+    }
+  }
+
+  void _tapTiming(Vector2 point) {
+    if (targets.isEmpty) return;
+    final target = targets.first;
+    final distance = point.distanceTo(target.position);
+    if (distance <= target.radius * 1.15) {
+      score += 1 + (elapsed.floor() % 3);
+      targets.remove(target);
+      onScore(score);
+      _syncScore();
+    } else {
+      score = math.max(0, score - 1);
+      onScore(score);
+    }
+  }
+
+  void _tapExplorer(Vector2 point) {
+    if (targets.isEmpty) return;
+    final target = targets.firstWhere(
+      (t) => point.distanceTo(t.position) <= t.radius * 1.4,
+      orElse: () => targets.first,
+    );
+    if (point.distanceTo(target.position) <= target.radius * 1.4) {
+      score += target.kind == 2 ? 3 : 1;
+      targets.remove(target);
+      onScore(score);
+      _syncScore();
+    }
+  }
+
+  void _tapTarget(Vector2 point) {
     Target? hit;
-    for(final t in targets.reversed){if(point.distanceTo(t.position)<=t.radius*1.2){hit=t;break;}}
-    if(hit==null){score=math.max(0,score-1);comboClock=0;onScore(score);return;}
+    for (final t in targets.reversed) {
+      if (point.distanceTo(t.position) <= t.radius * 1.2) { hit = t; break; }
+    }
+    if (hit == null) {
+      score = math.max(0, score - 1);
+      comboClock = 0;
+      onScore(score);
+      return;
+    }
     targets.remove(hit);
-    final gain=1+(hit.kind==2?2:0)+(comboClock<.55?1:0);
-    score+=gain; comboClock=0;
-    for(var i=0;i<8;i++){final a=random.nextDouble()*math.pi*2;particles.add(Particle(position:hit.position.clone(),velocity:Vector2(math.cos(a),math.sin(a))*(35+random.nextDouble()*65),radius:2+random.nextDouble()*3,kind:hit.kind));}
+    final gain = 1 + (hit.kind == 2 ? 2 : 0) + (comboClock < .55 ? 1 : 0);
+    score += gain;
+    comboClock = 0;
     onScore(score);
     _syncScore();
   }
