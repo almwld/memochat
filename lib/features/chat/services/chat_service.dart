@@ -20,6 +20,12 @@ class ChatService {
   DocumentReference<Map<String,dynamic>> _chatRef(String id)=>_firestore.collection('chats').doc(id);
   Future<DocumentSnapshot<Map<String,dynamic>>> _authorizedChat(String chatId)async{final id=_uid();final snap=await _chatRef(chatId).get();if(!snap.exists)throw Exception('المحادثة غير موجودة');final participants=List<String>.from(snap.data()?['participants']??const []);if(!participants.contains(id))throw Exception('ليس لديك صلاحية لهذه المحادثة');return snap;}
   Future<Map<String,dynamic>> _decryptMessageData(String currentUid, Map<String,dynamic> data) async {
+    final chatId = data['chatId']?.toString().trim() ?? '';
+    if (chatId.isEmpty) return data;
+    // Plaintext is the default transport. Never touch Signal ciphertext unless
+    // this exact conversation has an explicit, persisted E2EE opt-in.
+    await _security.ensureReady();
+    if (!_security.isEncryptionEnabledForChat(chatId)) return data;
     final raw=data['e2eePayloads'];
     final senderId=data['senderId']?.toString().trim() ?? '';
     if(raw is Map && senderId.isNotEmpty){
