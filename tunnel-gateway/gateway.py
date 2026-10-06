@@ -16,7 +16,7 @@ TUNSETIFF = 0x400454CA
 IFF_TUN = 0x0001
 IFF_NO_PI = 0x1000
 
-clients = set()
+clients = {}
 lock = threading.Lock()
 
 def open_tun(name):
@@ -52,10 +52,15 @@ def client_loop(conn, tun_fd):
             packet = recv_exact(conn, length)
             if packet is None:
                 return
+            source_ip = None
+            if len(packet) >= 20 and (packet[0] >> 4) == 4:
+                source_ip = socket.inet_ntoa(packet[12:16])
+            with lock:
+                clients[conn] = source_ip
             os.write(tun_fd, packet)
     finally:
         with lock:
-            clients.discard(conn)
+            clients.pop(conn, None)
         try:
             conn.close()
         except OSError:
@@ -67,7 +72,7 @@ def accept_loop(server, context, tun_fd):
         try:
             conn = context.wrap_socket(raw, server_side=True)
             with lock:
-                clients.add(conn)
+                clients[conn] = None
             threading.Thread(target=client_loop, args=(conn, tun_fd), daemon=True).start()
         except Exception:
             try:
@@ -104,14 +109,19 @@ def main():
             packet = os.read(tun_fd, MAX_PACKET)
             if not packet:
                 continue
+            source_ip = None
+            if len(packet) >= 20 and (packet[0] >> 4) == 4:
+                source_ip = socket.inet_ntoa(packet[12:16])
             with lock:
-                peers = list(clients)
-            for conn in peers:
+                peers = list(clients.items())
+            for conn, learned_source in peers:
+                if source_ip is not None and learned_source == source_ip:
+                    continue
                 try:
                     send_frame(conn, packet)
                 except OSError:
                     with lock:
-                        clients.discard(conn)
+                        clients.pop(conn, None)
                     try:
                         conn.close()
                     except OSError:
