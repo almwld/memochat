@@ -249,17 +249,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               if (index == 0) {
                                 return FutureBuilder<String?>(
                                   future: mineImageFuture,
-                                  builder: (context, imageSnapshot) => _StatusAddTile(
+                                  builder: (context, imageSnapshot) =>
+                                      _StatusAddTile(
                                     status: mine,
                                     imageOverride: imageSnapshot.data,
                                     onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => mine == null
-                                          ? const AddStatusScreen()
-                                          : StoryViewerScreen(status: mine),
+                                      MaterialPageRoute(
+                                        builder: (_) => mine == null
+                                            ? const AddStatusScreen()
+                                            : StoryViewerScreen(status: mine),
+                                      ),
                                     ),
                                   ),
                                 );
+                              }
                               final status = others[index - 1];
                               return _StatusTile(
                                 status: status,
