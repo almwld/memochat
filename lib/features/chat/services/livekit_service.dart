@@ -172,6 +172,8 @@ class LiveKitService {
       throw StateError('اسم غرفة الصوت غير صالح');
     }
 
+    await ensureMediaPermissions(video: false);
+
     final name = participantName?.trim().isNotEmpty == true
         ? participantName!.trim()
         : (user.displayName?.trim().isNotEmpty == true
