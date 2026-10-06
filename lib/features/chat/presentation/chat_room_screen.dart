@@ -187,7 +187,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
-    _activeChatId = _chatId;
+    _activeChatId = widget.chatId;
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onChatScroll);
     _initializeRoom();
