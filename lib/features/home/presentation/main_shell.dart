@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../../../core/repositories/chat_repository.dart';
+import '../../../core/models/conversation.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_screen.dart';
@@ -15,6 +16,52 @@ import '../../social/presentation/social_screen.dart';
 import '../../../core/services/quick_action_service.dart';
 import '../../profile/presentation/profile_screen.dart';
 import '../../../core/crypto/signal_session_manager.dart';
+
+class _ChatNavIcon extends StatelessWidget {
+  const _ChatNavIcon({required this.count, required this.selected});
+
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = selected
+        ? const PremiumIconTile(icon: AppIcons.chat, size: 42, iconSize: 21)
+        : const AppIcon(AppIcons.chat, size: 22);
+    if (count <= 0) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        PositionedDirectional(
+          top: selected ? -2 : -7,
+          end: selected ? -4 : -7,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.error,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.surface,
+                width: 1.5,
+              ),
+            ),
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onError,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -36,11 +83,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   bool _navVisible = true;
   late final List<Widget> _pages;
+  late final Stream<List<Conversation>> _conversationsStream;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _conversationsStream = widget.repository.watchConversations();
     _pages = [
       ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
       ContactsScreen(repository: widget.repository),
@@ -122,13 +171,37 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   height: 72,
                   selectedIndex: _index,
                   onDestinationSelected: (index) => setState(() => _index = index),
-                  destinations: const [
+                  destinations: [
               NavigationDestination(
-                icon: AppIcon(AppIcons.chat, size: 22),
-                selectedIcon: PremiumIconTile(
-                  icon: AppIcons.chat,
-                  size: 42,
-                  iconSize: 21,
+                icon: StreamBuilder<List<Conversation>>(
+                  stream: _conversationsStream,
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.fold<int>(
+                          0,
+                          (sum, conversation) =>
+                              sum + conversation.unreadCount,
+                        ) ??
+                        0;
+                    return _ChatNavIcon(
+                      count: count,
+                      selected: false,
+                    );
+                  },
+                ),
+                selectedIcon: StreamBuilder<List<Conversation>>(
+                  stream: _conversationsStream,
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.fold<int>(
+                          0,
+                          (sum, conversation) =>
+                              sum + conversation.unreadCount,
+                        ) ??
+                        0;
+                    return _ChatNavIcon(
+                      count: count,
+                      selected: true,
+                    );
+                  },
                 ),
                 label: 'المحادثات',
               ),
