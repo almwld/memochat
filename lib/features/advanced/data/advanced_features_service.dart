@@ -80,10 +80,20 @@ class AdvancedFeaturesService {
     final ref = _rooms.doc(roomId);
     final snap = await ref.get();
     if (!snap.exists || snap.data()?['active'] != true) throw StateError('الغرفة غير متاحة');
-    await ref.collection('members').doc(uid).set({
+    final memberRef = ref.collection('members').doc(uid);
+    final existing = await memberRef.get();
+    final existingRole = existing.data()?['role']?.toString().trim().toLowerCase();
+    // Joining must not downgrade the room owner/moderator, and the current
+    // voice UI exposes a microphone control, so normal members join as speakers.
+    final role = existingRole == 'host' ||
+            existingRole == 'moderator' ||
+            existingRole == 'speaker'
+        ? existingRole!
+        : 'speaker';
+    await memberRef.set({
       'userId': uid,
-      'role': 'listener',
-      'joinedAt': FieldValue.serverTimestamp(),
+      'role': role,
+      'joinedAt': existing.data()?['joinedAt'] ?? FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
