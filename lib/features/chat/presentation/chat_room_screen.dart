@@ -369,7 +369,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         if (e.code == 'unavailable' ||
             e.code == 'deadline-exceeded' ||
             e.code == 'failed-precondition') {
-          _listen();
+          unawaited(_listen());
           return;
         }
       }
@@ -380,7 +380,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
           if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
           return;
         }
-        _listen();
+        await _listen();
         return;
       }
 
@@ -417,19 +417,29 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         ));
         return;
       }
-      _listen();
+      await _listen();
+    } on FirebaseException catch (e) {
+      debugPrint('chat room initialization Firebase failure: ${e.code}');
+      if (!mounted) return;
+      if (e.code == 'permission-denied') {
+        setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
+      } else {
+        setState(() { _loading = false; _loadError = null; });
+        unawaited(_listen());
+      }
     } catch (e) {
       debugPrint('chat room initialization failed: $e');
-      if (mounted) setState(() { _loading = false; _loadError = 'تعذر تجهيز المحادثة حالياً. تحقق من الاتصال ثم حاول مرة أخرى.'; });
+      if (mounted) setState(() { _loading = false; _loadError = null; });
+      if (mounted) unawaited(_listen());
     }
   }
 
-  void _listen() {
+  Future<void> _listen() async {
     _roomLoadTimer?.cancel();
     // Retries replace subscriptions; never accumulate duplicate listeners.
-    unawaited(_chatSub?.cancel());
+    await _chatSub?.cancel();
     _chatSub = null;
-    unawaited(_userSub?.cancel());
+    await _userSub?.cancel();
     _userSub = null;
     _chatSub = _firestore
         .collection('chats')
@@ -568,7 +578,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       });
       _messageStreamRetry?.cancel();
       _messageStreamRetry = Timer(const Duration(seconds: 2), () {
-        if (mounted) _listen();
+        if (mounted) unawaited(_listen());
       });
     });
   }
