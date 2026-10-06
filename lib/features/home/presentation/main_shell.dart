@@ -15,7 +15,6 @@ import '../../games/presentation/games_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
 import '../../../core/services/quick_action_service.dart';
 import '../../profile/presentation/profile_screen.dart';
-import '../../../core/crypto/signal_session_manager.dart';
 
 class _ChatNavIcon extends StatelessWidget {
   const _ChatNavIcon({required this.count, required this.selected});
@@ -99,15 +98,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
     ];
     _consumeQuickAction();
-    unawaited(_prepareE2EE());
-  }
-
-  Future<void> _prepareE2EE() async {
-    try {
-      await SignalSessionManager.instance.ensureReady();
-    } catch (_) {
-      // Encryption setup must never delay or block the visible UI.
-    }
   }
 
   @override
