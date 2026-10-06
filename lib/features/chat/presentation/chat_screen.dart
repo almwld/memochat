@@ -228,6 +228,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         final mine = uid == null
                             ? null
                             : statuses.where((status) => status.userId == uid).firstOrNull;
+                        final mineImageFuture = uid == null
+                            ? Future<String?>.value(null)
+                            : _loadCurrentProfileImage(uid);
                         final others = statuses
                             .where((status) => status.userId != uid)
                             .toList()
@@ -244,9 +247,12 @@ class _ChatScreenState extends State<ChatScreen> {
                             separatorBuilder: (_, __) => const SizedBox(width: 10),
                             itemBuilder: (context, index) {
                               if (index == 0) {
-                                return _StatusAddTile(
-                                  status: mine,
-                                  onTap: () => Navigator.of(context).push(
+                                return FutureBuilder<String?>(
+                                  future: mineImageFuture,
+                                  builder: (context, imageSnapshot) => _StatusAddTile(
+                                    status: mine,
+                                    imageOverride: imageSnapshot.data,
+                                    onTap: () => Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => mine == null
                                           ? const AddStatusScreen()
@@ -254,7 +260,6 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                   ),
                                 );
-                              }
                               final status = others[index - 1];
                               return _StatusTile(
                                 status: status,
@@ -312,6 +317,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: const Text('محادثة جديدة'),
               ),
       );
+
+  Future<String?> _loadCurrentProfileImage(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = doc.data() ?? const <String, dynamic>{};
+      final stored = data['photoUrl']?.toString().trim();
+      if (stored?.isNotEmpty == true) return stored;
+      final legacy = data['photoURL']?.toString().trim();
+      if (legacy?.isNotEmpty == true) return legacy;
+    } catch (_) {}
+    return FirebaseAuth.instance.currentUser?.photoURL;
+  }
 
   Future<void> _assignChatToFolder(String chatId) async {
     final folders = await _folderService.getFolders();
@@ -581,14 +598,18 @@ class _StateView extends StatelessWidget {
 
 
 class _StatusAddTile extends StatelessWidget {
-  const _StatusAddTile({required this.status, required this.onTap});
+  const _StatusAddTile({required this.status, required this.imageOverride, required this.onTap});
   final UserStatusModel? status;
+  final String? imageOverride;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final image = status?.userImage?.trim() ?? '';
+    final image = (imageOverride?.trim().isNotEmpty == true
+            ? imageOverride!.trim()
+            : status?.userImage?.trim()) ??
+        '';
     return SizedBox(
       width: 108,
       child: InkWell(
