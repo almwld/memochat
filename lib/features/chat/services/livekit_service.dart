@@ -314,10 +314,20 @@ class LiveKitService {
       }
     }
     try {
-      final publication = await p.setCameraEnabled(true);
-      if (publication == null || publication.track == null) throw StateError('لم يتم إنشاء مسار فيديو للكاميرا');
+      LocalTrackPublication? publication;
+      Object? lastError;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          publication = await p.setCameraEnabled(true);
+          if (publication?.track != null) break;
+        } catch (error) {
+          lastError = error;
+        }
+        if (attempt < 3) await Future<void>.delayed(const Duration(milliseconds: 350));
+      }
+      if (publication?.track == null) throw lastError ?? StateError('لم يتم إنشاء مسار فيديو للكاميرا');
       _isCameraEnabled = true;
-      debugPrint('LIVEKIT CAMERA ENABLED sid=${publication.sid} source=${publication.source}');
+      debugPrint('LIVEKIT CAMERA ENABLED sid=${publication!.sid} source=${publication.source}');
     } catch (e) {
       _isCameraEnabled = false;
       debugPrint('LIVEKIT CAMERA ERROR: $e');
@@ -336,8 +346,18 @@ class LiveKitService {
       }
     }
     try {
-      final publication = await p.setMicrophoneEnabled(true);
-      if (publication == null) throw StateError('لم يتم نشر الميكروفون');
+      LocalTrackPublication? publication;
+      Object? lastError;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          publication = await p.setMicrophoneEnabled(true);
+          if (publication?.track != null) break;
+        } catch (error) {
+          lastError = error;
+        }
+        if (attempt < 3) await Future<void>.delayed(const Duration(milliseconds: 350));
+      }
+      if (publication?.track == null) throw lastError ?? StateError('لم يتم نشر الميكروفون في LiveKit');
       _isMicrophoneEnabled = true;
     } catch (e) {
       _isMicrophoneEnabled = false;

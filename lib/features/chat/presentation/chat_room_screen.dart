@@ -374,6 +374,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }
     try {
       final ref = _firestore.collection('chats').doc(_chatId);
+      // Start rendering the cached/live stream while the authorization read
+      // is in flight. This removes the blank bubble-room gap on slow networks.
+      final listenerFuture = _listen();
       DocumentSnapshot<Map<String, dynamic>>? snapshot;
       try {
         snapshot = await ref.get();
@@ -394,7 +397,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
           if (mounted) setState(() { _loading = false; _loadError = 'لا تملك صلاحية الوصول إلى هذه المحادثة.'; });
           return;
         }
-        await _listen();
+        await listenerFuture;
         return;
       }
 
@@ -432,7 +435,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         await _listen();
         return;
       }
-      await _listen();
+      await listenerFuture;
     } on FirebaseException catch (e) {
       debugPrint('chat room initialization Firebase failure: ${e.code}');
       if (!mounted) return;

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import '../../app/app.dart';
 import '../services/firebase_bootstrap.dart';
 import '../services/fcm_token_service.dart';
@@ -24,11 +26,19 @@ class PushNotificationService {
   final RingtoneService _ringtone = RingtoneService();
 
   Future<void> initialize() async {
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
-    await FcmTokenService.instance.start();
-    await FcmTokenService.instance.syncCurrentToken();
+    try {
+      await _messaging.requestPermission(alert: true, badge: true, sound: true).timeout(const Duration(seconds: 8));
+    } catch (error) {
+      debugPrint('FCM permission request skipped: $error');
+    }
+    try {
+      await FcmTokenService.instance.start().timeout(const Duration(seconds: 8));
+      await FcmTokenService.instance.syncCurrentToken().timeout(const Duration(seconds: 8));
+    } catch (error) {
+      debugPrint('FCM token setup skipped: $error');
+    }
     FirebaseMessaging.onMessage.listen(_handleMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
     final initial = await _messaging.getInitialMessage();
@@ -58,23 +68,25 @@ class PushNotificationService {
     final notification = _parse(message);
     if (notification.senderId != null && notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
     if (!await _inbox.addNotification(notification)) return;
-    await _history.add(
-      notification.type.wireName,
-      notification.title,
-      notification.body,
-      route: notification.route,
+    await _localNotifications.showTypedNotification(
+      type: notification.type.wireName,
+      title: notification.title,
+      body: notification.body,
       data: notification.toJson(),
-      id: notification.id,
+      payload: notification.encode(),
+      playSound: notification.sound,
     );
-    {
-      await _localNotifications.showTypedNotification(
-        type: notification.type.wireName,
-        title: notification.title,
-        body: notification.body,
+    try {
+      await _history.add(
+        notification.type.wireName,
+        notification.title,
+        notification.body,
+        route: notification.route,
         data: notification.toJson(),
-        payload: notification.encode(),
-        playSound: notification.sound,
+        id: notification.id,
       );
+    } catch (error) {
+      debugPrint('notification history unavailable: $error');
     }
   }
   Future<void> _handleOpened(RemoteMessage message) async {
@@ -135,26 +147,28 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
   final inbox = NotificationInbox();
   if (!await inbox.addNotification(notification)) return;
-  await NotificationHistoryService().add(
-    notification.type.wireName,
-    notification.title,
-    notification.body,
-    route: notification.route,
-    data: notification.toJson(),
-    id: notification.id,
-  );
   if (message.notification == null) {
     final local = NotificationService();
     await local.initialize();
-    {
-      await local.showTypedNotification(
-        type: notification.type.wireName,
-        title: notification.title,
-        body: notification.body,
-        data: notification.toJson(),
-        payload: notification.encode(),
-        playSound: notification.sound,
-      );
-    }
+    await local.showTypedNotification(
+      type: notification.type.wireName,
+      title: notification.title,
+      body: notification.body,
+      data: notification.toJson(),
+      payload: notification.encode(),
+      playSound: notification.sound,
+    );
+  }
+  try {
+    await NotificationHistoryService().add(
+      notification.type.wireName,
+      notification.title,
+      notification.body,
+      route: notification.route,
+      data: notification.toJson(),
+      id: notification.id,
+    );
+  } catch (error) {
+    debugPrint('background notification history unavailable: $error');
   }
 }
