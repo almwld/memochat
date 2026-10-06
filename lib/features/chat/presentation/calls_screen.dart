@@ -81,11 +81,6 @@ class _CallsScreenState extends State<CallsScreen> {
           child: Row(
             children: [
               const Expanded(child: Text('الحالات اليومية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-              IconButton(
-                tooltip: 'إضافة حالة',
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddStatusScreen())),
-                icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
-              ),
             ],
           ),
         ),
