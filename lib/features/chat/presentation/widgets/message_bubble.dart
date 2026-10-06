@@ -595,17 +595,93 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildCall(Map<String, dynamic> m, bool dark) {
-    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata']) : <String, dynamic>{};
-    final status = (meta['status'] ?? '').toString();
+    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
+    final status = (meta['status'] ?? '').toString().toLowerCase();
     final video = meta['isVideo'] == true || meta['callType']?.toString() == 'video';
-    final duration = (meta['duration'] ?? '').toString();
-    final missed = status == 'missed' || status == 'rejected' || status == 'busy';
-    final incoming = !missed && !widget.isMe;
-    final icon = missed ? Icons.call_missed : incoming ? Icons.call_received : Icons.call_made;
-    final title = missed ? 'مكالمة ${video ? 'فيديو' : 'صوتية'} فائتة' : incoming ? 'مكالمة ${video ? 'فيديو' : 'صوتية'} واردة' : 'مكالمة ${video ? 'فيديو' : 'صوتية'} صادرة';
+    final duration = (meta['duration'] ?? '').toString().trim();
+    final incoming = !widget.isMe;
+
+    late final IconData icon;
+    late final String statusLabel;
+    switch (status) {
+      case 'ended':
+        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
+        statusLabel = duration.isNotEmpty ? 'تم الرد • $duration' : 'تم الرد';
+        break;
+      case 'missed':
+        icon = Icons.call_missed_rounded;
+        statusLabel = incoming ? 'لم يُرد عليها' : 'لم يُجب عليها';
+        break;
+      case 'rejected':
+        icon = Icons.call_missed_rounded;
+        statusLabel = incoming ? 'مرفوضة' : 'تم رفضها';
+        break;
+      case 'busy':
+        icon = Icons.phone_busy_rounded;
+        statusLabel = 'مشغول بمكالمة أخرى';
+        break;
+      case 'cancelled':
+        icon = Icons.call_end_rounded;
+        statusLabel = incoming ? 'أُلغي الاتصال' : 'تم إلغاء الاتصال';
+        break;
+      case 'calling':
+      case 'ringing':
+        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
+        statusLabel = incoming ? 'مكالمة واردة' : 'جاري الاتصال';
+        break;
+      default:
+        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
+        statusLabel = incoming ? 'مكالمة واردة' : 'مكالمة صادرة';
+    }
+
+    final title = 'مكالمة ${video ? 'فيديو' : 'صوتية'}';
     final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
-    final ic = missed ? Colors.red : incoming ? Colors.green : Colors.blue;
-    return _shell(Padding(padding: const EdgeInsets.all(10), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 48, height: 48, decoration: BoxDecoration(color: ic.withOpacity(.15), shape: BoxShape.circle), child: Icon(icon, color: ic, size: 24)), const SizedBox(width: 12), Flexible(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)), if (duration.isNotEmpty) ...[const SizedBox(height: 3), Text(duration, style: TextStyle(color: tc.withOpacity(.7), fontSize: 11))]])), const SizedBox(width: 12), InkWell(borderRadius: BorderRadius.circular(20), onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'), child: Padding(padding: const EdgeInsets.all(6), child: Icon(video ? Icons.videocam : Icons.call, color: tc, size: 20)))])), dark);
+    final statusColor = switch (status) {
+      'missed' || 'rejected' => Colors.red,
+      'busy' => Colors.orange,
+      'cancelled' => Colors.grey,
+      'ended' => AppColors.primary,
+      _ => incoming ? Colors.green : AppColors.primary,
+    };
+
+    return _shell(
+      Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(color: statusColor.withOpacity(.15), shape: BoxShape.circle),
+              child: Icon(icon, color: statusColor, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 3),
+                  Text(statusLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 11)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(video ? Icons.videocam_rounded : Icons.call_rounded, color: tc, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+      dark,
+    );
   }
 
   Widget _buildContact(Map<String, dynamic> m, bool dark) {
