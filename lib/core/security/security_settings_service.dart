@@ -111,17 +111,11 @@ class SecuritySettingsService extends ChangeNotifier {
       _protocols[protocol] = false;
     }
 
+    // Only enable capabilities that have a real client-side implementation.
+    // Experimental protocol names remain disabled until their complete
+    // transport/backend implementation is shipped.
     if (level == SecurityLevel.enhanced || level == SecurityLevel.maximum) {
       _protocols[SecurityProtocol.metadataProtection] = true;
-      _protocols[SecurityProtocol.websocketFallback] = true;
-      _protocols[SecurityProtocol.httpsFallback] = true;
-    }
-
-    if (level == SecurityLevel.maximum) {
-      _protocols[SecurityProtocol.onionRouting] = true;
-      _protocols[SecurityProtocol.sealedSender] = true;
-      _protocols[SecurityProtocol.postQuantumHybrid] = true;
-      _protocols[SecurityProtocol.quicTransport] = true;
       _protocols[SecurityProtocol.websocketFallback] = true;
       _protocols[SecurityProtocol.httpsFallback] = true;
     }
