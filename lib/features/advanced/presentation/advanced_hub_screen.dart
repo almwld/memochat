@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/advanced_features_service.dart';
 import '../../../core/services/mini_app_state_service.dart';
-import '../../chat/services/livekit_service.dart';
+import '../services/voice_room_livekit_service.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../communities/presentation/communities_screen.dart';
@@ -245,7 +245,7 @@ class VoiceRoomScreen extends StatefulWidget {
 
 class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProviderStateMixin {
   final _service = AdvancedFeaturesService();
-  final _liveKit = LiveKitService();
+  final _liveKit = VoiceRoomLiveKitService();
   Room? _room;
   Timer? _participantsRefresh;
   late final AnimationController _pulseController;
@@ -270,7 +270,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
     try {
       // Permission must be granted before the voice-room token is used to publish
       // the microphone track; otherwise LiveKit reports TrackPublishException.
-      await _liveKit.ensureMediaPermissions(video: false);
+      await _liveKit.ensureMediaPermissions();
       await _service.joinVoiceRoom(widget.roomId);
       final user = FirebaseAuth.instance.currentUser;
       _room = await _liveKit.connectVoiceRoom(
@@ -344,7 +344,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
 
   Future<void> _leave() async {
     _participantsRefresh?.cancel();
-    await _liveKit.endCall();
+    await _liveKit.endRoom();
     try {
       await _service.leaveVoiceRoom(widget.roomId);
     } finally {
@@ -356,7 +356,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
   void dispose() {
     _participantsRefresh?.cancel();
     _pulseController.dispose();
-    if (_liveKit.isConnected) unawaited(_liveKit.endCall());
+    if (_liveKit.isConnected) unawaited(_liveKit.endRoom());
     super.dispose();
   }
 
