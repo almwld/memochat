@@ -168,6 +168,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _hasInitialMessageSnapshot = false;
   bool _loading = true;
   String? _loadError;
+  bool _initializingRoom = false;
   bool _online = false;
   bool get _selectionMode => _selectedMessageIds.isNotEmpty;
   DateTime? _lastSeen;
@@ -340,6 +341,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _initializeRoom() async {
+    if (_initializingRoom) return;
+    _initializingRoom = true;
+    try {
+      await _initializeRoomInternal();
+    } finally {
+      _initializingRoom = false;
+    }
+  }
+
+  Future<void> _initializeRoomInternal() async {
     _roomLoadTimer?.cancel();
     _messageStreamRetry?.cancel();
     _roomLoadTimer = Timer(const Duration(seconds: 15), () {
