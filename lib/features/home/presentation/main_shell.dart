@@ -33,6 +33,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
+  bool _navVisible = true;
   late final List<Widget> _pages;
 
   @override
@@ -85,16 +86,38 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  bool _handleNavigationScroll(UserScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    final nextVisible = notification.metrics.pixels <= 0 ||
+        notification.direction == ScrollDirection.forward;
+    if (nextVisible != _navVisible && mounted) {
+      setState(() => _navVisible = nextVisible);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: NavigationBar(
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: _handleNavigationScroll,
+        child: IndexedStack(index: _index, children: _pages),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: AnimatedSlide(
+          offset: _navVisible ? Offset.zero : const Offset(0, 1.15),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: _navVisible ? 1 : 0,
+            duration: const Duration(milliseconds: 160),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: NavigationBar(
             height: 72,
             selectedIndex: _index,
             onDestinationSelected: (index) => setState(() => _index = index),
@@ -150,6 +173,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 label: 'الإعدادات',
               ),
             ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
