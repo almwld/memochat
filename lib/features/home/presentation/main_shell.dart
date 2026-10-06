@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
@@ -290,7 +291,7 @@ class DiscoverScreen extends StatelessWidget {
                 child: Row(children: [
                   Container(width: 50, height: 50, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.sports_esports_rounded, color: Theme.of(context).colorScheme.primary, size: 27)),
                   const SizedBox(width: 12),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('ألعاب MemoChat', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 16)),
                     SizedBox(height: 4),
                     Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(.78), fontSize: 12)),

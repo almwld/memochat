@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../games/presentation/game_leaderboard_screen.dart';
 import '../../../core/theme/app_colors.dart';
 import '../services/avatar_service.dart';
