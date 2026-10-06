@@ -74,24 +74,43 @@ class ReliableMessageService {
   }
   Future<void> acknowledgeDelivered({
     required String chatId,
-    required List<String> messageIds,
+    required Iterable<String> messageIds,
   }) async {
     final uid = _auth.currentUser?.uid;
-    if (uid == null || messageIds.isEmpty) return;
+    if (uid == null || uid.isEmpty || chatId.isEmpty) return;
+
+    final ids = messageIds
+        .where((id) => id.trim().isNotEmpty)
+        .map((id) => id.trim())
+        .toSet();
+    if (ids.isEmpty) return;
 
     final db = FirebaseFirestore.instance;
+    final chatRef = db.collection('chats').doc(chatId);
+    final chat = await chatRef.get();
+    if (!chat.exists) return;
+    final participants = List<String>.from(
+      chat.data()?['participants'] ?? const <String>[],
+    );
+    if (!participants.contains(uid)) return;
+
+    final refs = ids.map((id) => chatRef.collection('messages').doc(id)).toList();
+    final snapshots = await Future.wait(refs.map((ref) => ref.get()));
     final batch = db.batch();
-    for (final id in messageIds) {
-      final ref = db
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .doc(id);
-      batch.update(ref, {
+    var changed = 0;
+
+    for (var i = 0; i < snapshots.length; i++) {
+      final snapshot = snapshots[i];
+      if (!snapshot.exists) continue;
+      final data = snapshot.data() ?? <String, dynamic>{};
+      if (data['senderId']?.toString() == uid) continue;
+      if (data['isDelivered'] == true) continue;
+      batch.update(refs[i], {
         'isDelivered': true,
         'deliveredAt': FieldValue.serverTimestamp(),
       });
+      changed++;
     }
-    await batch.commit();
-  }
-}
+
+    if (changed > 0) await batch.commit();
+  }\n}
