@@ -255,9 +255,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ])),
           ]),
           _Section(title: 'الإشعارات والأصوات', children: [
-            _Row(Icons.notifications_none_rounded, 'الإشعارات', 'الرسائل والمجموعات والمكالمات', () => _open('الإشعارات والأصوات', Icons.notifications_none_rounded, const [
+            _Row(Icons.notifications_none_rounded, 'الإشعارات', 'الرسائل والمجموعات', () => _open('الإشعارات والأصوات', Icons.notifications_none_rounded, const [
               _SettingItem('إشعارات الرسائل', 'تنبيهات الرسائل الخاصة والمجموعات', Icons.chat_outlined, switchable: true),
-              _SettingItem('إشعارات المكالمات', 'تنبيهات المكالمات الواردة', Icons.call_outlined, switchable: true),
               _SettingItem('صوت الإشعارات', 'تشغيل أصوات التنبيه', Icons.volume_up_outlined, switchable: true),
               _SettingItem('الاهتزاز', 'اهتزاز الجهاز مع التنبيهات', Icons.vibration_outlined, switchable: true),
               _SettingItem('معاينة الرسائل', 'إظهار محتوى الرسالة في الإشعار', Icons.preview_outlined, switchable: true),
@@ -269,15 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingItem('التنزيل التلقائي للصور', 'حسب نوع الشبكة', Icons.image_outlined),
               _SettingItem('التنزيل التلقائي للفيديو', 'التحكم في تنزيل الفيديو', Icons.video_library_outlined),
               _SettingItem('التنزيل التلقائي للملفات', 'التحكم في تنزيل المستندات', Icons.insert_drive_file_outlined),
-              _SettingItem('بيانات أقل للمكالمات', 'تقليل استهلاك البيانات', Icons.network_check_outlined, switchable: true),
               _SettingItem('التخزين', 'إدارة الوسائط والمساحة المحلية', Icons.storage_outlined),
-            ])),
-          ]),
-          _Section(title: 'المكالمات', children: [
-            _Row(Icons.call_outlined, 'المكالمات', 'الصوت والفيديو والبيانات', () => _open('المكالمات', Icons.call_outlined, const [
-              _SettingItem('استخدام بيانات أقل', 'تقليل استهلاك البيانات', Icons.data_saver_on_outlined, switchable: true),
-              _SettingItem('المكالمات الفائتة', 'إشعارات المكالمات الفائتة', Icons.call_missed_outlined, switchable: true),
-              _SettingItem('الأجهزة الصوتية', 'مسار الصوت المتاح', Icons.headset_mic_outlined),
             ])),
           ]),
           _Section(title: 'القصص والمجموعات', children: [
