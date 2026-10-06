@@ -32,12 +32,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _readReceiptsKey = 'settings.readReceipts';
   static const _typingKey = 'settings.typing';
   static const _onlineKey = 'settings.online';
+  static const _hideFromContactsKey = 'settings.hideFromContacts';
   static const _themeKey = 'settings.theme';
 
   bool _notifications = true;
   bool _readReceipts = true;
   bool _typing = true;
   bool _online = true;
+  bool _hideFromContacts = false;
   ThemeMode _themeMode = ThemeMode.system;
   bool _loading = true;
 
@@ -53,12 +55,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final mode = prefs.getString(_themeKey) ?? 'system';
+    var hideFromContacts = prefs.getBool(_hideFromContactsKey) ?? false;
+    final user = _user;
+    if (user != null) {
+      try {
+        final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        hideFromContacts = snap.data()?['hideFromContacts'] == true;
+        await prefs.setBool(_hideFromContactsKey, hideFromContacts);
+      } catch (_) {}
+    }
     if (!mounted) return;
     setState(() {
       _notifications = prefs.getBool(_notificationsKey) ?? true;
       _readReceipts = prefs.getBool(_readReceiptsKey) ?? true;
       _typing = prefs.getBool(_typingKey) ?? true;
       _online = prefs.getBool(_onlineKey) ?? true;
+      _hideFromContacts = hideFromContacts;
       _themeMode = mode == 'light'
           ? ThemeMode.light
           : mode == 'dark'
@@ -213,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final user = _user;
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('الإعدادات', style: TextStyle(fontWeight: FontWeight.w900))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 120),
@@ -280,6 +292,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (v) async {
                   await _toggle(_onlineKey, v);
                   await _privacy('showOnline', v);
+                },
+              ),
+              _SwitchRow(
+                icon: AppIcons.contacts,
+                title: 'إخفاء جهة اتصالي في تواصل',
+                subtitle: 'منع ظهور حسابك في قائمة المستخدمين داخل واجهة تواصل',
+                value: _hideFromContacts,
+                onChanged: (v) async {
+                  await _toggle(_hideFromContactsKey, v);
+                  await _privacy('hideFromContacts', v);
                 },
               ),
             ],
