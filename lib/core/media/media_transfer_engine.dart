@@ -515,7 +515,7 @@ class MediaTransferEngine {
     required String remoteDirectory,
     required String fileName,
     required String? mimeType,
-    String? chatId,
+    String? uploadChatId,
   }) async {
     final nc = NextcloudService();
     await nc.loadConfig();
@@ -526,7 +526,7 @@ class MediaTransferEngine {
         path: remoteDirectory,
         fileName: fileName,
         mimeType: mimeType,
-        chatId: chatId,
+        chatId: uploadChatId,
         cancelToken: token,
         createShare: true,
         onProgress: (sent, total) {
