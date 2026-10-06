@@ -199,7 +199,7 @@ class DiscoverScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('اكتشف', style: TextStyle(fontWeight: FontWeight.w900)),
       ),
