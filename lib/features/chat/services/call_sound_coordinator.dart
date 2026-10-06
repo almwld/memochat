@@ -217,6 +217,17 @@ class CallSoundCoordinator {
       _incomingMuted = false;
     }
 
+    final answered = data['isAnswered'] == true;
+    if (isIncoming && answered) {
+      // Acceptance has happened; stop ringtone/UI immediately. The receiver's
+      // CallScreen will establish LiveKit and then publish connected.
+      unawaited(_sounds.stopCallAudio());
+      if (_incomingUiCallId == callId) {
+        _incomingUiCallId = null;
+      }
+      return;
+    }
+
     if (isIncoming) {
       final registryId = ActiveCallRegistry.instance.activeCallId;
       if (registryId != null && registryId != callId) {
