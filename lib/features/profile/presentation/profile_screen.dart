@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../games/presentation/game_leaderboard_screen.dart';
 import '../../../core/theme/app_colors.dart';
+import '../services/avatar_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.userId});
@@ -13,6 +16,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  final _avatarService = AvatarService();
+  bool _uploadingAvatar = false;
   String get _uid => widget.userId ?? _auth.currentUser?.uid ?? '';
   bool get _isMe => widget.userId == null || widget.userId == _auth.currentUser?.uid;
 
@@ -40,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
             children: [
-              _HeroProfile(name: name, publicId: publicId, bio: bio, photoUrl: photo, onEdit: _isMe ? _editProfile : null),
+              _HeroProfile(name: name, publicId: publicId, bio: bio, photoUrl: photo, onEdit: _isMe ? _editProfile : null, onChangePhoto: _isMe ? _changePhoto : null, uploadingPhoto: _uploadingAvatar),
               const SizedBox(height: 14),
               _StatsStrip(uid: _uid),
               const SizedBox(height: 14),
@@ -98,6 +103,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _changePhoto() async {
+    if (_uploadingAvatar || _uid.isEmpty) return;
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 86,
+    );
+    if (picked == null) return;
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      final result = await _avatarService.uploadAndSetOfficialAvatar(
+        uid: _uid,
+        file: File(picked.path),
+      );
+      if (!mounted) return;
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحديث صورة الحساب الرسمية بنجاح')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.error ?? 'تعذر تحديث صورة الحساب')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر رفع صورة الحساب: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
   Future<void> _editProfile() async {
     final snap = await _db.collection('users').doc(_uid).get();
     final data = snap.data() ?? {};
@@ -148,12 +189,16 @@ class _HeroProfile extends StatelessWidget {
     required this.bio,
     required this.photoUrl,
     this.onEdit,
+    this.onChangePhoto,
+    this.uploadingPhoto = false,
   });
   final String name;
   final String publicId;
   final String bio;
   final String? photoUrl;
   final VoidCallback? onEdit;
+  final VoidCallback? onChangePhoto;
+  final bool uploadingPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -167,11 +212,35 @@ class _HeroProfile extends StatelessWidget {
         ),
         child: Column(
           children: [
-            CircleAvatar(
-              radius: 46,
-              backgroundColor: primary.withOpacity(.12),
-              backgroundImage: photoUrl?.isNotEmpty == true ? NetworkImage(photoUrl!) : null,
-              child: photoUrl?.isNotEmpty == true ? null : Icon(Icons.person_rounded, size: 44, color: primary),
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 46,
+                  backgroundColor: primary.withOpacity(.12),
+                  backgroundImage: photoUrl?.isNotEmpty == true ? NetworkImage(photoUrl!) : null,
+                  child: photoUrl?.isNotEmpty == true ? null : Icon(Icons.person_rounded, size: 44, color: primary),
+                ),
+                if (onChangePhoto != null)
+                  Material(
+                    color: primary,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: uploadingPhoto ? null : onChangePhoto,
+                      child: Padding(
+                        padding: const EdgeInsets.all(9),
+                        child: uploadingPhoto
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.camera_alt_rounded, size: 18, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             Text(name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
