@@ -36,7 +36,14 @@ class _CallsScreenState extends State<CallsScreen> {
       stream: StatusService().streamActiveStatuses(),
       builder: (context, statusSnapshot) {
         final statuses = statusSnapshot.data ?? const <UserStatusModel>[];
-        final mine = currentUid == null ? null : statuses.where((s) => s.userId == currentUid).firstOrNull;
+        final mine = currentUid == null
+            ? null
+            : statuses.where((s) => s.userId == currentUid).firstOrNull;
+        final others = statuses.where((s) => s.userId != currentUid).toList()
+          ..sort((a, b) {
+            if (a.isViewed != b.isViewed) return a.isViewed ? 1 : -1;
+            return b.createdAt.compareTo(a.createdAt);
+          });
         return Column(
           children: [
             _buildStatusHeader(context, statuses, mine, isDark),
@@ -87,7 +94,7 @@ class _CallsScreenState extends State<CallsScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             scrollDirection: Axis.horizontal,
-            itemCount: statuses.length + 1,
+            itemCount: others.length + 1,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               if (index == 0) {
@@ -103,7 +110,7 @@ class _CallsScreenState extends State<CallsScreen> {
                   },
                 );
               }
-              final status = statuses[index - 1];
+              final status = others[index - 1];
               return _StatusTile(
                 status: status,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))),
