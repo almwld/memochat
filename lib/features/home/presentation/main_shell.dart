@@ -114,14 +114,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             opacity: _navVisible ? 1 : 0,
             duration: const Duration(milliseconds: 160),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(28),
                 child: NavigationBar(
-            height: 72,
-            selectedIndex: _index,
-            onDestinationSelected: (index) => setState(() => _index = index),
-            destinations: const [
+                  height: 72,
+                  selectedIndex: _index,
+                  onDestinationSelected: (index) => setState(() => _index = index),
+                  destinations: const [
               NavigationDestination(
                 icon: AppIcon(AppIcons.chat, size: 22),
                 selectedIcon: PremiumIconTile(
@@ -172,7 +172,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 ),
                 label: 'الإعدادات',
               ),
-            ],
+                  ],
                 ),
               ),
             ),
@@ -283,19 +283,19 @@ class DiscoverScreen extends StatelessWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GamesHubScreen())),
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0A8F83),
-                  border: Border.all(color: Colors.white.withOpacity(.10)),
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
                 padding: const EdgeInsets.all(14),
                 child: Row(children: [
-                  Container(width: 50, height: 50, decoration: BoxDecoration(color: Colors.white.withOpacity(.18), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.sports_esports_rounded, color: Colors.white, size: 27)),
+                  Container(width: 50, height: 50, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.sports_esports_rounded, color: Theme.of(context).colorScheme.primary, size: 27)),
                   const SizedBox(width: 12),
                   const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('ألعاب MemoChat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text('ألعاب MemoChat', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 16)),
                     SizedBox(height: 4),
-                    Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(.78), fontSize: 12)),
                   ])),
-                  const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                  Icon(Icons.arrow_back_ios_new_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer, size: 16),
                 ]),
               ),
             ),
