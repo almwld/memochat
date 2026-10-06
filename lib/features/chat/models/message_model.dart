@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
-enum MessageType { text, image, audio, video, file, location, contact, system, reaction, reply, deleted, call }
+enum MessageType { text, image, audio, video, file, location, contact, system, reaction, reply, deleted, call, gameInvite }
 enum MessageStatus { sending, sent, delivered, read, failed }
 
 class MessageModel extends Equatable {
@@ -122,7 +122,9 @@ class MessageModel extends Equatable {
       replyPreview: mapOf(data['replyPreview']),
       type: MessageType.values.firstWhere(
         (value) => value.name == data['type']?.toString(),
-        orElse: () => MessageType.text,
+        orElse: () => data['type']?.toString() == 'game_invite'
+            ? MessageType.gameInvite
+            : MessageType.text,
       ),
       timestamp: effectiveTimestamp,
       clientTimestamp: clientTimestamp,

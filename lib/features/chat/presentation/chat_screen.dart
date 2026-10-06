@@ -7,7 +7,9 @@ import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/widgets/premium_ui.dart';
+import '../../../core/widgets/advanced_feature_carousel.dart';
 import 'chat_room_screen.dart';
+import 'chat_navigation.dart';
 import '../../../core/models/chat_folder.dart';
 import '../../../core/services/chat_folder_service.dart';
 import 'folders_manager_screen.dart';
@@ -62,10 +64,25 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _openCreateGroup() async {
-    await Navigator.of(context).push(
+    final createdId = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
     );
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (createdId == null || createdId.isEmpty) return;
+    try {
+      final snap = await FirebaseFirestore.instance.collection('chats').doc(createdId).get();
+      final data = snap.data() ?? const <String, dynamic>{};
+      final groupName = data['groupName']?.toString().trim();
+      if (!snap.exists || data['isGroup'] != true) return;
+      await ChatNavigation.openRoom(context,chatId:createdId,otherUserId:'',otherUserName:groupName?.isNotEmpty==true?groupName!:'مجموعة',otherUserImage:data['groupPhoto']?.toString(),isGroup:true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم إنشاء المجموعة، لكن تعذر فتح الغرفة: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _handleInvite(Uri uri) async {
@@ -81,7 +98,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final participants = List<String>.from(data['participants'] as List? ?? const []);
       final other = participants.firstWhere((v) => v != uid, orElse: () => '');
       if (!mounted || other.isEmpty) return;
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(chatId: id, otherUserId: other, otherUserName: data['groupName']?.toString() ?? 'مجموعة', isGroup: true)));
+      await ChatNavigation.openRoom(context,chatId:id,otherUserId:other,otherUserName:data['groupName']?.toString()??'مجموعة',isGroup:true);
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الانضمام: ' + e.toString()))); }
   }
 
@@ -101,7 +118,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => ScrollAwareScaffold(
         appBar: AppBar(
           title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
           actions: [
@@ -166,19 +183,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
             // Do not blank an already-loaded inbox because of a transient
             // Firestore/network/auth stream error.
-            if (snapshot.hasError && _lastConversations.isEmpty) {
+            // A Firestore/network error is never allowed to replace the
+            // inbox with a fatal error page. Keep the last successful snapshot
+            // visible; on a first offline open, render the normal empty state.
+            final hasRenderableData =
+                snapshot.hasData || _lastConversations.isNotEmpty;
+            if (!hasRenderableData && snapshot.hasError) {
               return _StateView(
                 icon: AppIcons.chat,
-                title: 'تعذر تحميل المحادثات',
-                subtitle: 'تحقق من الاتصال ثم حاول مرة أخرى.',
-                action: FilledButton.icon(
-                  onPressed: () => setState(() {}),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('إعادة المحاولة'),
-                ),
+                title: 'لا توجد محادثات محفوظة',
+                subtitle: 'أنت غير متصل حالياً. ستظهر محادثاتك تلقائياً عند عودة الاتصال.',
               );
             }
-            if (!snapshot.hasData && _lastConversations.isEmpty) {
+            if (!hasRenderableData) {
               return const Center(child: CircularProgressIndicator());
             }
             final conversations = snapshot.data ?? _lastConversations;
@@ -188,16 +205,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                    child: PremiumHero(
-                      icon: AppIcons.chat,
+                    child: AdvancedFeatureCarousel(
                       title: 'مساحتك الخاصة',
-                      subtitle: 'كل محادثاتك ورسائلك في مكان واحد، بتجربة عربية سريعة ومرتبة.',
-                      action: IconButton(
-                        tooltip: 'محادثة جديدة',
-                        onPressed: widget.onNewChat,
-                        color: Colors.white,
-                        icon: const Icon(Icons.add_rounded),
-                      ),
+                      onClose: null,
                     ),
                   ),
                 ),
@@ -208,39 +218,60 @@ class _ChatScreenState extends State<ChatScreen> {
                       stream: StatusService().streamActiveStatuses(),
                       builder: (context, snapshot) {
                         final statuses = snapshot.data ?? const <UserStatusModel>[];
+                        final uid = FirebaseAuth.instance.currentUser?.uid;
+                        final mine = uid == null
+                            ? null
+                            : statuses.where((status) => status.userId == uid).firstOrNull;
+                        final mineImageFuture = uid == null
+                            ? Future<String?>.value(null)
+                            : _loadCurrentProfileImage(uid);
+                        final others = statuses
+                            .where((status) => status.userId != uid)
+                            .toList()
+                          ..sort((a, b) {
+                            if (a.isViewed != b.isViewed) return a.isViewed ? 1 : -1;
+                            return b.createdAt.compareTo(a.createdAt);
+                          });
                         return SizedBox(
-                          height: 104,
+                          height: 154,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: statuses.length + 1,
-                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: others.length + 1,
+                            separatorBuilder: (_, __) => const SizedBox(width: 10),
                             itemBuilder: (context, index) {
                               if (index == 0) {
-                                return _StatusAddTile(onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddStatusScreen())));
+                                return FutureBuilder<String?>(
+                                  future: mineImageFuture,
+                                  builder: (context, imageSnapshot) =>
+                                      _StatusAddTile(
+                                    status: mine,
+                                    imageOverride: imageSnapshot.data,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => mine == null
+                                            ? const AddStatusScreen()
+                                            : StoryViewerScreen(status: mine),
+                                      ),
+                                    ),
+                                  ),
+                                );
                               }
-                              final status = statuses[index - 1];
+                              final status = others[index - 1];
                               return _StatusTile(
                                 status: status,
-                                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))),
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => StoryViewerScreen(status: status),
+                                  ),
+                                ),
                               );
                             },
                           ),
                         );
                       },
                     ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                    child: TextField(
-                      controller: _search,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: 'ابحث في المحادثات...',
-                        prefixIcon: AppIcon(AppIcons.search, size: 21),
-                      ),
-                    ),
+
                   ),
                 ),
                 SliverToBoxAdapter(child: _buildCategoryBar()),
@@ -266,16 +297,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           onMarkUnread: () => widget.repository.markAsUnread(item.id),
                           onArchive: () => _toggleArchive(item),
                           onFolder: () => _assignChatToFolder(item.id),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatRoomScreen(
-                                chatId: item.id,
-                                otherUserId: item.participant.id,
-                                otherUserName: item.participant.displayName,
-                                otherUserImage: item.participant.avatarUrl,
-                              ),
-                            ),
-                          ),
+                          onTap: () => ChatNavigation.openRoom(context,chatId:item.id,otherUserId:item.isGroup?'':item.participant.id,otherUserName:item.participant.displayName,otherUserImage:item.participant.avatarUrl,isGroup:item.isGroup),
                         );
                       },
                     ),
@@ -292,6 +314,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 label: const Text('محادثة جديدة'),
               ),
       );
+
+  Future<String?> _loadCurrentProfileImage(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = doc.data() ?? const <String, dynamic>{};
+      final stored = data['photoUrl']?.toString().trim();
+      if (stored?.isNotEmpty == true) return stored;
+      final legacy = data['photoURL']?.toString().trim();
+      if (legacy?.isNotEmpty == true) return legacy;
+    } catch (_) {}
+    return FirebaseAuth.instance.currentUser?.photoURL;
+  }
 
   Future<void> _assignChatToFolder(String chatId) async {
     final folders = await _folderService.getFolders();
@@ -561,34 +595,85 @@ class _StateView extends StatelessWidget {
 
 
 class _StatusAddTile extends StatelessWidget {
-  const _StatusAddTile({required this.onTap});
+  const _StatusAddTile({required this.status, required this.imageOverride, required this.onTap});
+  final UserStatusModel? status;
+  final String? imageOverride;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: SizedBox(
-        width: 72,
-        child: Column(
+    final image = (imageOverride?.trim().isNotEmpty == true
+            ? imageOverride!.trim()
+            : status?.userImage?.trim()) ??
+        '';
+    return SizedBox(
+      width: 108,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: scheme.primaryContainer,
-              ),
-              child: Icon(Icons.add_rounded, color: scheme.primary, size: 30),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: image.isNotEmpty
+                  ? Image.network(image, fit: BoxFit.cover)
+                  : Container(
+                      color: scheme.primaryContainer,
+                      child: Icon(Icons.person_outline_rounded, color: scheme.primary, size: 34),
+                    ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'حالتي',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(.72)],
+                ),
+              ),
+            ),
+            PositionedDirectional(
+              top: 8,
+              start: 8,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                ),
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundImage: image.isEmpty ? null : NetworkImage(image),
+                  child: image.isEmpty ? const Icon(Icons.person_outline_rounded, size: 18) : null,
+                ),
+              ),
+            ),
+            PositionedDirectional(
+              bottom: 8,
+              start: 9,
+              end: 8,
+              child: Text(
+                status == null ? 'إضافة حالة' : 'حالتي',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
+              ),
+            ),
+            PositionedDirectional(
+              top: 7,
+              end: 7,
+              child: Container(
+                width: 25,
+                height: 25,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -599,24 +684,95 @@ class _StatusAddTile extends StatelessWidget {
 
 class _StatusTile extends StatelessWidget {
   const _StatusTile({required this.status, required this.onTap});
+
   final UserStatusModel status;
   final VoidCallback onTap;
-  @override Widget build(BuildContext context) {
+
+  @override
+  Widget build(BuildContext context) {
     final image = status.userImage?.trim() ?? '';
+    final borderColor = status.isViewed
+        ? Theme.of(context).dividerColor
+        : Theme.of(context).colorScheme.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
-      child: SizedBox(width: 72, child: Column(children: [
-        Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)), child: CircleAvatar(radius: 29, backgroundImage: image.isEmpty ? null : NetworkImage(image), child: image.isEmpty ? Text(status.userName.characters.first) : null)),
-        const SizedBox(height: 6),
-        Text(
-          status.userName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+      child: SizedBox(
+        width: 112,
+        height: 160,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (image.isNotEmpty)
+                Image.network(
+                  image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+                )
+              else
+                Container(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Center(
+                    child: Text(
+                      status.userName.characters.first,
+                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(.78),
+                    ],
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                top: 8,
+                start: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    border: Border.all(color: borderColor, width: 2.5),
+                  ),
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundImage:
+                        image.isEmpty ? null : NetworkImage(image),
+                    child: image.isEmpty
+                        ? Text(status.userName.characters.first)
+                        : null,
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                bottom: 10,
+                start: 10,
+                end: 10,
+                child: Text(
+                  status.userName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ]),
-    ),
-  );
+      ),
+    );
   }
 }

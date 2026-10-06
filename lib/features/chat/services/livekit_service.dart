@@ -26,16 +26,6 @@ class LiveKitService {
   bool get isCameraEnabled => _isCameraEnabled;
   bool get isMicrophoneEnabled => _isMicrophoneEnabled;
 
-  Future<void> _ensureMediaPermissions({required bool video}) async {
-    final requested = <Permission>[Permission.microphone, if (video) Permission.camera];
-    final result = await requested.request();
-    final microphone = result[Permission.microphone];
-    final camera = video ? result[Permission.camera] : PermissionStatus.granted;
-    if (microphone?.isGranted != true || camera?.isGranted != true) {
-      throw StateError('يلزم السماح بالميكروفون${video ? ' والكاميرا' : ''} من إعدادات التطبيق');
-    }
-  }
-
   Future<Map<String, dynamic>> _requestLiveKitToken({
     required String roomName,
     required String participantName,
@@ -171,7 +161,6 @@ class LiveKitService {
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول قبل دخول غرفة الصوت');
-    await _ensureMediaPermissions(video: false);
 
     final idToken = await user.getIdToken();
     if (idToken == null || idToken.isEmpty) {
@@ -182,6 +171,8 @@ class LiveKitService {
     if (!RegExp(r'^memo_voice_[A-Za-z0-9_-]+$').hasMatch(canonicalRoom)) {
       throw StateError('اسم غرفة الصوت غير صالح');
     }
+
+    await ensureMediaPermissions(video: false);
 
     final name = participantName?.trim().isNotEmpty == true
         ? participantName!.trim()
@@ -239,7 +230,6 @@ class LiveKitService {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('يجب تسجيل الدخول قبل إجراء المكالمة');
-      await _ensureMediaPermissions(video: false);
       final name = participantName?.trim().isNotEmpty == true
           ? participantName!.trim()
           : (user.displayName?.trim().isNotEmpty == true
@@ -267,7 +257,10 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
-    await _ensureMediaPermissions(video: isVideo);
+    // CallScreen performs the single batched Android permission request before
+    // entering LiveKit. Do not request the same permissions again here: Android
+    // can reject the second request while the first dialog/state transition is
+    // still active, which caused the call screen to ask for permissions twice.
     final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
@@ -301,24 +294,30 @@ class LiveKitService {
     }
   }
 
+  Future<void> ensureMediaPermissions({required bool video}) async {
+    final permissions = <Permission>[Permission.microphone];
+    if (video) permissions.add(Permission.camera);
+    final statuses = await permissions.request();
+    final mic = statuses[Permission.microphone]?.isGranted == true;
+    final cam = !video || statuses[Permission.camera]?.isGranted == true;
+    if (!mic || !cam) throw StateError(video ? 'يلزم السماح بالكاميرا والميكروفون' : 'يلزم السماح بالميكروفون');
+  }
+
   Future<void> enableCamera() async {
     final p = _room?.localParticipant;
     if (p == null) throw StateError('غرفة LiveKit غير متصلة');
-    try {
-      LocalTrackPublication? publication;
-      Object? last;
-      for (var attempt = 1; attempt <= 3; attempt++) {
-        try {
-          publication = await p.setCameraEnabled(true);
-          if (publication?.track != null) break;
-        } catch (e) {
-          last = e;
-        }
-        if (attempt < 3) await Future<void>.delayed(const Duration(milliseconds: 350));
+    // Idempotent publish: reconnect/rebuild paths can call this more than once.
+    for (final publication in p.trackPublications.values) {
+      if (publication.source == TrackSource.camera && publication.track is LocalVideoTrack) {
+        _isCameraEnabled = true;
+        return;
       }
-      if (publication?.track == null) throw last ?? StateError('لم يتم إنشاء مسار فيديو للكاميرا');
+    }
+    try {
+      final publication = await p.setCameraEnabled(true);
+      if (publication == null || publication.track == null) throw StateError('لم يتم إنشاء مسار فيديو للكاميرا');
       _isCameraEnabled = true;
-      debugPrint('LIVEKIT CAMERA ENABLED sid=${publication!.sid} source=${publication.source}');
+      debugPrint('LIVEKIT CAMERA ENABLED sid=${publication.sid} source=${publication.source}');
     } catch (e) {
       _isCameraEnabled = false;
       debugPrint('LIVEKIT CAMERA ERROR: $e');
@@ -329,19 +328,16 @@ class LiveKitService {
   Future<void> enableMicrophone() async {
     final p = _room?.localParticipant;
     if (p == null) throw StateError('غرفة LiveKit غير متصلة');
-    try {
-      LocalTrackPublication? publication;
-      Object? last;
-      for (var attempt = 1; attempt <= 3; attempt++) {
-        try {
-          publication = await p.setMicrophoneEnabled(true);
-          if (publication?.track != null) break;
-        } catch (e) {
-          last = e;
-        }
-        if (attempt < 3) await Future<void>.delayed(const Duration(milliseconds: 350));
+    // Do not publish a second microphone track after a reconnect or a voice-room retry.
+    for (final publication in p.trackPublications.values) {
+      if (publication.source == TrackSource.microphone && publication.track != null) {
+        _isMicrophoneEnabled = true;
+        return;
       }
-      if (publication?.track == null) throw last ?? StateError('لم يتم نشر الميكروفون في غرفة LiveKit');
+    }
+    try {
+      final publication = await p.setMicrophoneEnabled(true);
+      if (publication == null) throw StateError('لم يتم نشر الميكروفون');
       _isMicrophoneEnabled = true;
     } catch (e) {
       _isMicrophoneEnabled = false;

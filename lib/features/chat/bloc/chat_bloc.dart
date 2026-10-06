@@ -147,7 +147,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     LoadChats event,
     Emitter<ChatState> emit,
   ) async {
-    emit(ChatLoading());
+    // A refresh/re-entry must never blank an inbox that already has data.
+    // Loading is only a first-open state; the existing render remains visible
+    // while the Firestore listener is recreated.
+    final hasRenderedChats = _allChats.isNotEmpty;
+    if (!hasRenderedChats && state is! ChatLoaded) {
+      emit(ChatLoading());
+    } else if (hasRenderedChats && state is! ChatLoaded) {
+      emit(ChatLoaded(chats: _applySearch(_allChats)));
+    }
 
     await _subscription?.cancel();
 
@@ -169,7 +177,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         },
       );
     } catch (e) {
-      emit(ChatError(message: e.toString()));
+      // Starting the listener can fail before its first snapshot when the
+      // device is offline. The inbox must still render its last known state.
+      if (_allChats.isNotEmpty) {
+        emit(ChatLoaded(chats: _applySearch(_allChats)));
+      } else {
+        emit(const ChatLoaded(chats: <ChatModel>[]));
+      }
     }
   }
 
@@ -198,7 +212,14 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _ChatsStreamError event,
     Emitter<ChatState> emit,
   ) {
-    emit(ChatError(message: event.message));
+    // Connectivity/Firestore stream failures are transport state, not
+    // conversation state. Never replace an already-rendered inbox with an
+    // error screen, and keep an empty inbox renderable on first offline open.
+    if (_allChats.isNotEmpty) {
+      emit(ChatLoaded(chats: _applySearch(_allChats)));
+    } else {
+      emit(const ChatLoaded(chats: <ChatModel>[]));
+    }
   }
 
   // ============================================================
@@ -262,7 +283,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     RefreshChats event,
     Emitter<ChatState> emit,
   ) async {
-    add(LoadChats());
+    // Reconnect the listener without transitioning through ChatLoading.
+    // This prevents the visible conversation list from flickering or
+    // disappearing during a manual pull-to-refresh.
+    await _onLoadChats(LoadChats(), emit);
   }
 
   // ============================================================

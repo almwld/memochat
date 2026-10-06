@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../../core/repositories/chat_repository.dart';
+import '../../../core/models/conversation.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_screen.dart';
-import '../../chat/presentation/calls_screen.dart';
 import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
@@ -12,7 +13,53 @@ import '../../advanced/presentation/advanced_hub_screen.dart';
 import '../../games/presentation/games_hub_screen.dart';
 import '../../social/presentation/social_screen.dart';
 import '../../../core/services/quick_action_service.dart';
-import '../../../core/crypto/signal_session_manager.dart';
+import '../../profile/presentation/profile_screen.dart';
+
+class _ChatNavIcon extends StatelessWidget {
+  const _ChatNavIcon({required this.count, required this.selected});
+
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = selected
+        ? const PremiumIconTile(icon: AppIcons.chat, size: 42, iconSize: 21)
+        : const AppIcon(AppIcons.chat, size: 22);
+    if (count <= 0) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        PositionedDirectional(
+          top: selected ? -2 : -7,
+          end: selected ? -4 : -7,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.error,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.surface,
+                width: 1.5,
+              ),
+            ),
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onError,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -32,30 +79,23 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
+  bool _navVisible = true;
   late final List<Widget> _pages;
+  late final Stream<List<Conversation>> _conversationsStream;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _conversationsStream = widget.repository.watchConversations();
     _pages = [
       ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
       ContactsScreen(repository: widget.repository),
       const SocialScreen(),
       DiscoverScreen(repository: widget.repository),
-      const CallsScreen(),
       SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
     ];
     _consumeQuickAction();
-    unawaited(_prepareE2EE());
-  }
-
-  Future<void> _prepareE2EE() async {
-    try {
-      await SignalSessionManager.instance.ensureReady();
-    } catch (_) {
-      // Encryption setup must never delay or block the visible UI.
-    }
   }
 
   @override
@@ -70,7 +110,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       'chat' || 'compose' => 0,
       'contacts' => 1,
       'social' => 2,
-      'calls' => 4,
       _ => null,
     };
     if (nextIndex != null && nextIndex != _index) {
@@ -84,26 +123,72 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  bool _handleNavigationScroll(UserScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    final nextVisible = notification.metrics.pixels <= 0 ||
+        notification.direction == ScrollDirection.forward;
+    if (nextVisible != _navVisible && mounted) {
+      setState(() => _navVisible = nextVisible);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: NavigationBar(
-            height: 72,
-            selectedIndex: _index,
-            onDestinationSelected: (index) => setState(() => _index = index),
-            destinations: const [
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: _handleNavigationScroll,
+        child: IndexedStack(index: _index, children: _pages),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: AnimatedSlide(
+          offset: _navVisible ? Offset.zero : const Offset(0, 1.15),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: _navVisible ? 1 : 0,
+            duration: const Duration(milliseconds: 160),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: NavigationBar(
+                  height: 72,
+                  selectedIndex: _index,
+                  onDestinationSelected: (index) => setState(() => _index = index),
+                  destinations: [
               NavigationDestination(
-                icon: AppIcon(AppIcons.chat, size: 22),
-                selectedIcon: PremiumIconTile(
-                  icon: AppIcons.chat,
-                  size: 42,
-                  iconSize: 21,
+                icon: StreamBuilder<List<Conversation>>(
+                  stream: _conversationsStream,
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.fold<int>(
+                          0,
+                          (sum, conversation) =>
+                              sum + conversation.unreadCount,
+                        ) ??
+                        0;
+                    return _ChatNavIcon(
+                      count: count,
+                      selected: false,
+                    );
+                  },
+                ),
+                selectedIcon: StreamBuilder<List<Conversation>>(
+                  stream: _conversationsStream,
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.fold<int>(
+                          0,
+                          (sum, conversation) =>
+                              sum + conversation.unreadCount,
+                        ) ??
+                        0;
+                    return _ChatNavIcon(
+                      count: count,
+                      selected: true,
+                    );
+                  },
                 ),
                 label: 'المحادثات',
               ),
@@ -131,15 +216,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 label: 'اكتشف',
               ),
               NavigationDestination(
-                icon: AppIcon(AppIcons.phoneCall, size: 22),
-                selectedIcon: PremiumIconTile(
-                  icon: AppIcons.phoneCall,
-                  size: 42,
-                  iconSize: 21,
-                ),
-                label: 'المكالمات',
-              ),
-              NavigationDestination(
                 icon: AppIcon(AppIcons.settings, size: 22),
                 selectedIcon: PremiumIconTile(
                   icon: AppIcons.settings,
@@ -148,7 +224,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 ),
                 label: 'الإعدادات',
               ),
-            ],
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -157,6 +236,40 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 }
 
 
+class _ProfileEntryCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(radius: 25, child: Icon(Icons.person_rounded)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ملفي الشخصي', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    SizedBox(height: 3),
+                    Text('الهوية، النبذة، الإحصائيات والخصوصية'),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class DiscoverScreen extends StatelessWidget {
   const DiscoverScreen({required this.repository, super.key});
 
@@ -164,13 +277,15 @@ class DiscoverScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('اكتشف', style: TextStyle(fontWeight: FontWeight.w900)),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
+          _ProfileEntryCard(),
+          const SizedBox(height: 12),
           PremiumHero(
             icon: AppIcons.search,
             title: 'اكتشف أشخاصاً وطرقاً جديدة للتواصل',
@@ -219,30 +334,21 @@ class DiscoverScreen extends StatelessWidget {
             child: InkWell(
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GamesHubScreen())),
               child: Container(
-                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF0A8F83), Color(0xFF164C72)], begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd)),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                ),
                 padding: const EdgeInsets.all(14),
                 child: Row(children: [
-                  Container(width: 50, height: 50, decoration: BoxDecoration(color: Colors.white.withOpacity(.18), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.sports_esports_rounded, color: Colors.white, size: 27)),
+                  Container(width: 50, height: 50, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.sports_esports_rounded, color: Theme.of(context).colorScheme.primary, size: 27)),
                   const SizedBox(width: 12),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('ألعاب MemoChat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('ألعاب MemoChat', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 16)),
                     SizedBox(height: 4),
-                    Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(.78), fontSize: 12)),
                   ])),
-                  const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                  Icon(Icons.arrow_back_ios_new_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer, size: 16),
                 ]),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const PremiumIconTile(icon: AppIcons.phoneCall, size: 48, iconSize: 23),
-              title: const Text('المكالمات', style: TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: const Text('الوصول السريع إلى سجل المكالمات.'),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CallsScreen()),
               ),
             ),
           ),

@@ -35,6 +35,42 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     }
   }
 
+  Future<void> _addMember(List<String> existing) async {
+    final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+    final candidates = snap.docs.where((doc) => doc.id != FirebaseAuth.instance.currentUser?.uid && !existing.contains(doc.id) && doc.data()['hideFromContacts'] != true).toList();
+    if (!mounted) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => ListView.separated(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: candidates.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, index) {
+          final doc = candidates[index];
+          final d = doc.data();
+          final name = d['displayName']?.toString().trim().isNotEmpty == true ? d['displayName'].toString().trim() : 'مستخدم';
+          final photo = d['photoUrl']?.toString().trim() ?? '';
+          return ListTile(
+            leading: CircleAvatar(backgroundImage: photo.isEmpty ? null : NetworkImage(photo), child: photo.isEmpty ? const Icon(Icons.person_outline) : null),
+            title: Text(name),
+            subtitle: Text(d['publicId']?.toString() ?? ''),
+            onTap: () => Navigator.pop(context, doc.id),
+          );
+        },
+      ),
+    );
+    if (selected == null) return;
+    final data = candidates.firstWhere((doc) => doc.id == selected).data();
+    final name = data['displayName']?.toString() ?? 'مستخدم';
+    try {
+      await _service.addMemberToGroup(widget.chatId, selected, memberName: name, memberPhoto: data['photoUrl']?.toString());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة العضو وإرسال إشعار له.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إضافة العضو: $e')));
+    }
+  }
+
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('معلومات المجموعة')),
     body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -53,6 +89,15 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
             const SizedBox(height: 10),
             Center(child: Text(data['groupName']?.toString() ?? 'مجموعة', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
             const SizedBox(height: 22),
+            if (canManage)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: FilledButton.icon(
+                  onPressed: () => _addMember(participants),
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  label: const Text('إضافة عضو'),
+                ),
+              ),
             if (canManage)
               Padding(
                 padding: const EdgeInsets.only(top: 12),

@@ -81,10 +81,29 @@ class StatusService {
     final activeStories = existingModel != null && existingModel.isValid ? existingModel.stories : <StoryItem>[];
     final allStories = [...activeStories, ...stories];
 
+    // The uploaded avatar is stored in Firestore by AvatarService; FirebaseAuth.photoURL
+    // can remain stale or empty. Prefer the canonical profile document when publishing.
+    String? resolvedUserImage = userImage?.trim();
+    if (resolvedUserImage?.isEmpty != false) {
+      try {
+        final profile = await _firestore.collection('users').doc(user.uid).get();
+        final data = profile.data() ?? const <String, dynamic>{};
+        final stored = data['photoUrl']?.toString().trim();
+        final legacy = data['photoURL']?.toString().trim();
+        resolvedUserImage = stored?.isNotEmpty == true
+            ? stored
+            : legacy?.isNotEmpty == true
+                ? legacy
+                : user.photoURL;
+      } catch (_) {
+        resolvedUserImage = user.photoURL;
+      }
+    }
+
     await ref.set({
       'userId': user.uid,
       'userName': (userName ?? user.displayName ?? 'مستخدم').trim(),
-      'userImage': userImage ?? user.photoURL,
+      'userImage': resolvedUserImage,
       'stories': allStories.map((story) => story.toMap()).toList(),
       'createdAt': Timestamp.fromDate(now),
       'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 24))),
@@ -119,6 +138,37 @@ class StatusService {
     }
 
     return StoryItem(type: type, url: result.url!, duration: duration);
+  }
+
+  Future<void> updateTextStory({
+    required String statusId,
+    required int storyIndex,
+    required String text,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    final clean = text.trim();
+    if (uid == null || uid.isEmpty) throw StateError('يجب تسجيل الدخول');
+    if (clean.isEmpty || clean.length > 2000) throw ArgumentError('نص الحالة غير صالح');
+    final ref = _statuses.doc(statusId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != uid) throw StateError('لا تملك هذه الحالة');
+    final stories = List<Map<String, dynamic>>.from(
+      (snap.data()?['stories'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+    );
+    if (storyIndex < 0 || storyIndex >= stories.length) throw StateError('الحالة غير موجودة');
+    stories[storyIndex]['type'] = 'text';
+    stories[storyIndex]['text'] = clean;
+    stories[storyIndex]['url'] = '';
+    await ref.update({'stories': stories, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deleteStatus(String statusId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) throw StateError('يجب تسجيل الدخول');
+    final ref = _statuses.doc(statusId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != uid) throw StateError('لا تملك هذه الحالة');
+    await ref.delete();
   }
 
   Future<void> markViewed(UserStatusModel status) async {

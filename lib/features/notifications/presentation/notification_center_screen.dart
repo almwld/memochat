@@ -1,9 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/premium_ui.dart';
 
-import '../../../features/chat/presentation/chat_room_screen.dart';
+import '../../../features/chat/presentation/chat_navigation.dart';
 import '../../../features/chat/services/call_service.dart';
+import '../../../features/advanced/presentation/advanced_hub_screen.dart';
+import '../../../features/communities/presentation/communities_screen.dart';
+import '../../../features/communities/data/community_service.dart';
+import '../../../features/contacts/presentation/contacts_screen.dart';
+import '../../../core/repositories/firebase_chat_repository.dart';
 
 import '../../../core/notifications/notification_inbox.dart';
 import '../../../core/services/notification_history_service.dart';
@@ -27,6 +33,45 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     final callId = data['callId']?.toString() ?? '';
     final chatId = data['chatId']?.toString() ?? '';
     final senderId = data['senderId']?.toString() ?? '';
+
+    if (route.startsWith('contacts:')) {
+      if (mounted) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ContactsScreen(repository: FirebaseChatRepository()),
+        ));
+      }
+      return;
+    }
+
+    if (route.startsWith('voice_room:')) {
+      final roomId = route.substring('voice_room:'.length);
+      if (roomId.isNotEmpty && mounted) {
+        final snap = await FirebaseFirestore.instance.collection('voiceRooms').doc(roomId).get();
+        final data = snap.data() ?? const <String, dynamic>{};
+        final roomName = data['roomName']?.toString() ?? '';
+        final title = data['name']?.toString() ?? 'غرفة صوتية';
+        if (snap.exists && roomName.isNotEmpty && mounted) {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => VoiceRoomScreen(roomId: roomId, roomName: roomName, title: title)));
+        }
+      }
+      return;
+    }
+
+    if (route.startsWith('community:')) {
+      final communityId = route.substring('community:'.length);
+      if (communityId.isNotEmpty && mounted) {
+        final snap = await FirebaseFirestore.instance.collection('communities').doc(communityId).get();
+        final name = snap.data()?['name']?.toString() ?? data['title']?.toString() ?? 'مجتمع';
+        if (snap.exists && mounted) {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => CommunityDetailScreen(
+            communityId: communityId,
+            name: name,
+            service: CommunityService(),
+          )));
+        }
+      }
+      return;
+    }
 
     if (callId.isNotEmpty || route.startsWith('call:')) {
       final id = callId.isNotEmpty ? callId : route.substring('call:'.length);
@@ -55,19 +100,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ? Map<String, dynamic>.from(details[senderId] as Map)
         : const <String, dynamic>{};
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          chatId: chatId,
-          otherUserId: senderId,
-          otherUserName: names[senderId]?.toString() ??
-              senderDetails['name']?.toString() ??
-              'مستخدم',
-          otherUserImage: photos[senderId]?.toString() ??
-              senderDetails['photoUrl']?.toString(),
-        ),
-      ),
-    );
+    await ChatNavigation.openRoom(context,chatId:chatId,otherUserId:senderId,otherUserName:names[senderId]?.toString()??senderDetails['name']?.toString()??'مستخدم',otherUserImage:photos[senderId]?.toString()??senderDetails['photoUrl']?.toString());
   }
 
   Future<void> _markAllRead() async {
@@ -79,7 +112,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('الإشعارات'),
         actions: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
@@ -29,6 +30,20 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   late int _currentIndex;
   bool _isPaused = false;
   bool _sendingReply = false;
+  final Set<int> _readyStories = <int>{};
+  bool _progressStarted = false;
+  bool _viewMarked = false;
+
+  Future<void> _markViewedWhenReady() async {
+    if (_viewMarked) return;
+    _viewMarked = true;
+    try {
+      await _statusService.markViewed(widget.status);
+    } catch (_) {
+      // Viewing the story must never block or delay the viewer UI.
+      _viewMarked = false;
+    }
+  }
 
   StoryItem get _currentStory => widget.status.stories[_currentIndex];
 
@@ -41,8 +56,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       vsync: this,
       duration: _currentStory.duration,
     )..addStatusListener(_onProgressStatus);
+    // Do not mark the story as viewed here. A view is recorded only after
+    // the first story has actually produced visible content.
     _progressController.forward();
-    _statusService.markViewed(widget.status);
   }
 
   void _onProgressStatus(AnimationStatus status) {
@@ -53,8 +69,28 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _progressController
       ..stop()
       ..duration = _currentStory.duration
-      ..reset()
+      ..reset();
+    _progressStarted = false;
+    if (_readyStories.contains(_currentIndex) && !_isPaused) {
+      _startProgress();
+    }
+  }
+
+  void _startProgress() {
+    if (!mounted || _isPaused || _progressStarted) return;
+    _progressStarted = true;
+    _progressController
+      ..duration = _currentStory.duration
       ..forward();
+    _statusService.markViewed(widget.status);
+  }
+
+  void _onStoryReady(int index) {
+    if (!mounted || index != _currentIndex) return;
+    if (_readyStories.add(index)) {
+      setState(() {});
+    }
+    _startProgress();
   }
 
   void _goToNext() {
@@ -165,6 +201,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               itemBuilder: (_, index) => _StoryContent(
                 story: widget.status.stories[index],
                 paused: _isPaused,
+                onReady: index == _currentIndex ? _markViewedWhenReady : null,
               ),
             ),
             _buildProgressBars(),
@@ -242,6 +279,37 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               ],
             ),
           ),
+          if (widget.status.userId == FirebaseAuth.instance.currentUser?.uid)
+            PopupMenuButton<String>(
+              iconColor: Colors.white,
+              onSelected: (value) async {
+                if (value == 'delete') {
+                  await _statusService.deleteStatus(widget.status.id);
+                  if (mounted) Navigator.of(context).pop();
+                } else if (value == 'edit' && _currentStory.type == 'text') {
+                  final controller = TextEditingController(text: _currentStory.text ?? '');
+                  final edited = await showDialog<String>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('تعديل الحالة'),
+                      content: TextField(controller: controller, maxLines: 5, maxLength: 2000),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                        FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                      ],
+                    ),
+                  );
+                  controller.dispose();
+                  if (edited != null && edited.isNotEmpty) {
+                    await _statusService.updateTextStory(statusId: widget.status.id, storyIndex: _currentIndex, text: edited);
+                  }
+                }
+              },
+              itemBuilder: (_) => [
+                if (_currentStory.type == 'text') const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                const PopupMenuItem(value: 'delete', child: Text('حذف')),
+              ],
+            ),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close, color: Colors.white),
@@ -321,10 +389,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 }
 
 class _StoryContent extends StatefulWidget {
-  const _StoryContent({required this.story, required this.paused});
+  const _StoryContent({required this.story, required this.paused, this.onReady});
 
   final StoryItem story;
   final bool paused;
+  final VoidCallback? onReady;
 
   @override
   State<_StoryContent> createState() => _StoryContentState();
@@ -345,6 +414,7 @@ class _StoryContentState extends State<_StoryContent> {
     _controller = controller;
     await controller.initialize();
     controller.setLooping(true);
+    if (mounted) widget.onReady?.call();
     if (!widget.paused) controller.play();
     if (mounted) setState(() {});
   }
@@ -373,10 +443,34 @@ class _StoryContentState extends State<_StoryContent> {
       return Image.network(
         widget.story.url,
         fit: BoxFit.contain,
+        frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+          if (frame != null || wasSynchronouslyLoaded) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.onReady?.call();
+            });
+          }
+          return child;
+        },
         errorBuilder: (_, __, ___) => _textContent('تعذر تحميل الصورة'),
         loadingBuilder: (_, child, progress) => progress == null
             ? child
-            : const Center(child: CircularProgressIndicator(color: Colors.white)),
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  const ColoredBox(color: Colors.black),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(color: Colors.white),
+                      const SizedBox(height: 12),
+                      Text(
+                        'جاري تحميل الحالة…',
+                        style: TextStyle(color: Colors.white.withOpacity(.8)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
       );
     }
 
@@ -393,6 +487,9 @@ class _StoryContentState extends State<_StoryContent> {
       );
     }
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onReady?.call();
+    });
     return _textContent(widget.story.text ?? '');
   }
 

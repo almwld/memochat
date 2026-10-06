@@ -1,13 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../data/games_catalog.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/games/models/game.dart';
 import '../services/game_service.dart';
 import 'game_room_screen.dart';
-import 'game_play_screen.dart';
-import '../services/game_challenge_service.dart';
 import 'widgets/game_grid.dart';
 import 'widgets/game_art.dart';
 
@@ -28,64 +25,42 @@ class _GamesScreenState extends State<GamesScreen> {
     final definition = GamesCatalog.all[index];
     setState(() => _opening = true);
 
-    // Open the game UI first. Multiplayer persistence/invites are optional and
-    // must never prevent a game from opening when Firestore is slow/restricted.
     try {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => GamePlayScreen(
-            type: definition.type,
-            title: definition.title,
-            chatId: widget.chatId,
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _opening = false);
-    }
-
-    // Persist the session and invitation after the UI is available.
-    try {
+      // Create the challenge before navigation so the second player can accept it immediately.
+      // ChatService.sendMessage encrypts the invitation payload through Signal Protocol.
       final id = await GameService.instance.createGame(
         chatId: widget.chatId,
         type: definition.type,
         uid: uid,
         timeLimit: _limit,
       ).timeout(const Duration(seconds: 4));
-      try {
-        final chat = await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).get();
-        final participants = (chat.data()?['participants'] as List?)?.map((value) => value.toString()).toList() ?? const <String>[];
-        final opponents = participants.where((participant) => participant != uid).toSet();
-        final challengeIds = <String>[];
-        for (final opponent in opponents) {
-          try {
-            final challengeId = await GameChallengeService.instance.create(
-              gameId: id,
-              opponentUid: opponent,
-              chatId: widget.chatId,
-              gameType: definition.type.name,
-            );
-            if (challengeId != null) challengeIds.add(challengeId);
-          } catch (error) {
-            debugPrint('Signal game challenge unavailable: $error');
-          }
-        }
-        await ChatService().sendMessage(
-          chatId: widget.chatId,
-          text: '${definition.title} — دعوة تحدٍ مباشرة مشفرة',
-          metadata: {
-            'kind': 'signal_game_challenge',
-            'gameId': id,
-            'gameType': definition.type.name,
-            'timeLimit': _limit.name,
-            'challengeIds': challengeIds,
-          },
-        ).timeout(const Duration(seconds: 4));
-      } catch (e) {
-        debugPrint('game invite unavailable: $e');
-      }
+
+      await ChatService().sendMessage(
+        chatId: widget.chatId,
+        text: 'دعوة تحدٍ: ${definition.title}',
+        metadata: {
+          'kind': 'game_invite',
+          'gameId': id,
+          'gameType': definition.type.name,
+          'timeLimit': _limit.name,
+          'signalProtected': true,
+        },
+      ).timeout(const Duration(seconds: 4));
+
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GameRoomScreen(chatId: widget.chatId, gameId: id),
+        ),
+      );
     } catch (e) {
-      debugPrint('game session persistence unavailable: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر بدء التحدي: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
     }
   }
 

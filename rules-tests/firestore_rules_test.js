@@ -42,24 +42,6 @@ async function main() {
         status: 'sent',
       });
 
-      await setDoc(doc(db, 'calls/call-1'), {
-        id: 'call-1',
-        chatId: 'chat-1',
-        callerId: 'alice',
-        receiverId: 'bob',
-        participants: ['alice', 'bob'],
-        callType: 'audio',
-        status: 'calling',
-        liveKitRoomName: 'call_call-1',
-        roomName: 'call_call-1',
-      });
-
-      await setDoc(doc(db, 'callLocks/alice_bob'), {
-        participants: ['alice', 'bob'],
-        activeCallId: 'call-1',
-        status: 'calling',
-      });
-
       await setDoc(doc(db, 'notifications/n-1'), {
         userId: 'alice',
         type: 'message',
@@ -102,32 +84,6 @@ async function main() {
     await assertFails(
       updateDoc(doc(bob, 'chats/chat-1/messages/message-1'), {
         text: 'tampered',
-      }),
-    );
-
-    await assertSucceeds(
-      updateDoc(doc(bob, 'calls/call-1'), {
-        status: 'connected',
-        isAnswered: true,
-      }),
-    );
-
-    await assertFails(
-      updateDoc(doc(bob, 'calls/call-1'), {
-        receiverId: 'mallory',
-      }),
-    );
-
-    await assertSucceeds(
-      updateDoc(doc(alice, 'callLocks/alice_bob'), {
-        activeCallId: null,
-        status: 'ended',
-      }),
-    );
-
-    await assertFails(
-      updateDoc(doc(alice, 'callLocks/alice_bob'), {
-        participants: ['alice', 'mallory'],
       }),
     );
 

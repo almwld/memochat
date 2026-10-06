@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
+import android.net.VpnService
 import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
@@ -11,36 +12,50 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
-    private val callAudioChannel = "com.memo.app/call_audio"
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
-    private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
     private val quickActionsChannel = "com.memo.app/quick_actions"
+    private val vpnTunnelChannel = "com.memo.app/vpn_tunnel"
+    private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
     private var pendingQuickAction: String? = null
+    private var pendingVpnStart: Intent? = null
 
     override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callAudioChannel)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, vpnTunnelChannel)
             .setMethodCallHandler { call, result ->
-                val audio = getSystemService(AUDIO_SERVICE) as AudioManager
                 when (call.method) {
-                    "setSpeakerphone" -> {
-                        val enabled = call.argument<Boolean>("enabled") ?: true
-                        audio.mode = AudioManager.MODE_IN_COMMUNICATION
-                        audio.isSpeakerphoneOn = enabled
-                        result.success(null)
+                    "prepare" -> {
+                        val intent = VpnService.prepare(this)
+                        if (intent == null) {
+                            result.success(true)
+                        } else {
+                            pendingVpnStart = Intent(this, VpnTunnelService::class.java).apply {
+                                action = VpnTunnelService.ACTION_START
+                                putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
+                                putExtra(VpnTunnelService.EXTRA_FINGERPRINT, call.argument<String>("fingerprint"))
+                                putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
+                                putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
+                            }
+                            startActivityForResult(intent, 7402)
+                            result.success(false)
+                        }
                     }
-                    "getCallVolume" -> {
-                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-                        val current = audio.getStreamVolume(AudioManager.STREAM_VOICE_CALL)
-                        result.success(current.toDouble() / max.toDouble())
+                    "status" -> result.success(VpnTunnelService.running)
+                    "start" -> {
+                        val intent = Intent(this, VpnTunnelService::class.java).apply {
+                            action = VpnTunnelService.ACTION_START
+                            putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
+                            putExtra(VpnTunnelService.EXTRA_FINGERPRINT, call.argument<String>("fingerprint"))
+                            putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
+                            putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+                        result.success(true)
                     }
-                    "setCallVolume" -> {
-                        val normalized = (call.argument<Double>("value") ?: 0.75).coerceIn(0.0, 1.0)
-                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-                        val volume = kotlin.math.round(normalized * max).toInt().coerceIn(0, max)
-                        audio.setStreamVolume(AudioManager.STREAM_VOICE_CALL, volume, 0)
-                        result.success(volume.toDouble() / max.toDouble())
+                    "stop" -> {
+                        startService(Intent(this, VpnTunnelService::class.java).apply { action = VpnTunnelService.ACTION_STOP })
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }
@@ -50,10 +65,16 @@ class MainActivity : FlutterFragmentActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "start" -> {
+                        val callId = call.argument<String>("callId")?.trim().orEmpty()
+                        val callerName = call.argument<String>("callerName")?.trim().orEmpty()
+                        if (callId.isEmpty()) {
+                            result.error("INVALID_CALL", "callId is required", null)
+                            return@setMethodCallHandler
+                        }
                         val intent = Intent(this, CallForegroundService::class.java).apply {
                             action = CallForegroundService.ACTION_START
-                            putExtra(CallForegroundService.EXTRA_CALL_ID, call.argument<String>("callId"))
-                            putExtra(CallForegroundService.EXTRA_CALLER_NAME, call.argument<String>("callerName"))
+                            putExtra(CallForegroundService.EXTRA_CALL_ID, callId)
+                            putExtra(CallForegroundService.EXTRA_CALLER_NAME, callerName)
                         }
                         if (android.os.Build.VERSION.SDK_INT >= 26) {
                             startForegroundService(intent)
@@ -118,6 +139,21 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 7402) return
+
+        val pending = pendingVpnStart
+        pendingVpnStart = null
+        if (resultCode != RESULT_OK || pending == null) return
+
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(pending)
+        } else {
+            startService(pending)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

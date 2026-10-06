@@ -10,6 +10,9 @@ class SecuritySettingsService extends ChangeNotifier {
 
   static const _levelKey = 'security.level';
   static const _initializedKey = 'security.settings.initialized';
+  static const _chatIndexKey = 'security.chat.override.ids';
+  static const _encryptionIndexKey = 'security.chat.encryption.ids';
+  static const _encryptionEnabledKey = 'security.e2ee.enabled';
 
   SharedPreferences? _prefs;
   SecurityLevel _level = SecurityLevel.standard;
@@ -17,12 +20,37 @@ class SecuritySettingsService extends ChangeNotifier {
     for (final protocol in SecurityProtocol.values) protocol: false,
   };
   final Map<String, Map<SecurityProtocol, bool>> _chatOverrides = {};
+  final Set<String> _encryptedChats = {};
+  bool _encryptionEnabled = false;
+
+  String _chatKey(String chatId, SecurityProtocol protocol) =>
+      'security.chat.$chatId.${protocol.name}';
   bool _ready = false;
 
   SecurityLevel get level => _level;
   bool get isReady => _ready;
 
   bool isEnabled(SecurityProtocol protocol) => _protocols[protocol] ?? false;
+
+  /// Reports whether the protocol has a concrete in-app implementation.
+  bool isOperational(SecurityProtocol protocol) {
+    switch (protocol) {
+      case SecurityProtocol.metadataProtection:
+      case SecurityProtocol.onionRouting:
+      case SecurityProtocol.sealedSender:
+      case SecurityProtocol.postQuantumHybrid:
+      case SecurityProtocol.matrixBridge:
+      case SecurityProtocol.dhtDiscovery:
+      case SecurityProtocol.meshOffline:
+      case SecurityProtocol.quicTransport:
+      case SecurityProtocol.websocketFallback:
+      case SecurityProtocol.httpsFallback:
+        return false;
+    }
+  }
+
+  String status(SecurityProtocol protocol) =>
+      isOperational(protocol) ? 'جاهز' : 'يتطلب مكوّنًا/خادمًا خارجيًا';
 
   Map<SecurityProtocol, bool> get protocols =>
       Map.unmodifiable(_protocols);
@@ -45,6 +73,20 @@ class SecuritySettingsService extends ChangeNotifier {
     if (prefs.getBool(_initializedKey) != true) {
       _applyPresetInMemory(SecurityLevel.standard);
       await _persist();
+    }
+
+    _encryptionEnabled = prefs.getBool(_encryptionEnabledKey) ?? false;
+    final encryptedIds = prefs.getStringList(_encryptionIndexKey) ?? const <String>[];
+    _encryptedChats.addAll(encryptedIds);
+
+    final chatIds = prefs.getStringList(_chatIndexKey) ?? const <String>[];
+    for (final chatId in chatIds) {
+      final values = <SecurityProtocol, bool>{};
+      for (final protocol in SecurityProtocol.values) {
+        final value = prefs.getBool(_chatKey(chatId, protocol));
+        if (value != null) values[protocol] = value;
+      }
+      if (values.isNotEmpty) _chatOverrides[chatId] = values;
     }
 
     _ready = true;
@@ -75,9 +117,38 @@ class SecuritySettingsService extends ChangeNotifier {
     bool enabled,
   ) async {
     await _ensureReady();
+    if (!isOperational(protocol)) {
+      throw StateError(
+        'لا يمكن تفعيل البروتوكول قبل توفير التنفيذ والخدمة المطلوبة.',
+      );
+    }
     _protocols[protocol] = enabled;
     _level = SecurityLevel.custom;
     await _persist();
+    notifyListeners();
+  }
+
+  /// E2EE is opt-in. A chat is plaintext unless the user explicitly enables it.
+  bool get encryptionEnabled => _encryptionEnabled;
+
+  bool isEncryptionEnabledForChat(String chatId) =>
+      _encryptedChats.contains(chatId) || _encryptionEnabled;
+
+  Future<void> setEncryptionEnabled(bool enabled) async {
+    await _ensureReady();
+    _encryptionEnabled = enabled;
+    await _prefs!.setBool(_encryptionEnabledKey, enabled);
+    notifyListeners();
+  }
+
+  Future<void> setChatEncryption(String chatId, bool enabled) async {
+    await _ensureReady();
+    if (enabled) {
+      _encryptedChats.add(chatId);
+    } else {
+      _encryptedChats.remove(chatId);
+    }
+    await _prefs!.setStringList(_encryptionIndexKey, _encryptedChats.toList());
     notifyListeners();
   }
 
@@ -92,13 +163,29 @@ class SecuritySettingsService extends ChangeNotifier {
     bool enabled,
   ) async {
     await _ensureReady();
+    if (!isOperational(protocol)) {
+      throw StateError(
+        'لا يمكن تفعيل البروتوكول قبل توفير التنفيذ والخدمة المطلوبة.',
+      );
+    }
     final values = _chatOverrides.putIfAbsent(chatId, () => {});
     values[protocol] = enabled;
+    await _prefs!.setBool(_chatKey(chatId, protocol), enabled);
+    final ids = _prefs!.getStringList(_chatIndexKey) ?? <String>[];
+    if (!ids.contains(chatId)) {
+      ids.add(chatId);
+      await _prefs!.setStringList(_chatIndexKey, ids);
+    }
     notifyListeners();
   }
 
   Future<void> resetChatOverrides(String chatId) async {
-    _chatOverrides.remove(chatId);
+    final removed = _chatOverrides.remove(chatId);
+    if (removed != null) {
+      for (final protocol in removed.keys) {
+        await _prefs?.remove(_chatKey(chatId, protocol));
+      }
+    }
     notifyListeners();
   }
 
@@ -111,20 +198,9 @@ class SecuritySettingsService extends ChangeNotifier {
       _protocols[protocol] = false;
     }
 
-    if (level == SecurityLevel.enhanced || level == SecurityLevel.maximum) {
-      _protocols[SecurityProtocol.metadataProtection] = true;
-      _protocols[SecurityProtocol.websocketFallback] = true;
-      _protocols[SecurityProtocol.httpsFallback] = true;
-    }
+    // Default presets never enable experimental/crypto metadata behavior.
+    // Every security protocol is opt-in and must have a complete implementation.
 
-    if (level == SecurityLevel.maximum) {
-      _protocols[SecurityProtocol.onionRouting] = true;
-      _protocols[SecurityProtocol.sealedSender] = true;
-      _protocols[SecurityProtocol.postQuantumHybrid] = true;
-      _protocols[SecurityProtocol.quicTransport] = true;
-      _protocols[SecurityProtocol.websocketFallback] = true;
-      _protocols[SecurityProtocol.httpsFallback] = true;
-    }
   }
 
   Future<void> _persist() async {

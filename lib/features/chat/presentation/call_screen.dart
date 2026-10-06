@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
@@ -73,11 +72,18 @@ class _CallScreenState extends State<CallScreen> {
   void initState() {
     super.initState();
     final id = widget.callId?.trim();
-    if ((id == null || id.isEmpty) && widget.isOutgoing) {
-      if (ActiveCallRegistry.instance.hasActiveCall) {
-        debugPrint('⚡ CallScreen: clearing stale registry before new outgoing call');
-        ActiveCallRegistry.instance.reset();
-      }
+    if ((id == null || id.isEmpty) && widget.isOutgoing &&
+        ActiveCallRegistry.instance.hasActiveCall) {
+      debugPrint(
+        'CALL SCREEN BLOCKED outgoing start: active=' +
+        (ActiveCallRegistry.instance.activeCallId ?? 'unknown'),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        ToastService.showError('لديك مكالمة نشطة بالفعل');
+      });
+      return;
     }
     if (id != null && id.isNotEmpty) {
       final registry = ActiveCallRegistry.instance;
@@ -129,7 +135,7 @@ class _CallScreenState extends State<CallScreen> {
     await connect();
   }
 
-  String _friendlyCallError(Object value, {bool? permissionsGranted}) {
+  String _friendlyCallError(Object value) {
     final raw = value.toString().toLowerCase();
     if (raw.contains('mediaconnectexception') ||
         raw.contains('peerconnection') ||
@@ -140,10 +146,9 @@ class _CallScreenState extends State<CallScreen> {
       return 'انتهت مهلة الاتصال. تحقق من جودة الإنترنت وحاول مرة أخرى.';
     }
     if (raw.contains('permission') || raw.contains('إذن')) {
-      if (permissionsGranted == true) {
-        return 'تعذر تشغيل الكاميرا أو الميكروفون داخل محرك المكالمة رغم أن أذونات Android مفعلة. أعد المحاولة.';
-      }
-      return 'يلزم السماح بالميكروفون${widget.isVideo ? ' والكاميرا' : ''} لإجراء المكالمة.';
+      return widget.isVideo
+          ? 'يلزم السماح بالكاميرا والميكروفون لإجراء مكالمة الفيديو.'
+          : 'يلزم السماح بالميكروفون لإجراء المكالمة الصوتية.';
     }
     if (raw.contains('network') || raw.contains('socket')) {
       return 'تعذر الاتصال بالشبكة. تحقق من الإنترنت وحاول مرة أخرى.';
@@ -156,6 +161,7 @@ class _CallScreenState extends State<CallScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw StateError('يجب تسجيل الدخول');
+      final currentUser = user;
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity.isEmpty || connectivity.every((item) => item == ConnectivityResult.none)) {
         throw StateError('لا يوجد اتصال بالإنترنت');
@@ -166,10 +172,10 @@ class _CallScreenState extends State<CallScreen> {
       if (supplied != null && supplied.isNotEmpty) {
         final loaded = await calls.streamCall(supplied).first;
         if (loaded == null) throw StateError('المكالمة غير موجودة');
-        if (widget.isOutgoing && loaded.callerId != user.uid) {
+        if (widget.isOutgoing && loaded.callerId != currentUser.uid) {
           throw StateError('المكالمة ليست صادرة من المستخدم');
         }
-        if (!widget.isOutgoing && loaded.receiverId != user.uid) {
+        if (!widget.isOutgoing && loaded.receiverId != currentUser.uid) {
           throw StateError('المكالمة ليست موجهة لهذا المستخدم');
         }
         c = loaded;
@@ -208,7 +214,7 @@ class _CallScreenState extends State<CallScreen> {
           if (u.status == CallStatus.connected) {
             final d = u.connectedAt?.toDate();
             if (d != null) setConnectedAt(d);
-            if (!joined) unawaited(join(u, user));
+            if (!joined) unawaited(join(u, currentUser));
           } else if (_terminal(u.status)) {
             unawaited(finishRemote());
           }
@@ -225,7 +231,7 @@ class _CallScreenState extends State<CallScreen> {
       );
 
       if (widget.isOutgoing && c.status != CallStatus.connected) {
-        timeout = Timer(const Duration(seconds: 30), () async {
+        timeout = Timer(const Duration(seconds: 45), () async {
           if (ending || joined) return;
           try {
             await calls.missCall(c.id);
@@ -237,7 +243,7 @@ class _CallScreenState extends State<CallScreen> {
       }
 
       if (c.status == CallStatus.connected || !widget.isOutgoing) {
-        await join(c, user);
+        await join(c, currentUser);
       } else if (mounted) {
         setState(() => connecting = false);
       }
@@ -291,20 +297,22 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> join(CallModel c, User user) async {
     if (joined || ending || (c.status != CallStatus.connected && widget.isOutgoing)) return;
     try {
-      // LiveKit owns the native media-permission boundary. This mirrors the
-      // proven Sehatak flow: connect first, then let the LiveKit/WebRTC SDK
-      // request/use microphone and camera permissions at the point of capture.
-      // permission_handler is used here only for diagnostics, not as a gate,
-      // because an OEM permission manager can report a stale state while the
-      // native WebRTC layer can still access an already-granted permission.
-      final microphoneStatus = await Permission.microphone.status;
-      final cameraStatus =
-          widget.isVideo ? await Permission.camera.status : null;
-      debugPrint(
-        'CALL PERMISSION DIAGNOSTIC microphone=${microphoneStatus.name} '
-        'camera=${cameraStatus?.name ?? 'not_required'} video=${widget.isVideo}',
-      );
-
+      // Request media access immediately before LiveKit publication. This covers
+      // outgoing calls as well as restored/retried call screens and avoids the
+      // publish attempt racing Android's permission state.
+      try {
+        // Acceptance is the permission boundary: only now may Android ask for
+        // microphone/camera access. If the user denies it, close the accepted
+        // call instead of leaving a ringing/answered Firestore session behind.
+        await live.ensureMediaPermissions(video: widget.isVideo);
+      } catch (permissionError) {
+        try {
+          await calls.endCall(c.id, durationSeconds: 0);
+        } catch (endError) {
+          debugPrint('CALL PERMISSION END ERROR $endError');
+        }
+        rethrow;
+      }
       final registry = ActiveCallRegistry.instance;
       if (registry.hasActiveCall && !registry.isActive(c.id)) {
         throw StateError('مكالمة أخرى نشطة');
@@ -318,8 +326,29 @@ class _CallScreenState extends State<CallScreen> {
         isVideo: widget.isVideo,
       );
 
-      // The accept transition is already persisted by CallService.
-      // Do not make the LiveKit media UI depend on a second Firestore write.
+      // The receiver is the first participant to establish media. Only after
+      // LiveKit is actually connected do we publish "connected" to Firestore.
+      // The caller waits for this state before joining, which removes the
+      // accept/join race and prevents duplicate LiveKit sessions.
+      if (!widget.isOutgoing) {
+        Object? lastError;
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await calls.markConnected(c.id);
+            lastError = null;
+            break;
+          } catch (e) {
+            lastError = e;
+            if (attempt < 3) {
+              await Future<void>.delayed(
+                Duration(milliseconds: attempt * 400),
+              );
+            }
+          }
+        }
+        if (lastError != null) throw lastError;
+      }
+
       joined = true;
       timeout?.cancel();
       registry.register(c.id);
@@ -359,40 +388,21 @@ class _CallScreenState extends State<CallScreen> {
       await live.setSpeakerphone(speaker);
       if (mounted) setState(() { connecting = false; error = null; });
     } catch (e) {
-      ActiveCallRegistry.instance.unregister(c.id);
+      // c is declared late and may not have been initialized if the failure
+      // happens before the Firestore call document is loaded. Never reference
+      // c in the error path unless it is known to exist.
+      final failedCallId = callId ?? widget.callId;
+      if (failedCallId != null && failedCallId.trim().isNotEmpty) {
+        ActiveCallRegistry.instance.unregister(failedCallId);
+      }
       try {
         await live.endCall();
       } catch (cleanupError) {
         debugPrint('CALL LIVEKIT CLEANUP $cleanupError');
       }
 
-      final microphoneGranted =
-          (await Permission.microphone.status).isGranted;
-      final cameraGranted =
-          !widget.isVideo || (await Permission.camera.status).isGranted;
-      final raw = e.toString().toLowerCase();
-      final looksLikePermissionFailure =
-          raw.contains('permission') ||
-          raw.contains('notallowed') ||
-          raw.contains('not allowed') ||
-          raw.contains('denied') ||
-          raw.contains('accessdenied');
-      final permissionsGranted = microphoneGranted && cameraGranted;
-
-      final friendly = looksLikePermissionFailure && !permissionsGranted
-          ? _friendlyCallError(
-              StateError('permission denied'),
-              permissionsGranted: false,
-            )
-          : _friendlyCallError(
-              e,
-              permissionsGranted: permissionsGranted,
-            );
-
-      debugPrint(
-        'CALL LIVEKIT ERROR $e permissionsGranted=$permissionsGranted '
-        'microphone=$microphoneGranted camera=$cameraGranted',
-      );
+      final friendly = _friendlyCallError(e);
+      debugPrint('CALL LIVEKIT ERROR $e');
       if (mounted) {
         setState(() {
           connecting = false;
@@ -554,18 +564,15 @@ class _CallScreenState extends State<CallScreen> {
     final status = error ??
         (!online ? 'غير متصل' : !joined ? (connecting ? 'جاري الاتصال' : 'في انتظار الرد') : connectionStatus == 'متصل' ? fmt(seconds) : connectionStatus);
     return Scaffold(
-      backgroundColor: const Color(0xFF071116),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF071116), Color(0xFF0A2025), Color(0xFF050B10)]),
-        ),
-        child: SafeArea(
-          child: Stack(children: [
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
             if (widget.isVideo && remote != null)
               Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(28), child: VideoTrackRenderer(remote)))
             else
               Positioned.fill(child: waiting(centerMessageFor(status))),
-            Positioned(top: 12, left: 14, right: 14, child: _callHeader(status)),
+            Positioned(top: 12, left: 12, right: 12, child: top(status)),
             if (widget.isVideo && local != null)
               PositionedDirectional(top: 82, end: 18, child: preview(local)),
             if (widget.isVideo && joined && remoteTrack == null)
@@ -574,7 +581,7 @@ class _CallScreenState extends State<CallScreen> {
               Positioned(left: 14, right: 14, bottom: 14, child: controls())
             else
               Positioned.fill(child: _errorPanel()),
-          ]),
+          ],
         ),
       ),
     );

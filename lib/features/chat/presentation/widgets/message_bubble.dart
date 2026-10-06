@@ -17,6 +17,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubble.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_viewer.dart';
+import 'package:memochat/features/games/presentation/game_room_screen.dart';
 
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
@@ -27,15 +28,15 @@ class MessageBubble extends StatefulWidget {
   final VoidCallback? onPin;
   final VoidCallback? onDeleteForMe;
   final VoidCallback? onEdit;
-  final Function(String)? onCallAgain;
   final bool isFirstInChat;
   final VoidCallback? onReplyPreviewTap;
   final VoidCallback? onForward;
   final VoidCallback? onStar;
   final VoidCallback? onSelect;
+  final void Function(String type)? onCallAgain;
   final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.onCallAgain, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.fontSize = 14});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.onCallAgain, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -148,12 +149,13 @@ class _MessageBubbleState extends State<MessageBubble> {
         );
       case 'file':
         return _withStatus(_buildFile(m, dark));
-      case 'call':
-        return _withStatus(_buildCall(m, dark));
       case 'location':
         return _withStatus(_buildLocation(m, dark));
       case 'contact':
         return _withStatus(_buildContact(m, dark));
+      case 'game_invite':
+      case 'gameInvite':
+        return _buildGameInvite(m, dark);
       case 'system':
         return _buildSystem(m);
       default:
@@ -193,6 +195,78 @@ class _MessageBubbleState extends State<MessageBubble> {
       return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
     }
     return const Icon(Icons.done_rounded, size: 15, color: Colors.grey);
+  }
+
+  Widget _buildGameInvite(Map<String, dynamic> m, bool dark) {
+    final metadata = m['metadata'] is Map
+        ? Map<String, dynamic>.from(m['metadata'] as Map)
+        : <String, dynamic>{};
+    final gameId = metadata['gameId']?.toString() ?? '';
+    final gameType = metadata['gameType']?.toString() ?? '';
+    final title = m['text']?.toString().replaceFirst('دعوة تحدٍ: ', '') ?? 'تحدٍ مباشر';
+
+    return _shell(
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.sports_esports_rounded,
+                    color: widget.isMe ? Colors.white : AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.isMe ? 'أرسلت تحديًا مباشرًا مشفرًا' : 'وصلك تحدٍ مباشر مشفر عبر Signal',
+              style: TextStyle(
+                fontSize: 11,
+                color: widget.isMe ? Colors.white70 : (dark ? Colors.white70 : Colors.black54),
+              ),
+            ),
+            if (gameId.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => GameRoomScreen(
+                      chatId: m['chatId']?.toString() ?? '',
+                      gameId: gameId,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(widget.isMe ? 'فتح غرفة التحدي' : 'قبول التحدي'),
+              ),
+            ],
+            if (gameType.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'اللعبة: $gameType',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: widget.isMe ? Colors.white54 : (dark ? Colors.white54 : Colors.black45),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      dark,
+    );
   }
 
   Widget _buildText(Map<String, dynamic> m, bool dark) {
@@ -309,7 +383,6 @@ class _MessageBubbleState extends State<MessageBubble> {
       case 'audio': return '🎤 رسالة صوتية';
       case 'file': return '📎 ملف';
       case 'location': return '📍 موقع';
-      case 'call': return '📞 مكالمة';
       default: return 'مرفق';
     }
   }
@@ -519,17 +592,93 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildCall(Map<String, dynamic> m, bool dark) {
-    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata']) : <String, dynamic>{};
-    final status = (meta['status'] ?? '').toString();
+    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
+    final status = (meta['status'] ?? '').toString().toLowerCase();
     final video = meta['isVideo'] == true || meta['callType']?.toString() == 'video';
-    final duration = (meta['duration'] ?? '').toString();
-    final missed = status == 'missed' || status == 'rejected' || status == 'busy';
-    final incoming = !missed && !widget.isMe;
-    final icon = missed ? Icons.call_missed : incoming ? Icons.call_received : Icons.call_made;
-    final title = missed ? 'مكالمة ${video ? 'فيديو' : 'صوتية'} فائتة' : incoming ? 'مكالمة ${video ? 'فيديو' : 'صوتية'} واردة' : 'مكالمة ${video ? 'فيديو' : 'صوتية'} صادرة';
+    final duration = (meta['duration'] ?? '').toString().trim();
+    final incoming = !widget.isMe;
+
+    late final IconData icon;
+    late final String statusLabel;
+    switch (status) {
+      case 'ended':
+        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
+        statusLabel = duration.isNotEmpty ? 'تم الرد • $duration' : 'تم الرد';
+        break;
+      case 'missed':
+        icon = Icons.call_missed_rounded;
+        statusLabel = incoming ? 'لم يُرد عليها' : 'لم يُجب عليها';
+        break;
+      case 'rejected':
+        icon = Icons.call_missed_rounded;
+        statusLabel = incoming ? 'مرفوضة' : 'تم رفضها';
+        break;
+      case 'busy':
+        icon = Icons.call_end_rounded;
+        statusLabel = 'مشغول بمكالمة أخرى';
+        break;
+      case 'cancelled':
+        icon = Icons.call_end_rounded;
+        statusLabel = incoming ? 'أُلغي الاتصال' : 'تم إلغاء الاتصال';
+        break;
+      case 'calling':
+      case 'ringing':
+        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
+        statusLabel = incoming ? 'مكالمة واردة' : 'جاري الاتصال';
+        break;
+      default:
+        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
+        statusLabel = incoming ? 'مكالمة واردة' : 'مكالمة صادرة';
+    }
+
+    final title = 'مكالمة ${video ? 'فيديو' : 'صوتية'}';
     final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
-    final ic = missed ? Colors.red : incoming ? Colors.green : Colors.blue;
-    return _shell(Padding(padding: const EdgeInsets.all(10), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 48, height: 48, decoration: BoxDecoration(color: ic.withOpacity(.15), shape: BoxShape.circle), child: Icon(icon, color: ic, size: 24)), const SizedBox(width: 12), Flexible(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)), if (duration.isNotEmpty) ...[const SizedBox(height: 3), Text(duration, style: TextStyle(color: tc.withOpacity(.7), fontSize: 11))]])), const SizedBox(width: 12), InkWell(borderRadius: BorderRadius.circular(20), onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'), child: Padding(padding: const EdgeInsets.all(6), child: Icon(video ? Icons.videocam : Icons.call, color: tc, size: 20)))])), dark);
+    final statusColor = switch (status) {
+      'missed' || 'rejected' => Colors.red,
+      'busy' => Colors.orange,
+      'cancelled' => Colors.grey,
+      'ended' => AppColors.primary,
+      _ => incoming ? Colors.green : AppColors.primary,
+    };
+
+    return _shell(
+      Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(color: statusColor.withOpacity(.15), shape: BoxShape.circle),
+              child: Icon(icon, color: statusColor, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 3),
+                  Text(statusLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 11)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(video ? Icons.videocam_rounded : Icons.call_rounded, color: tc, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+      dark,
+    );
   }
 
   Widget _buildContact(Map<String, dynamic> m, bool dark) {
@@ -591,7 +740,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.memochat.app',
+                  userAgentPackageName: 'com.memo.app',
                 ),
                 MarkerLayer(
                   markers: [

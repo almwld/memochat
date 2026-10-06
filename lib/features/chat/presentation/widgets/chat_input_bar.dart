@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
@@ -56,9 +57,11 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Duration _duration = Duration.zero;
   String? _recordPath;
   bool _recording = false;
+  bool _startingRecording = false;
   bool _paused = false;
   bool _sending = false;
   bool _attachments = false;
+  bool _gamesOpening = false;
   bool _loadingRecent = false;
   List<AssetEntity> _recentAssets = const [];
 
@@ -92,6 +95,22 @@ class _ChatInputBarState extends State<ChatInputBar> {
     _focus.dispose();
     _recorder.dispose();
     super.dispose();
+  }
+
+  Future<void> _openGames() async {
+    if (_sending || _gamesOpening || !mounted) return;
+    setState(() => _gamesOpening = true);
+    _focus.unfocus(disposition: UnfocusDisposition.scope);
+    FocusScope.of(context).unfocus(disposition: UnfocusDisposition.scope);
+    FocusManager.instance.primaryFocus?.unfocus();
+    try {
+      await showGamesSheet(context, chatId: widget.chatId);
+    } catch (e) {
+      debugPrint('games sheet: $e');
+      if (mounted) ToastService.showError('تعذر فتح الألعاب. أعد المحاولة.');
+    } finally {
+      if (mounted) setState(() => _gamesOpening = false);
+    }
   }
 
   Future<void> _toggleAttachments() async {
@@ -338,18 +357,70 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    if (source == ImageSource.gallery) {
-      final xs = await _picker.pickMultiImage(imageQuality: 90);
-      for (final x in xs) {
+    if (_sending) return;
+
+    // The camera plugin opens a native Android activity. Close the keyboard
+    // first and explicitly resolve camera permission so a stale/denied
+    // permission state cannot leave the Flutter route waiting indefinitely.
+    if (source == ImageSource.camera) {
+      _focus.unfocus(disposition: UnfocusDisposition.scope);
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (mounted) setState(() => _sending = true);
+      try {
+        final permission = await Permission.camera.request().timeout(
+          const Duration(seconds: 8),
+        );
+        if (!permission.isGranted) {
+          if (mounted) {
+            ToastService.showError(
+              permission.isPermanentlyDenied
+                  ? 'صلاحية الكاميرا موقوفة. فعّلها من إعدادات التطبيق.'
+                  : 'لم يتم السماح بالوصول إلى الكاميرا.',
+            );
+          }
+          return;
+        }
+
+        final x = await _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 90,
+        ).timeout(const Duration(seconds: 30));
+        if (x == null || !mounted) return;
+
         final edited = await _editImageFile(File(x.path));
-        await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
+        if (!mounted) return;
+        await _sendMedia(
+          edited,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+        );
+      } catch (e) {
+        debugPrint('camera picker: $e');
+        if (mounted) {
+          ToastService.showError('تعذر فتح الكاميرا. أعد المحاولة.');
+        }
+      } finally {
+        if (mounted) setState(() => _sending = false);
       }
       return;
     }
-    final x = await _picker.pickImage(source: source, imageQuality: 90);
-    if (x != null) {
-      final edited = await _editImageFile(File(x.path));
-      await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
+
+    try {
+      final xs = await _picker.pickMultiImage(imageQuality: 90);
+      for (final x in xs) {
+        if (!mounted) return;
+        final edited = await _editImageFile(File(x.path));
+        await _sendMedia(
+          edited,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+        );
+      }
+    } catch (e) {
+      debugPrint('gallery picker: $e');
+      if (mounted) ToastService.showError('تعذر فتح المعرض.');
     }
   }
 
@@ -455,14 +526,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<void> _startRecording() async {
-    if (_sending || _recording || _hasRecording || _hasText) return;
-    if (!await _recorder.hasPermission()) {
-      ToastService.showError('يلزم السماح بالوصول إلى الميكروفون.');
-      return;
-    }
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/memochat_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    if (_sending || _recording || _startingRecording || _hasRecording || _hasText) return;
+    _startingRecording = true;
     try {
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/memochat_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(
         const RecordConfig(encoder: AudioEncoder.aacLc),
         path: path,
@@ -474,14 +543,18 @@ class _ChatInputBarState extends State<ChatInputBar> {
           setState(() => _duration += const Duration(seconds: 1));
         }
       });
-      setState(() {
-        _recording = true;
-        _paused = false;
-        _recordPath = path;
-      });
+      if (mounted) {
+        setState(() {
+          _recording = true;
+          _paused = false;
+          _recordPath = path;
+        });
+      }
     } catch (e) {
       debugPrint('record start: $e');
-      ToastService.showError('تعذر بدء التسجيل الصوتي.');
+      if (mounted) ToastService.showError('تعذر بدء التسجيل الصوتي.');
+    } finally {
+      _startingRecording = false;
     }
   }
 
@@ -623,7 +696,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                           ),
                           IconButton(
                             tooltip: 'الألعاب',
-                            onPressed: _sending ? null : () => showGamesSheet(context, chatId: widget.chatId),
+                            onPressed: (_sending || _gamesOpening) ? null : _openGames,
                             icon: Icon(Icons.sports_esports_outlined, color: iconColor),
                             splashRadius: 21,
                           ),

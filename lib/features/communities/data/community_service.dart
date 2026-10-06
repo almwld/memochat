@@ -43,8 +43,13 @@ class CommunityService {
       'userId': _uid,
       'role': 'owner',
       'joinedAt': FieldValue.serverTimestamp(),
+      'communityId': community.id,
     });
-    await batch.commit();
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw StateError('تعذر إنشاء المجتمع (' + e.code + '). ' + (e.message ?? ''));
+    }
     return community.id;
   }
 
@@ -82,6 +87,24 @@ class CommunityService {
     await ref.update({
       'membersCount': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> inviteToCommunity({required String communityId, required String recipientId}) async {
+    _requireUser();
+    final target = recipientId.trim();
+    if (target.isEmpty || target == _uid) throw ArgumentError('المستخدم غير صالح');
+    final community = await _communities.doc(communityId).get();
+    if (!community.exists) throw StateError('المجتمع غير موجود');
+    final member = await _communities.doc(communityId).collection('members').doc(_uid).get();
+    if (!member.exists) throw StateError('يجب أن تكون عضواً لدعوة مستخدم');
+    await _firestore.collection('communityInvites').add({
+      'communityId': communityId,
+      'communityName': community.data()?['name']?.toString() ?? 'مجتمع',
+      'senderId': _uid,
+      'recipientId': target,
+      'createdAt': FieldValue.serverTimestamp(),
+      'state': 'pending',
     });
   }
 

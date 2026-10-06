@@ -2,10 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/chat_bloc.dart';
-import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/models/chat_model.dart';
 import 'package:memochat/features/chat/presentation/widgets/unified_search_bar.dart';
 import 'chat_room_screen.dart';
+import 'chat_navigation.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -60,37 +61,37 @@ class _SearchScreenState extends State<SearchScreen> {
     if (otherId.isEmpty && !chat.isGroup) return;
     final name = chat.getDisplayName(uid);
     final photo = chat.getDisplayPhoto(uid);
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-      chatId: chat.id, otherUserId: otherId, otherUserName: name,
-      otherUserImage: photo.isEmpty ? null : photo, isGroup: chat.isGroup,
-      groupImage: chat.groupPhoto, lastMessage: chat.lastMessage,
-    )));
+    ChatNavigation.openRoom(context,chatId:chat.id,otherUserId:otherId,otherUserName:name,otherUserImage:photo.isEmpty?null:photo,isGroup:chat.isGroup,groupImage:chat.groupPhoto,lastMessage:chat.lastMessage);
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final hasQuery = _controller.text.isNotEmpty;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: dark ? const Color(0xFF0B1121) : Colors.white,
       appBar: AppBar(
         title: const Text('بحث'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        actions: [
+          if (hasQuery)
+            IconButton(
+              onPressed: _controller.clear,
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'مسح البحث',
+            ),
+        ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: UnifiedSearchBar(
-            controller: _controller,
-            hint: 'ابحث عن محادثة...',
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            backgroundColor: dark ? const Color(0xFF162039) : Colors.white,
-            borderColor: Colors.transparent,
-            textColor: dark ? Colors.white : Colors.black87,
-            hintColor: dark ? Colors.white60 : Colors.grey,
-            suffixIcon: hasQuery
-                ? IconButton(icon: const Icon(Icons.close, size: 18), onPressed: _controller.clear)
-                : null,
+          preferredSize: const Size.fromHeight(68),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
+            child: UnifiedSearchBar(
+              controller: _controller,
+              hint: 'ابحث عن محادثة...',
+              margin: EdgeInsets.zero,
+              backgroundColor: scheme.surfaceContainerHighest,
+              borderColor: scheme.outlineVariant,
+              textColor: scheme.onSurface,
+              hintColor: scheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
@@ -100,23 +101,44 @@ class _SearchScreenState extends State<SearchScreen> {
               ? _buildInitialState()
               : _results.isEmpty
                   ? _buildEmptyState()
-                  : ListView.builder(
+                  : ListView.separated(
+                      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 24),
                       itemCount: _results.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final chat = _results[index];
                         final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
                         final name = chat.getDisplayName(uid);
                         final photo = chat.getDisplayPhoto(uid);
                         final lastMessage = chat.lastMessage ?? '';
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
-                            child: photo.isEmpty ? Text(name.isEmpty ? 'م' : name[0]) : null,
+                        return Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: scheme.primaryContainer,
+                              backgroundImage:
+                                  photo.isNotEmpty ? NetworkImage(photo) : null,
+                              child: photo.isEmpty
+                                  ? Text(
+                                      name.isEmpty ? 'م' : name.characters.first,
+                                      style: TextStyle(
+                                        color: scheme.onPrimaryContainer,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(
+                              name,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: Text(
+                              lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(Icons.chevron_left_rounded),
+                            onTap: () => _openChat(chat),
                           ),
-                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => _openChat(chat),
                         );
                       },
                     ),

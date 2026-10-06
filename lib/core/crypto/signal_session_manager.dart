@@ -10,6 +10,7 @@ import 'identity_store.dart';
 import 'prekey_store.dart';
 import 'session_store.dart';
 import 'signed_prekey_store.dart';
+import 'signal_trust_store.dart';
 
 class SignalSessionManager {
   SignalSessionManager._();
@@ -24,6 +25,7 @@ class SignalSessionManager {
   final MemoSignalSignedPreKeyStore signedPreKeyStore =
       MemoSignalSignedPreKeyStore();
   final MemoSignalSessionStore sessionStore = MemoSignalSessionStore();
+  final SignalConversationTrustStore trustStore = SignalConversationTrustStore();
 
   final Map<String, Future<void>> _queues = {};
   Future<void>? _initialization;
@@ -36,30 +38,28 @@ class SignalSessionManager {
     await identityStore.getIdentityKeyPair();
     await identityStore.getLocalRegistrationId();
 
-    for (var id = 1; id <= 100; id++) {
-      if (await preKeyStore.containsPreKey(id)) continue;
-      final record = generatePreKeys(id, 1).single;
-      await preKeyStore.storePreKey(id, record);
-    }
+    await _ensurePreKeyPool();
 
     final signed = await signedPreKeyStore.loadSignedPreKeys();
     final now = DateTime.now().millisecondsSinceEpoch;
-    final valid = signed.where(
-      (record) =>
-          now - record.timestamp.toInt() <
-          const Duration(days: 7).inMilliseconds,
-    );
-
-    if (valid.isEmpty) {
+        final newest = signed.isEmpty ? null : signed.last;
+    if (newest == null || now - newest.timestamp.toInt() >= const Duration(days: 7).inMilliseconds) {
       final id = now ~/ 1000;
       final identity = await identityStore.getIdentityKeyPair();
       final record = generateSignedPreKey(identity, id);
       await signedPreKeyStore.storeSignedPreKey(id, record);
     }
+    final refreshed = await signedPreKeyStore.loadSignedPreKeys();
+    for (final record in refreshed) {
+      if (now - record.timestamp.toInt() > const Duration(days: 30).inMilliseconds && record.id != refreshed.last.id) {
+        await signedPreKeyStore.removeSignedPreKey(record.id);
+      }
+    }
   }
 
   Future<Map<String, dynamic>> publicBundle() async {
     await initialize();
+    await _ensurePreKeyPool();
 
     final identity = await identityStore.getIdentityKeyPair();
     final registrationId = await identityStore.getLocalRegistrationId();
@@ -88,6 +88,21 @@ class SignalSessionManager {
   Future<void> ensureReady() async {
     await initialize();
     await publishPublicBundle();
+  }
+
+  Future<String> localFingerprint() => identityStore.fingerprint();
+
+  Future<String> remoteFingerprint(String remoteUid, {int deviceId = 1}) async {
+    final bundle = await _loadBundle(remoteUid, deviceId);
+    return bundle.getIdentityKey().getFingerprint();
+  }
+
+  Future<SignalTrustState> conversationTrustState(String chatId, String remoteUid, {int deviceId = 1}) =>
+      trustStore.state(chatId, remoteUid, deviceId: deviceId);
+
+  Future<void> verifyConversationIdentity(String chatId, String remoteUid, {int deviceId = 1}) async {
+    final fingerprint = await remoteFingerprint(remoteUid, deviceId: deviceId);
+    await trustStore.markVerified(chatId, remoteUid, fingerprint, deviceId: deviceId);
   }
 
   Future<void> publishPublicBundle() async {
@@ -162,11 +177,13 @@ class SignalSessionManager {
   Future<Uint8List> encryptFor(
     String remoteUid,
     List<int> plaintext, {
+    String? chatId,
     int deviceId = 1,
   }) async {
     final address = SignalProtocolAddress(remoteUid, deviceId);
     return _withAddressLock(address, () async {
       final bundle = await _loadBundle(remoteUid, deviceId);
+      await _observeRemoteTrust(chatId, remoteUid, bundle, deviceId);
       await _ensureSession(address, bundle);
       final cipher = SessionCipher(
         sessionStore,
@@ -183,10 +200,19 @@ class SignalSessionManager {
   Future<Uint8List> decryptFrom(
     String remoteUid,
     Uint8List serialized, {
+    String? chatId,
     int deviceId = 1,
   }) async {
     final address = SignalProtocolAddress(remoteUid, deviceId);
     return _withAddressLock(address, () async {
+      if (chatId != null && chatId.isNotEmpty) {
+        try {
+          final bundle = await _loadBundle(remoteUid, deviceId);
+          await _observeRemoteTrust(chatId, remoteUid, bundle, deviceId);
+        } catch (error) {
+          if (error is StateError && error.message.contains('هوية جهة الاتصال')) rethrow;
+        }
+      }
       final cipher = SessionCipher(
         sessionStore,
         preKeyStore,
@@ -200,12 +226,41 @@ class SignalSessionManager {
       }
 
       final type = serialized[0] & 0x03;
-      if (type == CiphertextMessage.prekeyType) {
-        return cipher.decrypt(PreKeySignalMessage(serialized));
-      }
-
-      return cipher.decryptFromSignal(SignalMessage.fromSerialized(serialized));
+      final clear = type == CiphertextMessage.prekeyType
+          ? await cipher.decrypt(PreKeySignalMessage(serialized))
+          : await cipher.decryptFromSignal(SignalMessage.fromSerialized(serialized));
+      await _ensurePreKeyPool();
+      if (type == CiphertextMessage.prekeyType) await publishPublicBundle();
+      return clear;
     });
+  }
+
+  Future<void> _ensurePreKeyPool() async {
+    const target = 100;
+    var available = 0;
+    for (var id = 1; id <= target; id++) {
+      if (await preKeyStore.containsPreKey(id)) available++;
+    }
+    for (var id = 1; id <= target && available < target; id++) {
+      if (await preKeyStore.containsPreKey(id)) continue;
+      await preKeyStore.storePreKey(id, generatePreKeys(id, 1).single);
+      available++;
+    }
+  }
+
+  Future<void> _observeRemoteTrust(String? chatId, String remoteUid, PreKeyBundle bundle, int deviceId) async {
+    if (chatId == null || chatId.isEmpty) return;
+    final fingerprint = bundle.getIdentityKey().getFingerprint();
+    final current = await trustStore.state(chatId, remoteUid, deviceId: deviceId);
+    final stored = await trustStore.fingerprint(chatId, remoteUid, deviceId: deviceId);
+    if (stored != null && stored != fingerprint) {
+      await trustStore.markChanged(chatId, remoteUid, deviceId: deviceId);
+      throw StateError('هوية جهة الاتصال تغيّرت؛ تحقّق من رمز الأمان قبل المتابعة');
+    }
+    if (current == SignalTrustState.changed) {
+      throw StateError('هوية جهة الاتصال معلّمة كمتغيّرة؛ تحقّق من رمز الأمان');
+    }
+    await trustStore.observe(chatId, remoteUid, fingerprint, deviceId: deviceId);
   }
 
   Future<PreKeyRecord> _firstAvailablePreKey() async {

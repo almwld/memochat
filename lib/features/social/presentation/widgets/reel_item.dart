@@ -26,7 +26,7 @@ class ReelItem extends StatefulWidget {
   State<ReelItem> createState() => _ReelItemState();
 }
 
-class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin {
+class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   VideoPlayerController? _player;
   bool _liked = false;
   bool _saved = false;
@@ -37,21 +37,9 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _liked = false;
-    _loadState();
     _initPlayer();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.active && !_viewRecorded) {
-        _viewRecorded = true;
-        widget.service.recordView(widget.id).catchError((_) {});
-      }
-    });
-  }
-
-  Future<void> _loadState() async {
-    try {
-      if (!mounted) return;
-    } catch (_) {}
   }
 
   Future<void> _initPlayer() async {
@@ -62,7 +50,10 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     try {
       await controller.initialize();
       await controller.setLooping(true);
-      if (widget.active) await controller.play();
+      if (widget.active) {
+        await controller.play();
+        _recordViewIfReady(controller);
+      }
       if (mounted) setState(() {});
     } catch (error) {
       if (mounted) setState(() {});
@@ -75,10 +66,7 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     if (widget.active != oldWidget.active) {
       if (widget.active) {
         _player?.play();
-        if (!_viewRecorded) {
-          _viewRecorded = true;
-          widget.service.recordView(widget.id).catchError((_) {});
-        }
+        _recordViewIfReady(_player);
       } else {
         _player?.pause();
       }
@@ -86,9 +74,27 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final player = _player;
+    if (player == null) return;
+    if (state == AppLifecycleState.resumed && widget.active && player.value.isInitialized) {
+      player.play();
+    } else if (state != AppLifecycleState.resumed) {
+      player.pause();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _player?.dispose();
     super.dispose();
+  }
+
+  void _recordViewIfReady(VideoPlayerController? controller) {
+    if (_viewRecorded || !widget.active || controller == null || !controller.value.isInitialized) return;
+    _viewRecorded = true;
+    widget.service.recordView(widget.id).catchError((_) {});
   }
 
   void _togglePlay() {

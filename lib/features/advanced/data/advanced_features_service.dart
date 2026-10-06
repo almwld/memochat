@@ -18,11 +18,18 @@ class AdvancedFeaturesService {
   CollectionReference<Map<String, dynamic>> get _rooms => _db.collection('voiceRooms');
   CollectionReference<Map<String, dynamic>> get _businesses => _db.collection('businesses');
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchVoiceRooms() => _rooms
+  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> watchVoiceRooms() => _rooms
       .where('active', isEqualTo: true)
       .orderBy('updatedAt', descending: true)
       .limit(50)
-      .snapshots();
+      .snapshots()
+      .map((snapshot) {
+    final current = _auth.currentUser?.uid;
+    return snapshot.docs.where((doc) {
+      final data = doc.data();
+      return data['visibility']?.toString() != 'hidden' || data['ownerId']?.toString() == current;
+    }).toList();
+  });
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchRoomMembers(String roomId) =>
       _rooms.doc(roomId).collection('members').snapshots();
@@ -39,6 +46,7 @@ class AdvancedFeaturesService {
       'topic': cleanTopic,
       'roomName': 'memo_voice_${roomRef.id}',
       'active': true,
+      'visibility': 'public',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -48,6 +56,24 @@ class AdvancedFeaturesService {
       'joinedAt': FieldValue.serverTimestamp(),
     });
     return roomRef.id;
+  }
+
+  Future<void> inviteToVoiceRoom({required String roomId, required String recipientId}) async {
+    final target = recipientId.trim();
+    if (target.isEmpty || target == uid) throw ArgumentError('المستخدم غير صالح');
+    final room = await _rooms.doc(roomId).get();
+    if (!room.exists || room.data()?['active'] != true) throw StateError('الغرفة غير متاحة');
+    final member = await room.reference.collection('members').doc(uid).get();
+    if (!member.exists) throw StateError('انضم إلى الغرفة أولاً');
+    await _db.collection('voiceRoomInvites').add({
+      'roomId': roomId,
+      'roomName': room.data()?['name']?.toString() ?? 'غرفة صوتية',
+      'roomLiveName': room.data()?['roomName']?.toString() ?? '',
+      'senderId': uid,
+      'recipientId': target,
+      'createdAt': FieldValue.serverTimestamp(),
+      'state': 'pending',
+    });
   }
 
   Future<void> joinVoiceRoom(String roomId) async {
@@ -63,6 +89,13 @@ class AdvancedFeaturesService {
 
   Future<void> leaveVoiceRoom(String roomId) async {
     await _rooms.doc(roomId).collection('members').doc(uid).delete();
+  }
+
+  Future<void> setVoiceRoomVisibility(String roomId, bool visible) async {
+    final ref = _rooms.doc(roomId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['ownerId'] != uid) throw StateError('لا تملك صلاحية تعديل الغرفة');
+    await ref.update({'visibility': visible ? 'public' : 'hidden', 'updatedAt': FieldValue.serverTimestamp()});
   }
 
   Future<void> closeVoiceRoom(String roomId) async {
@@ -111,3 +144,5 @@ class AdvancedFeaturesService {
     await ref.update({'active': false, 'updatedAt': FieldValue.serverTimestamp()});
   }
 }
+
+

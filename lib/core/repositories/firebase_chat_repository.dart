@@ -35,6 +35,7 @@ class FirebaseChatRepository implements ChatRepository {
     return source.snapshots().map((snapshot) => snapshot.docs.map((doc) {
       if (doc.id == _uid) return null;
       final data = doc.data();
+      if (data['hideFromContacts'] == true) return null;
       final name = data['displayName']?.toString() ?? 'مستخدم';
       final username = data['username']?.toString() ?? '';
       final publicId = data['publicId']?.toString() ?? username;
@@ -54,71 +55,118 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   @override
-  Future<String> createConversation({required String otherUserId, required String otherUserName, String? otherUserPhoto}) async {
+  Future<String> createConversation({
+    required String otherUserId,
+    required String otherUserName,
+    String? otherUserPhoto,
+  }) async {
     if (_uid.isEmpty) throw StateError('يرجى تسجيل الدخول');
     final otherId = otherUserId.trim();
-    if (otherId.isEmpty || otherId == _uid) throw StateError('معرّف المستخدم الآخر غير صالح');
+    if (otherId.isEmpty || otherId == _uid) {
+      throw StateError('معرّف المستخدم الآخر غير صالح');
+    }
 
-    // Use a stable pair id for new DMs. This avoids relying on a collection
-    // query that can be rejected by a restrictive Firestore deployment.
+    // The deterministic room is the source of truth. Check it before any
+    // legacy participant query so a large conversation list can never cause us
+    // to create a second room when the canonical DM already exists.
     final pair = <String>[_uid, otherId]..sort();
-    final stableId = 'dm_${pair[0]}_${pair[1]}';
-    final stableRef = _chats().doc(stableId);
-    final me = FirebaseAuth.instance.currentUser;
+    final ref = _chats().doc('dm_${pair[0]}_${pair[1]}');
+    try {
+      final canonical = await ref.get();
+      if (canonical.exists) return ref.id;
+    } on FirebaseException catch (e) {
+      // A missing canonical document is intentionally not readable under the
+      // chat rules. Do not turn that expected pre-create lookup into a false
+      // "create conversation" failure; the create rule is the authority.
+      if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+      debugPrint('Canonical DM lookup skipped: ${e.code}');
+    }
 
-    // Resolve an existing DM before attempting a write. A legacy DM can have
-    // the same participant pair but a different document id; resolving it
-    // first avoids turning a normal open-chat action into a permission error.
+    // Keep the same contract as Sehatak: resolve an existing direct room
+    // first, never reuse a group room, then create one canonical DM document.
     try {
       final existing = await _chats()
           .where('participants', arrayContains: _uid)
           .limit(100)
           .get();
       for (final doc in existing.docs) {
+        final data = doc.data();
         final participants = List<String>.from(
-          (doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const [],
+          (data['participants'] as List?)?.map((e) => e.toString()) ?? const [],
         );
-        if (participants.length == 2 && participants.contains(otherId)) {
+        if (participants.length == 2 &&
+            participants.contains(otherId) &&
+            data['isGroup'] != true) {
           return doc.id;
         }
       }
     } on FirebaseException catch (e) {
-      // Continue to the canonical create path when the lookup itself is unavailable.
+      // A restrictive/temporarily unavailable list query must not prevent a
+      // valid create. The create rule authorizes the new participant pair.
       if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+      debugPrint('DM lookup skipped: ${e.code}');
     }
 
+    // Deterministic DM id removes the remaining race where two devices create
+    // parallel rooms between the same two users at the same time.
+    final me = FirebaseAuth.instance.currentUser;
+    final myName = me?.displayName?.trim().isNotEmpty == true
+        ? me!.displayName!.trim()
+        : 'مستخدم';
+    final theirName = otherUserName.trim().isNotEmpty
+        ? otherUserName.trim()
+        : 'مستخدم';
+
+    final payload = <String, dynamic>{
+      'participants': [_uid, otherId],
+      'participantDetails': {
+        _uid: {'name': myName, 'photoUrl': me?.photoURL ?? ''},
+        otherId: {'name': theirName, 'photoUrl': otherUserPhoto ?? ''},
+      },
+      'participantNames': {
+        _uid: myName,
+        otherId: theirName,
+      },
+      'participantPhotos': {
+        _uid: me?.photoURL ?? '',
+        otherId: otherUserPhoto ?? '',
+      },
+      'lastMessage': '',
+      'lastMessageTime': null,
+      'lastMessageSenderId': null,
+      'unreadCount': {_uid: 0, otherId: 0},
+      'isGroup': false,
+      'isArchived': false,
+      'isPinned': false,
+      'isMuted': false,
+      'pinnedFor': {_uid: false, otherId: false},
+      'mutedFor': {_uid: false, otherId: false},
+      'typing': {_uid: false, otherId: false},
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
     try {
-      await stableRef.set({
-        'participants': [_uid, otherId],
-        'participantNames': {
-          _uid: me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم',
-          otherId: otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم',
-        },
-        'participantPhotos': {
-          _uid: me?.photoURL ?? '',
-          otherId: otherUserPhoto ?? '',
-        },
-        'participantDetails': {
-          _uid: {'name': me?.displayName?.trim().isNotEmpty == true ? me!.displayName!.trim() : 'مستخدم', 'photoUrl': me?.photoURL ?? ''},
-          otherId: {'name': otherUserName.trim().isNotEmpty ? otherUserName.trim() : 'مستخدم', 'photoUrl': otherUserPhoto ?? ''},
-        },
-        'isGroup': false,
-        'isArchived': false,
-        'isPinned': false,
-        'isMuted': false,
-        'unreadCount': {_uid: 0, otherId: 0},
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return stableId;
+      await ref.set(payload);
+      return ref.id;
     } on FirebaseException catch (e) {
-      // A legacy/random DM may already exist. Fall back to the old lookup
-      // before surfacing the write error.
+      // A concurrent client may have already created the same DM while the
+      // lookup was racing. Resolve it before surfacing the failure.
       if (e.code == 'permission-denied' || e.code == 'already-exists') {
-        final existingChats = await _chats().where('participants', arrayContains: _uid).limit(100).get();
-        for (final doc in existingChats.docs) {
-          final participants = List<String>.from((doc.data()['participants'] as List?)?.map((e) => e.toString()) ?? const []);
-          if (participants.length == 2 && participants.contains(otherId)) return doc.id;
+        final existing = await _chats()
+            .where('participants', arrayContains: _uid)
+            .limit(100)
+            .get();
+        for (final doc in existing.docs) {
+          final data = doc.data();
+          final participants = List<String>.from(
+            (data['participants'] as List?)?.map((v) => v.toString()) ?? const [],
+          );
+          if (participants.length == 2 &&
+              participants.contains(otherId) &&
+              data['isGroup'] != true) {
+            return doc.id;
+          }
         }
       }
       rethrow;
@@ -143,6 +191,9 @@ class FirebaseChatRepository implements ChatRepository {
                         ?.map((e) => e.toString()) ??
                     const [],
               );
+              final isGroup = data['isGroup'] == true;
+              final groupName = data['groupName']?.toString().trim() ?? '';
+              final groupPhoto = data['groupPhoto']?.toString().trim() ?? '';
               final other =
                   ids.firstWhere((id) => id != _uid, orElse: () => '');
               final names = Map<String, dynamic>.from(
@@ -159,11 +210,15 @@ class FirebaseChatRepository implements ChatRepository {
               final otherDetails = details[other] is Map
                   ? Map<String, dynamic>.from(details[other] as Map)
                   : const <String, dynamic>{};
-              final otherName = names[other]?.toString() ??
-                  otherDetails['name']?.toString() ??
-                  'مستخدم';
-              final otherPhoto = photos[other]?.toString() ??
-                  otherDetails['photoUrl']?.toString();
+              final otherName = isGroup && groupName.isNotEmpty
+                  ? groupName
+                  : names[other]?.toString() ??
+                      otherDetails['name']?.toString() ??
+                      'مستخدم';
+              final otherPhoto = isGroup && groupPhoto.isNotEmpty
+                  ? groupPhoto
+                  : photos[other]?.toString() ??
+                      otherDetails['photoUrl']?.toString();
               final preview = data['lastMessage']?.toString() ?? '';
               final previewTime = data['updatedAt'];
               final previewDate = previewTime is Timestamp
@@ -173,7 +228,7 @@ class FirebaseChatRepository implements ChatRepository {
                 return Conversation(
                   id: doc.id,
                 participant: ChatUser(
-                  id: other,
+                  id: isGroup ? doc.id : other,
                   displayName: otherName,
                   avatarUrl: otherPhoto,
                   isOnline: false,
@@ -194,6 +249,7 @@ class FirebaseChatRepository implements ChatRepository {
                 updatedAt: previewTime is Timestamp ? previewTime.toDate() : null,
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
                   isArchived: data['isArchived'] == true,
+                  isGroup: isGroup,
                 );
               } catch (error, stackTrace) {
                 // Ignore one malformed/legacy chat document instead of terminating
@@ -206,12 +262,31 @@ class FirebaseChatRepository implements ChatRepository {
 
           // Match Sehatak's list semantics: updatedAt is the source of truth,
           // including newly-created chats that do not have a last message yet.
-          conversations.sort((a, b) {
+          // Legacy data may contain multiple direct documents for the same
+          // participant pair. Collapse them at the repository boundary so the
+          // UI never shows duplicate conversations, while keeping the newest
+          // room (the one with the latest activity).
+          final unique = <String, Conversation>{};
+          for (final conversation in conversations) {
+            final key = conversation.isGroup
+                ? 'group:${conversation.id}'
+                : 'dm:${conversation.participant.id}';
+            final previous = unique[key];
+            if (previous == null) {
+              unique[key] = conversation;
+              continue;
+            }
+            final previousTime = previous.updatedAt ?? previous.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final currentTime = conversation.updatedAt ?? conversation.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            if (currentTime.isAfter(previousTime)) unique[key] = conversation;
+          }
+          final deduplicated = unique.values.toList();
+          deduplicated.sort((a, b) {
             final aTime = a.updatedAt ?? a.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
             final bTime = b.updatedAt ?? b.lastMessage?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
             return bTime.compareTo(aTime);
           });
-          return conversations;
+          return deduplicated;
         });
   }
 
@@ -271,6 +346,8 @@ class FirebaseChatRepository implements ChatRepository {
 
     final doc = _messages(conversationId).doc();
     final now = DateTime.now();
+    // Keep the message write authoritative, matching the proven transport
+    // contract. Conversation-list metadata is a secondary operation.
     await doc.set({
       'chatId': conversationId,
       'senderId': _uid,
@@ -278,13 +355,18 @@ class FirebaseChatRepository implements ChatRepository {
       'type': MessageType.text.name,
       'status': MessageStatus.sent.name,
       'timestamp': Timestamp.fromDate(now),
+      'createdAt': Timestamp.fromDate(now),
       'clientTimestamp': now.microsecondsSinceEpoch,
     });
-    await _chats().doc(conversationId).set({
-      'lastMessage': trimmed,
-      'lastMessageSenderId': _uid,
-      'updatedAt': Timestamp.fromDate(now),
-    }, SetOptions(merge: true));
+    try {
+      await _chats().doc(conversationId).set({
+        'lastMessage': trimmed,
+        'lastMessageSenderId': _uid,
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      debugPrint('chat metadata update skipped after successful message write: ${e.code}');
+    }
 
     return ChatMessage(
       id: doc.id,

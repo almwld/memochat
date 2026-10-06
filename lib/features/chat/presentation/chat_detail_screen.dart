@@ -79,17 +79,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final title = widget.userName?.trim().isNotEmpty == true ? widget.userName!.trim() : 'الدردشة';
-    final headerColor = isDark ? const Color(0xFF102B2A) : AppColors.primary;
-    final inputSurface = isDark ? const Color(0xFF121A29) : Colors.white;
+    final scheme = Theme.of(context).colorScheme;
+    final headerColor = isDark ? scheme.surface : scheme.primary;
+    final headerForeground = isDark ? scheme.onSurface : scheme.onPrimary;
+    final inputSurface = scheme.surface;
     return Scaffold(
-      backgroundColor: isDark ? AppColors.background : AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         titleSpacing: 0,
         title: Row(children: [
-          CircleAvatar(radius: 19, backgroundColor: isDark ? const Color(0xFF214442) : Colors.white.withOpacity(.18), backgroundImage: widget.userImage?.trim().isNotEmpty == true ? NetworkImage(widget.userImage!.trim()) : null, child: widget.userImage?.trim().isNotEmpty == true ? null : Icon(Icons.person_rounded, color: Colors.white, size: 22)),
+          CircleAvatar(radius: 19, backgroundColor: isDark ? scheme.primaryContainer : scheme.onPrimary.withOpacity(.14), backgroundImage: widget.userImage?.trim().isNotEmpty == true ? NetworkImage(widget.userImage!.trim()) : null, child: widget.userImage?.trim().isNotEmpty == true ? null : Icon(Icons.person_rounded, color: headerForeground, size: 22)),
           const SizedBox(width: 10), Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700))),
         ]),
-        backgroundColor: headerColor, foregroundColor: Colors.white, elevation: 3, shadowColor: Colors.black.withOpacity(.18), surfaceTintColor: Colors.transparent,
+        backgroundColor: headerColor, foregroundColor: headerForeground, elevation: 0, shadowColor: Colors.transparent, surfaceTintColor: Colors.transparent,
       ),
       body: Column(children: [
         Expanded(child: BlocConsumer<MessagesBloc, MessagesState>(
@@ -132,7 +134,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           },
         )),
         Container(
-          decoration: BoxDecoration(color: inputSurface, border: Border(top: BorderSide(color: isDark ? Colors.white.withOpacity(.06) : const Color(0xFFD9E4E3), width: 1)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? .12 : .08), blurRadius: 12, offset: const Offset(0, -3))]),
+          decoration: BoxDecoration(color: inputSurface, border: Border(top: BorderSide(color: scheme.outlineVariant, width: 1)),),
           child: ChatInputBar(chatId: widget.chatId, onSendMessage: _sendText),
         ),
       ]),

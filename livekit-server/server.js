@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 
 const PORT = Number(process.env.PORT || 3000);
-const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
+const LIVEKIT_URL = String(process.env.LIVEKIT_URL || 'wss://memo-2jv45qyl.livekit.cloud').trim();
 
 // Firebase Admin credentials are supplied through Railway environment variables.
 if (!admin.apps.length) {
@@ -334,6 +334,10 @@ app.post('/voice-token', async (req, res) => {
     if (!memberSnapshot.exists) {
       return res.status(403).json({ success: false, message: 'انضم إلى الغرفة أولاً' });
     }
+    const member = memberSnapshot.data() || {};
+    const role = String(member.role || 'listener').trim().toLowerCase();
+    const canPublish = role === 'host' || role === 'speaker' || role === 'moderator';
+    const canPublishData = canPublish;
 
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
@@ -349,9 +353,9 @@ app.post('/voice-token', async (req, res) => {
     token.addGrant({
       roomJoin: true,
       room: roomName,
-      canPublish: true,
+      canPublish,
       canSubscribe: true,
-      canPublishData: true,
+      canPublishData,
     });
 
     return res.json({
@@ -374,82 +378,50 @@ app.post('/voice-token', async (req, res) => {
   }
 });
 
-// Production incoming-call notification endpoint.
-// Flutter creates the canonical calls/{callId} document, then calls this endpoint.
-// Railway verifies the caller and sends FCM directly, so Firebase Cloud Functions/Blaze are not required.
-// Incoming calls remain DATA-ONLY so Flutter can own the full-screen call notification
-// and answer/reject actions. Text messages intentionally use notification + data below
-// so Android can place them in the system tray while the app is backgrounded.
+// ============================================================
+// Incoming call FCM bridge
+// ============================================================
+// Firestore remains the source of truth. This endpoint only wakes the
+// receiver with a high-priority data-only FCM message.
 app.post('/call-notification', async (req, res) => {
   const requestId = `call-notify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  console.log(`📞 [${requestId}] incoming /call-notification request`);
   try {
     const decodedToken = await verifyFirebaseUser(req);
-    const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const callId = String(body.callId || '').trim();
-    console.log(`📞 [${requestId}] authenticated uid=${decodedToken.uid} callId=${callId || '(missing)'}`);
+    const callId = String(req.body?.callId || '').trim();
     if (!callId) return res.status(400).json({ success: false, message: 'callId is required', requestId });
 
     const callSnapshot = await db.collection('calls').doc(callId).get();
-    if (!callSnapshot.exists) {
-      console.error(`❌ [${requestId}] call not found id=${callId}`);
-      return res.status(404).json({ success: false, message: 'Call not found', requestId });
-    }
+    if (!callSnapshot.exists) return res.status(404).json({ success: false, message: 'Call not found', requestId });
 
     const call = callSnapshot.data() || {};
     const callerId = String(call.callerId || '');
     const receiverId = String(call.receiverId || '').trim();
-    const status = String(call.status || '');
+    const status = String(call.status || '').trim();
     const chatId = String(call.chatId || '').trim();
-    console.log(`📋 [${requestId}] call status=${status} caller=${callerId} receiver=${receiverId} chatId=${chatId || '(missing)'}`);
 
-    if (callerId !== String(decodedToken.uid)) {
-      console.error(`❌ [${requestId}] caller authorization mismatch token=${decodedToken.uid} call.callerId=${callerId}`);
+    if (callerId !== decodedToken.uid) {
       return res.status(403).json({ success: false, message: 'Caller is not authorized for this call', requestId });
     }
     if (!['calling', 'ringing'].includes(status)) {
-      console.warn(`⚠️ [${requestId}] call no longer ringing status=${status}`);
       return res.status(409).json({ success: false, message: 'Call is no longer ringing', status, requestId });
     }
-    if (!receiverId || receiverId === decodedToken.uid) {
-      console.error(`❌ [${requestId}] invalid receiverId=${receiverId}`);
-      return res.status(400).json({ success: false, message: 'Invalid receiverId', requestId });
-    }
-    if (!chatId) {
-      console.error(`❌ [${requestId}] call has no chatId callId=${callId}`);
-      return res.status(400).json({ success: false, reason: 'missing_chat_id', message: 'Call chatId is required for incoming-call UI', requestId });
+    if (!receiverId || receiverId === decodedToken.uid || !chatId) {
+      return res.status(400).json({ success: false, message: 'Invalid call participants', requestId });
     }
 
-    const receiverSnapshot = await db.collection('users').doc(receiverId).get();
-    if (!receiverSnapshot.exists) {
-      console.error(`❌ [${requestId}] receiver user not found uid=${receiverId}`);
-      return res.status(404).json({ success: false, message: 'Receiver not found', requestId });
-    }
-    // Canonical FCM storage only: users/{uid}/private/tokens.tokens.
-    // Legacy root token fields are intentionally ignored to prevent duplicate
-    // and stale notifications.
     const tokenSnapshot = await db.collection('users').doc(receiverId)
       .collection('private').doc('tokens').get();
     const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
-    const fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .filter((value, index, all) => all.indexOf(value) === index);
+    const fcmTokens = Array.isArray(tokenData.tokens)
+      ? [...new Set(tokenData.tokens.map(v => String(v || '').trim()).filter(Boolean))]
+      : [];
 
     if (!fcmTokens.length) {
-      console.error(`❌ [${requestId}] receiver has no FCM token(s) uid=${receiverId}`);
-      return res.status(200).json({ success: true, sent: false, reason: 'fcm_token_missing', requestId });
+      return res.status(200).json({
+        success: true, sent: false, reason: 'fcm_token_missing', receiverId, requestId,
+      });
     }
 
-    const isVideo = call.isVideoCall === true || String(call.callType || '') === 'video';
-    const callerName = String(call.callerName || decodedToken.name || 'مستخدم');
-    const callerPhotoUrl = String(call.callerPhotoUrl || '');
-    // Incoming calls intentionally use a HIGH-prIORITY data-only payload.
-    // This lets FirebaseMessaging.onBackgroundMessage run and hand the call
-    // to NotificationService, which owns the IMPORTANCE_MAX + full-screen
-    // notification and call action buttons. A notification payload would let
-    // Android render a normal status-bar notification, but would bypass this
-    // Flutter full-screen call path while the app is backgrounded/terminated.
     const message = {
       tokens: fcmTokens,
       data: {
@@ -459,248 +431,57 @@ app.post('/call-notification', async (req, res) => {
         callerId,
         receiverId,
         userId: receiverId,
-        callerName,
-        callerPhotoUrl,
-        isVideo: isVideo ? 'true' : 'false',
-        callType: isVideo ? 'video' : 'audio',
+        callerName: String(call.callerName || 'مستخدم'),
+        callerPhotoUrl: String(call.callerPhotoUrl || ''),
+        isVideo: (call.isVideoCall === true || call.isVideo === true) ? 'true' : 'false',
+        callType: String(call.callType || ((call.isVideoCall || call.isVideo) ? 'video' : 'audio')),
       },
-      android: {
-        priority: 'high',
-        ttl: 60 * 1000,
-      },
+      android: { priority: 'high', ttl: 60 * 1000 },
     };
-    console.log(`📤 [${requestId}] sending HIGH-priority DATA-ONLY FCM receiver=${receiverId} tokens=${fcmTokens.length} type=incoming_call isVideo=${isVideo} chatId=${chatId}`);
-    try {
-      const response = await admin.messaging().sendEachForMulticast(message);
-      const invalidTokens = [];
-      response.responses.forEach((result, index) => {
-        if (!result.success && ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(result.error?.code)) {
-          invalidTokens.push(fcmTokens[index]);
-        }
-      });
-      if (invalidTokens.length) {
-        await db.collection('users').doc(receiverId)
-          .collection('private').doc('tokens')
-          .set({
-            tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+
+    const response = await admin.messaging().sendEachForMulticast(message);
+    const invalidTokens = [];
+    response.responses.forEach((result, index) => {
+      if (!result.success && [
+        'messaging/registration-token-not-registered',
+        'messaging/invalid-registration-token',
+      ].includes(result.error?.code)) {
+        invalidTokens.push(fcmTokens[index]);
       }
-      if (response.failureCount === response.successCount + response.failureCount && response.successCount === 0) {
-        const firstError = response.responses.find((result) => !result.success)?.error;
-        console.error(`❌ [${requestId}] all FCM tokens failed code=${firstError?.code || 'unknown'} message=${firstError?.message || 'unknown'}`);
-        return res.status(502).json({ success: false, sent: false, reason: firstError?.code || 'fcm_send_failed', requestId });
-      }
-      console.log(`✅ [${requestId}] FCM accepted success=${response.successCount} failure=${response.failureCount}`);
-      return res.json({ success: true, sent: response.successCount > 0, successCount: response.successCount, failureCount: response.failureCount, callId, receiverId, requestId, mode: 'data_only_multicast' });
-    } catch (error) {
-      console.error(`❌ [${requestId}] Incoming call FCM error code=${error.code || 'unknown'} message=${error.message || error}`);
-      return res.status(502).json({ success: false, sent: false, reason: error.code || 'fcm_send_failed', requestId });
+    });
+    if (invalidTokens.length) {
+      await db.collection('users').doc(receiverId).collection('private').doc('tokens')
+        .update({ tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens) });
     }
+
+    if (response.successCount === 0) {
+      const firstError = response.responses.find(result => !result.success)?.error;
+      return res.status(502).json({
+        success: false, sent: false,
+        reason: firstError?.code || 'fcm_send_failed',
+        requestId,
+      });
+    }
+
+    return res.json({
+      success: true,
+      sent: true,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      callId,
+      receiverId,
+      requestId,
+    });
   } catch (error) {
     const status = Number(error.statusCode) || 500;
-    console.error(`❌ [${requestId}] Call notification error status=${status} message=${error.message || error}`);
-    return res.status(status).json({ success: false, message: error.message || 'Unable to send incoming call notification', requestId });
+    console.error('Call notification error:', error.message || error);
+    return res.status(status).json({
+      success: false,
+      message: error.message || 'Unable to send incoming call notification',
+      requestId,
+    });
   }
 });
-
-// ============================================================
-// Firestore -> FCM: New chat message listener
-// ============================================================
-function buildMessagePayload(opts) {
-  var encrypted = opts.encrypted === true;
-  var preview = encrypted ? 'لديك رسالة جديدة في الدردشة' : String(opts.messageText || '').slice(0, 120);
-  return {
-    token: opts.fcmToken,
-    // Notification + data is intentional for chat messages: Android can render
-    // the message in the system tray while the data payload preserves chat routing.
-    notification: {
-      title: encrypted ? 'رسالة جديدة' : String(opts.senderName || 'رسالة جديدة'),
-      body: preview || 'لديك رسالة جديدة في الدردشة',
-    },
-    data: {
-      type: 'new_message',
-      chatId: String(opts.chatId || ''),
-      messageId: String(opts.messageId || ''),
-      senderId: String(opts.senderId || ''),
-      senderName: encrypted ? 'user' : String(opts.senderName || 'user'),
-      senderPhotoUrl: encrypted ? '' : String(opts.senderPhotoUrl || ''),
-      messageType: encrypted ? 'encrypted' : String(opts.messageType || 'text'),
-      imageUrl: encrypted ? '' : String(opts.imageUrl || ''),
-      videoUrl: encrypted ? '' : String(opts.videoUrl || ''),
-      audioUrl: encrypted ? '' : String(opts.audioUrl || ''),
-      fileUrl: encrypted ? '' : String(opts.fileUrl || ''),
-      fileName: encrypted ? '' : String(opts.fileName || ''),
-      fileMimeType: encrypted ? '' : String(opts.fileMimeType || ''),
-      fileSize: encrypted ? '' : String(opts.fileSize || ''),
-      body: encrypted ? '' : preview,
-      title: encrypted ? 'رسالة جديدة' : String(opts.senderName || 'رسالة جديدة'),
-      chatType: String(opts.chatType || 'direct'),
-      timestamp: String(Date.now())
-    },
-    android: {
-      priority: 'high',
-      ttl: 3600000,
-      notification: {
-        channelId: 'sehatak_messages_v2',
-        sound: 'notification',
-        priority: 'high',
-      },
-    },
-    apns: {
-      headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
-      payload: { aps: { 'content-available': 1 } }
-    }
-  };
-}
-
-async function handleNewMessage(change) {
-  try {
-    var msg = change.doc.data() || {};
-    // Call timeline entries are not chat messages. The dedicated
-    // /call-notification endpoint already sends the incoming-call FCM, so
-    // never emit a second notification that opens the chat room.
-    if (msg.type === 'call' || (msg.metadata && msg.metadata.callId) || msg.callId) return;
-    var messageId = change.doc.id;
-    var parent = change.doc.ref.parent;
-    var chatId = parent && parent.parent ? parent.parent.id : null;
-    if (!chatId) { console.warn('[msg] no chatId id=' + messageId); return; }
-
-    var senderId = String(msg.senderId || '');
-    if (!senderId) { console.warn('[msg] no senderId id=' + messageId); return; }
-
-    var encryptedMessage = msg.e2eePayloads && typeof msg.e2eePayloads === 'object';
-    var senderName = encryptedMessage ? 'user' : String(msg.senderName || msg.senderDisplayName || '');
-    var senderPhotoUrl = encryptedMessage ? '' : String(msg.senderPhotoUrl || msg.senderAvatar || '');
-    var messageType = encryptedMessage ? 'encrypted' : String(msg.type || 'text');
-    var imageUrl = encryptedMessage ? '' : String(msg.imageUrl || '');
-    var videoUrl = encryptedMessage ? '' : String(msg.videoUrl || '');
-    var audioUrl = encryptedMessage ? '' : String(msg.audioUrl || '');
-    var fileUrl = encryptedMessage ? '' : String(msg.fileUrl || '');
-    var fileName = encryptedMessage ? '' : String(msg.fileName || '');
-    var fileMimeType = encryptedMessage ? '' : String(msg.fileMimeType || msg.fileType || '');
-    var fileSize = encryptedMessage ? '' : String(msg.fileSize || '');
-    var messageText = '';
-    if (!encryptedMessage) {
-      if (typeof msg.text === 'string') messageText = msg.text;
-      else if (typeof msg.message === 'string') messageText = msg.message;
-      else if (typeof msg.content === 'string') messageText = msg.content;
-    }
-
-    var chatSnap = await db.collection('chats').doc(chatId).get();
-    if (!chatSnap.exists) { console.warn('[msg] chat missing id=' + chatId); return; }
-    var chat = chatSnap.data() || {};
-
-    var participants = Array.isArray(chat.participants)
-      ? chat.participants.map(String).filter(Boolean) : [];
-    if (participants.length === 0) { console.warn('[msg] no participants'); return; }
-
-    var receivers = participants.filter(function(id) { return id !== senderId; });
-    if (receivers.length === 0) { console.log('[msg] self-chat'); return; }
-
-    var userRefs = receivers.map(function(uid) { return db.collection('users').doc(uid); });
-    var userSnaps = await db.getAll.apply(db, userRefs);
-
-    var chatType = String(chat.type || 'direct');
-    var senderLabel = senderName || 'user';
-    var sentCount = 0;
-    var i;
-
-    for (i = 0; i < userSnaps.length; i++) {
-      var userSnap = userSnaps[i];
-      if (!userSnap.exists) continue;
-      var receiverId = userSnap.id;
-      var mutedFor = chat.mutedFor && typeof chat.mutedFor === 'object' ? chat.mutedFor : {};
-      if (chat.isMuted === true || chat.muted === true || mutedFor[receiverId] === true) {
-        console.log('[msg] muted chatId=' + chatId + ' receiver=' + receiverId);
-        continue;
-      }
-      var user = userSnap.data() || {};
-      // Canonical Flutter path: users/{uid}/private/tokens.tokens
-      // Keep root fields as a legacy compatibility fallback.
-      var tokenSnap = await db.collection('users').doc(receiverId)
-        .collection('private').doc('tokens').get();
-      var tokenData = tokenSnap.exists ? (tokenSnap.data() || {}) : {};
-      var fcmTokens = (Array.isArray(tokenData.tokens) ? tokenData.tokens : [])
-        .map(function(value) { return String(value || '').trim(); })
-        .filter(Boolean)
-        .filter(function(value, index, all) { return all.indexOf(value) === index; });
-      if (!fcmTokens.length) {
-        console.warn('[msg] no FCM token for receiver=' + receiverId +
-          ' (checked users/{uid}/private/tokens and legacy root fields)');
-        continue;
-      }
-
-      for (var ti = 0; ti < fcmTokens.length; ti++) {
-        var fcmToken = fcmTokens[ti];
-        var payload = buildMessagePayload({
-          fcmToken: fcmToken,
-          senderId: senderId,
-          senderName: senderLabel,
-          senderPhotoUrl: senderPhotoUrl,
-          chatId: chatId,
-          messageId: messageId,
-          messageText: messageText,
-          chatType: chatType,
-          messageType: messageType,
-          imageUrl: imageUrl,
-          videoUrl: videoUrl,
-          audioUrl: audioUrl,
-          fileUrl: fileUrl,
-          fileName: fileName,
-          fileMimeType: fileMimeType,
-          fileSize: fileSize,
-          encrypted: encryptedMessage
-        });
-
-        try {
-          var fcmId = await admin.messaging().send(payload);
-          sentCount++;
-          console.log('[msg] sent id=' + messageId + ' to=' + userSnap.id + ' tokenIndex=' + ti + ' fcm=' + fcmId);
-        } catch (err) {
-          console.error('[msg] FCM failed to=' + userSnap.id + ' tokenIndex=' + ti + ' code=' + (err.code || '?'));
-          if (err.code === 'messaging/registration-token-not-registered' ||
-              err.code === 'messaging/invalid-registration-token') {
-            await db.collection('users').doc(userSnap.id)
-              .collection('private').doc('tokens')
-              .set({
-                tokens: admin.firestore.FieldValue.arrayRemove(fcmToken),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              }, { merge: true });
-          }
-        }
-      }
-    }
-    console.log('[msg] done id=' + messageId + ' sent=' + sentCount + '/' + receivers.length);
-  } catch (err) {
-    console.error('[msg] handler error: ' + (err.message || err));
-  }
-}
-
-function startMessageListener() {
-  try {
-    var startTime = new Date();
-    console.log('[msg] listener starting since ' + startTime.toISOString());
-    db.collectionGroup('messages')
-      .where('timestamp', '>=', startTime)
-      .orderBy('timestamp', 'asc')
-      .onSnapshot(
-        function(snap) {
-          snap.docChanges().forEach(function(change) {
-            if (change.type !== 'added') return;
-            handleNewMessage(change).catch(function(err) {
-              console.error('[msg] unhandled: ' + (err.message || err));
-            });
-          });
-        },
-        function(err) { console.error('[msg] snapshot error: ' + (err.message || err)); }
-      );
-    console.log('[msg] listener active.');
-  } catch (err) {
-    console.error('[msg] listener failed: ' + (err.message || err));
-  }
-}
-// ============================================================
 
 app.use((error, _req, res, _next) => {
   if (error instanceof SyntaxError) return res.status(400).json({ success: false, message: 'Invalid JSON body' });
@@ -711,5 +492,4 @@ app.use((error, _req, res, _next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`MemoChat LiveKit token server running on port ${PORT}`);
   console.log(`LIVEKIT_URL: ${LIVEKIT_URL}`);
-  startMessageListener();
 });

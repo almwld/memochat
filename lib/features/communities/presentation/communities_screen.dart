@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/widgets/premium_ui.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../data/community_service.dart';
 
@@ -9,7 +12,7 @@ class CommunitiesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('المجتمعات', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [
@@ -36,8 +39,10 @@ class CommunitiesScreen extends StatelessWidget {
               final description = data['description']?.toString() ?? '';
               final members = data['membersCount'] ?? 0;
               return Card(
+                clipBehavior: Clip.antiAlias,
                 child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.groups_rounded)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: Container(width: 52, height: 52, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.10), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.groups_rounded, color: Theme.of(context).colorScheme.primary)),
                   title: Text(data['name']?.toString() ?? 'مجتمع', style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(description.isNotEmpty ? description : '$members أعضاء', maxLines: 2, overflow: TextOverflow.ellipsis),
                   trailing: const Icon(Icons.chevron_left_rounded),
@@ -79,8 +84,8 @@ class CommunitiesScreen extends StatelessWidget {
     try {
       final id = await _service.createCommunity(name: name.text, description: description.text);
       if (context.mounted) await _openCommunity(context, id, name.text.trim());
-    } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء المجتمع.')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إنشاء المجتمع: ' + e.toString().replaceFirst('Bad state: ', ''))));
     } finally {
       name.dispose();
       description.dispose();
@@ -99,6 +104,38 @@ class CommunityDetailScreen extends StatelessWidget {
   final String communityId;
   final String name;
   final CommunityService service;
+
+  Future<void> _inviteUser(BuildContext context) async {
+    final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final candidates = snap.docs.where((doc) => doc.id != uid && doc.data()['hideFromContacts'] != true).toList();
+    if (!context.mounted) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: candidates.length,
+        itemBuilder: (_, index) {
+          final doc = candidates[index];
+          final d = doc.data();
+          final name = d['displayName']?.toString().trim().isNotEmpty == true ? d['displayName'].toString().trim() : 'مستخدم';
+          return ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+            title: Text(name),
+            onTap: () => Navigator.pop(context, doc.id),
+          );
+        },
+      ),
+    );
+    if (selected == null) return;
+    try {
+      await service.inviteToCommunity(communityId: communityId, recipientId: selected);
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال دعوة المجتمع.')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الدعوة: $e')));
+    }
+  }
 
   Future<void> _createChannel(BuildContext context) async {
     final nameController = TextEditingController();
@@ -141,6 +178,11 @@ class CommunityDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(name),
         actions: [
+          IconButton(
+            tooltip: 'دعوة عضو',
+            onPressed: () => _inviteUser(context),
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+          ),
           IconButton(
             tooltip: 'إنشاء قناة',
             onPressed: () => _createChannel(context),
@@ -221,53 +263,85 @@ class _ChannelScreenState extends State<ChannelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.name)),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder(
-              stream: widget.service.watchPosts(communityId: widget.communityId, channelId: widget.channelId),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final posts = snapshot.data!.docs;
-                if (posts.isEmpty) return const Center(child: Text('لا توجد منشورات بعد.'));
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: posts.length,
-                  itemBuilder: (_, index) => Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Text(posts[index].data()['text']?.toString() ?? ''),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(child: TextField(controller: _controller, minLines: 1, maxLines: 4, decoration: const InputDecoration(hintText: 'منشور جديد...'))),
-                  IconButton(
-                    onPressed: () async {
-                      final text = _controller.text;
-                      _controller.clear();
-                      try {
-                        await widget.service.sendChannelPost(communityId: widget.communityId, channelId: widget.channelId, text: text);
-                      } catch (_) {}
-                    },
-                    icon: const Icon(Icons.send_rounded),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+      appBar: AppBar(
+        title: Row(children: [
+          Container(width: 40, height: 40, decoration: BoxDecoration(color: scheme.primary.withOpacity(.10), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.forum_rounded, color: scheme.primary)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(widget.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900))),
+        ]),
       ),
+      body: Column(children: [
+        Expanded(
+          child: StreamBuilder(
+            stream: widget.service.watchPosts(communityId: widget.communityId, channelId: widget.channelId),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('تعذر تحميل رسائل الغرفة.'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final posts = snapshot.data!.docs;
+              if (posts.isEmpty) return const Center(child: Text('ابدأ أول رسالة في هذه الغرفة.'));
+              return ListView.builder(
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                itemCount: posts.length,
+                itemBuilder: (_, index) {
+                  final data = posts[index].data();
+                  final mine = data['authorId']?.toString() == FirebaseAuth.instance.currentUser?.uid;
+                  return Align(
+                    alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 330),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: mine ? scheme.primary : scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(data['text']?.toString() ?? '', style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface, height: 1.35)),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+            child: Row(children: [
+              Expanded(child: TextField(
+                controller: _controller,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  hintText: 'اكتب رسالة في الغرفة...',
+                  filled: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                ),
+              )),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                tooltip: 'إرسال',
+                onPressed: () async {
+                  final text = _controller.text.trim();
+                  if (text.isEmpty) return;
+                  _controller.clear();
+                  try {
+                    await widget.service.sendChannelPost(communityId: widget.communityId, channelId: widget.channelId, text: text);
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الإرسال: $e')));
+                  }
+                },
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }

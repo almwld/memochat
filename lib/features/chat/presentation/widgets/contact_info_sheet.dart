@@ -163,26 +163,6 @@ class _ContactInfoSheetState extends State<ContactInfoSheet> {
                         children: [
                           _buildActionButton(
                             context,
-                            Icons.call,
-                            'مكالمة',
-                            Colors.green,
-                            () {
-                              Navigator.pop(context);
-                              ToastService.showInfo('📞 جاري الاتصال...');
-                            },
-                          ),
-                          _buildActionButton(
-                            context,
-                            Icons.videocam,
-                            'فيديو',
-                            Colors.blue,
-                            () {
-                              Navigator.pop(context);
-                              ToastService.showInfo('📹 جاري مكالمة الفيديو...');
-                            },
-                          ),
-                          _buildActionButton(
-                            context,
                             Icons.message,
                             'رسالة',
                             AppColors.primary,

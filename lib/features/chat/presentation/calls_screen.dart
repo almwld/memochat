@@ -10,6 +10,7 @@ import 'package:memochat/features/chat/services/status_service.dart';
 import 'add_status_screen.dart';
 import 'story_viewer_screen.dart';
 import 'package:memochat/features/chat/presentation/chat_room_screen.dart' show ChatRoomScreen;
+import 'package:memochat/features/chat/presentation/chat_navigation.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -35,10 +36,17 @@ class _CallsScreenState extends State<CallsScreen> {
       stream: StatusService().streamActiveStatuses(),
       builder: (context, statusSnapshot) {
         final statuses = statusSnapshot.data ?? const <UserStatusModel>[];
-        final mine = currentUid == null ? null : statuses.where((s) => s.userId == currentUid).firstOrNull;
+        final mine = currentUid == null
+            ? null
+            : statuses.where((s) => s.userId == currentUid).firstOrNull;
+        final others = statuses.where((s) => s.userId != currentUid).toList()
+          ..sort((a, b) {
+            if (a.isViewed != b.isViewed) return a.isViewed ? 1 : -1;
+            return b.createdAt.compareTo(a.createdAt);
+          });
         return Column(
           children: [
-            _buildStatusHeader(context, statuses, mine, isDark),
+            _buildStatusHeader(context, statuses, mine, others, isDark),
             Expanded(
               child: StreamBuilder<List<CallModel>>(
                 stream: CallService().streamCallHistory(limit: 50),
@@ -64,7 +72,7 @@ class _CallsScreenState extends State<CallsScreen> {
     );
   }
 
-  Widget _buildStatusHeader(BuildContext context, List<UserStatusModel> statuses, UserStatusModel? mine, bool isDark) {
+  Widget _buildStatusHeader(BuildContext context, List<UserStatusModel> statuses, UserStatusModel? mine, List<UserStatusModel> others, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -73,11 +81,6 @@ class _CallsScreenState extends State<CallsScreen> {
           child: Row(
             children: [
               const Expanded(child: Text('الحالات اليومية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-              IconButton(
-                tooltip: 'إضافة حالة',
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddStatusScreen())),
-                icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
-              ),
             ],
           ),
         ),
@@ -86,7 +89,7 @@ class _CallsScreenState extends State<CallsScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             scrollDirection: Axis.horizontal,
-            itemCount: statuses.length + 1,
+            itemCount: others.length + 1,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               if (index == 0) {
@@ -102,7 +105,7 @@ class _CallsScreenState extends State<CallsScreen> {
                   },
                 );
               }
-              final status = statuses[index - 1];
+              final status = others[index - 1];
               return _StatusTile(
                 status: status,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))),
@@ -166,12 +169,7 @@ class _CallsScreenState extends State<CallsScreen> {
             final otherId = outgoing ? call.receiverId : call.callerId;
             final otherName = outgoing ? call.receiverName : call.callerName;
             final otherPhoto = outgoing ? call.receiverPhotoUrl : call.callerPhotoUrl;
-            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(
-              chatId: call.chatId,
-              otherUserId: otherId,
-              otherUserName: otherName,
-              otherUserImage: otherPhoto,
-            )));
+            await ChatNavigation.openRoom(context,chatId:call.chatId,otherUserId:otherId,otherUserName:otherName,otherUserImage:otherPhoto);
           },
           child: const Text('المحادثة'),
         ),

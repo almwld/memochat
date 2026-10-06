@@ -7,7 +7,10 @@ import 'package:video_player/video_player.dart';
 
 import '../data/social_service.dart';
 import 'reels_screen.dart';
+import '../../notifications/presentation/notification_center_screen.dart';
 import '../../../core/widgets/user_name.dart';
+import '../../../core/widgets/premium_ui.dart';
+import '../../../core/widgets/advanced_feature_carousel.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key, this.service});
@@ -39,22 +42,20 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('Memo', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [
           IconButton(
             tooltip: 'بحث',
-            onPressed: () => showSearch<void>(context: context, delegate: _Search()),
+            onPressed: () => showSearch<void>(context: context, delegate: _Search(service)),
             icon: const Icon(Icons.search_rounded),
           ),
           IconButton(
-            tooltip: 'النشاط',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const AlertDialog(
-                title: Text('نشاط Memo'),
-                content: Text('الإعجابات والتعليقات والمشاركات والمتابعات ستظهر هنا.'),
+            tooltip: 'النشاط والإشعارات',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const NotificationCenterScreen(),
               ),
             ),
             icon: const Icon(Icons.notifications_none_rounded),
@@ -68,14 +69,23 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
           ],
         ),
       ),
-      body: TabBarView(
-        controller: tabs,
+      body: Column(
         children: [
-          _Feed(service: service),
-          ReelsScreen(service: service),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: AdvancedFeatureCarousel(title: 'تجربة MemoChat المتقدمة'),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: tabs,
+              children: [
+                _Feed(service: service),
+                ReelsScreen(service: service),
+              ],
+            ),
+          ),
         ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 86),
         child: FloatingActionButton.extended(
@@ -167,15 +177,42 @@ class _PostState extends State<_Post> {
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (_, index) {
                           final data = comments[index].data();
+                          final commentUserId = data['userId']?.toString() ?? '';
+                          final mine = commentUserId == widget.service.currentUserId;
                           return ListTile(
-                            leading: const CircleAvatar(
-                              child: Icon(Icons.person_rounded),
-                            ),
-                            title: Text(
-                              data['userName']?.toString() ?? 'مستخدم Memo',
-                              style: const TextStyle(fontWeight: FontWeight.w800),
-                            ),
+                            leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+                            title: Text(data['userName']?.toString() ?? 'مستخدم Memo', style: const TextStyle(fontWeight: FontWeight.w800)),
                             subtitle: Text(data['text']?.toString() ?? ''),
+                            trailing: mine
+                                ? PopupMenuButton<String>(
+                                    onSelected: (value) async {
+                                      if (value == 'delete') {
+                                        await _run(() => widget.service.deletePostComment(widget.id, comments[index].id), message: 'تعذر حذف التعليق');
+                                      } else {
+                                        final controller = TextEditingController(text: data['text']?.toString() ?? '');
+                                        final edited = await showDialog<String>(
+                                          context: context,
+                                          builder: (dialogContext) => AlertDialog(
+                                            title: const Text('تعديل التعليق'),
+                                            content: TextField(controller: controller, maxLines: 4, maxLength: 1000),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                                              FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                                            ],
+                                          ),
+                                        );
+                                        controller.dispose();
+                                        if (edited != null && edited.isNotEmpty) {
+                                          await _run(() => widget.service.editPostComment(widget.id, comments[index].id, edited), message: 'تعذر تعديل التعليق');
+                                        }
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                                      PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                    ],
+                                  )
+                                : null,
                           );
                         },
                       );
@@ -263,9 +300,36 @@ class _PostState extends State<_Post> {
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: const Text('منشور على Memo'),
-            trailing: author.isEmpty || author == widget.service.currentUserId
-                ? null
-                : StreamBuilder(
+            trailing: author == widget.service.currentUserId
+                ? PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == 'delete') {
+                        await _run(() => widget.service.deletePost(widget.id), message: 'تعذر حذف المنشور');
+                      } else if (value == 'edit') {
+                        final controller = TextEditingController(text: widget.data['text']?.toString() ?? '');
+                        final edited = await showDialog<String>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('تعديل المنشور'),
+                            content: TextField(controller: controller, maxLines: 5, maxLength: 5000),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                              FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                            ],
+                          ),
+                        );
+                        controller.dispose();
+                        if (edited != null) await _run(() => widget.service.editPost(widget.id, edited), message: 'تعذر تعديل المنشور');
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                      PopupMenuItem(value: 'delete', child: Text('حذف')),
+                    ],
+                  )
+                : author.isEmpty
+                    ? null
+                    : StreamBuilder(
                     stream: widget.service.watchFollowing(author),
                     builder: (context, snapshot) {
                       final following = snapshot.data?.exists == true;
@@ -305,11 +369,18 @@ class _PostState extends State<_Post> {
             stream: widget.service.watchPostLike(widget.id),
             builder: (context, likeSnapshot) {
               final liked = likeSnapshot.data?.exists == true;
-              return StreamBuilder<int>(
-                stream: widget.service.watchPostLikesCount(widget.id),
-                initialData: initialLikes,
+              return StreamBuilder<Map<String, int>>(
+                stream: widget.service.watchPostCounts(widget.id),
+                initialData: <String, int>{
+                  'likes': initialLikes,
+                  'comments': initialComments,
+                  'shares': initialShares,
+                },
                 builder: (context, countSnapshot) {
-                  final likes = countSnapshot.data ?? initialLikes;
+                  final counts = countSnapshot.data ?? const <String, int>{};
+                  final likes = counts['likes'] ?? initialLikes;
+                  final comments = counts['comments'] ?? initialComments;
+                  final shares = counts['shares'] ?? initialShares;
                   return StreamBuilder(
                     stream: widget.service.watchPostSaved(widget.id),
                     builder: (context, saveSnapshot) {
@@ -340,7 +411,7 @@ class _PostState extends State<_Post> {
                               onPressed: _comment,
                               icon: const Icon(Icons.mode_comment_outlined),
                             ),
-                            Text('$initialComments'),
+                            Text('$comments'),
                             const Spacer(),
                             IconButton(
                               tooltip: 'مشاركة',
@@ -350,7 +421,7 @@ class _PostState extends State<_Post> {
                               ),
                               icon: const Icon(Icons.share_outlined),
                             ),
-                            Text('$initialShares'),
+                            Text('$shares'),
                             IconButton(
                               tooltip: saved ? 'إلغاء الحفظ' : 'حفظ',
                               onPressed: () => _run(
@@ -453,10 +524,10 @@ class _ComposerState extends State<_Composer> {
         await widget.service.createReel(video: video, caption: text.text);
       } else {
         final file = media;
-        final isVideo = file != null && RegExp(r'\.(mp4|mov|m4v)$', caseSensitive: false).hasMatch(file.path);
+        final isVideo = file != null &&
+            RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)$', caseSensitive: false).hasMatch(file.path);
         await widget.service.createPost(text: text.text, media: file, video: isVideo);
       }
-      if (mounted) Navigator.pop(context);
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر النشر: $error')));
     } finally {
@@ -504,12 +575,65 @@ class _ComposerState extends State<_Composer> {
 }
 
 class _Search extends SearchDelegate<void> {
+  _Search(this.service);
+  final SocialService service;
+
   @override
-  List<Widget>? buildActions(BuildContext context) => [IconButton(onPressed: () => query = '', icon: const Icon(Icons.clear))];
+  List<Widget>? buildActions(BuildContext context) => [
+        if (query.isNotEmpty)
+          IconButton(onPressed: () => query = '', icon: const Icon(Icons.clear)),
+      ];
+
   @override
-  Widget? buildLeading(BuildContext context) => BackButton(onPressed: () => close(context, null));
+  Widget? buildLeading(BuildContext context) =>
+      BackButton(onPressed: () => close(context, null));
+
   @override
-  Widget buildResults(BuildContext context) => Center(child: Text(query.isEmpty ? 'ابحث عن أشخاص ومنشورات' : 'بحث Memo: $query'));
+  Widget buildResults(BuildContext context) {
+    final needle = query.trim();
+    if (needle.isEmpty) {
+      return const Center(child: Text('اكتب اسمًا أو كلمة للبحث'));
+    }
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: service.searchContent(needle),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('تعذر تنفيذ البحث.'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final results = snapshot.data!;
+        if (results.isEmpty) {
+          return const Center(child: Text('لا توجد نتائج مطابقة.'));
+        }
+        return ListView.separated(
+          itemCount: results.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (_, index) {
+            final item = results[index];
+            final isReel = item['collection'] == 'socialReels';
+            final title = item['authorName']?.toString().trim().isNotEmpty == true
+                ? item['authorName'].toString()
+                : 'مستخدم Memo';
+            final body = (item['text'] ?? item['caption'] ?? '').toString().trim();
+            return ListTile(
+              leading: CircleAvatar(
+                child: Icon(isReel ? Icons.play_arrow_rounded : Icons.article_outlined),
+              ),
+              title: Text(title),
+              subtitle: Text(
+                body.isEmpty ? (isReel ? 'ريل' : 'منشور') : body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget buildSuggestions(BuildContext context) => buildResults(context);
 }

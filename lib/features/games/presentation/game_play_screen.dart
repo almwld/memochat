@@ -33,7 +33,8 @@ class GamePlayScreen extends StatefulWidget {
   final GameType type;
   final String title;
   final String chatId;
-  const GamePlayScreen({super.key, required this.type, required this.title, required this.chatId});
+  final String? gameId;
+  const GamePlayScreen({super.key, required this.type, required this.title, required this.chatId, this.gameId});
 
   @override
   State<GamePlayScreen> createState() => _GamePlayScreenState();
@@ -103,18 +104,22 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Future<void> _resolveGameSession() async {
-    // The room owns the game document; gameplay remains usable if no active session is found.
-    // We only subscribe after locating the latest game for this chat.
+    // The room owns the exact game document; solo gameplay remains usable without a session.
+    // Never guess a session by type when a direct challenge already supplied its gameId.
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null || widget.chatId.trim().isEmpty) return;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('chats').doc(widget.chatId).collection('games')
-          .where('type', isEqualTo: widget.type.name)
-          .orderBy('createdAt', descending: true)
-          .limit(1).get();
-      if (snap.docs.isEmpty || !mounted) return;
-      _gameId = snap.docs.first.id;
+      if (widget.gameId?.trim().isNotEmpty == true) {
+        _gameId = widget.gameId!.trim();
+      } else {
+        final snap = await FirebaseFirestore.instance
+            .collection('chats').doc(widget.chatId).collection('games')
+            .where('type', isEqualTo: widget.type.name)
+            .orderBy('createdAt', descending: true)
+            .limit(1).get();
+        if (snap.docs.isEmpty || !mounted) return;
+        _gameId = snap.docs.first.id;
+      }
       _gameSubscription = GameService.instance.watchGame(widget.chatId, _gameId!).listen((game) {
         if (!mounted || game == null) return;
         final others = game.players.where((id) => id != uid).toList();
@@ -127,8 +132,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
           _gameStartedAt = game.startedAt;
           _durationMinutes = game.timeLimit == GameTimeLimit.fiveMinutes ? 5 : game.timeLimit == GameTimeLimit.tenMinutes ? 10 : game.timeLimit == GameTimeLimit.fifteenMinutes ? 15 : null;
           final rawScore = game.scores[other ?? ''];
-          if (rawScore is num && other != uid) {
-            // Keep the opponent score available without replacing the local score.
+          final remoteScore = rawScore is num ? rawScore : null;
+          if (remoteScore != null && other != uid) {
+            _remoteScore = remoteScore.toInt();
           }
           final rawStep = remoteState['step'];
           if (rawStep is num && widget.type == GameType.diceRoll) {
@@ -228,7 +234,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               child: _gameBody(),
             ),
-            _QuickGameChatBar(chatId: widget.chatId),
+            if (widget.chatId.trim().isNotEmpty) _QuickGameChatBar(chatId: widget.chatId),
           ],
         ),
       ),
@@ -236,41 +242,13 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Widget _gameBody() {
-    final dedicated = DedicatedGameFactory.build(widget.type);
-    if (dedicated != null) return dedicated;
-    const extended = {
-      GameType.colorRush, GameType.higherLower, GameType.numberGuess, GameType.wordScramble,
-      GameType.emojiMemory, GameType.patternTap, GameType.oddOneOut, GameType.fourInRow,
-      GameType.dotsAndBoxes, GameType.reactionRace, GameType.cardFlip, GameType.treasureHunt,
-      GameType.mazeRunner, GameType.stackTower, GameType.targetHit, GameType.bubblePop,
-      GameType.colorMatch, GameType.shapeMatch, GameType.sequenceRecall, GameType.fastChoice,
-      GameType.trueFalse, GameType.flagQuiz, GameType.animalQuiz, GameType.foodQuiz,
-      GameType.geographyQuiz, GameType.scienceQuiz, GameType.historyQuiz, GameType.languageQuiz,
-      GameType.riddleRush, GameType.anagramBattle, GameType.mathDuel, GameType.codeBreaker,
-      GameType.lightSwitch, GameType.connectPairs, GameType.wordGuess, GameType.picturePuzzle,
-      GameType.balanceBeam, GameType.rocketRace, GameType.galaxyCatch, GameType.rhythmTap,
-    };
-    if (extended.contains(widget.type)) {
-      return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
-    }
-    switch (widget.type) {
-      case GameType.xo: return XoGame(key: ValueKey(widget.chatId));
-      case GameType.quizBattle: return QuizBattleGame(key: ValueKey(widget.chatId));
-      case GameType.emojiReaction: return EmojiReactionGame(key: ValueKey(widget.chatId));
-      case GameType.diceRoll: return DiceRollGame(key: ValueKey(widget.chatId));
-      case GameType.drawGuess: return DrawGuessGame(key: ValueKey(widget.chatId));
-      case GameType.wordChain: return WordChainGame(key: ValueKey(widget.chatId));
-      case GameType.truthDare: return TruthDareGame(key: ValueKey(widget.chatId));
-      case GameType.guessSong: return GuessSongGame(key: ValueKey(widget.chatId));
-      case GameType.memoryMatch: return MemoryMatchGame(key: ValueKey(widget.chatId));
-      case GameType.trivia: return TriviaGame(key: ValueKey(widget.chatId));
-      case GameType.quickTap: return QuickTapGame(key: ValueKey(widget.chatId));
-      case GameType.wouldYouRather: return WouldYouRatherGame(key: ValueKey(widget.chatId));
-      case GameType.speedMath: return SpeedMathGame(key: ValueKey(widget.chatId));
-      case GameType.movieQuiz: return MovieQuizGame(key: ValueKey(widget.chatId));
-      case GameType.sudokuDuel: return SudokuDuelGame(key: ValueKey(widget.chatId));
-      default: return ExtendedGamesBody(type: widget.type, title: widget.title, chatId: widget.chatId);
-    }
+    // All catalog games now use the real-time arcade runtime.
+    // Multiplayer context is passed through so score updates remain durable.
+    return DedicatedGameFactory.build(
+      widget.type,
+      chatId: widget.chatId,
+      gameId: widget.gameId,
+    )!;
   }
 
   Widget _header(String subtitle) => Column(

@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/advanced_features_service.dart';
 import '../../../core/services/mini_app_state_service.dart';
-import '../../chat/services/livekit_service.dart';
+import '../services/voice_room_livekit_service.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../communities/presentation/communities_screen.dart';
@@ -25,7 +26,7 @@ class AdvancedHubScreen extends StatelessWidget {
     final productivityItems = [
       ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded, const MiniAppsScreen(), const Color(0xFFEA7B24)),
     ];
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
@@ -33,7 +34,7 @@ class AdvancedHubScreen extends StatelessWidget {
           const PremiumHero(
             icon: AppIcons.more,
             title: 'وسّع تجربة MemoChat',
-            subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع مزامنة وحماية أفضل.',
+            subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع حماية أفضل وخصوصية واضحة.',
           ),
           const SizedBox(height: 18),
           const _AdvancedSectionTitle(icon: Icons.bolt_rounded, title: 'تجارب حية'),
@@ -51,7 +52,7 @@ class AdvancedHubScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.verified_user_outlined, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: 12),
-                  Expanded(child: Text('مصمم للعمل مع LiveKit وFirestore والمزامنة المحلية دون مغادرة التطبيق.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4))),
+                  Expanded(child: Text('المكالمات الصوتية والغرف والمجتمعات محمية ومشفرة بين الطرفين حيث يدعم المسار ذلك.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4))),
                 ],
               ),
             ),
@@ -188,7 +189,7 @@ class _VoiceRoomsScreenState extends State<VoiceRoomsScreen> {
       builder: (context, snapshot) {
         if (snapshot.hasError) return const Center(child: Text('تعذر تحميل الغرف.'));
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        final rooms = snapshot.data!.docs;
+        final rooms = snapshot.data!;
         if (rooms.isEmpty) return const Center(child: Text('لا توجد غرف نشطة حالياً.'));
         return ListView.separated(
           padding: const EdgeInsets.all(16),
@@ -201,7 +202,23 @@ class _VoiceRoomsScreenState extends State<VoiceRoomsScreen> {
                 leading: const CircleAvatar(child: Icon(Icons.mic_rounded)),
                 title: Text(d['name']?.toString() ?? 'غرفة'),
                 subtitle: Text(d['topic']?.toString().isNotEmpty == true ? d['topic'].toString() : 'نقاش صوتي مباشر'),
-                trailing: const Icon(Icons.chevron_left_rounded),
+                trailing: d['ownerId']?.toString() == FirebaseAuth.instance.currentUser?.uid
+                    ? PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'hide' || value == 'show') {
+                            await _service.setVoiceRoomVisibility(rooms[i].id, value == 'show');
+                            if (mounted) setState(() {});
+                          } else if (value == 'close') {
+                            await _service.closeVoiceRoom(rooms[i].id);
+                            if (mounted) setState(() {});
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(value: d['visibility']?.toString() == 'hidden' ? 'show' : 'hide', child: Text(d['visibility']?.toString() == 'hidden' ? 'إظهار للجميع' : 'إخفاء من القائمة العامة')),
+                          const PopupMenuItem(value: 'close', child: Text('إغلاق الغرفة')),
+                        ],
+                      )
+                    : const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => VoiceRoomScreen(
                     roomId: rooms[i].id,
@@ -226,11 +243,12 @@ class VoiceRoomScreen extends StatefulWidget {
   @override State<VoiceRoomScreen> createState() => _VoiceRoomScreenState();
 }
 
-class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
+class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProviderStateMixin {
   final _service = AdvancedFeaturesService();
-  final _liveKit = LiveKitService();
+  final _liveKit = VoiceRoomLiveKitService();
   Room? _room;
   Timer? _participantsRefresh;
+  late final AnimationController _pulseController;
   bool _joining = true;
   bool _mic = false;
   bool _speaker = true;
@@ -239,11 +257,20 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1150),
+      lowerBound: 0.88,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
     _join();
   }
 
   Future<void> _join() async {
     try {
+      // Permission must be granted before the voice-room token is used to publish
+      // the microphone track; otherwise LiveKit reports TrackPublishException.
+      await _liveKit.ensureMediaPermissions();
       await _service.joinVoiceRoom(widget.roomId);
       final user = FirebaseAuth.instance.currentUser;
       _room = await _liveKit.connectVoiceRoom(
@@ -251,7 +278,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
         roomName: widget.roomName,
         participantName: user?.displayName,
       );
-      _participantsRefresh = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      _participantsRefresh = Timer.periodic(const Duration(milliseconds: 180), (_) {
         if (mounted) setState(() {});
       });
       if (mounted) {
@@ -272,6 +299,38 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     }
   }
 
+  Future<void> _inviteUser() async {
+    final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+    final candidates = snap.docs.where((doc) => doc.id != FirebaseAuth.instance.currentUser?.uid).toList();
+    if (!mounted) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: candidates.length,
+        itemBuilder: (_, index) {
+          final doc = candidates[index];
+          final d = doc.data();
+          final name = d['displayName']?.toString().trim().isNotEmpty == true ? d['displayName'].toString().trim() : 'مستخدم';
+          final photo = d['photoUrl']?.toString().trim() ?? '';
+          return ListTile(
+            leading: CircleAvatar(backgroundImage: photo.isEmpty ? null : NetworkImage(photo), child: photo.isEmpty ? const Icon(Icons.person_outline) : null),
+            title: Text(name),
+            onTap: () => Navigator.pop(context, doc.id),
+          );
+        },
+      ),
+    );
+    if (selected == null) return;
+    try {
+      await _service.inviteToVoiceRoom(roomId: widget.roomId, recipientId: selected);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال دعوة الغرفة الصوتية.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الدعوة: $e')));
+    }
+  }
+
   Future<void> _toggleMic() async {
     final value = await _liveKit.toggleMicrophone();
     if (mounted) setState(() => _mic = value);
@@ -285,7 +344,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
 
   Future<void> _leave() async {
     _participantsRefresh?.cancel();
-    await _liveKit.endCall();
+    await _liveKit.endRoom();
     try {
       await _service.leaveVoiceRoom(widget.roomId);
     } finally {
@@ -296,7 +355,8 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   @override
   void dispose() {
     _participantsRefresh?.cancel();
-    if (_liveKit.isConnected) unawaited(_liveKit.endCall());
+    _pulseController.dispose();
+    if (_liveKit.isConnected) unawaited(_liveKit.endRoom());
     super.dispose();
   }
 
@@ -310,25 +370,28 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
         identity: local.identity,
         name: local.name.isEmpty ? 'أنت' : local.name,
         muted: !_mic,
+        speaking: (() { try { return (local as dynamic).isSpeaking == true; } catch (_) { return false; } })(),
         isLocal: true,
       ));
     }
     for (final participant in room.remoteParticipants.values) {
       dynamic p = participant;
       var muted = true;
+      var speaking = false;
       try {
         for (final publication in p.trackPublications.values) {
           final source = publication.source.toString().toLowerCase();
           if (source.contains('microphone')) {
             muted = publication.muted == true;
-            break;
           }
         }
       } catch (_) {}
+      try { speaking = p.isSpeaking == true; } catch (_) {}
       result.add(_VoiceParticipant(
         identity: p.identity.toString(),
         name: p.name.toString().isEmpty ? 'مشارك' : p.name.toString(),
         muted: muted,
+        speaking: speaking,
         isLocal: false,
       ));
     }
@@ -342,6 +405,11 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
+          IconButton(
+            tooltip: 'دعوة إلى الغرفة',
+            onPressed: _inviteUser,
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+          ),
           IconButton(
             tooltip: _speaker ? 'السماعة الخارجية مفعلة' : 'السماعة الخارجية متوقفة',
             onPressed: _toggleSpeaker,
@@ -398,30 +466,9 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                                 ),
                                 itemBuilder: (_, index) {
                                   final participant = participants[index];
-                                  return Card(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 28,
-                                          child: Icon(participant.muted ? Icons.mic_off_rounded : Icons.mic_rounded),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          participant.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w800),
-                                        ),
-                                        Text(
-                                          participant.muted ? 'صامت' : 'يتحدث',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  return _VoiceParticipantTile(
+                                    participant: participant,
+                                    pulse: _pulseController,
                                   );
                                 },
                               ),
@@ -452,16 +499,95 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   }
 }
 
+class _VoiceParticipantTile extends StatelessWidget {
+  const _VoiceParticipantTile({
+    required this.participant,
+    required this.pulse,
+  });
+  final _VoiceParticipant participant;
+  final Animation<double> pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = participant.speaking;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: AnimatedBuilder(
+        animation: pulse,
+        builder: (context, _) {
+          final scale = active ? pulse.value : 1.0;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              if (active)
+                Transform.scale(
+                  scale: 1.22 - (pulse.value - .88) * 1.2,
+                  child: Container(
+                    width: 62,
+                    height: 62,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: scheme.primary.withOpacity(.18),
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                ),
+              Transform.scale(
+                scale: scale,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 29,
+                      backgroundColor: active
+                          ? scheme.primary.withOpacity(.12)
+                          : scheme.surfaceContainerHighest,
+                      child: Icon(
+                        active ? Icons.graphic_eq_rounded : Icons.mic_off_rounded,
+                        color: active ? scheme.primary : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      participant.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      participant.speaking ? 'يتحدث الآن' : (participant.muted ? 'صامت' : 'جاهز'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: active ? scheme.primary : scheme.onSurfaceVariant,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _VoiceParticipant {
   const _VoiceParticipant({
     required this.identity,
     required this.name,
     required this.muted,
+    required this.speaking,
     required this.isLocal,
   });
   final String identity;
   final String name;
   final bool muted;
+  final bool speaking;
   final bool isLocal;
 }
 

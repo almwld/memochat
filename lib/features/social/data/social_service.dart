@@ -34,6 +34,45 @@ class SocialService {
   Stream<QuerySnapshot<Map<String, dynamic>>> reels() =>
       _c('socialReels').orderBy('createdAt', descending: true).limit(50).snapshots();
 
+  Future<List<Map<String, dynamic>>> searchContent(String query) async {
+    _authz();
+    final needle = query.trim().toLowerCase();
+    if (needle.isEmpty) return const [];
+    final results = <Map<String, dynamic>>[];
+    final postSnap = await _c('socialPosts')
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .get();
+    final reelSnap = await _c('socialReels')
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .get();
+
+    void collect(
+      QuerySnapshot<Map<String, dynamic>> snap,
+      String collection,
+    ) {
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final haystack = <String>[
+          data['text']?.toString() ?? '',
+          data['caption']?.toString() ?? '',
+          data['authorName']?.toString() ?? '',
+        ].join(' ').toLowerCase();
+        if (!haystack.contains(needle)) continue;
+        results.add({
+          'id': doc.id,
+          'collection': collection,
+          ...data,
+        });
+      }
+    }
+
+    collect(postSnap, 'socialPosts');
+    collect(reelSnap, 'socialReels');
+    return results;
+  }
+
   Future<String> createPost({required String text, File? media, bool video = false}) async {
     _authz();
     final body = text.trim();
@@ -77,17 +116,25 @@ class SocialService {
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchPostLike(String postId) =>
       _c('socialPosts').doc(postId).collection('likes').doc(_uid).snapshots();
 
+  Stream<Map<String, int>> watchPostCounts(String postId) =>
+      _c('socialPosts').doc(postId).snapshots().map((s) {
+        final data = s.data() ?? const <String, dynamic>{};
+        return <String, int>{
+          'likes': (data['likesCount'] as num?)?.toInt() ?? 0,
+          'comments': (data['commentsCount'] as num?)?.toInt() ?? 0,
+          'shares': (data['sharesCount'] as num?)?.toInt() ?? 0,
+        };
+      });
+
   Stream<int> watchPostLikesCount(String postId) =>
-      _c('socialPosts').doc(postId).snapshots().map(
-        (s) => (s.data()?['likesCount'] as num?)?.toInt() ?? 0,
-      );
+      watchPostCounts(postId).map((counts) => counts['likes'] ?? 0);
 
   Future<void> togglePostLike(String postId) async {
     _authz();
     final post = _c('socialPosts').doc(postId);
     final like = post.collection('likes').doc(_uid);
-    final existing = await like.get();
     await _db.runTransaction((tx) async {
+      final existing = await tx.get(like);
       if (existing.exists) {
         tx.delete(like);
         tx.update(post, {
@@ -131,6 +178,55 @@ class SocialService {
     });
   }
 
+  Future<void> editPost(String postId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.length > 5000) throw ArgumentError('المنشور طويل');
+    final ref = _c('socialPosts').doc(postId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['authorId']?.toString() != _uid) throw StateError('لا تملك هذا المنشور');
+    await ref.update({'text': body, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deletePost(String postId) async {
+    _authz();
+    final ref = _c('socialPosts').doc(postId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['authorId']?.toString() != _uid) throw StateError('لا تملك هذا المنشور');
+    await ref.delete();
+  }
+
+  Future<void> editPostComment(String postId, String commentId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.isEmpty || body.length > 1000) throw ArgumentError('التعليق يجب أن يكون بين 1 و1000 حرف');
+    final ref = _c('socialPosts').doc(postId).collection('comments').doc(commentId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != _uid) throw StateError('لا تملك هذا التعليق');
+    await ref.update({'text': body, 'editedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deletePostComment(String postId, String commentId) async {
+    _authz();
+    final ref = _c('socialPosts').doc(postId).collection('comments').doc(commentId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != _uid) throw StateError('لا تملك هذا التعليق');
+    await _db.runTransaction((tx) async {
+      tx.delete(ref);
+      tx.update(_c('socialPosts').doc(postId), {'commentsCount': FieldValue.increment(-1), 'updatedAt': FieldValue.serverTimestamp()});
+    });
+  }
+
+  Future<void> editComment(String reelId, String commentId, String text) async {
+    _authz();
+    final body = text.trim();
+    if (body.isEmpty || body.length > 1000) throw ArgumentError('التعليق يجب أن يكون بين 1 و1000 حرف');
+    final ref = _c('socialReels').doc(reelId).collection('comments').doc(commentId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != _uid) throw StateError('لا تملك هذا التعليق');
+    await ref.update({'text': body, 'editedAt': FieldValue.serverTimestamp()});
+  }
+
   Future<void> recordPostShare(String postId) async {
     _authz();
     await _c('socialPosts').doc(postId).update({
@@ -144,8 +240,8 @@ class SocialService {
     final snap = await _c('socialPosts').doc(postId).get();
     final data = snap.data() ?? <String, dynamic>{};
     final text = data['text']?.toString().trim() ?? '';
-    final url = data['mediaUrl']?.toString().trim() ?? '';
-    final payload = [text, url].where((v) => v.isNotEmpty).join('\n');
+    final appLink = 'memochat://post/' + Uri.encodeComponent(postId);
+    final payload = [text, appLink].where((v) => v.isNotEmpty).join('\n');
     if (payload.isEmpty) throw StateError('محتوى المنشور غير متاح');
     await Share.share(payload);
     await recordPostShare(postId);
@@ -186,8 +282,8 @@ class SocialService {
     _authz();
     final content = _c('socialReels').doc(reelId);
     final ref = content.collection('likes').doc(_uid);
-    final existing = await ref.get();
     await _db.runTransaction((tx) async {
+      final existing = await tx.get(ref);
       if (existing.exists) {
         tx.delete(ref);
         tx.update(content, {
@@ -254,9 +350,10 @@ class SocialService {
   Future<void> shareReel(String reelId) async {
     _authz();
     final snap = await _c('socialReels').doc(reelId).get();
-    final url = snap.data()?['videoUrl']?.toString() ?? '';
-    if (url.isEmpty) throw StateError('رابط الريل غير متاح');
-    await Share.share(url);
+    if (!snap.exists) throw StateError('الريل غير متاح');
+    final caption = snap.data()?['caption']?.toString().trim() ?? '';
+    final appLink = 'memochat://reel/' + Uri.encodeComponent(reelId);
+    await Share.share([caption, appLink].where((v) => v.isNotEmpty).join('\n'));
     await recordShare(reelId);
   }
 

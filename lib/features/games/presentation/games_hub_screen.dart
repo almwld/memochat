@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/premium_ui.dart';
 import '../data/games_catalog.dart';
 import '../models/game.dart';
 import 'game_play_screen.dart';
@@ -29,19 +30,67 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
     return GamesCatalog.all.where((game) => (_category == 'الكل' || _categoryOf(game.type) == _category) && (q.isEmpty || game.title.toLowerCase().contains(q) || game.subtitle.toLowerCase().contains(q))).toList();
   }
 
-  void _open(GameDefinition game) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GamePlayScreen(type: game.type, title: game.title, chatId: '__solo_games__')));
+  void _open(GameDefinition game) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GamePlayScreen(type: game.type, title: game.title, chatId: '')));
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final categories = ['الكل', 'سرعة', 'ذاكرة', 'منطق', 'كلمات', 'معرفة', 'مغامرة', 'تحديات'];
     final featured = GamesCatalog.all.take(6).toList();
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('ألعاب MemoChat', style: TextStyle(fontWeight: FontWeight.w900)), actions: [IconButton(onPressed: () => _showInfo(context), icon: const Icon(Icons.info_outline_rounded), tooltip: 'عن الألعاب')]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
-          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), gradient: LinearGradient(colors: [scheme.primary, Color.lerp(scheme.primary, const Color(0xFF164C72), .55)!], begin: Alignment.topRight, end: Alignment.bottomLeft), boxShadow: [BoxShadow(color: scheme.primary.withOpacity(.25), blurRadius: 22, offset: const Offset(0, 12))]), child: Row(children: [Container(width: 62, height: 62, decoration: BoxDecoration(color: Colors.white.withOpacity(.18), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.sports_esports_rounded, color: Colors.white, size: 34)), const SizedBox(width: 14), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('وقت اللعب', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900)), SizedBox(height: 5), Text('55 تحدياً فعلياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Colors.white70, height: 1.4))]))])),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    Icons.sports_esports_rounded,
+                    color: scheme.primary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'وقت اللعب',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '55 تحدياً فعلياً بنقاط ومستويات ونتائج شخصية.',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer.withOpacity(.78),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(onChanged: (value) => setState(() => _query = value), decoration: InputDecoration(hintText: 'ابحث في الألعاب...', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: _query.isEmpty ? null : IconButton(onPressed: () => setState(() => _query = ''), icon: const Icon(Icons.close_rounded)))),
           const SizedBox(height: 14),
@@ -57,8 +106,51 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
     );
   }
 
-  void _showInfo(BuildContext context) => showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (_) => const Padding(padding: EdgeInsets.fromLTRB(22, 8, 22, 28), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('ألعاب MemoChat', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), SizedBox(height: 10), Text('ألعاب فردية وتحديات جماعية داخل التطبيق، برسوميات CustomPaint ونتائج قابلة للحفظ. يمكنك فتح أي لعبة مباشرة من قائمة اكتشف.', style: TextStyle(height: 1.5))]));
+  void _showInfo(BuildContext context) => showModalBottomSheet<void>(context: context, showDragHandle: true, builder: (_) => const Padding(padding: EdgeInsets.fromLTRB(22, 8, 22, 28), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('ألعاب MemoChat', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), SizedBox(height: 10), Text('ألعاب فردية وتحديات جماعية داخل التطبيق، برسوميات CustomPaint ونتائج قابلة للحفظ. يمكنك فتح أي لعبة مباشرة من قائمة اكتشف.', style: TextStyle(height: 1.5))])));
 }
 
-class _FeaturedGameCard extends StatelessWidget { const _FeaturedGameCard({required this.game, required this.onTap}); final GameDefinition game; final VoidCallback onTap; @override Widget build(BuildContext context) => SizedBox(width: 250, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, const Color(0xFF164C72)], begin: Alignment.topRight, end: Alignment.bottomLeft)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [GameArt(type: game.type, size: 42, compact: true), const Spacer(), Text(game.title, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)), const SizedBox(height: 6), const Row(children: [Icon(Icons.play_arrow_rounded, color: Colors.white, size: 17), SizedBox(width: 4), Text('ابدأ الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))])])))); }
-class _GameListTile extends StatelessWidget { const _GameListTile({required this.game, required this.category, required this.onTap}); final GameDefinition game; final String category; final VoidCallback onTap; @override Widget build(BuildContext context) => Card(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(11), child: Row(children: [GameArt(type: game.type, size: 52), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)), const SizedBox(height: 4), Text('$category • ${game.playersLabel}', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 10, fontWeight: FontWeight.w700))])), const Icon(Icons.play_circle_outline_rounded)])))); }
+class _FeaturedGameCard extends StatelessWidget {
+  const _FeaturedGameCard({required this.game, required this.onTap});
+  final GameDefinition game;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(width: 250, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(
+      onTap: onTap,
+      child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(18)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          GameArt(type: game.type, size: 42, compact: true), const Spacer(),
+          Text(game.title, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          const SizedBox(height: 6),
+          const Row(children: [Icon(Icons.play_arrow_rounded, color: Colors.white, size: 17), SizedBox(width: 4), Text('ابدأ الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))]),
+        ]),
+      ),
+    )));
+  }
+}
+
+class _GameListTile extends StatelessWidget {
+  const _GameListTile({required this.game, required this.category, required this.onTap});
+  final GameDefinition game;
+  final String category;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: Padding(
+      padding: const EdgeInsets.all(11),
+      child: Row(children: [
+        GameArt(type: game.type, size: 52), const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text('$category • ${game.playersLabel}', style: TextStyle(color: scheme.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+        ])),
+        const Icon(Icons.play_circle_outline_rounded),
+      ]),
+    )));
+  }
+}

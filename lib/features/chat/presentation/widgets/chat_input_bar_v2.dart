@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
@@ -123,25 +124,75 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   Future<void> _sendMedia({required ImageSource source}) async {
     if (_isSending) return;
-    final picked = await _picker.pickImage(source: source, imageQuality: 85);
-    if (picked == null) return;
-    setState(() => _isSending = true);
+
+    if (source == ImageSource.camera) {
+      _focusNode.unfocus(disposition: UnfocusDisposition.scope);
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (mounted) setState(() => _isSending = true);
+      try {
+        final permission = await Permission.camera.request().timeout(
+          const Duration(seconds: 8),
+        );
+        if (!permission.isGranted) {
+          if (mounted) {
+            ToastService.showError(
+              permission.isPermanentlyDenied
+                  ? 'صلاحية الكاميرا موقوفة. فعّلها من إعدادات التطبيق.'
+                  : 'لم يتم السماح بالوصول إلى الكاميرا.',
+            );
+          }
+          return;
+        }
+
+        final picked = await _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 85,
+        ).timeout(const Duration(seconds: 30));
+        if (picked == null || !mounted) return;
+
+        final file = File(picked.path);
+        await _enqueueMedia(
+          file: file,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+          fileName: picked.name,
+          mimeType: 'image/jpeg',
+        );
+        widget.onSendImage?.call(picked.path);
+      } catch (e) {
+        ToastService.showError('تعذر فتح الكاميرا. أعد المحاولة.');
+        debugPrint('Camera picker error: $e');
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
+      return;
+    }
+
     try {
-      final file = File(picked.path);
-      await _enqueueMedia(
-        file: file,
-        type: 'image',
-        folder: 'images',
-        preview: '📷 صورة',
-        fileName: picked.name,
-        mimeType: 'image/jpeg',
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
       );
-      widget.onSendImage?.call(picked.path);
+      if (picked == null || !mounted) return;
+      setState(() => _isSending = true);
+      try {
+        final file = File(picked.path);
+        await _enqueueMedia(
+          file: file,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+          fileName: picked.name,
+          mimeType: 'image/jpeg',
+        );
+        widget.onSendImage?.call(picked.path);
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
     } catch (e) {
       ToastService.showError('تعذر تجهيز الصورة للإرسال.');
       debugPrint('Image enqueue error: $e');
-    } finally {
-      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -193,10 +244,6 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   Future<void> _startRecording() async {
     if (_hasText || _isRecording || _isSending) return;
-    if (!await _recorder.hasPermission()) {
-      ToastService.showError('يلزم السماح بالوصول إلى الميكروفون.');
-      return;
-    }
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/chat_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _recorder.start(
