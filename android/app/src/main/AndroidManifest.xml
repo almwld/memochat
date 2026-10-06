@@ -47,6 +47,14 @@
               android:name="android.app.shortcuts"
               android:resource="@xml/shortcuts" />
         </activity>
+        <service android:name=".VpnTunnelService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
         <service android:name=".CallForegroundService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="ongoing in-app VoIP call UI after the user opens the incoming call screen" />
         </service>
