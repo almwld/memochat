@@ -49,8 +49,6 @@ async function sendToUser(uid,payload){
         headers:{'apns-priority':'5','apns-push-type':'background'},
         payload:{aps:{'content-available':1}},
       },
-        },
-      },
     };
     const response=await admin.messaging().sendEachForMulticast(message);
     const invalidTokens=response.responses.map((result,index)=>!result.success && ['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(result.error?.code)?tokens[index]:'').filter(Boolean);
