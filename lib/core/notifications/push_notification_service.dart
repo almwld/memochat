@@ -37,7 +37,9 @@ class PushNotificationService {
   }
   Future<String?> getToken() async {
     final token = await _messaging.getToken();
-    await _syncToken(token);
+    if (token != null && token.trim().isNotEmpty) {
+      await FcmTokenService.instance.syncToken(token);
+    }
     return token;
   }
 
