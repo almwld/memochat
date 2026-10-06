@@ -446,11 +446,25 @@ class MediaTransferEngine {
         mimeType: job['mime_type']?.toString(),
         uploadChatId: job['chat_id']?.toString(),
       );
+      final remotePath = result.remotePath?.trim() ?? '';
       if (!result.success) {
+        // The bytes may already be durable on the media backend even when
+        // share creation/URL verification failed. Preserve that path so the
+        // next retry creates/reuses the share instead of uploading again.
+        if (remotePath.isNotEmpty) {
+          await db.update('media_outbox', {
+            'status': 'share_retry',
+            'progress': 1.0,
+            'remote_path': remotePath,
+            'remote_url': null,
+            'error': result.error ?? 'تم رفع الوسائط، لكن تعذر تجهيز رابط الوصول',
+            'next_retry_at': DateTime.now().millisecondsSinceEpoch,
+            'updated_at': DateTime.now().millisecondsSinceEpoch,
+          }, where: 'id = ?', whereArgs: [id]);
+        }
         throw StateError(result.error ?? 'تعذر رفع الوسائط');
       }
 
-      final remotePath = result.remotePath?.trim() ?? '';
       if (remotePath.isEmpty) {
         throw StateError(result.error ?? 'تعذر تحديد مسار الوسائط المرفوعة');
       }
