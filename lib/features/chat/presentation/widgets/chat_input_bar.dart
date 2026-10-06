@@ -473,7 +473,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           setState(() => _duration += const Duration(seconds: 1));
         }
       });
-      if (mounted) setState(() {
+      setState(() {
         _recording = true;
         _paused = false;
         _recordPath = path;
