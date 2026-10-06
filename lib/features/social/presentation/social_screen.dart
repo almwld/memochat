@@ -304,11 +304,18 @@ class _PostState extends State<_Post> {
             stream: widget.service.watchPostLike(widget.id),
             builder: (context, likeSnapshot) {
               final liked = likeSnapshot.data?.exists == true;
-              return StreamBuilder<int>(
-                stream: widget.service.watchPostLikesCount(widget.id),
-                initialData: initialLikes,
+              return StreamBuilder<Map<String, int>>(
+                stream: widget.service.watchPostCounts(widget.id),
+                initialData: <String, int>{
+                  'likes': initialLikes,
+                  'comments': initialComments,
+                  'shares': initialShares,
+                },
                 builder: (context, countSnapshot) {
-                  final likes = countSnapshot.data ?? initialLikes;
+                  final counts = countSnapshot.data ?? const <String, int>{};
+                  final likes = counts['likes'] ?? initialLikes;
+                  final comments = counts['comments'] ?? initialComments;
+                  final shares = counts['shares'] ?? initialShares;
                   return StreamBuilder(
                     stream: widget.service.watchPostSaved(widget.id),
                     builder: (context, saveSnapshot) {
@@ -339,7 +346,7 @@ class _PostState extends State<_Post> {
                               onPressed: _comment,
                               icon: const Icon(Icons.mode_comment_outlined),
                             ),
-                            Text('$initialComments'),
+                            Text('$comments'),
                             const Spacer(),
                             IconButton(
                               tooltip: 'مشاركة',
@@ -349,7 +356,7 @@ class _PostState extends State<_Post> {
                               ),
                               icon: const Icon(Icons.share_outlined),
                             ),
-                            Text('$initialShares'),
+                            Text('$shares'),
                             IconButton(
                               tooltip: saved ? 'إلغاء الحفظ' : 'حفظ',
                               onPressed: () => _run(
