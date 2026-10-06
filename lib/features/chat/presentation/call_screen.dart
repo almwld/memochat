@@ -518,18 +518,15 @@ class _CallScreenState extends State<CallScreen> {
     final status = error ??
         (!online ? 'غير متصل' : !joined ? (connecting ? 'جاري الاتصال' : 'في انتظار الرد') : connectionStatus == 'متصل' ? fmt(seconds) : connectionStatus);
     return Scaffold(
-      backgroundColor: const Color(0xFF071116),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF071116), Color(0xFF0A2025), Color(0xFF050B10)]),
-        ),
-        child: SafeArea(
-          child: Stack(children: [
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
             if (widget.isVideo && remote != null)
               Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(28), child: VideoTrackRenderer(remote)))
             else
               Positioned.fill(child: waiting(centerMessageFor(status))),
-            Positioned(top: 12, left: 14, right: 14, child: _callHeader(status)),
+            Positioned(top: 12, left: 12, right: 12, child: top(status)),
             if (widget.isVideo && local != null)
               PositionedDirectional(top: 82, end: 18, child: preview(local)),
             if (widget.isVideo && joined && remoteTrack == null)
@@ -538,7 +535,7 @@ class _CallScreenState extends State<CallScreen> {
               Positioned(left: 14, right: 14, bottom: 14, child: controls())
             else
               Positioned.fill(child: _errorPanel()),
-          ]),
+          ],
         ),
       ),
     );
