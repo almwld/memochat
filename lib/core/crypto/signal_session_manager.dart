@@ -126,7 +126,6 @@ class SignalSessionManager {
     final address = SignalProtocolAddress(remoteUid, deviceId);
     return _withAddressLock(address, () async {
       final bundle = await _loadBundle(remoteUid, deviceId);
-      await _observeRemoteTrust(chatId, remoteUid, bundle, deviceId);
       await _ensureSession(address, bundle);
       return SessionCipher(
         sessionStore,
@@ -184,6 +183,7 @@ class SignalSessionManager {
     final address = SignalProtocolAddress(remoteUid, deviceId);
     return _withAddressLock(address, () async {
       final bundle = await _loadBundle(remoteUid, deviceId);
+      await _observeRemoteTrust(chatId, remoteUid, bundle, deviceId);
       await _ensureSession(address, bundle);
       final cipher = SessionCipher(
         sessionStore,
