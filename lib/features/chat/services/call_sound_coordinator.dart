@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/app.dart';
 import '../presentation/incoming_call_screen.dart';
@@ -14,6 +15,8 @@ import 'sound_manager.dart';
 /// It never joins LiveKit. Firestore remains the call lifecycle source of truth.
 /// Only one local call is allowed at a time; additional incoming calls are
 /// immediately marked busy and never open another incoming-call UI.
+const MethodChannel _callForegroundServiceChannel = MethodChannel('com.memochat.app/call_foreground_service');
+
 class CallSoundCoordinator {
   CallSoundCoordinator._();
   static final CallSoundCoordinator instance = CallSoundCoordinator._();
@@ -256,6 +259,20 @@ class CallSoundCoordinator {
     }
   }
 
+  Future<void> _startForegroundService(String callId, String callerName) async {
+    try {
+      await _callForegroundServiceChannel.invokeMethod(
+        'start',
+        <String, dynamic>{
+          'callId': callId,
+          'callerName': callerName,
+        },
+      );
+    } catch (e) {
+      debugPrint('CALL FGS start unavailable: $e');
+    }
+  }
+
   void _showIncomingCall(Map<String, dynamic> data, String callId) {
     final nav = memoNavigatorKey.currentState;
     if (nav == null) {
@@ -283,6 +300,7 @@ class CallSoundCoordinator {
 
     debugPrint('✅ CALL SHOW: opening incoming_call callId=$callId chatId=$chatId');
     _incomingUiCallId = callId;
+    unawaited(_startForegroundService(callId, data['callerName']?.toString() ?? 'مستخدم'));
     unawaited(showGeneralDialog<void>(
       context: nav.context,
       useRootNavigator: true,
