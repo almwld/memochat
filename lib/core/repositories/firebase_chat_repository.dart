@@ -66,6 +66,14 @@ class FirebaseChatRepository implements ChatRepository {
       throw StateError('معرّف المستخدم الآخر غير صالح');
     }
 
+    // The deterministic room is the source of truth. Check it before any
+    // legacy participant query so a large conversation list can never cause us
+    // to create a second room when the canonical DM already exists.
+    final pair = <String>[_uid, otherId]..sort();
+    final ref = _chats().doc('dm_${pair[0]}_${pair[1]}');
+    final canonical = await ref.get();
+    if (canonical.exists) return ref.id;
+
     // Keep the same contract as Sehatak: resolve an existing direct room
     // first, never reuse a group room, then create one canonical DM document.
     try {
@@ -93,10 +101,6 @@ class FirebaseChatRepository implements ChatRepository {
 
     // Deterministic DM id removes the remaining race where two devices create
     // parallel rooms between the same two users at the same time.
-    final pair = <String>[_uid, otherId]..sort();
-    final ref = _chats().doc('dm_${pair[0]}_${pair[1]}');
-    final existingCanonical = await ref.get();
-    if (existingCanonical.exists) return ref.id;
     final me = FirebaseAuth.instance.currentUser;
     final myName = me?.displayName?.trim().isNotEmpty == true
         ? me!.displayName!.trim()
