@@ -376,7 +376,13 @@ class _CallScreenState extends State<CallScreen> {
       await live.setSpeakerphone(speaker);
       if (mounted) setState(() { connecting = false; error = null; });
     } catch (e) {
-      ActiveCallRegistry.instance.unregister(c.id);
+      // c is declared late and may not have been initialized if the failure
+      // happens before the Firestore call document is loaded. Never reference
+      // c in the error path unless it is known to exist.
+      final failedCallId = callId ?? widget.callId;
+      if (failedCallId != null && failedCallId.trim().isNotEmpty) {
+        ActiveCallRegistry.instance.unregister(failedCallId);
+      }
       try {
         await live.endCall();
       } catch (cleanupError) {
