@@ -2,12 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
-import 'package:memochat/features/chat/services/call_service.dart';
-import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
-import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/presentation/chat_room_screen.dart';
-import 'package:memochat/features/chat/presentation/call_screen.dart';
 
 class ChatNavigation {
   static final Set<String> _openingRooms = <String>{};
@@ -59,29 +55,5 @@ class ChatNavigation {
       await openRoom(context,chatId:id,otherUserId:resolvedId,otherUserName:displayName,otherUserImage:userImage,groupImage:userImage,isGroup:false);
     }catch(e){if(context.mounted)ToastService.showError('فشل فتح المحادثة: $e');}
     finally { _openingUsers.remove(requestedId); }
-  }
-  static Future<void> openCall(BuildContext context,{required String chatId,required String userName,required String userId,required bool isVideo}) async {
-    final user=FirebaseAuth.instance.currentUser;
-    if(user==null||chatId.trim().isEmpty||userId.trim().isEmpty||userId==user.uid){if(context.mounted)ToastService.showError('بيانات المكالمة غير صالحة');return;}
-    if (ActiveCallRegistry.instance.hasActiveCall) {
-      if (context.mounted) ToastService.showError('لديك مكالمة نشطة بالفعل');
-      return;
-    }
-    try{
-      final call=await CallService().initiateCall(chatId:chatId,receiverId:userId,receiverName:userName,type:isVideo?CallType.video:CallType.audio);
-      if(!context.mounted||call==null)return;
-      await Navigator.of(context).push(MaterialPageRoute<void>(
-        builder:(_)=>CallScreen(
-          chatId:chatId,
-          userName:userName,
-          userId:userId,
-          callId:call.id,
-          isVideo:isVideo,
-          isOutgoing:true,
-        ),
-      ));
-    }catch(e){
-      if(context.mounted)ToastService.showError('فشل بدء المكالمة: $e');
-    }
   }
 }
