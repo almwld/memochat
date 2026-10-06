@@ -175,30 +175,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _pinned = false;
   bool _starredLoading = false;
   final Set<String> _selectedMessageIds = <String>{};
+  late String _activeChatId;
+  String get _chatId => _activeChatId;
   String _wallpaper = 'default';
   double _fontSize = 14.0;
   final _chatPrefs = ChatPreferencesService();
   MessageModel? _replyingTo;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
-      _firestore.collection('chats').doc(widget.chatId).collection('messages');
+      _firestore.collection('chats').doc(_chatId).collection('messages');
 
   @override
   void initState() {
     super.initState();
+    _activeChatId = _chatId;
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onChatScroll);
     _initializeRoom();
     _loadChatPreferences();
     _loadPendingMedia();
     
-    unawaited(NotificationService().cancelChatNotifications(widget.chatId));
+    unawaited(NotificationService().cancelChatNotifications(_chatId));
     _markRead();
   }
 
   Future<void> _loadChatPreferences() async {
     try {
-      final wallpaper = await _chatPrefs.getWallpaper(widget.chatId);
-      final fontSize = await _chatPrefs.getFontSize(widget.chatId);
+      final wallpaper = await _chatPrefs.getWallpaper(_chatId);
+      final fontSize = await _chatPrefs.getFontSize(_chatId);
       if (!mounted) return;
       setState(() {
         _wallpaper = wallpaper ?? 'default';
@@ -210,16 +213,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _openChatSettings() async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatSettingsScreen(chatId: widget.chatId)));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatSettingsScreen(chatId: _chatId)));
     await _loadChatPreferences();
   }
 
   Future<void> _setTyping(bool typing) async {
     _typingClearTimer?.cancel();
     final uid = _auth.currentUser?.uid;
-    if (uid == null || uid.isEmpty || widget.chatId.isEmpty) return;
+    if (uid == null || uid.isEmpty || _chatId.isEmpty) return;
     try {
-      await _firestore.collection('chats').doc(widget.chatId).set({
+      await _firestore.collection('chats').doc(_chatId).set({
         'typing.$uid': typing,
         'typingUpdatedAt.$uid': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -234,7 +237,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   Future<void> _loadPendingMedia() async {
     try {
       final jobs =
-          await ChatMediaTransferService.instance.pendingForChat(widget.chatId);
+          await ChatMediaTransferService.instance.pendingForChat(_chatId);
       if (!mounted) return;
       final pending = jobs.map(_pendingMap).toList();
       // Keep optimistic media visible until its Firestore message is observed.
@@ -261,7 +264,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
           (_) async {
             if (!mounted) return;
             final jobs =
-                await ChatMediaTransferService.instance.pendingForChat(widget.chatId);
+                await ChatMediaTransferService.instance.pendingForChat(_chatId);
             if (!mounted) return;
             if (jobs.isEmpty) {
               _pendingRefreshTimer?.cancel();
@@ -290,7 +293,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
             : 'uploading';
     return {
       'id': job['id'],
-      'chatId': widget.chatId,
+      'chatId': _chatId,
       'senderId': _auth.currentUser?.uid ?? 'local',
       'senderName': _auth.currentUser?.displayName ?? 'مستخدم',
       'type': type,
@@ -363,12 +366,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (mounted) setState(() { _loading = false; _loadError = 'يجب تسجيل الدخول لفتح المحادثة.'; });
       return;
     }
-    if (widget.chatId.trim().isEmpty || (!widget.isGroup && (widget.otherUserId.trim().isEmpty || widget.otherUserId == uid))) {
+    if (_chatId.trim().isEmpty || (!widget.isGroup && (widget.otherUserId.trim().isEmpty || widget.otherUserId == uid))) {
       if (mounted) setState(() { _loading = false; _loadError = 'بيانات المحادثة غير صالحة.'; });
       return;
     }
     try {
-      final ref = _firestore.collection('chats').doc(widget.chatId);
+      final ref = _firestore.collection('chats').doc(_chatId);
       DocumentSnapshot<Map<String, dynamic>>? snapshot;
       try {
         snapshot = await ref.get();
@@ -412,18 +415,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         currentUserImage: _auth.currentUser?.photoURL,
       );
       if (!mounted) return;
-      if (newChatId != widget.chatId) {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(
-          builder: (_) => ChatRoomScreen(
-            chatId: newChatId,
-            otherUserId: widget.otherUserId,
-            otherUserName: widget.otherUserName,
-            otherUserImage: widget.otherUserImage,
-            isGroup: widget.isGroup,
-            groupImage: widget.groupImage,
-            lastMessage: widget.lastMessage,
-          ),
-        ));
+      if (newChatId != _chatId) {
+        // Correct the stale room id in-place. Creating another
+        // ChatRoomScreen here causes stacked/repeated room routes.
+        _activeChatId = newChatId;
+        _knownMessageIds.clear();
+        _newMessageIds = <String>{};
+        _hasInitialMessageSnapshot = false;
+        _olderMessages.clear();
+        _hasMoreMessages = false;
+        _oldestMessageDocument = null;
+        _loadError = null;
+        _loading = true;
+        await _listen();
         return;
       }
       await _listen();
@@ -452,7 +456,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     _userSub = null;
     _chatSub = _firestore
         .collection('chats')
-        .doc(widget.chatId)
+        .doc(_chatId)
         .snapshots()
         .listen((snapshot) {
       if (!mounted) return;
@@ -608,7 +612,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     try {
       final chats = await _chat.streamChats(limit: 100).first;
       if (!mounted) return;
-      final destinations = chats.where((chat) => chat.id != widget.chatId).toList();
+      final destinations = chats.where((chat) => chat.id != _chatId).toList();
       if (destinations.isEmpty) {
         ToastService.showInfo('لا توجد محادثات أخرى لإعادة التوجيه إليها.');
         return;
@@ -682,7 +686,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
       if (selected == null || !mounted) return;
       await _chat.forwardMessage(
-        sourceChatId: widget.chatId,
+        sourceChatId: _chatId,
         messageId: message.id,
         destinationChatId: selected.id,
       );
@@ -707,7 +711,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _deleteSelectedMessages() async {
     for (final message in _selectedModels()) {
-      try { await _chat.deleteMessage(widget.chatId, message.id); } catch (_) {}
+      try { await _chat.deleteMessage(_chatId, message.id); } catch (_) {}
     }
     if (mounted) setState(() => _selectedMessageIds.clear());
   }
@@ -723,7 +727,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _starSelectedMessages() async {
     for (final message in _selectedModels()) {
-      try { await _chat.starMessage(widget.chatId, message.id, true); } catch (_) {}
+      try { await _chat.starMessage(_chatId, message.id, true); } catch (_) {}
     }
     if (mounted) setState(() => _selectedMessageIds.clear());
   }
@@ -734,7 +738,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     if (_starredLoading) return;
     setState(() => _starredLoading = true);
     try {
-      await _chat.starMessage(widget.chatId, message.id, !message.isStarred);
+      await _chat.starMessage(_chatId, message.id, !message.isStarred);
       if (mounted) ToastService.showSuccess(message.isStarred ? 'أزيلت من المفضلة' : 'حُفظت في المفضلة');
     } catch (e) {
       if (mounted) ToastService.showError('تعذر حفظ الرسالة: $e');
@@ -744,14 +748,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _showStarredMessages() async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredMessagesScreen(chatId: widget.chatId)));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredMessagesScreen(chatId: _chatId)));
   }
 
-  Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(widget.chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
+  Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(_chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
 
   Future<void> _markRead() async {
     try {
-      await _chat.markAsRead(widget.chatId);
+      await _chat.markAsRead(_chatId);
     } catch (error) {
       debugPrint('mark read: $error');
     }
@@ -772,7 +776,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   void _call(bool video) {
     Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
         builder: (_) => CallScreen(
-            chatId: widget.chatId,
+            chatId: _chatId,
             userName: widget.otherUserName,
             userId: widget.otherUserId,
             userImage: widget.otherUserImage ?? widget.groupImage,
@@ -782,7 +786,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _openGroupInfo() async {
     if (!widget.isGroup) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoScreen(chatId: widget.chatId)));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoScreen(chatId: _chatId)));
   }
 
   Future<void> _profile() async {
@@ -893,7 +897,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     try {
       final snap = await _firestore
           .collection('chats')
-          .doc(widget.chatId)
+          .doc(_chatId)
           .collection('messages')
           .doc(id)
           .get();
@@ -960,7 +964,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       _messages = <MessageModel>[
         MessageModel(
           id: optimisticId,
-          chatId: widget.chatId,
+          chatId: _chatId,
           senderId: uid,
           senderName: _auth.currentUser?.displayName ?? 'مستخدم',
           senderPhotoUrl: _auth.currentUser?.photoURL,
@@ -996,7 +1000,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     if (_loadingMoreMessages || !_hasMoreMessages || _oldestMessageDocument == null) return;
     setState(() => _loadingMoreMessages = true);
     try {
-      final page = await _chat.getMoreMessages(chatId: widget.chatId, limit: 30, startAfter: _oldestMessageDocument);
+      final page = await _chat.getMoreMessages(chatId: _chatId, limit: 30, startAfter: _oldestMessageDocument);
       if (!mounted) return;
       final existing = _messages.map((m) => m.id).toSet();
       final merged = <MessageModel>[..._messages];
@@ -1020,7 +1024,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _searchMessages() async {
     final id = await Navigator.of(context).push<String>(MaterialPageRoute(
-        builder: (_) => MessageSearchScreen(chatId: widget.chatId)));
+        builder: (_) => MessageSearchScreen(chatId: _chatId)));
     if (!mounted || id == null || id.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final key = _messageKeys[id];
@@ -1033,25 +1037,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _toggleMute() async {
     try {
-      await _chat.muteChat(widget.chatId, !_muted);
+      await _chat.muteChat(_chatId, !_muted);
     } catch (e) {
       debugPrint('mute chat: $e');
     }
   }
 
-  Future<void> _deleteChatForMe() async { try { await _chat.deleteChat(widget.chatId); if(mounted)Navigator.of(context).pop(); } catch(e){debugPrint('delete chat: $e');} }
+  Future<void> _deleteChatForMe() async { try { await _chat.deleteChat(_chatId); if(mounted)Navigator.of(context).pop(); } catch(e){debugPrint('delete chat: $e');} }
 
   Future<void> _togglePin() async {
     try {
-      await _chat.pinChat(widget.chatId, !_pinned);
+      await _chat.pinChat(_chatId, !_pinned);
     } catch (e) {
       debugPrint('pin chat: $e');
     }
   }
 
-  Future<void> _toggleMessagePin(MessageModel message) async { try { await _chat.pinMessage(widget.chatId, message.id, !message.isPinned); } catch (e) { debugPrint('pin message: $e'); } }
+  Future<void> _toggleMessagePin(MessageModel message) async { try { await _chat.pinMessage(_chatId, message.id, !message.isPinned); } catch (e) { debugPrint('pin message: $e'); } }
 
-  Future<void> _deleteMessageForMe(MessageModel message) async { try { await _chat.deleteMessageForMe(widget.chatId, message.id); } catch (e) { debugPrint('delete message for me: $e'); } }
+  Future<void> _deleteMessageForMe(MessageModel message) async { try { await _chat.deleteMessageForMe(_chatId, message.id); } catch (e) { debugPrint('delete message for me: $e'); } }
   Future<void> _editMessage(MessageModel message) async {
     final controller=TextEditingController(text: message.text ?? '');
     final result=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
@@ -1060,7 +1064,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,controller.text.trim()),child:const Text('حفظ'))]));
     controller.dispose();
     if(result==null||result.isEmpty||result==message.text?.trim())return;
-    try{await _chat.editMessage(widget.chatId,message.id,result);}catch(e){if(mounted)ToastService.showError('تعذر تعديل الرسالة.');debugPrint('edit message: $e');}
+    try{await _chat.editMessage(_chatId,message.id,result);}catch(e){if(mounted)ToastService.showError('تعذر تعديل الرسالة.');debugPrint('edit message: $e');}
   }
   Future<void> _confirmDeleteMessage(MessageModel message) async {
     final all=message.senderId==_auth.currentUser?.uid;
@@ -1073,7 +1077,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
   Future<void> _showPinnedMessages() async {
     try{
-      final items=await _chat.getPinnedMessages(widget.chatId);
+      final items=await _chat.getPinnedMessages(_chatId);
       if(!mounted)return;
       showModalBottomSheet<void>(context:context,isScrollControlled:true,builder:(ctx)=>SafeArea(child:SizedBox(
         height:MediaQuery.of(ctx).size.height*.55,
@@ -1092,7 +1096,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   Future<void> _deleteMessage(MessageModel message) async {
     if (message.senderId != _auth.currentUser?.uid) return;
     try {
-      await _chat.deleteMessage(widget.chatId, message.id);
+      await _chat.deleteMessage(_chatId, message.id);
     } catch (e) {
       debugPrint('delete message: $e');
     }
@@ -1100,12 +1104,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   void _startReply(MessageModel message) {
     setState(() => _replyingTo = message);
-    ChatReplyContext.instance.set(widget.chatId, message);
+    ChatReplyContext.instance.set(_chatId, message);
   }
 
   void _clearReply() {
     setState(() => _replyingTo = null);
-    ChatReplyContext.instance.clear(widget.chatId);
+    ChatReplyContext.instance.clear(_chatId);
   }
 
   Future<void> _shareLocation() async {
@@ -1116,7 +1120,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (!mounted || location == null) return;
       final url = 'https://www.openstreetmap.org/?mlat=${location.latitude}&mlon=${location.longitude}#map=18/${location.latitude}/${location.longitude}';
       await _chat.sendMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         text: location.address,
         locationUrl: url,
         locationLat: location.latitude,
@@ -1425,7 +1429,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       fontSize: _fontSize,
                       onReaction: remote && messageId != null
                           ? (emoji) => _chat.addReaction(
-                              widget.chatId, messageId, emoji)
+                              _chatId, messageId, emoji)
                           : null);
                   if (messageId != null && _newMessageIds.contains(messageId)) {
                     bubble = TweenAnimationBuilder<double>(
@@ -1525,7 +1529,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                 ? const SizedBox.shrink(key: ValueKey('no-reply'))
                 : _replyBanner(_replyingTo!)),
         ChatInputBar(
-            chatId: widget.chatId,
+            chatId: _chatId,
             replyToId: _replyingTo?.id,
             onSendMessage: (text, clientTimestamp) {
               unawaited(_setTyping(false));
