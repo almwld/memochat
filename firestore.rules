@@ -131,7 +131,6 @@ service cloud.firestore {
         resource.data.memberRoles[request.auth.uid] in ['owner', 'admin'] &&
         request.resource.data.participants is list &&
         request.resource.data.participants.size() == resource.data.participants.size() + 1 &&
-        request.resource.data.participants.hasOnly(resource.data.participants.concat([])) == false &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'participants',
           'participantDetails',
