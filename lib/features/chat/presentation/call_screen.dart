@@ -72,11 +72,18 @@ class _CallScreenState extends State<CallScreen> {
   void initState() {
     super.initState();
     final id = widget.callId?.trim();
-    if ((id == null || id.isEmpty) && widget.isOutgoing) {
-      if (ActiveCallRegistry.instance.hasActiveCall) {
-        debugPrint('⚡ CallScreen: clearing stale registry before new outgoing call');
-        ActiveCallRegistry.instance.reset();
-      }
+    if ((id == null || id.isEmpty) && widget.isOutgoing &&
+        ActiveCallRegistry.instance.hasActiveCall) {
+      debugPrint(
+        'CALL SCREEN BLOCKED outgoing start: active=' +
+        (ActiveCallRegistry.instance.activeCallId ?? 'unknown'),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        ToastService.showError('لديك مكالمة نشطة بالفعل');
+      });
+      return;
     }
     if (id != null && id.isNotEmpty) {
       final registry = ActiveCallRegistry.instance;
