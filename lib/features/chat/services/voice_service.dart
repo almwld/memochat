@@ -25,14 +25,17 @@ class VoiceService {
 
   String? _recordingPath;
   bool _isRecording = false;
+  bool _startingRecording = false;
   bool _isPlaying = false;
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
   StreamSubscription<void>? _playerCompleteSubscription;
 
   Future<void> startRecording() async {
-    if (_isRecording) return;
-    final tempDir = await getTemporaryDirectory();
+    if (_isRecording || _startingRecording) return;
+    _startingRecording = true;
+    try {
+      final tempDir = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     _recordingPath = '${tempDir.path}/voice_$timestamp.m4a';
 
@@ -48,9 +51,12 @@ class VoiceService {
     _isRecording = true;
     _recordingDuration = Duration.zero;
     _recordingTimer?.cancel();
-    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _recordingDuration += const Duration(seconds: 1);
-    });
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        _recordingDuration += const Duration(seconds: 1);
+      });
+    } finally {
+      _startingRecording = false;
+    }
   }
 
   /// Stops recording and places the file in the durable media outbox.
