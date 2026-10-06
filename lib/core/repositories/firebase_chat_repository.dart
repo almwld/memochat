@@ -338,6 +338,8 @@ class FirebaseChatRepository implements ChatRepository {
 
     final doc = _messages(conversationId).doc();
     final now = DateTime.now();
+    // Keep the message write authoritative, matching the proven transport
+    // contract. Conversation-list metadata is a secondary operation.
     await doc.set({
       'chatId': conversationId,
       'senderId': _uid,
@@ -345,13 +347,18 @@ class FirebaseChatRepository implements ChatRepository {
       'type': MessageType.text.name,
       'status': MessageStatus.sent.name,
       'timestamp': Timestamp.fromDate(now),
+      'createdAt': Timestamp.fromDate(now),
       'clientTimestamp': now.microsecondsSinceEpoch,
     });
-    await _chats().doc(conversationId).set({
-      'lastMessage': trimmed,
-      'lastMessageSenderId': _uid,
-      'updatedAt': Timestamp.fromDate(now),
-    }, SetOptions(merge: true));
+    try {
+      await _chats().doc(conversationId).set({
+        'lastMessage': trimmed,
+        'lastMessageSenderId': _uid,
+        'updatedAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      debugPrint('chat metadata update skipped after successful message write: ${e.code}');
+    }
 
     return ChatMessage(
       id: doc.id,
