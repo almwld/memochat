@@ -17,7 +17,6 @@ import 'package:memochat/features/chat/services/notification_service.dart';
 import 'package:memochat/features/chat/services/message_delivery_service.dart';
 import 'package:memochat/features/chat/services/status_service.dart';
 import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
-import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/message_search_screen.dart';
 import 'package:memochat/features/chat/presentation/starred_messages_screen.dart';
 import 'package:memochat/features/chat/presentation/group_info_screen.dart';
@@ -1452,7 +1451,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       onStar: model == null || model.id.isEmpty
                           ? null
                           : () => _toggleMessageStar(model),
-                      onCallAgain: (_) => _call(false),
                       onSelect: model == null || model.id.isEmpty ? null : () => _toggleMessageSelection(model.id),
                       fontSize: _fontSize,
                       onReaction: remote && messageId != null
