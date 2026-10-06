@@ -317,7 +317,7 @@ class CallService {
     }
 
     try {
-      await HapticFeedback.mediumImpact();
+      // Keep call-answer handling independent of optional haptic APIs.
       await acceptCall(normalizedId);
     } catch (e) {
       debugPrint('CALL NOTIFICATION ANSWER ERROR: $e');
