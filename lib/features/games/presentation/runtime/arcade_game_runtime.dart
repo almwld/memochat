@@ -60,11 +60,11 @@ class BubblePopArcadeGame extends FlameGame {
       final r = bubble.radius;
       if (bubble.position.x < r || bubble.position.x > size.x - r) {
         bubble.velocity.x *= -1;
-        bubble.position.x = bubble.position.x.clamp(r, size.x - r);
+        bubble.position.x = bubble.position.x.clamp(r, size.x - r).toDouble();
       }
       if (bubble.position.y < 75 + r || bubble.position.y > size.y - r) {
         bubble.velocity.y *= -1;
-        bubble.position.y = bubble.position.y.clamp(75 + r, size.y - r);
+        bubble.position.y = bubble.position.y.clamp(75 + r, size.y - r).toDouble();
       }
     }
     _bubbles.removeWhere((b) => b.age > 7);
@@ -82,11 +82,11 @@ class BubblePopArcadeGame extends FlameGame {
       paint
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = Colors.white.withValues(alpha: .38);
+        ..color = Colors.white.withOpacity(.38);
       canvas.drawCircle(Offset(bubble.position.x, bubble.position.y), r, paint);
       paint
         ..style = PaintingStyle.fill
-        ..color = Colors.white.withValues(alpha: .20);
+        ..color = Colors.white.withOpacity(.20);
       canvas.drawCircle(
         Offset(bubble.position.x - r * .28, bubble.position.y - r * .28),
         r * .20,
