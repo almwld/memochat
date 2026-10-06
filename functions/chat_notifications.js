@@ -273,3 +273,22 @@ exports.notifyVoiceRoomInvite=onDocumentCreated('voiceRoomInvites/{inviteId}',as
   await archiveNotification(uid,{data});
   await sendToUser(uid,{data});
 });
+
+
+exports.notifyFriendRequest=onDocumentCreated('friendRequests/{requestId}',async event=>{
+  const snap=event.data;if(!snap)return;
+  const d=snap.data()||{};
+  const uid=String(d.recipientId||''),sender=String(d.senderId||'');
+  if(!uid||!sender)return;
+  const data={
+    type:'friend_request',
+    title:'طلب صداقة جديد',
+    body:String(d.senderName||'مستخدم')+' أرسل لك طلب صداقة',
+    senderId:sender,
+    recipientId:uid,
+    requestId:event.params.requestId,
+    route:'contacts:friend_request',
+  };
+  await archiveNotification(uid,{data});
+  await sendToUser(uid,{data});
+});
