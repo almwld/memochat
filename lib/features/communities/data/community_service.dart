@@ -90,6 +90,24 @@ class CommunityService {
     });
   }
 
+  Future<void> inviteToCommunity({required String communityId, required String recipientId}) async {
+    _requireUser();
+    final target = recipientId.trim();
+    if (target.isEmpty || target == _uid) throw ArgumentError('المستخدم غير صالح');
+    final community = await _communities.doc(communityId).get();
+    if (!community.exists) throw StateError('المجتمع غير موجود');
+    final member = await _communities.doc(communityId).collection('members').doc(_uid).get();
+    if (!member.exists) throw StateError('يجب أن تكون عضواً لدعوة مستخدم');
+    await _firestore.collection('communityInvites').add({
+      'communityId': communityId,
+      'communityName': community.data()?['name']?.toString() ?? 'مجتمع',
+      'senderId': _uid,
+      'recipientId': target,
+      'createdAt': FieldValue.serverTimestamp(),
+      'state': 'pending',
+    });
+  }
+
   Future<void> leaveCommunity(String communityId) async {
     _requireUser();
     final ref = _communities.doc(communityId);
