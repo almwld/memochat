@@ -1158,10 +1158,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     if (message['isLocal'] == true) {
       switch (message['uploadStatus']?.toString()) {
         case 'failed':
+        case 'retry':
+        case 'share_retry':
           return UploadStatus.failed;
         case 'pending':
+        case 'queued':
           return UploadStatus.pending;
         case 'uploading':
+        case 'link_ready':
+          // link_ready means the remote object/link exists, but the Firestore
+          // message has not necessarily been published yet. Never show it as
+          // delivered until the durable outbox reaches sent.
           return UploadStatus.uploading;
       }
       if (message['hasError'] == true) return UploadStatus.failed;
