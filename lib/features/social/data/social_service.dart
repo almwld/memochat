@@ -116,10 +116,18 @@ class SocialService {
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchPostLike(String postId) =>
       _c('socialPosts').doc(postId).collection('likes').doc(_uid).snapshots();
 
+  Stream<Map<String, int>> watchPostCounts(String postId) =>
+      _c('socialPosts').doc(postId).snapshots().map((s) {
+        final data = s.data() ?? const <String, dynamic>{};
+        return <String, int>{
+          'likes': (data['likesCount'] as num?)?.toInt() ?? 0,
+          'comments': (data['commentsCount'] as num?)?.toInt() ?? 0,
+          'shares': (data['sharesCount'] as num?)?.toInt() ?? 0,
+        };
+      });
+
   Stream<int> watchPostLikesCount(String postId) =>
-      _c('socialPosts').doc(postId).snapshots().map(
-        (s) => (s.data()?['likesCount'] as num?)?.toInt() ?? 0,
-      );
+      watchPostCounts(postId).map((counts) => counts['likes'] ?? 0);
 
   Future<void> togglePostLike(String postId) async {
     _authz();
