@@ -11,6 +11,7 @@ class SecuritySettingsService extends ChangeNotifier {
   static const _levelKey = 'security.level';
   static const _initializedKey = 'security.settings.initialized';
   static const _chatIndexKey = 'security.chat.override.ids';
+  static const _encryptionIndexKey = 'security.chat.encryption.ids';
 
   SharedPreferences? _prefs;
   SecurityLevel _level = SecurityLevel.standard;
@@ -18,6 +19,7 @@ class SecuritySettingsService extends ChangeNotifier {
     for (final protocol in SecurityProtocol.values) protocol: false,
   };
   final Map<String, Map<SecurityProtocol, bool>> _chatOverrides = {};
+  final Set<String> _encryptedChats = {};
 
   String _chatKey(String chatId, SecurityProtocol protocol) =>
       'security.chat.$chatId.${protocol.name}';
@@ -71,6 +73,9 @@ class SecuritySettingsService extends ChangeNotifier {
       await _persist();
     }
 
+    final encryptedIds = prefs.getStringList(_encryptionIndexKey) ?? const <String>[];
+    _encryptedChats.addAll(encryptedIds);
+
     final chatIds = prefs.getStringList(_chatIndexKey) ?? const <String>[];
     for (final chatId in chatIds) {
       final values = <SecurityProtocol, bool>{};
@@ -117,6 +122,20 @@ class SecuritySettingsService extends ChangeNotifier {
     _protocols[protocol] = enabled;
     _level = SecurityLevel.custom;
     await _persist();
+    notifyListeners();
+  }
+
+  /// E2EE is opt-in. A chat is plaintext unless the user explicitly enables it.
+  bool isEncryptionEnabledForChat(String chatId) => _encryptedChats.contains(chatId);
+
+  Future<void> setChatEncryption(String chatId, bool enabled) async {
+    await _ensureReady();
+    if (enabled) {
+      _encryptedChats.add(chatId);
+    } else {
+      _encryptedChats.remove(chatId);
+    }
+    await _prefs!.setStringList(_encryptionIndexKey, _encryptedChats.toList());
     notifyListeners();
   }
 
