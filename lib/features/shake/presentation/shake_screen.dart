@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/repositories/chat_repository.dart';
-import '../../chat/presentation/chat_room_screen.dart';
+import '../../chat/presentation/chat_navigation.dart';
 import '../data/shake_service.dart';
 
 class ShakeScreen extends StatefulWidget {
@@ -108,27 +108,13 @@ class _ShakeScreenState extends State<ShakeScreen>
         otherUserPhoto: photo,
       );
       if (!mounted) return;
-      final route = PageRouteBuilder<void>(
-        transitionDuration: const Duration(milliseconds: 280),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (_, animation, secondaryAnimation) => ChatRoomScreen(
-          chatId: chatId,
-          otherUserId: id,
-          otherUserName: name,
-          otherUserImage: photo,
-        ),
-        transitionsBuilder: (_, animation, secondaryAnimation, child) {
-          final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-          return FadeTransition(
-            opacity: curved,
-            child: SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(curved),
-              child: child,
-            ),
-          );
-        },
+      await ChatNavigation.openRoom(
+        context,
+        chatId: chatId,
+        otherUserId: id,
+        otherUserName: name,
+        otherUserImage: photo,
       );
-      await Navigator.of(context).pushReplacement(route);
     } catch (error) {
       _openingChat = false;
       if (mounted) {
