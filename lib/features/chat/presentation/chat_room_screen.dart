@@ -14,6 +14,7 @@ import 'package:memochat/features/chat/services/chat_reply_context.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/chat/services/toast_service.dart';
 import 'package:memochat/features/chat/services/notification_service.dart';
+import 'package:memochat/features/chat/services/message_delivery_service.dart';
 import 'package:memochat/features/chat/services/status_service.dart';
 import 'package:memochat/features/chat/presentation/story_viewer_screen.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
@@ -751,7 +752,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredMessagesScreen(chatId: _chatId)));
   }
 
-  Future<void> _markDeliveryAndRead() async { try { await _chat.markDelivered(_chatId); } catch (error) { debugPrint('mark delivered: $error'); } await _markRead(); }
+  Future<void> _markDeliveryAndRead() async {
+    try {
+      await MessageDeliveryService.instance.acknowledgeDelivered(
+        chatId: _chatId,
+        messageIds: _messages.map((message) => message.id),
+      );
+    } catch (error) {
+      debugPrint('message delivery acknowledgement failed: $error');
+    }
+    await _markRead();
+  }
 
   Future<void> _markRead() async {
     try {
