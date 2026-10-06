@@ -198,12 +198,9 @@ class SecuritySettingsService extends ChangeNotifier {
       _protocols[protocol] = false;
     }
 
-    // Only enable capabilities that have a real client-side implementation.
-    // Experimental protocol names remain disabled until their complete
-    // transport/backend implementation is shipped.
-    if (level == SecurityLevel.enhanced || level == SecurityLevel.maximum) {
-      _protocols[SecurityProtocol.metadataProtection] = true;
-    }
+    // Default presets never enable experimental/crypto metadata behavior.
+    // Every security protocol is opt-in and must have a complete implementation.
+
   }
 
   Future<void> _persist() async {
