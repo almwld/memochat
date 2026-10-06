@@ -93,12 +93,20 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'الطبقات الإضافية غير المفعلة فعليًا في هذه النسخة، لذلك لا توجد مفاتيح تشغيل وهمية لها. النقل الحالي يعتمد على HTTPS/خدمات Firebase وLiveKit الفعلية.',
-              ),
+          Card(
+            child: Column(
+              children: [
+                _protocolSwitch(SecurityProtocol.metadataProtection, 'حماية البيانات الوصفية', 'جاهزة: بيانات الرسالة الحساسة تبقى داخل حمولة E2EE.'),
+                _protocolSwitch(SecurityProtocol.onionRouting, 'Onion Routing', 'يتطلب مرحّل Onion/Tor فعليًا؛ لا يُفعّل دون خدمة مرحّل.'),
+                _protocolSwitch(SecurityProtocol.sealedSender, 'Sealed Sender', 'يتطلب بوابة إرسال مختومة وقواعد مصادقة؛ لا يُفعّل دونها.'),
+                _protocolSwitch(SecurityProtocol.postQuantumHybrid, 'Post-Quantum Hybrid', 'يتطلب تنفيذ ML-KEM/PQC متوافقًا على العميل والخادم.'),
+                _protocolSwitch(SecurityProtocol.matrixBridge, 'Matrix Bridge', 'يتطلب Homeserver وBridge مُكوّنين فعليًا.'),
+                _protocolSwitch(SecurityProtocol.dhtDiscovery, 'DHT Discovery', 'يتطلب شبكة DHT/Bootstrap حقيقية.'),
+                _protocolSwitch(SecurityProtocol.meshOffline, 'Mesh / BLE', 'يتطلب طبقة BLE Mesh ونقلًا محليًا حقيقيًا.'),
+                _protocolSwitch(SecurityProtocol.quicTransport, 'QUIC', 'يتطلب ناقل QUIC فعليًا؛ Firestore لا يتحول إلى QUIC من هذا المفتاح وحده.'),
+                _protocolSwitch(SecurityProtocol.websocketFallback, 'WebSocket', 'جاهز كخيار نقل عندما يوفّر المسار WebSocket فعليًا.'),
+                _protocolSwitch(SecurityProtocol.httpsFallback, 'HTTPS', 'جاهز كمسار النقل الآمن الأساسي.'),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -143,9 +151,15 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
       animation: _settings,
       builder: (context, _) => SwitchListTile(
         value: _settings.isEnabled(protocol),
-        onChanged: _saving ? null : (value) => _toggle(protocol, value),
+        onChanged: (_saving || !_settings.isOperational(protocol))
+            ? null
+            : (value) => _toggle(protocol, value),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(subtitle),
+        subtitle: Text(
+          _settings.isOperational(protocol)
+              ? subtitle + ' • جاهز'
+              : subtitle + ' • غير متاح حتى اكتمال المكوّن المطلوب',
+        ),
       ),
     );
   }
