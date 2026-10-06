@@ -13,6 +13,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:memochat/core/models/call_model.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
@@ -259,10 +260,24 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
   Future<void> _navigateToCall() async {
     if (!mounted) return;
     try {
-      // Mark the call answered before replacing the incoming UI. This prevents
-      // a race where CallScreen starts joining LiveKit while the call is still
-      // in `calling`, and guarantees the caller sees the answer transition.
+      // Acceptance is the media boundary. Keep the incoming screen free of
+      // permission prompts; request camera/microphone only after the receiver
+      // explicitly accepts, immediately before entering the live call.
       await _callService.acceptCall(widget.callId);
+
+      final permissions = <Permission>[Permission.microphone];
+      if (widget.isVideo) permissions.add(Permission.camera);
+      final statuses = await permissions.request();
+
+      if (!(statuses[Permission.microphone]?.isGranted ?? false) ||
+          (widget.isVideo &&
+              !(statuses[Permission.camera]?.isGranted ?? false))) {
+        throw StateError(
+          widget.isVideo
+              ? 'يلزم السماح بالكاميرا والميكروفون لإجراء مكالمة الفيديو'
+              : 'يلزم السماح بالميكروفون لإجراء المكالمة الصوتية',
+        );
+      }
     } catch (e) {
       debugPrint('acceptCall before navigation failed: $e');
       if (mounted) {
