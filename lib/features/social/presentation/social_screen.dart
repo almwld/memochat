@@ -177,15 +177,42 @@ class _PostState extends State<_Post> {
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (_, index) {
                           final data = comments[index].data();
+                          final commentUserId = data['userId']?.toString() ?? '';
+                          final mine = commentUserId == widget.service.currentUserId;
                           return ListTile(
-                            leading: const CircleAvatar(
-                              child: Icon(Icons.person_rounded),
-                            ),
-                            title: Text(
-                              data['userName']?.toString() ?? 'مستخدم Memo',
-                              style: const TextStyle(fontWeight: FontWeight.w800),
-                            ),
+                            leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+                            title: Text(data['userName']?.toString() ?? 'مستخدم Memo', style: const TextStyle(fontWeight: FontWeight.w800)),
                             subtitle: Text(data['text']?.toString() ?? ''),
+                            trailing: mine
+                                ? PopupMenuButton<String>(
+                                    onSelected: (value) async {
+                                      if (value == 'delete') {
+                                        await _run(() => widget.service.deletePostComment(widget.id, comments[index].id), message: 'تعذر حذف التعليق');
+                                      } else {
+                                        final controller = TextEditingController(text: data['text']?.toString() ?? '');
+                                        final edited = await showDialog<String>(
+                                          context: context,
+                                          builder: (dialogContext) => AlertDialog(
+                                            title: const Text('تعديل التعليق'),
+                                            content: TextField(controller: controller, maxLines: 4, maxLength: 1000),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                                              FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                                            ],
+                                          ),
+                                        );
+                                        controller.dispose();
+                                        if (edited != null && edited.isNotEmpty) {
+                                          await _run(() => widget.service.editPostComment(widget.id, comments[index].id, edited), message: 'تعذر تعديل التعليق');
+                                        }
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                                      PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                    ],
+                                  )
+                                : null,
                           );
                         },
                       );
@@ -273,9 +300,36 @@ class _PostState extends State<_Post> {
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: const Text('منشور على Memo'),
-            trailing: author.isEmpty || author == widget.service.currentUserId
-                ? null
-                : StreamBuilder(
+            trailing: author == widget.service.currentUserId
+                ? PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == 'delete') {
+                        await _run(() => widget.service.deletePost(widget.id), message: 'تعذر حذف المنشور');
+                      } else if (value == 'edit') {
+                        final controller = TextEditingController(text: widget.data['text']?.toString() ?? '');
+                        final edited = await showDialog<String>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('تعديل المنشور'),
+                            content: TextField(controller: controller, maxLines: 5, maxLength: 5000),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                              FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                            ],
+                          ),
+                        );
+                        controller.dispose();
+                        if (edited != null) await _run(() => widget.service.editPost(widget.id, edited), message: 'تعذر تعديل المنشور');
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                      PopupMenuItem(value: 'delete', child: Text('حذف')),
+                    ],
+                  )
+                : author.isEmpty
+                    ? null
+                    : StreamBuilder(
                     stream: widget.service.watchFollowing(author),
                     builder: (context, snapshot) {
                       final following = snapshot.data?.exists == true;
