@@ -370,6 +370,32 @@ class _SettingsSectionScreen extends StatefulWidget {
 class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
   late final Map<String, bool> _values = {for (final item in widget.items) item.title: item.defaultValue};
 
+  String _key(String title) => 'settings.section.${widget.title}.$title';
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      for (final item in widget.items) {
+        if (item.switchable && prefs.containsKey(_key(item.title))) {
+          _values[item.title] = prefs.getBool(_key(item.title)) ?? item.defaultValue;
+        }
+      }
+    });
+  }
+
+  Future<void> _setValue(String title, bool value) async {
+    setState(() => _values[title] = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key(title), value);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w900))),
@@ -387,7 +413,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
             Builder(builder: (_) {
               final item = widget.items[i];
               final child = item.switchable
-                  ? SwitchListTile(secondary: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), value: _values[item.title]!, onChanged: (v) => setState(() => _values[item.title] = v))
+                  ? SwitchListTile(secondary: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), value: _values[item.title]!, onChanged: (v) => _setValue(item.title, v))
                   : ListTile(leading: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), trailing: const Icon(Icons.chevron_left_rounded), onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('إعداد ' + item.title + ' متاح من هذه الواجهة'))));
               return Column(children: [child, if (i < widget.items.length - 1) const Divider(height: 1)]);
             }),
