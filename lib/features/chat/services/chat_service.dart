@@ -180,11 +180,18 @@ class ChatService {
     if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final d=rr.data()??{};replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':d['text']?.toString()??'مرفق','type':d['type']?.toString()??'text'};}}
     final ref=(messageId?.isNotEmpty==true)?_chatRef(chatId).collection('messages').doc(messageId):_chatRef(chatId).collection('messages').doc();
     if(messageId?.isNotEmpty==true){final existing=await ref.get();if(existing.exists)return ref.id;}
-    final batch=_firestore.batch();
-    batch.set(ref,{'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':delivered?MessageStatus.delivered.name:MessageStatus.sent.name,'deliveredAt':delivered?FieldValue.serverTimestamp():null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'replyPreview':replyPreview,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
+    // The message document is the transport source of truth. Persist it first;
+    // conversation metadata is secondary and must never make an authorized
+    // message disappear when its update is temporarily rejected.
+    await ref.set({'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'timestamp':FieldValue.serverTimestamp(),'createdAt':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':delivered?MessageStatus.delivered.name:MessageStatus.sent.name,'deliveredAt':delivered?FieldValue.serverTimestamp():null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'replyPreview':replyPreview,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
     final update=<String,dynamic>{'lastMessage':preview,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':id,'updatedAt':FieldValue.serverTimestamp()};
     for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
-    batch.update(_chatRef(chatId),update); await batch.commit(); return ref.id;
+    try {
+      await _chatRef(chatId).set(update, SetOptions(merge:true));
+    } on FirebaseException catch (e) {
+      debugPrint('chat metadata update skipped after successful message write: ${e.code}');
+    }
+    return ref.id;
   }
     Future<String> forwardMessage({required String sourceChatId,required String messageId,required String destinationChatId}) async {
     final sourceUserId=_uid();await _authorizedChat(sourceChatId);await _authorizedChat(destinationChatId);final source=await _chatRef(sourceChatId).collection('messages').doc(messageId).get();if(!source.exists)throw Exception('الرسالة غير موجودة');
