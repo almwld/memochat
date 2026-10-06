@@ -25,7 +25,7 @@ class AdvancedHubScreen extends StatelessWidget {
     final productivityItems = [
       ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded, const MiniAppsScreen(), const Color(0xFFEA7B24)),
     ];
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
