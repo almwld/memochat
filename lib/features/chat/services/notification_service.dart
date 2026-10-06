@@ -121,11 +121,11 @@ Future<void> handleCallNotificationAction({
   final status = call['status']?.toString() ?? '';
   if (status != 'calling' && status != 'ringing') return;
   if (action == 'call_answer') {
-    await ref.update(<String, dynamic>{
-      'status': 'connected',
-      'isAnswered': true,
-      'connectedAt': FieldValue.serverTimestamp(),
-    });
+    // Answer actions are configured with showsUserInterface=true. The
+    // foreground notification tap handler owns the actual accept + LiveKit
+    // startup. Never mark a call connected from the background isolate.
+    debugPrint('CALL ANSWER: foreground UI will complete LiveKit startup callId=$callId');
+    return;
   } else {
     await ref.update(<String, dynamic>{
       'status': 'rejected',
