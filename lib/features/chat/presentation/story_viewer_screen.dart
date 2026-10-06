@@ -29,6 +29,18 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   late int _currentIndex;
   bool _isPaused = false;
   bool _sendingReply = false;
+  bool _viewMarked = false;
+
+  Future<void> _markViewedWhenReady() async {
+    if (_viewMarked) return;
+    _viewMarked = true;
+    try {
+      await _statusService.markViewed(widget.status);
+    } catch (_) {
+      // Viewing the story must never block or delay the viewer UI.
+      _viewMarked = false;
+    }
+  }
 
   StoryItem get _currentStory => widget.status.stories[_currentIndex];
 
@@ -41,8 +53,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       vsync: this,
       duration: _currentStory.duration,
     )..addStatusListener(_onProgressStatus);
+    // Do not mark the story as viewed here. A view is recorded only after
+    // the first story has actually produced visible content.
     _progressController.forward();
-    _statusService.markViewed(widget.status);
   }
 
   void _onProgressStatus(AnimationStatus status) {
@@ -165,6 +178,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               itemBuilder: (_, index) => _StoryContent(
                 story: widget.status.stories[index],
                 paused: _isPaused,
+                onReady: index == _currentIndex ? _markViewedWhenReady : null,
               ),
             ),
             _buildProgressBars(),
@@ -321,10 +335,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 }
 
 class _StoryContent extends StatefulWidget {
-  const _StoryContent({required this.story, required this.paused});
+  const _StoryContent({required this.story, required this.paused, this.onReady});
 
   final StoryItem story;
   final bool paused;
+  final VoidCallback? onReady;
 
   @override
   State<_StoryContent> createState() => _StoryContentState();
@@ -345,6 +360,7 @@ class _StoryContentState extends State<_StoryContent> {
     _controller = controller;
     await controller.initialize();
     controller.setLooping(true);
+    if (mounted) widget.onReady?.call();
     if (!widget.paused) controller.play();
     if (mounted) setState(() {});
   }
@@ -373,10 +389,34 @@ class _StoryContentState extends State<_StoryContent> {
       return Image.network(
         widget.story.url,
         fit: BoxFit.contain,
+        frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+          if (frame != null || wasSynchronouslyLoaded) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.onReady?.call();
+            });
+          }
+          return child;
+        },
         errorBuilder: (_, __, ___) => _textContent('تعذر تحميل الصورة'),
         loadingBuilder: (_, child, progress) => progress == null
             ? child
-            : const Center(child: CircularProgressIndicator(color: Colors.white)),
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  const ColoredBox(color: Colors.black),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(color: Colors.white),
+                      const SizedBox(height: 12),
+                      Text(
+                        'جاري تحميل الحالة…',
+                        style: TextStyle(color: Colors.white.withOpacity(.8)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
       );
     }
 
@@ -393,6 +433,9 @@ class _StoryContentState extends State<_StoryContent> {
       );
     }
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onReady?.call();
+    });
     return _textContent(widget.story.text ?? '');
   }
 
