@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
+import android.net.VpnService
 import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
