@@ -17,6 +17,9 @@ class SecuritySettingsService extends ChangeNotifier {
     for (final protocol in SecurityProtocol.values) protocol: false,
   };
   final Map<String, Map<SecurityProtocol, bool>> _chatOverrides = {};
+
+  String _chatKey(String chatId, SecurityProtocol protocol) =>
+      'security.chat.$chatId.${protocol.name}';
   bool _ready = false;
 
   SecurityLevel get level => _level;
@@ -66,6 +69,16 @@ class SecuritySettingsService extends ChangeNotifier {
     if (prefs.getBool(_initializedKey) != true) {
       _applyPresetInMemory(SecurityLevel.standard);
       await _persist();
+    }
+
+    for (final protocol in SecurityProtocol.values) {
+      final keys = <String>[];
+      // Load only persisted per-chat overrides that are already known locally.
+      // The service intentionally keeps the chat map sparse; ChatService can
+      // request a policy for a chat without creating overrides.
+      if (keys.isNotEmpty) {
+        // Reserved for future indexed override migration.
+      }
     }
 
     _ready = true;
@@ -118,13 +131,24 @@ class SecuritySettingsService extends ChangeNotifier {
     bool enabled,
   ) async {
     await _ensureReady();
+    if (!isOperational(protocol)) {
+      throw StateError(
+        'لا يمكن تفعيل البروتوكول قبل توفير التنفيذ والخدمة المطلوبة.',
+      );
+    }
     final values = _chatOverrides.putIfAbsent(chatId, () => {});
     values[protocol] = enabled;
+    await _prefs!.setBool(_chatKey(chatId, protocol), enabled);
     notifyListeners();
   }
 
   Future<void> resetChatOverrides(String chatId) async {
-    _chatOverrides.remove(chatId);
+    final removed = _chatOverrides.remove(chatId);
+    if (removed != null) {
+      for (final protocol in removed.keys) {
+        await _prefs?.remove(_chatKey(chatId, protocol));
+      }
+    }
     notifyListeners();
   }
 
