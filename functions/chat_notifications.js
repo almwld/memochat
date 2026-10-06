@@ -208,3 +208,68 @@ exports.notifyIncomingCall=onDocumentCreated('calls/{callId}',async event=>{
   await archiveNotification(receiverId,{data});
   await sendToUser(receiverId,{data});
 });
+
+
+exports.notifyGroupMemberAdded=onDocumentUpdated('chats/{chatId}',async event=>{
+  const before=event.data?.before?.data()||{};
+  const after=event.data?.after?.data()||{};
+  if(after.isGroup!==true)return;
+  const oldIds=new Set(Array.isArray(before.participants)?before.participants.map(String):[]);
+  const newIds=Array.isArray(after.participants)?after.participants.map(String):[];
+  const added=newIds.filter(id=>id&&!oldIds.has(id));
+  if(!added.length)return;
+  const senderId=String(event.data.after.data()?.lastMessageSenderId||after.updatedBy||'');
+  const details=after.participantDetails&&typeof after.participantDetails==='object'?after.participantDetails:{};
+  await Promise.all(added.map(async uid=>{
+    const data={
+      type:'group_invite',
+      title:String(after.groupName||'دعوة إلى مجموعة'),
+      body:'تمت إضافتك إلى مجموعة في MemoChat',
+      chatId:event.params.chatId,
+      senderId:senderId||event.params.chatId,
+      recipientId:uid,
+      route:'chat:'+event.params.chatId,
+    };
+    await archiveNotification(uid,{data});
+    await sendToUser(uid,{data});
+  }));
+});
+
+exports.notifyCommunityInvite=onDocumentCreated('communityInvites/{inviteId}',async event=>{
+  const snap=event.data;if(!snap)return;
+  const d=snap.data()||{};
+  const uid=String(d.recipientId||''),sender=String(d.senderId||'');
+  if(!uid||!sender)return;
+  const data={
+    type:'community_invite',
+    title:String(d.communityName||'دعوة إلى مجتمع'),
+    body:'تمت دعوتك إلى مجتمع في MemoChat',
+    communityId:String(d.communityId||''),
+    senderId:sender,
+    recipientId:uid,
+    route:'community:'+String(d.communityId||''),
+    inviteId:event.params.inviteId,
+  };
+  await archiveNotification(uid,{data});
+  await sendToUser(uid,{data});
+});
+
+exports.notifyVoiceRoomInvite=onDocumentCreated('voiceRoomInvites/{inviteId}',async event=>{
+  const snap=event.data;if(!snap)return;
+  const d=snap.data()||{};
+  const uid=String(d.recipientId||''),sender=String(d.senderId||'');
+  if(!uid||!sender)return;
+  const data={
+    type:'voice_room_invite',
+    title:String(d.roomName||'دعوة إلى غرفة صوتية'),
+    body:'تمت دعوتك إلى غرفة صوتية',
+    roomId:String(d.roomId||''),
+    roomName:String(d.roomLiveName||''),
+    senderId:sender,
+    recipientId:uid,
+    route:'voice_room:'+String(d.roomId||''),
+    inviteId:event.params.inviteId,
+  };
+  await archiveNotification(uid,{data});
+  await sendToUser(uid,{data});
+});
