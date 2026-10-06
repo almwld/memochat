@@ -69,7 +69,10 @@ service cloud.firestore {
           'mutedFor',
           'typing',
           'typingUpdatedAt',
-          'deletedFor'
+          'deletedFor',
+          'participantDetails',
+          'participantNames',
+          'participantPhotos'
         ]);
 
       // Allow an authenticated user to join an existing group through its
@@ -686,6 +689,29 @@ service cloud.firestore {
         resource.data.ownerId == request.auth.uid &&
         request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if false;
+    }
+
+    // Direct game challenges are separate from the per-chat game session.
+    // Both sender and recipient need to be able to create/read/update only
+    // their own challenge documents; this is the operation that previously
+    // surfaced as cloud_firestore/permission-denied.
+    match /gameChallenges/{challengeId} {
+      allow create: if signedIn() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.toUid is string &&
+        request.resource.data.toUid != request.auth.uid &&
+        request.resource.data.gameId is string &&
+        request.resource.data.status == 'pending';
+      allow read: if signedIn() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow update: if signedIn() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid) &&
+        request.resource.data.fromUid == resource.data.fromUid &&
+        request.resource.data.toUid == resource.data.toUid &&
+        request.resource.data.gameId == resource.data.gameId &&
+        request.resource.data.status in ['pending', 'accepted', 'rejected', 'cancelled'];
+      allow delete: if signedIn() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
     }
 
     match /gameLeaderboard/{gameId} {
