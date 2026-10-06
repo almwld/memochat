@@ -140,6 +140,37 @@ class StatusService {
     return StoryItem(type: type, url: result.url!, duration: duration);
   }
 
+  Future<void> updateTextStory({
+    required String statusId,
+    required int storyIndex,
+    required String text,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    final clean = text.trim();
+    if (uid == null || uid.isEmpty) throw StateError('يجب تسجيل الدخول');
+    if (clean.isEmpty || clean.length > 2000) throw ArgumentError('نص الحالة غير صالح');
+    final ref = _statuses.doc(statusId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != uid) throw StateError('لا تملك هذه الحالة');
+    final stories = List<Map<String, dynamic>>.from(
+      (snap.data()?['stories'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+    );
+    if (storyIndex < 0 || storyIndex >= stories.length) throw StateError('الحالة غير موجودة');
+    stories[storyIndex]['type'] = 'text';
+    stories[storyIndex]['text'] = clean;
+    stories[storyIndex]['url'] = '';
+    await ref.update({'stories': stories, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deleteStatus(String statusId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) throw StateError('يجب تسجيل الدخول');
+    final ref = _statuses.doc(statusId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['userId']?.toString() != uid) throw StateError('لا تملك هذه الحالة');
+    await ref.delete();
+  }
+
   Future<void> markViewed(UserStatusModel status) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid == status.userId) return;
