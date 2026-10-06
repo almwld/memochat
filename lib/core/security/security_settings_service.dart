@@ -10,6 +10,7 @@ class SecuritySettingsService extends ChangeNotifier {
 
   static const _levelKey = 'security.level';
   static const _initializedKey = 'security.settings.initialized';
+  static const _chatIndexKey = 'security.chat.override.ids';
 
   SharedPreferences? _prefs;
   SecurityLevel _level = SecurityLevel.standard;
@@ -71,14 +72,14 @@ class SecuritySettingsService extends ChangeNotifier {
       await _persist();
     }
 
-    for (final protocol in SecurityProtocol.values) {
-      final keys = <String>[];
-      // Load only persisted per-chat overrides that are already known locally.
-      // The service intentionally keeps the chat map sparse; ChatService can
-      // request a policy for a chat without creating overrides.
-      if (keys.isNotEmpty) {
-        // Reserved for future indexed override migration.
+    final chatIds = prefs.getStringList(_chatIndexKey) ?? const <String>[];
+    for (final chatId in chatIds) {
+      final values = <SecurityProtocol, bool>{};
+      for (final protocol in SecurityProtocol.values) {
+        final value = prefs.getBool(_chatKey(chatId, protocol));
+        if (value != null) values[protocol] = value;
       }
+      if (values.isNotEmpty) _chatOverrides[chatId] = values;
     }
 
     _ready = true;
@@ -139,6 +140,11 @@ class SecuritySettingsService extends ChangeNotifier {
     final values = _chatOverrides.putIfAbsent(chatId, () => {});
     values[protocol] = enabled;
     await _prefs!.setBool(_chatKey(chatId, protocol), enabled);
+    final ids = _prefs!.getStringList(_chatIndexKey) ?? <String>[];
+    if (!ids.contains(chatId)) {
+      ids.add(chatId);
+      await _prefs!.setStringList(_chatIndexKey, ids);
+    }
     notifyListeners();
   }
 
