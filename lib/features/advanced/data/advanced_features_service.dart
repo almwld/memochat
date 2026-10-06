@@ -18,18 +18,17 @@ class AdvancedFeaturesService {
   CollectionReference<Map<String, dynamic>> get _rooms => _db.collection('voiceRooms');
   CollectionReference<Map<String, dynamic>> get _businesses => _db.collection('businesses');
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchVoiceRooms() => _rooms
+  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> watchVoiceRooms() => _rooms
       .where('active', isEqualTo: true)
       .orderBy('updatedAt', descending: true)
       .limit(50)
       .snapshots()
       .map((snapshot) {
     final current = _auth.currentUser?.uid;
-    final visible = snapshot.docs.where((doc) {
+    return snapshot.docs.where((doc) {
       final data = doc.data();
       return data['visibility']?.toString() != 'hidden' || data['ownerId']?.toString() == current;
     }).toList();
-    return _FilteredQuerySnapshot(visible, snapshot);
   });
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchRoomMembers(String roomId) =>
@@ -129,13 +128,3 @@ class AdvancedFeaturesService {
 }
 
 
-class _FilteredQuerySnapshot implements QuerySnapshot<Map<String, dynamic>> {
-  _FilteredQuerySnapshot(this._docs, this._source);
-  final List<QueryDocumentSnapshot<Map<String, dynamic>>> _docs;
-  final QuerySnapshot<Map<String, dynamic>> _source;
-  @override List<QueryDocumentSnapshot<Map<String, dynamic>>> get docs => _docs;
-  @override List<DocumentChange<Map<String, dynamic>>> get docChanges => _source.docChanges.where((c) => _docs.any((d) => d.id == c.doc.id)).toList();
-  @override SnapshotMetadata get metadata => _source.metadata;
-  @override int get size => _docs.length;
-  @override QuerySnapshot<Map<String, dynamic>>? get _delegate => null;
-}
