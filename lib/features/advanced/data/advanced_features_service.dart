@@ -58,6 +58,24 @@ class AdvancedFeaturesService {
     return roomRef.id;
   }
 
+  Future<void> inviteToVoiceRoom({required String roomId, required String recipientId}) async {
+    final target = recipientId.trim();
+    if (target.isEmpty || target == uid) throw ArgumentError('المستخدم غير صالح');
+    final room = await _rooms.doc(roomId).get();
+    if (!room.exists || room.data()?['active'] != true) throw StateError('الغرفة غير متاحة');
+    final member = await room.reference.collection('members').doc(uid).get();
+    if (!member.exists) throw StateError('انضم إلى الغرفة أولاً');
+    await _db.collection('voiceRoomInvites').add({
+      'roomId': roomId,
+      'roomName': room.data()?['name']?.toString() ?? 'غرفة صوتية',
+      'roomLiveName': room.data()?['roomName']?.toString() ?? '',
+      'senderId': uid,
+      'recipientId': target,
+      'createdAt': FieldValue.serverTimestamp(),
+      'state': 'pending',
+    });
+  }
+
   Future<void> joinVoiceRoom(String roomId) async {
     final ref = _rooms.doc(roomId);
     final snap = await ref.get();
