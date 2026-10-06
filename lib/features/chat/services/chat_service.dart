@@ -9,6 +9,7 @@ import '../models/message_model.dart';
 import '../../../core/repositories/firebase_chat_repository.dart';
 import '../../../core/crypto/signal_session_manager.dart';
 import '../../../core/security/conversation_security_policy.dart';
+import '../../../core/security/security_settings_service.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
