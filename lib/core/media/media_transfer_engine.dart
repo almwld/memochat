@@ -524,6 +524,7 @@ class MediaTransferEngine {
         path: remoteDirectory,
         fileName: fileName,
         mimeType: mimeType,
+        chatId: job['chat_id']?.toString(),
         cancelToken: token,
         createShare: true,
         onProgress: (sent, total) {
