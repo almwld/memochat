@@ -572,4 +572,4 @@ class _Search extends SearchDelegate<void> {
 
   @override
   Widget buildSuggestions(BuildContext context) => buildResults(context);
-
+}
