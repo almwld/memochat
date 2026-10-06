@@ -297,10 +297,30 @@ class LiveKitService {
   Future<void> ensureMediaPermissions({required bool video}) async {
     final permissions = <Permission>[Permission.microphone];
     if (video) permissions.add(Permission.camera);
-    final statuses = await permissions.request();
+
+    // Do not issue a second Android runtime request when the permissions are
+    // already granted. This is important on Android 11/12 where a repeated
+    // request during a media transition can race WebRTC initialization.
+    final statuses = <Permission, PermissionStatus>{};
+    for (final permission in permissions) {
+      statuses[permission] = await permission.status;
+    }
+    final missing = permissions.where((permission) =>
+        statuses[permission]?.isGranted != true).toList();
+    if (missing.isNotEmpty) {
+      final requested = await missing.request();
+      statuses.addAll(requested);
+    }
+
     final mic = statuses[Permission.microphone]?.isGranted == true;
     final cam = !video || statuses[Permission.camera]?.isGranted == true;
-    if (!mic || !cam) throw StateError(video ? 'يلزم السماح بالكاميرا والميكروفون' : 'يلزم السماح بالميكروفون');
+    if (!mic || !cam) {
+      throw StateError(
+        video
+            ? 'يلزم السماح بالكاميرا والميكروفون من إعدادات التطبيق'
+            : 'يلزم السماح بالميكروفون من إعدادات التطبيق',
+      );
+    }
   }
 
   Future<void> enableCamera() async {
