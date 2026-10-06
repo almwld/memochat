@@ -235,15 +235,24 @@ class ChatService {
 
 Future<String> sendSystemMessage({required String chatId,required String text,String? idempotencyKey,Map<String,dynamic>? metadata}) async {
   final id=_uid(); final user=_auth.currentUser!; final chat=await _authorizedChat(chatId);
+  await _security.ensureReady();
+  await SignalSessionManager.instance.ensureReady();
   if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
-  final participants=List<String>.from(chat.data()?['participants']??const []); final isCall=metadata?['callId']!=null; final type=isCall?'call':'system'; final ref=_chatRef(chatId).collection('messages').doc();
+  final participants=List<String>.from(chat.data()?['participants']??const []);
+  final type=metadata?['callId']!=null?'call':'system';
+  final ref=_chatRef(chatId).collection('messages').doc();
+  final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'metadata':metadata??<String,dynamic>{}};
+  final encryptedRecipients=<String,dynamic>{};
+  for(final recipient in <String>{...participants}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);encryptedRecipients[recipient]=base64Encode(e);}
   final batch=_firestore.batch();
-  batch.set(ref,{'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'metadata':metadata??<String,dynamic>{},'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
-  final update=<String,dynamic>{'lastMessage':text,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':id,'updatedAt':FieldValue.serverTimestamp()};
+  batch.set(ref,{'chatId':chatId,'senderId':id,'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId),'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
+  final update=<String,dynamic>{'lastMessage':type=='call'?'مكالمة مشفرة':'رسالة نظامية مشفرة','lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':_security.summarySenderId(chatId,id),'updatedAt':FieldValue.serverTimestamp()};
   for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
-  batch.update(_chatRef(chatId),update); await batch.commit(); return ref.id;
+  batch.update(_chatRef(chatId),update);
+  await batch.commit();
+  return ref.id;
 }
-  Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}) {
+    Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}) {
     final controller=StreamController<MessagePaginationResult>();
     StreamSubscription<QuerySnapshot<Map<String,dynamic>>>? subscription;
     Future<void> start() async {
