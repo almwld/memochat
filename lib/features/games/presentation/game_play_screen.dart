@@ -225,20 +225,13 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title), centerTitle: true),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              child: _gameBody(),
-            ),
-            if (widget.chatId.trim().isNotEmpty) _QuickGameChatBar(chatId: widget.chatId),
-          ],
-        ),
-      ),
-    );
+    final game = _gameBody();
+    if (game == null) {
+      return const Scaffold(
+        body: Center(child: Text('هذه اللعبة غير متاحة حالياً.')),
+      );
+    }
+    return game;
   }
 
   Widget _gameBody() {
@@ -248,7 +241,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       widget.type,
       chatId: widget.chatId,
       gameId: widget.gameId,
-    )!;
+    );
   }
 
   Widget _header(String subtitle) => Column(
