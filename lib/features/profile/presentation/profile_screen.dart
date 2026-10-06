@@ -19,6 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _auth = FirebaseAuth.instance;
   final _avatarService = AvatarService();
   bool _uploadingAvatar = false;
+  bool _uploadingCover = false;
   String get _uid => widget.userId ?? _auth.currentUser?.uid ?? '';
   bool get _isMe => widget.userId == null || widget.userId == _auth.currentUser?.uid;
 
@@ -38,6 +39,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bio = data['bio']?.toString().trim() ?? '';
         final photo = data['photoUrl']?.toString().trim().isNotEmpty == true
             ? data['photoUrl'].toString() : user?.photoURL;
+        final cover = data['coverUrl']?.toString().trim() ?? '';
+        final frame = data['profileFrame']?.toString() ?? 'primary';
+        final hiddenFromContacts = data['hideFromContacts'] == true;
 
         return Scaffold(
           appBar: AppBar(
@@ -46,7 +50,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
             children: [
-              _HeroProfile(name: name, publicId: publicId, bio: bio, photoUrl: photo, onEdit: _isMe ? _editProfile : null, onChangePhoto: _isMe ? _changePhoto : null, uploadingPhoto: _uploadingAvatar),
+              _HeroProfile(name: name, publicId: publicId, bio: bio, photoUrl: photo, frame: frame, onEdit: _isMe ? _editProfile : null, onChangePhoto: _isMe ? _changePhoto : null, uploadingPhoto: _uploadingAvatar),
+              if (cover.isNotEmpty || _isMe)
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: SizedBox(
+                    height: 150,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        cover.isNotEmpty ? Image.network(cover, fit: BoxFit.cover) : DecoratedBox(decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer)),
+                        if (_isMe) PositionedDirectional(
+                          end: 12, bottom: 12,
+                          child: FilledButton.tonalIcon(
+                            onPressed: _uploadingCover ? null : _changeCover,
+                            icon: _uploadingCover ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.photo_camera_back_outlined),
+                            label: const Text('تغيير الغلاف'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              if (_isMe)
+                Card(
+                  child: Column(
+                    children: [
+                      SwitchListTile.adaptive(
+                        value: hiddenFromContacts,
+                        onChanged: (value) => _db.collection('users').doc(_uid).set({'hideFromContacts': value, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true)),
+                        secondary: const Icon(Icons.visibility_off_outlined),
+                        title: const Text('إخفاء الحساب من تواصل', style: TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: const Text('لا يظهر حسابك في قائمة اكتشف وتواصل العامة.'),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.auto_awesome_outlined),
+                        title: const Text('إطار الملف', style: TextStyle(fontWeight: FontWeight.w800)),
+                        trailing: DropdownButton<String>(
+                          value: const {'primary','emerald','violet','orange'}.contains(frame) ? frame : 'primary',
+                          onChanged: (value) { if (value != null) _db.collection('users').doc(_uid).set({'profileFrame': value, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true)); },
+                          items: const [DropdownMenuItem(value: 'primary', child: Text('أساسي')), DropdownMenuItem(value: 'emerald', child: Text('زمردي')), DropdownMenuItem(value: 'violet', child: Text('بنفسجي')), DropdownMenuItem(value: 'orange', child: Text('برتقالي'))],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 14),
               _StatsStrip(uid: _uid),
               const SizedBox(height: 14),
@@ -140,6 +190,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _changeCover() async {
+    if (_uploadingCover || _uid.isEmpty) return;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1800, maxHeight: 700, imageQuality: 88);
+    if (picked == null) return;
+    setState(() => _uploadingCover = true);
+    try {
+      final result = await _avatarService.uploadAndSetCover(uid: _uid, file: File(picked.path));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.success ? 'تم تحديث غلاف الملف بنجاح' : (result.error ?? 'تعذر تحديث الغلاف'))));
+    } finally {
+      if (mounted) setState(() => _uploadingCover = false);
+    }
+  }
+
   Future<void> _editProfile() async {
     final snap = await _db.collection('users').doc(_uid).get();
     final data = snap.data() ?? {};
@@ -189,6 +253,7 @@ class _HeroProfile extends StatelessWidget {
     required this.publicId,
     required this.bio,
     required this.photoUrl,
+    required this.frame,
     this.onEdit,
     this.onChangePhoto,
     this.uploadingPhoto = false,
@@ -197,6 +262,7 @@ class _HeroProfile extends StatelessWidget {
   final String publicId;
   final String bio;
   final String? photoUrl;
+  final String frame;
   final VoidCallback? onEdit;
   final VoidCallback? onChangePhoto;
   final bool uploadingPhoto;
@@ -204,6 +270,7 @@ class _HeroProfile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final frameColor = switch (frame) { 'emerald' => const Color(0xFF059669), 'violet' => const Color(0xFF7C3AED), 'orange' => const Color(0xFFEA580C), _ => primary };
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Container(
@@ -216,11 +283,15 @@ class _HeroProfile extends StatelessWidget {
             Stack(
               alignment: Alignment.bottomRight,
               children: [
-                CircleAvatar(
-                  radius: 46,
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: frameColor, width: 4)),
+                  child: CircleAvatar(
+                  radius: 42,
                   backgroundColor: primary.withOpacity(.12),
                   backgroundImage: photoUrl?.isNotEmpty == true ? NetworkImage(photoUrl!) : null,
                   child: photoUrl?.isNotEmpty == true ? null : Icon(Icons.person_rounded, size: 44, color: primary),
+                  ),
                 ),
                 if (onChangePhoto != null)
                   Material(
