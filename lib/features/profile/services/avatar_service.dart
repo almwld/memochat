@@ -76,10 +76,36 @@ class AvatarService {
       await current.updatePhotoURL(result.url);
       await current.reload();
 
+      // Propagate the canonical avatar to cached participant metadata in every
+      // conversation. This keeps chat lists, rooms, calls, groups and contacts
+      // consistent instead of leaving the new image visible only on /profile.
+      await _propagateAvatarToConversations(uid, result.url!);
+
       return AvatarUpdateResult(url: result.url, path: result.path);
     } catch (e) {
       return AvatarUpdateResult(error: e.toString());
     }
+  }
+
+  Future<void> _propagateAvatarToConversations(String uid, String url) async {
+    final snapshot = await _db.collection('chats').where('participants', arrayContains: uid).get();
+    if (snapshot.docs.isEmpty) return;
+
+    WriteBatch batch = _db.batch();
+    var count = 0;
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {
+        'participantDetails.$uid.photoUrl': url,
+        'participantPhotos.$uid': url,
+      });
+      count++;
+      if (count == 450) {
+        await batch.commit();
+        batch = _db.batch();
+        count = 0;
+      }
+    }
+    if (count > 0) await batch.commit();
   }
 
   String _extension(String path) {
