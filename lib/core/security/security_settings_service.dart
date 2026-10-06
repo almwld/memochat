@@ -24,6 +24,27 @@ class SecuritySettingsService extends ChangeNotifier {
 
   bool isEnabled(SecurityProtocol protocol) => _protocols[protocol] ?? false;
 
+  /// Reports whether the protocol has a concrete in-app implementation.
+  bool isOperational(SecurityProtocol protocol) {
+    switch (protocol) {
+      case SecurityProtocol.metadataProtection:
+      case SecurityProtocol.websocketFallback:
+      case SecurityProtocol.httpsFallback:
+        return true;
+      case SecurityProtocol.onionRouting:
+      case SecurityProtocol.sealedSender:
+      case SecurityProtocol.postQuantumHybrid:
+      case SecurityProtocol.matrixBridge:
+      case SecurityProtocol.dhtDiscovery:
+      case SecurityProtocol.meshOffline:
+      case SecurityProtocol.quicTransport:
+        return false;
+    }
+  }
+
+  String status(SecurityProtocol protocol) =>
+      isOperational(protocol) ? 'جاهز' : 'يتطلب مكوّنًا/خادمًا خارجيًا';
+
   Map<SecurityProtocol, bool> get protocols =>
       Map.unmodifiable(_protocols);
 
@@ -75,6 +96,11 @@ class SecuritySettingsService extends ChangeNotifier {
     bool enabled,
   ) async {
     await _ensureReady();
+    if (!isOperational(protocol)) {
+      throw StateError(
+        'لا يمكن تفعيل البروتوكول قبل توفير التنفيذ والخدمة المطلوبة.',
+      );
+    }
     _protocols[protocol] = enabled;
     _level = SecurityLevel.custom;
     await _persist();
