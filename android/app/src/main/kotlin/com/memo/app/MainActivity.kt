@@ -15,6 +15,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
     private val quickActionsChannel = "com.memo.app/quick_actions"
     private val vpnTunnelChannel = "com.memo.app/vpn_tunnel"
+    private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
     private var pendingQuickAction: String? = null
     private var pendingVpnStart: Intent? = null
 
@@ -54,6 +55,36 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "stop" -> {
                         startService(Intent(this, VpnTunnelService::class.java).apply { action = VpnTunnelService.ACTION_STOP })
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callForegroundServiceChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val callId = call.argument<String>("callId")?.trim().orEmpty()
+                        val callerName = call.argument<String>("callerName")?.trim().orEmpty()
+                        if (callId.isEmpty()) {
+                            result.error("INVALID_CALL", "callId is required", null)
+                            return@setMethodCallHandler
+                        }
+                        val intent = Intent(this, CallForegroundService::class.java).apply {
+                            action = CallForegroundService.ACTION_START
+                            putExtra(CallForegroundService.EXTRA_CALL_ID, callId)
+                            putExtra(CallForegroundService.EXTRA_CALLER_NAME, callerName)
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= 26) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
+                    }
+                    "stop" -> {
+                        stopService(Intent(this, CallForegroundService::class.java))
                         result.success(true)
                     }
                     else -> result.notImplemented()
