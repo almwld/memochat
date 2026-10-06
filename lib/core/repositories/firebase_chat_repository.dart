@@ -35,6 +35,7 @@ class FirebaseChatRepository implements ChatRepository {
     return source.snapshots().map((snapshot) => snapshot.docs.map((doc) {
       if (doc.id == _uid) return null;
       final data = doc.data();
+      if (data['hideFromContacts'] == true) return null;
       final name = data['displayName']?.toString() ?? 'مستخدم';
       final username = data['username']?.toString() ?? '';
       final publicId = data['publicId']?.toString() ?? username;
