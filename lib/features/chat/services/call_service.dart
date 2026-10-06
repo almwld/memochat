@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,8 +13,6 @@ import 'package:memochat/features/chat/services/notification_service.dart';
 import 'package:memochat/features/chat/presentation/incoming_call_screen.dart';
 import 'package:memochat/features/chat/presentation/call_screen.dart';
 import 'package:memochat/features/chat/presentation/chat_navigation.dart';
-
-const MethodChannel _callForegroundServiceChannel = MethodChannel('com.memochat.app/call_foreground_service');
 
 String _formatDuration(int seconds) { final safe = seconds < 0 ? 0 : seconds; final minutes = safe ~/ 60; final secs = safe % 60; return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}'; }
 
@@ -281,14 +278,6 @@ class CallService {
   Future<void> endCall(String id,{int? durationSeconds}) async { unawaited(_stopCallForegroundService()); final c=await _state(id:id,allowed:const[CallStatus.calling,CallStatus.ringing,CallStatus.connected],data:{'status':CallStatus.ended.name,'endedAt':FieldValue.serverTimestamp(),'durationSeconds':durationSeconds},active:false); await CallSoundCoordinator.instance.stopForCall(id); unawaited(NotificationService().cancelIncomingCallNotification(id)); if (c != null) unawaited(_timeline(chatId:c.chatId,callId:id,text:durationSeconds != null && durationSeconds > 0 ? 'انتهت المكالمة • ${durationSeconds}s' : 'انتهت المكالمة',status:CallStatus.ended.name,type:c.type,durationSeconds:durationSeconds)); }
   Future<void> missCall(String id) async { unawaited(_stopCallForegroundService()); final c=await _state(id:id,allowed:const[CallStatus.calling,CallStatus.ringing],data:{'status':CallStatus.missed.name,'endedAt':FieldValue.serverTimestamp()},active:false,ignore:true); await CallSoundCoordinator.instance.stopForCall(id); unawaited(NotificationService().cancelIncomingCallNotification(id)); if (c != null) unawaited(_timeline(chatId:c.chatId,callId:id,text:'مكالمة فائتة',status:CallStatus.missed.name,type:c.type)); }
   Future<String?> resolveChatId(String id) async { final snapshot=await _retry(()=>_firestore.collection('calls').doc(id).get()); if(!snapshot.exists)return null; final data=snapshot.data(); if(data==null)return null; return data['chatId']?.toString(); }
-
-  Future<void> _startCallForegroundService(String callId, String callerName) async {
-    try {
-      await _callForegroundServiceChannel.invokeMethod('start', <String, dynamic>{'callId': callId, 'callerName': callerName});
-    } catch (e) {
-      debugPrint('CALL FGS start unavailable; notification remains fallback: $e');
-    }
-  }
 
   Future<void> _stopCallForegroundService() async {
     try { await _callForegroundServiceChannel.invokeMethod('stop'); } catch (_) {}
