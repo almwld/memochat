@@ -178,8 +178,8 @@ class MemoArcadeGame extends FlameGame {
     if (_memoryOrder.isEmpty) {
       _memoryOrder.addAll(List<int>.generate(12, (i) => i ~/ 2)..shuffle(random));
     }
-    final cell = ((point.y - 100) ~/ math.max(1, size.x / 4)).clamp(0, 2) * 4 +
-        (point.x ~/ math.max(1, size.x / 4)).clamp(0, 3);
+    final cell = (((point.y - 100) / math.max(1, size.x / 4)).floor()).clamp(0, 2) * 4 +
+        ((point.x / math.max(1, size.x / 4)).floor()).clamp(0, 3);
     if (_memoryFound.contains(cell)) return;
     if (_memoryFirst < 0) {
       _memoryFirst = cell;
