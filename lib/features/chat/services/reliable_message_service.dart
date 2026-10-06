@@ -146,4 +146,5 @@ class ReliableMessageService {
     }
 
     if (changed > 0) await batch.commit();
-  }\n}
+  }
+}
