@@ -10,6 +10,8 @@ import 'notification_inbox.dart';
 import 'notification_models.dart';
 import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
+import '../../features/chat/services/call_service.dart';
+import 'ringtone_service.dart';
 
 class PushNotificationService {
   PushNotificationService({FirebaseMessaging? messaging, required NotificationService localNotifications})
@@ -19,6 +21,7 @@ class PushNotificationService {
   final NotificationService _localNotifications;
   final NotificationInbox _inbox = NotificationInbox();
   final NotificationHistoryService _history = NotificationHistoryService();
+  final RingtoneService _ringtone = RingtoneService();
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
