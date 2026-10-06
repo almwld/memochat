@@ -15,6 +15,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
     private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
     private val quickActionsChannel = "com.memo.app/quick_actions"
+    private val vpnTunnelChannel = "com.memo.app/vpn_tunnel"
     private var pendingQuickAction: String? = null
 
     override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
@@ -64,6 +65,36 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "stop" -> {
                         stopService(Intent(this, CallForegroundService::class.java))
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, vpnTunnelChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "prepare" -> {
+                        val intent = VpnService.prepare(this)
+                        if (intent == null) result.success(true)
+                        else {
+                            startActivityForResult(intent, 7402)
+                            result.success(false)
+                        }
+                    }
+                    "status" -> result.success(VpnTunnelService.running)
+                    "start" -> {
+                        val intent = Intent(this, VpnTunnelService::class.java).apply {
+                            action = VpnTunnelService.ACTION_START
+                            putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
+                            putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
+                            putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+                        result.success(true)
+                    }
+                    "stop" -> {
+                        startService(Intent(this, VpnTunnelService::class.java).apply { action = VpnTunnelService.ACTION_STOP })
                         result.success(true)
                     }
                     else -> result.notImplemented()
