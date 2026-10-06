@@ -71,8 +71,16 @@ class FirebaseChatRepository implements ChatRepository {
     // to create a second room when the canonical DM already exists.
     final pair = <String>[_uid, otherId]..sort();
     final ref = _chats().doc('dm_${pair[0]}_${pair[1]}');
-    final canonical = await ref.get();
-    if (canonical.exists) return ref.id;
+    try {
+      final canonical = await ref.get();
+      if (canonical.exists) return ref.id;
+    } on FirebaseException catch (e) {
+      // A missing canonical document is intentionally not readable under the
+      // chat rules. Do not turn that expected pre-create lookup into a false
+      // "create conversation" failure; the create rule is the authority.
+      if (e.code != 'permission-denied' && e.code != 'unavailable') rethrow;
+      debugPrint('Canonical DM lookup skipped: ${e.code}');
+    }
 
     // Keep the same contract as Sehatak: resolve an existing direct room
     // first, never reuse a group room, then create one canonical DM document.
