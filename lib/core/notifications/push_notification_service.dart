@@ -106,10 +106,45 @@ class PushNotificationService {
     if (notification.callId != null) await _openIncomingCall(notification.callId!);
   }
   Future<void> _handleLocalTap(String? payload) async {
-    if (payload == null) return;
-    final decoded = jsonDecode(payload);
-    if (decoded is! Map) return;
-    final notification = AppNotification.fromRemote(Map<String, dynamic>.from(decoded));
+    if (payload == null || payload.trim().isEmpty) return;
+    Map<String, dynamic>? decoded;
+    try {
+      final raw = payload.startsWith('notification_action:')
+          ? payload.substring('notification_action:'.length)
+          : payload;
+      final value = jsonDecode(raw);
+      if (value is Map) decoded = Map<String, dynamic>.from(value);
+    } catch (_) {
+      return;
+    }
+    if (decoded == null) return;
+
+    final action = decoded!['action']?.toString().trim() ?? '';
+    final actionPayload = decoded!['payload']?.toString();
+    if (action == 'call_answer' || action == 'call_reject') {
+      Map<String, dynamic>? envelope;
+      try {
+        final value = actionPayload == null ? null : jsonDecode(actionPayload);
+        if (value is Map) envelope = Map<String, dynamic>.from(value);
+      } catch (_) {}
+      final data = envelope?['data'] is Map
+          ? Map<String, dynamic>.from(envelope!['data'])
+          : <String, dynamic>{};
+      final callId = data['callId']?.toString().trim() ?? '';
+      await _ringtone.stopIncomingCallRingtone();
+      if (callId.isEmpty) return;
+      if (action == 'call_reject') {
+        await CallService().rejectCall(callId);
+      } else {
+        final navigator = memoNavigatorKey.currentState;
+        if (navigator != null) {
+          await CallService().answerIncomingCallById(navigator.context, callId);
+        }
+      }
+      return;
+    }
+
+    final notification = AppNotification.fromRemote(decoded!);
     await _ringtone.stopIncomingCallRingtone();
     if (notification.callId != null) await _openIncomingCall(notification.callId!);
   }
