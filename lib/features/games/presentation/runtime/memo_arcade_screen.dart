@@ -3,6 +3,7 @@ import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/scheduler.dart';
 import '../../services/game_service.dart';
 import '../../models/game.dart';
 
@@ -14,13 +15,30 @@ class MemoArcadeScreen extends StatefulWidget {
   @override State<MemoArcadeScreen> createState() => _MemoArcadeScreenState();
 }
 
-class _MemoArcadeScreenState extends State<MemoArcadeScreen> {
+class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBindingObserver {
   late final MemoArcadeGame game;
   @override void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     game = MemoArcadeGame(type: widget.type, chatId: widget.chatId, gameId: widget.gameId, onScore: (_) { if (mounted) setState(() {}); });
   }
-  @override void dispose() { game.pauseEngine(); super.dispose(); }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      game.resumeEngine();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      game.pauseEngine();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    game.pauseEngine();
+    super.dispose();
+  }
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(game.title), centerTitle: true,
