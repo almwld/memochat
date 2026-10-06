@@ -444,6 +444,7 @@ class MediaTransferEngine {
         remoteDirectory: _remoteDirectory(job),
         fileName: job['file_name'].toString(),
         mimeType: job['mime_type']?.toString(),
+        chatId: job['chat_id']?.toString(),
       );
       if (!result.success) {
         throw StateError(result.error ?? 'تعذر رفع الوسائط');
@@ -580,6 +581,7 @@ class MediaTransferEngine {
       }),
       fileName: name,
       mimeType: mimeType,
+      chatId: chatId,
     );
   }
 
