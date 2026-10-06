@@ -508,7 +508,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       });
     }
 
-    _messagesSub?.cancel();
+    await _messagesSub?.cancel();
     _messagesSub = _messagesRef
         .orderBy('timestamp', descending: true)
         .limit(100)
