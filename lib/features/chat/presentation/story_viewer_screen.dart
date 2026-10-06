@@ -29,6 +29,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   late int _currentIndex;
   bool _isPaused = false;
   bool _sendingReply = false;
+  final Set<int> _readyStories = <int>{};
+  bool _progressStarted = false;
   bool _viewMarked = false;
 
   Future<void> _markViewedWhenReady() async {
@@ -66,8 +68,28 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _progressController
       ..stop()
       ..duration = _currentStory.duration
-      ..reset()
+      ..reset();
+    _progressStarted = false;
+    if (_readyStories.contains(_currentIndex) && !_isPaused) {
+      _startProgress();
+    }
+  }
+
+  void _startProgress() {
+    if (!mounted || _isPaused || _progressStarted) return;
+    _progressStarted = true;
+    _progressController
+      ..duration = _currentStory.duration
       ..forward();
+    _statusService.markViewed(widget.status);
+  }
+
+  void _onStoryReady(int index) {
+    if (!mounted || index != _currentIndex) return;
+    if (_readyStories.add(index)) {
+      setState(() {});
+    }
+    _startProgress();
   }
 
   void _goToNext() {
@@ -435,6 +457,9 @@ class _StoryContentState extends State<_StoryContent> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onReady?.call();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onReady();
     });
     return _textContent(widget.story.text ?? '');
   }
