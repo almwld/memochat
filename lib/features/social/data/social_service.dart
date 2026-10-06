@@ -34,6 +34,45 @@ class SocialService {
   Stream<QuerySnapshot<Map<String, dynamic>>> reels() =>
       _c('socialReels').orderBy('createdAt', descending: true).limit(50).snapshots();
 
+  Future<List<Map<String, dynamic>>> searchContent(String query) async {
+    _authz();
+    final needle = query.trim().toLowerCase();
+    if (needle.isEmpty) return const [];
+    final results = <Map<String, dynamic>>[];
+    final postSnap = await _c('socialPosts')
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .get();
+    final reelSnap = await _c('socialReels')
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .get();
+
+    void collect(
+      QuerySnapshot<Map<String, dynamic>> snap,
+      String collection,
+    ) {
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final haystack = <String>[
+          data['text']?.toString() ?? '',
+          data['caption']?.toString() ?? '',
+          data['authorName']?.toString() ?? '',
+        ].join(' ').toLowerCase();
+        if (!haystack.contains(needle)) continue;
+        results.add({
+          'id': doc.id,
+          'collection': collection,
+          ...data,
+        });
+      }
+    }
+
+    collect(postSnap, 'socialPosts');
+    collect(reelSnap, 'socialReels');
+    return results;
+  }
+
   Future<String> createPost({required String text, File? media, bool video = false}) async {
     _authz();
     final body = text.trim();
