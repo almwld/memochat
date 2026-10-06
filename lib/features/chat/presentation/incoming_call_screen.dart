@@ -222,26 +222,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     });
   }
 
-  Future<void> _acceptCall({bool prelocked = false}) async {
-    if (_isProcessing && !prelocked) return;
-    if (!prelocked) setState(() => _isProcessing = true);
-    try {
-      await _callService.acceptCall(widget.callId);
-      widget.onCallAnswered(true);
-    } catch (e) {
-      debugPrint('acceptCall failed: $e');
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _swipeProgress = 0;
-          _swipeDirection = 0;
-          _swipeLocked = false;
-        });
-        ToastService.showError('تعذر قبول المكالمة: $e');
-      }
-    }
-  }
-
   Future<void> _handleAnswerTap({bool fromSwipe = false}) async {
     if (_isProcessing || (_swipeLocked && !fromSwipe)) return;
     setState(() => _isProcessing = true);
