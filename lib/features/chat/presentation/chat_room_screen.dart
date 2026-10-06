@@ -27,6 +27,7 @@ import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart'
 import 'package:memochat/core/services/chat_preferences_service.dart';
 import 'package:memochat/features/chat/presentation/chat_settings_screen.dart';
 import 'package:memochat/features/chat/presentation/account_info_screen.dart';
+import 'package:memochat/features/chat/presentation/call_screen.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatId;
