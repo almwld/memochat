@@ -40,7 +40,7 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('Memo', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [
