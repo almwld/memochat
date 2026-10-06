@@ -34,12 +34,20 @@ class ChatService {
   Future<List<MessageModel>> _decryptMessageDocs(List<QueryDocumentSnapshot<Map<String,dynamic>>> docs) async {
     final uid=_uid();
     return Future.wait(docs.map((d) async {
+      final data=d.data();
       try {
-        return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,d.data()));
-      } catch (e) {
-        final data=d.data();
-        if(data['type']=='encrypted') {
-          return MessageModel.fromFirestore(d.id,{...data,'text':null,'type':'system'});
+        return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,data));
+      } catch (firstError) {
+        // A cold-start receiver may not have installed its Signal identity and
+        // pre-key store yet. Initialize once and retry the same ciphertext.
+        if (data['type'] == 'encrypted') {
+          try {
+            await SignalSessionManager.instance.ensureReady();
+            return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,data));
+          } catch (_) {
+            debugPrint('Signal decrypt failed for message '+d.id+': '+firstError.toString());
+            return MessageModel.fromFirestore(d.id,{...data,'text':null,'type':'system'});
+          }
         }
         return MessageModel.fromFirestore(d.id,data);
       }
