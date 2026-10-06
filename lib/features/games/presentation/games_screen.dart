@@ -43,7 +43,6 @@ class _GamesScreenState extends State<GamesScreen> {
           'gameId': id,
           'gameType': definition.type.name,
           'timeLimit': _limit.name,
-          'signalProtected': true,
         },
       ).timeout(const Duration(seconds: 4));
 
