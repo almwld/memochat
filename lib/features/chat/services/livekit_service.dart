@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
 import 'package:memochat/core/config/livekit_config.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LiveKitService {
   static final LiveKitService _instance = LiveKitService._internal();
@@ -287,9 +288,25 @@ class LiveKitService {
     }
   }
 
+  Future<void> ensureMediaPermissions({required bool video}) async {
+    final permissions = <Permission>[Permission.microphone];
+    if (video) permissions.add(Permission.camera);
+    final statuses = await permissions.request();
+    final mic = statuses[Permission.microphone]?.isGranted == true;
+    final cam = !video || statuses[Permission.camera]?.isGranted == true;
+    if (!mic || !cam) throw StateError(video ? 'يلزم السماح بالكاميرا والميكروفون' : 'يلزم السماح بالميكروفون');
+  }
+
   Future<void> enableCamera() async {
     final p = _room?.localParticipant;
     if (p == null) throw StateError('غرفة LiveKit غير متصلة');
+    // Idempotent publish: reconnect/rebuild paths can call this more than once.
+    for (final publication in p.trackPublications.values) {
+      if (publication.source == TrackSource.camera && publication.track is LocalVideoTrack) {
+        _isCameraEnabled = true;
+        return;
+      }
+    }
     try {
       final publication = await p.setCameraEnabled(true);
       if (publication == null || publication.track == null) throw StateError('لم يتم إنشاء مسار فيديو للكاميرا');
@@ -305,6 +322,13 @@ class LiveKitService {
   Future<void> enableMicrophone() async {
     final p = _room?.localParticipant;
     if (p == null) throw StateError('غرفة LiveKit غير متصلة');
+    // Do not publish a second microphone track after a reconnect or a voice-room retry.
+    for (final publication in p.trackPublications.values) {
+      if (publication.source == TrackSource.microphone && publication.track != null) {
+        _isMicrophoneEnabled = true;
+        return;
+      }
+    }
     try {
       final publication = await p.setMicrophoneEnabled(true);
       if (publication == null) throw StateError('لم يتم نشر الميكروفون');
