@@ -23,7 +23,7 @@ import 'games/speed_math_game.dart';
 import 'games/movie_quiz_game.dart';
 
 class DedicatedGameFactory {
-  static Widget? build(
+  static Widget build(
     GameType type, {
     String chatId = '',
     String? gameId,
@@ -34,45 +34,45 @@ class DedicatedGameFactory {
     if (chatId.trim().isEmpty && (gameId == null || gameId.trim().isEmpty)) {
       switch (type) {
         case GameType.bubblePop:
-          return const BubblePopGame();
+          return BubblePopGame();
         case GameType.diceRoll:
-          return const DiceRollGame();
+          return DiceRollGame();
         case GameType.dotsAndBoxes:
-          return const DotsAndBoxesGame();
+          return DotsAndBoxesGame();
         case GameType.fourInRow:
-          return const FourInRowGame();
+          return FourInRowGame();
         case GameType.mazeRunner:
-          return const MazeRunnerGame();
+          return MazeRunnerGame();
         case GameType.memoryMatch:
-          return const MemoryMatchGame();
+          return MemoryMatchGame();
         case GameType.picturePuzzle:
-          return const PicturePuzzleGame();
+          return PicturePuzzleGame();
         case GameType.rhythmTap:
-          return const RhythmTapGame();
+          return RhythmTapGame();
         case GameType.sudokuDuel:
-          return const SudokuDuelGame();
+          return SudokuDuelGame();
         case GameType.quizBattle:
-          return const QuizBattleGame();
+          return QuizBattleGame();
         case GameType.emojiReaction:
-          return const EmojiReactionGame();
+          return EmojiReactionGame();
         case GameType.drawGuess:
-          return const DrawGuessGame();
+          return DrawGuessGame();
         case GameType.wordChain:
-          return const WordChainGame();
+          return WordChainGame();
         case GameType.truthDare:
-          return const TruthDareGame();
+          return TruthDareGame();
         case GameType.guessSong:
-          return const GuessSongGame();
+          return GuessSongGame();
         case GameType.trivia:
-          return const TriviaGame();
+          return TriviaGame();
         case GameType.quickTap:
-          return const QuickTapGame();
+          return QuickTapGame();
         case GameType.wouldYouRather:
-          return const WouldYouRatherGame();
+          return WouldYouRatherGame();
         case GameType.speedMath:
-          return const SpeedMathGame();
+          return SpeedMathGame();
         case GameType.movieQuiz:
-          return const MovieQuizGame();
+          return MovieQuizGame();
         default:
           break;
       }
