@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
@@ -339,18 +340,70 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    if (source == ImageSource.gallery) {
-      final xs = await _picker.pickMultiImage(imageQuality: 90);
-      for (final x in xs) {
+    if (_sending) return;
+
+    // The camera plugin opens a native Android activity. Close the keyboard
+    // first and explicitly resolve camera permission so a stale/denied
+    // permission state cannot leave the Flutter route waiting indefinitely.
+    if (source == ImageSource.camera) {
+      _focus.unfocus(disposition: UnfocusDisposition.scope);
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (mounted) setState(() => _sending = true);
+      try {
+        final permission = await Permission.camera.request().timeout(
+          const Duration(seconds: 8),
+        );
+        if (!permission.isGranted) {
+          if (mounted) {
+            ToastService.showError(
+              permission.isPermanentlyDenied
+                  ? 'صلاحية الكاميرا موقوفة. فعّلها من إعدادات التطبيق.'
+                  : 'لم يتم السماح بالوصول إلى الكاميرا.',
+            );
+          }
+          return;
+        }
+
+        final x = await _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 90,
+        ).timeout(const Duration(seconds: 30));
+        if (x == null || !mounted) return;
+
         final edited = await _editImageFile(File(x.path));
-        await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
+        if (!mounted) return;
+        await _sendMedia(
+          edited,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+        );
+      } catch (e) {
+        debugPrint('camera picker: $e');
+        if (mounted) {
+          ToastService.showError('تعذر فتح الكاميرا. أعد المحاولة.');
+        }
+      } finally {
+        if (mounted) setState(() => _sending = false);
       }
       return;
     }
-    final x = await _picker.pickImage(source: source, imageQuality: 90);
-    if (x != null) {
-      final edited = await _editImageFile(File(x.path));
-      await _sendMedia(edited, type: 'image', folder: 'images', preview: '📷 صورة');
+
+    try {
+      final xs = await _picker.pickMultiImage(imageQuality: 90);
+      for (final x in xs) {
+        if (!mounted) return;
+        final edited = await _editImageFile(File(x.path));
+        await _sendMedia(
+          edited,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+        );
+      }
+    } catch (e) {
+      debugPrint('gallery picker: $e');
+      if (mounted) ToastService.showError('تعذر فتح المعرض.');
     }
   }
 
