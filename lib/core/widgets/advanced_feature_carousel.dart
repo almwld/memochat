@@ -15,8 +15,6 @@ class _AdvancedFeatureCarouselState extends State<AdvancedFeatureCarousel> {
   static const _items = <({IconData icon, String title, String body})>[
     (icon: Icons.lock_outline_rounded, title: 'خصوصية متقدمة', body: 'محادثات خاصة بتشفير طرفي ومؤشرات أمان واضحة.'),
     (icon: Icons.mic_none_rounded, title: 'رسائل صوتية', body: 'تسجيل وإرسال صوتيات عبر صندوق إرسال متين مع إعادة المحاولة.'),
-    (icon: Icons.call_rounded, title: 'مكالمات صوتية', body: 'مكالمات فردية مع حالة اتصال وإشعارات واضحة.'),
-    (icon: Icons.videocam_outlined, title: 'مكالمات فيديو', body: 'صوت وصورة في تجربة مكالمات واحدة.'),
     (icon: Icons.groups_rounded, title: 'المجموعات', body: 'محادثات جماعية وإدارة أعضاء ودعوات.'),
     (icon: Icons.forum_outlined, title: 'المجتمعات', body: 'مساحات مجتمعية وقنوات ومحتوى منظم.'),
     (icon: Icons.radio_rounded, title: 'الغرف الصوتية', body: 'غرف صوتية قابلة للانضمام من داخل التطبيق.'),
@@ -24,7 +22,7 @@ class _AdvancedFeatureCarouselState extends State<AdvancedFeatureCarousel> {
     (icon: Icons.dynamic_feed_rounded, title: 'المنشورات', body: 'انشر صوراً وفيديو ونصوصاً وتفاعل مع المجتمع.'),
     (icon: Icons.play_circle_outline_rounded, title: 'الريلز', body: 'فيديوهات قصيرة مع تفاعل وحفظ ومشاركة.'),
     (icon: Icons.attach_file_rounded, title: 'الوسائط والملفات', body: 'إرسال الصور والفيديو والملفات مع رفع متين.'),
-    (icon: Icons.notifications_outlined, title: 'الإشعارات', body: 'إشعارات رسائل ومكالمات وتفاعلات مع فتح مباشر.'),
+    (icon: Icons.notifications_outlined, title: 'الإشعارات', body: 'إشعارات الرسائل والتفاعلات مع فتح مباشر.'),
     (icon: Icons.search_rounded, title: 'بحث شامل', body: 'ابحث داخل المحادثات والمحتوى بسهولة.'),
     (icon: Icons.person_outline_rounded, title: 'ملف شخصي', body: 'صورة وغطاء وإطار وخصوصية للظهور العام.'),
     (icon: Icons.reply_rounded, title: 'الردود', body: 'رد على رسالة محددة وانتقل إلى أصلها.'),
