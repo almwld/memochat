@@ -17,6 +17,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val quickActionsChannel = "com.memo.app/quick_actions"
     private val vpnTunnelChannel = "com.memo.app/vpn_tunnel"
     private var pendingQuickAction: String? = null
+    private var pendingVpnStart: Intent? = null
 
     override fun configureFlutterEngine(flutterEngine: io.flutter.embedding.engine.FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -76,8 +77,16 @@ class MainActivity : FlutterFragmentActivity() {
                 when (call.method) {
                     "prepare" -> {
                         val intent = VpnService.prepare(this)
-                        if (intent == null) result.success(true)
-                        else {
+                        if (intent == null) {
+                            result.success(true)
+                        } else {
+                            pendingVpnStart = Intent(this, VpnTunnelService::class.java).apply {
+                                action = VpnTunnelService.ACTION_START
+                                putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
+                                putExtra(VpnTunnelService.EXTRA_FINGERPRINT, call.argument<String>("fingerprint"))
+                                putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
+                                putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
+                            }
                             startActivityForResult(intent, 7402)
                             result.success(false)
                         }
@@ -150,6 +159,21 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 7402) return
+
+        val pending = pendingVpnStart
+        pendingVpnStart = null
+        if (resultCode != RESULT_OK || pending == null) return
+
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(pending)
+        } else {
+            startService(pending)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
