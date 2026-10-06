@@ -14,6 +14,10 @@ class ConversationSecurityPolicy {
   bool metadataProtectionEnabled(String chatId) =>
       _settings.isEnabledForChat(chatId, SecurityProtocol.metadataProtection);
 
+  /// Single policy-level read for the explicit E2EE opt-in state used by chat.
+  bool isEncryptionEnabledForChat(String chatId) =>
+      _settings.isEncryptionEnabledForChat(chatId);
+
   Map<String, dynamic> messageSecurity(String chatId) => {
         'version': 1,
         'payload': 'signal-e2ee',
