@@ -246,7 +246,7 @@ class NotificationService {
   Future<void> _initializeCore() async {
     try {
       const settings = InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_memochat_notification'),
         iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
       );
       await _notifications.initialize(settings, onDidReceiveNotificationResponse: (response) async {
