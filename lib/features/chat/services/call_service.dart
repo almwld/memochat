@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -290,8 +291,28 @@ class CallService {
     if (status != CallStatus.calling.name && status != CallStatus.ringing.name) return;
     final chatId = data['chatId']?.toString() ?? '';
     if (chatId.isEmpty) return;
+
     await HapticFeedback.mediumImpact();
-    await acceptCall(normalizedId);
+
+    final permissions = <Permission>[Permission.microphone];
+    final isVideo = data['isVideoCall'] == true || data['callType']?.toString() == 'video';
+    if (isVideo) permissions.add(Permission.camera);
+
+    final result = await permissions.request();
+    final mediaGranted = result[Permission.microphone]?.isGranted == true &&
+        (!isVideo || result[Permission.camera]?.isGranted == true);
+    if (!mediaGranted) {
+      await endCall(normalizedId);
+      return;
+    }
+
+    try {
+      await acceptCall(normalizedId);
+    } catch (_) {
+      await endCall(normalizedId);
+      rethrow;
+    }
+
     if (!context.mounted) return;
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -301,7 +322,7 @@ class CallService {
           userName: data['callerName']?.toString() ?? 'مستخدم',
           userId: data['callerId']?.toString() ?? '',
           userImage: data['callerPhotoUrl']?.toString(),
-          isVideo: data['isVideoCall'] == true || data['callType']?.toString() == 'video',
+          isVideo: isVideo,
           isOutgoing: false,
         ),
       ),
