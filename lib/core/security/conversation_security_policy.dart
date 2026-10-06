@@ -1,9 +1,7 @@
 import 'security_level.dart';
 import 'security_settings_service.dart';
 
-/// Applies conversation-level security metadata without changing the legacy
-/// chat transport. Encryption layers remain suspended until a complete,
-/// interoperable encrypted transport is explicitly re-enabled.
+/// Applies conversation-level security metadata to the Signal transport.
 class ConversationSecurityPolicy {
   ConversationSecurityPolicy({
     SecuritySettingsService? settings,
@@ -18,10 +16,11 @@ class ConversationSecurityPolicy {
 
   Map<String, dynamic> messageSecurity(String chatId) => {
         'version': 1,
-        'payload': 'legacy-plaintext',
+        'payload': 'signal-e2ee',
+        'transport': 'signal',
         'metadataProtection': metadataProtectionEnabled(chatId),
       };
 
   String? summarySenderId(String chatId, String senderId) =>
-      senderId;
+      metadataProtectionEnabled(chatId) ? null : senderId;
 }
