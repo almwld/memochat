@@ -212,9 +212,21 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
   for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
   batch.update(_chatRef(chatId),update); await batch.commit(); return ref.id;
 }
-  Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}) {
-    _uid();
-    return _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit).snapshots().map((s)=>MessagePaginationResult(messages:s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList(),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit));
+  Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}) async* {
+    // Validate the conversation before attaching the long-lived listener.
+    // This keeps the repository contract aligned with every other chat read
+    // and prevents an unauthorized stream from becoming the UI's error state.
+    await _authorizedChat(chatId);
+    yield* _chatRef(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s)=>MessagePaginationResult(
+          messages:s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList(),
+          lastDocument:s.docs.isNotEmpty?s.docs.last:null,
+          hasMore:s.docs.length>=limit,
+        ));
   }
   Future<MessagePaginationResult> getMoreMessages({required String chatId,required int limit,DocumentSnapshot? startAfter})async{await _authorizedChat(chatId);Query<Map<String,dynamic>> q=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();return MessagePaginationResult(messages:s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList(),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit);}
   Future<List<MessageModel>> searchMessages({required String chatId,required String query,int limit=200})async{await _authorizedChat(chatId);final needle=query.trim().toLowerCase();if(needle.isEmpty)return const [];final safeLimit=limit.clamp(20,500).toInt();final snapshot=await _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(safeLimit).get();final messages=snapshot.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList();return messages.where((m){final values=[m.text??'',m.senderName,m.fileName??'',m.fileMimeType??''];return values.any((v)=>v.toLowerCase().contains(needle));}).toList();}
