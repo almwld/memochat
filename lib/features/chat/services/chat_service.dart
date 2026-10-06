@@ -38,9 +38,12 @@ class ChatService {
       try {
         return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,data));
       } catch (firstError) {
-        // A cold-start receiver may not have installed its Signal identity and
-        // pre-key store yet. Initialize once and retry the same ciphertext.
-        if (data['type'] == 'encrypted') {
+        // Ciphertext is processed only when this conversation is explicitly
+        // E2EE-enabled. Plaintext chats must never bootstrap Signal.
+        final chatId = data['chatId']?.toString() ?? '';
+        final e2eeEnabled = chatId.isNotEmpty &&
+            SecuritySettingsService.instance.isEncryptionEnabledForChat(chatId);
+        if (data['type'] == 'encrypted' && e2eeEnabled) {
           try {
             await SignalSessionManager.instance.ensureReady();
             return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,data));
