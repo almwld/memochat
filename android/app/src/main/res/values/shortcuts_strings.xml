@@ -4,8 +4,6 @@
     <string name="shortcut_compose_long">إنشاء رسالة جديدة</string>
     <string name="shortcut_chat_short">محادثات</string>
     <string name="shortcut_chat_long">فتح المحادثات</string>
-    <string name="shortcut_calls_short">مكالمات</string>
-    <string name="shortcut_calls_long">فتح المكالمات</string>
     <string name="shortcut_social_short">Memo</string>
     <string name="shortcut_social_long">فتح Memo والريلز</string>
 </resources>
