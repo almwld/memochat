@@ -259,6 +259,14 @@ class CallSoundCoordinator {
     }
   }
 
+  Future<void> _stopForegroundService() async {
+    try {
+      await _callForegroundServiceChannel.invokeMethod('stop');
+    } catch (e) {
+      debugPrint('CALL FGS stop unavailable: $e');
+    }
+  }
+
   Future<void> _startForegroundService(String callId, String callerName) async {
     try {
       await _callForegroundServiceChannel.invokeMethod(
@@ -341,6 +349,7 @@ class CallSoundCoordinator {
       _activeCallId = null;
       _incomingMuted = false;
       await _sounds.stopCallAudio();
+      await _stopForegroundService();
     }
   }
 
