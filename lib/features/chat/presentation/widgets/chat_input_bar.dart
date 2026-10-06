@@ -56,6 +56,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Duration _duration = Duration.zero;
   String? _recordPath;
   bool _recording = false;
+  bool _startingRecording = false;
   bool _paused = false;
   bool _sending = false;
   bool _attachments = false;
@@ -455,8 +456,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<void> _startRecording() async {
-    if (_sending || _recording || _hasRecording || _hasText) return;
-    final dir = await getTemporaryDirectory();
+    if (_sending || _recording || _startingRecording || _hasRecording || _hasText) return;
+    _startingRecording = true;
+    try {
+      final dir = await getTemporaryDirectory();
     final path = '${dir.path}/memochat_chat_${DateTime.now().millisecondsSinceEpoch}.m4a';
     try {
       await _recorder.start(
@@ -470,7 +473,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           setState(() => _duration += const Duration(seconds: 1));
         }
       });
-      setState(() {
+      if (mounted) setState(() {
         _recording = true;
         _paused = false;
         _recordPath = path;
@@ -478,6 +481,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
     } catch (e) {
       debugPrint('record start: $e');
       ToastService.showError('تعذر بدء التسجيل الصوتي.');
+    } finally {
+      _startingRecording = false;
     }
   }
 
