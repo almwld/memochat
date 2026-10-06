@@ -10,6 +10,17 @@ import 'games/memory_match_game.dart';
 import 'games/picture_puzzle_game.dart';
 import 'games/rhythm_tap_game.dart';
 import 'games/sudoku_duel_game.dart';
+import 'games/quiz_battle_game.dart';
+import 'games/emoji_reaction_game.dart';
+import 'games/draw_guess_game.dart';
+import 'games/word_chain_game.dart';
+import 'games/truth_dare_game.dart';
+import 'games/guess_song_game.dart';
+import 'games/trivia_game.dart';
+import 'games/quick_tap_game.dart';
+import 'games/would_you_rather_game.dart';
+import 'games/speed_math_game.dart';
+import 'games/movie_quiz_game.dart';
 
 class DedicatedGameFactory {
   static Widget? build(
@@ -40,6 +51,28 @@ class DedicatedGameFactory {
           return const RhythmTapGame();
         case GameType.sudokuDuel:
           return const SudokuDuelGame();
+        case GameType.quizBattle:
+          return const QuizBattleGame();
+        case GameType.emojiReaction:
+          return const EmojiReactionGame();
+        case GameType.drawGuess:
+          return const DrawGuessGame();
+        case GameType.wordChain:
+          return const WordChainGame();
+        case GameType.truthDare:
+          return const TruthDareGame();
+        case GameType.guessSong:
+          return const GuessSongGame();
+        case GameType.trivia:
+          return const TriviaGame();
+        case GameType.quickTap:
+          return const QuickTapGame();
+        case GameType.wouldYouRather:
+          return const WouldYouRatherGame();
+        case GameType.speedMath:
+          return const SpeedMathGame();
+        case GameType.movieQuiz:
+          return const MovieQuizGame();
         default:
           break;
       }
