@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/crypto/signal_session_manager.dart';
+import '../../../core/security/conversation_security_policy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
@@ -10,6 +11,7 @@ import '../../../core/repositories/firebase_chat_repository.dart';
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ConversationSecurityPolicy _security = ConversationSecurityPolicy();
   String? get currentUserId => _auth.currentUser?.uid;
   String _uid(){final id=currentUserId;if(id==null||id.isEmpty)throw Exception('يجب تسجيل الدخول');return id;}
   DocumentReference<Map<String,dynamic>> _chatRef(String id)=>_firestore.collection('chats').doc(id);
@@ -159,7 +161,7 @@ class ChatService {
   }
 
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration})async{
-    final id=_uid();final user=_auth.currentUser!;final chat=await _authorizedChat(chatId);await SignalSessionManager.instance.ensureReady();
+    final id=_uid();final user=_auth.currentUser!;final chat=await _authorizedChat(chatId);await _security.ensureReady();await SignalSessionManager.instance.ensureReady();
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
     final participants=List<String>.from(chat.data()?['participants']??const []);final receiverIds=participants.where((p)=>p!=id).toList();
     final receiverSnapshots=await Future.wait(receiverIds.map((p)=>_firestore.collection('users').doc(p).get()));final delivered=receiverSnapshots.any((s)=>s.data()?['isOnline']==true);
@@ -168,8 +170,8 @@ class ChatService {
     final ref=(messageId?.isNotEmpty==true)?_chatRef(chatId).collection('messages').doc(messageId):_chatRef(chatId).collection('messages').doc();if(messageId?.isNotEmpty==true){final existing=await ref.get();if(existing.exists)return ref.id;}
     final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'replyToId':replyToId,'replyPreview':replyPreview};
     final encryptedRecipients=<String,dynamic>{};for(final recipient in <String>{...receiverIds,id}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)));encryptedRecipients[recipient]=base64Encode(e);}
-    final batch=_firestore.batch();batch.set(ref,{'chatId':chatId,'senderId':id,'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':delivered?MessageStatus.delivered.name:MessageStatus.sent.name,'deliveredAt':delivered?FieldValue.serverTimestamp():null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
-    final update=<String,dynamic>{'lastMessage':type=='text'?'رسالة مشفرة':type=='image'?'صورة مشفرة':type=='video'?'فيديو مشفر':type=='audio'?'رسالة صوتية مشفرة':type=='file'?'ملف مشفر':'مرفق مشفر','lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':id,'updatedAt':FieldValue.serverTimestamp()};for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}batch.update(_chatRef(chatId),update);await batch.commit();return ref.id;
+    final batch=_firestore.batch();batch.set(ref,{'chatId':chatId,'senderId':id,'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId),'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':delivered?MessageStatus.delivered.name:MessageStatus.sent.name,'deliveredAt':delivered?FieldValue.serverTimestamp():null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
+    final update=<String,dynamic>{'lastMessage':type=='text'?'رسالة مشفرة':type=='image'?'صورة مشفرة':type=='video'?'فيديو مشفر':type=='audio'?'رسالة صوتية مشفرة':type=='file'?'ملف مشفر':'مرفق مشفر','lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':_security.summarySenderId(chatId,id),'updatedAt':FieldValue.serverTimestamp()};for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}batch.update(_chatRef(chatId),update);await batch.commit();return ref.id;
   }
     Future<String> forwardMessage({required String sourceChatId,required String messageId,required String destinationChatId}) async {
     final sourceUserId=_uid();await _authorizedChat(sourceChatId);await _authorizedChat(destinationChatId);final source=await _chatRef(sourceChatId).collection('messages').doc(messageId).get();if(!source.exists)throw Exception('الرسالة غير موجودة');
