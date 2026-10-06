@@ -8,7 +8,7 @@ class VpnTunnelScreen extends StatefulWidget {
   State<VpnTunnelScreen> createState() => _VpnTunnelScreenState();
 }
 
-class _VpnTunnelScreenState extends State<VpnTunnelScreen> {
+class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingObserver {
   static const _channel = MethodChannel('com.memo.app/vpn_tunnel');
   final _host = TextEditingController();
   final _fingerprint = TextEditingController();
@@ -18,10 +18,27 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshStatus();
+  }
+
+  Future<void> _refreshStatus() async {
+    try {
+      final running = await _channel.invokeMethod<bool>('status') ?? false;
+      if (mounted && running != _running) setState(() => _running = running);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _host.dispose();
     _fingerprint.dispose();
     _address.dispose();
@@ -59,9 +76,14 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> {
     await p.setString('vpn.tunnel.route', _route.text.trim());
 
     try {
-      final prepared = await _channel.invokeMethod<bool>('prepare') ?? false;
+      final prepared = await _channel.invokeMethod<bool>('prepare', {
+        'host': _host.text.trim(),
+        'fingerprint': _fingerprint.text.trim(),
+        'address': _address.text.trim(),
+        'route': _route.text.trim(),
+      }) ?? false;
       if (!prepared) {
-        _snack('يجب السماح لـMemoChat بإنشاء اتصال VPN من النظام، ثم اضغط التفعيل مرة أخرى.');
+        _snack('تم طلب إذن VPN من النظام؛ بعد الموافقة سيبدأ النفق تلقائيًا.');
         return;
       }
 
