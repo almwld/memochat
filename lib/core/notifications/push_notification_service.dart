@@ -4,25 +4,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../app/app.dart';
-import '../../features/chat/services/call_service.dart';
 import '../services/firebase_bootstrap.dart';
 import '../services/fcm_token_service.dart';
 import 'notification_inbox.dart';
 import 'notification_models.dart';
 import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
-import 'ringtone_service.dart';
 
 class PushNotificationService {
-  PushNotificationService({FirebaseMessaging? messaging, required NotificationService localNotifications, RingtoneService? ringtone})
+  PushNotificationService({FirebaseMessaging? messaging, required NotificationService localNotifications})
       : _messaging = messaging ?? FirebaseMessaging.instance,
-        _localNotifications = localNotifications,
-        _ringtone = ringtone ?? RingtoneService();
+        _localNotifications = localNotifications;
   final FirebaseMessaging _messaging;
   final NotificationService _localNotifications;
   final NotificationInbox _inbox = NotificationInbox();
   final NotificationHistoryService _history = NotificationHistoryService();
-  final RingtoneService _ringtone;
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
@@ -67,15 +63,7 @@ class PushNotificationService {
       data: notification.toJson(),
       id: notification.id,
     );
-    if (notification.isCall) {
-      await _localNotifications.showIncomingCallNotification(
-        callerName: notification.title,
-        callId: notification.callId ?? notification.id,
-        isVideo: notification.type == NotificationType.incomingVideoCall ||
-            notification.type == NotificationType.missedVideoCall,
-      );
-      await _ringtone.startIncomingCallRingtone(vibrate: notification.vibration);
-    } else {
+    {
       await _localNotifications.showTypedNotification(
         type: notification.type.wireName,
         title: notification.title,
@@ -84,13 +72,11 @@ class PushNotificationService {
         payload: notification.encode(),
         playSound: notification.sound,
       );
-      if (notification.sound) await _ringtone.playMessageSound(vibrate: notification.vibration);
     }
   }
   Future<void> _handleOpened(RemoteMessage message) async {
     final notification = _parse(message);
     await _inbox.markRead(notification.id);
-    if (notification.callId != null) await _openIncomingCall(notification.callId!);
   }
   Future<void> _handleLocalTap(String? payload) async {
     if (payload == null || payload.trim().isEmpty) return;
@@ -132,20 +118,6 @@ class PushNotificationService {
     }
 
     final notification = AppNotification.fromRemote(decoded!);
-    await _ringtone.stopIncomingCallRingtone();
-    if (notification.callId != null) await _openIncomingCall(notification.callId!);
-  }
-  Future<void> _openIncomingCall(String callId) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final navigator = memoNavigatorKey.currentState;
-    if (uid == null || navigator == null) return;
-    final snap = await FirebaseFirestore.instance.collection('calls').doc(callId).get();
-    final data = snap.data();
-    if (!snap.exists || data == null || data['receiverId'] != uid) return;
-    final status = data['status']?.toString();
-    if (status != 'calling' && status != 'ringing') return;
-    await _ringtone.stopIncomingCallRingtone();
-    await CallService().handleIncomingCallById(navigator.context, callId);
   }
 }
 
@@ -170,15 +142,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
   if (message.notification == null) {
     final local = NotificationService();
-    await local.initialize(startCallCoordinator: false);
-    if (notification.isCall) {
-      await local.showIncomingCallNotification(
-        callerName: notification.title,
-        callId: notification.callId ?? notification.id,
-        isVideo: notification.type == NotificationType.incomingVideoCall ||
-            notification.type == NotificationType.missedVideoCall,
-      );
-    } else {
+    await local.initialize();
+    {
       await local.showTypedNotification(
         type: notification.type.wireName,
         title: notification.title,
