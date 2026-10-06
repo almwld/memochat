@@ -460,8 +460,7 @@ class _ComposerState extends State<_Composer> {
       } else {
         final file = media;
         final isVideo = file != null &&
-            RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)
-        await widget.service.createPost(text: text.text, media: file, video: isVideo);
+            RegExp(r'\\.(mp4|mov|m4v|webm|3gp|mkv)
       }
       if (mounted) Navigator.pop(context);
     } catch (error) {
@@ -572,8 +571,7 @@ class _Search extends SearchDelegate<void> {
 
   @override
   Widget buildSuggestions(BuildContext context) => buildResults(context);
-}
-, caseSensitive: false)
+}, caseSensitive: false)
                 .hasMatch(file.path);
         await widget.service.createPost(text: text.text, media: file, video: isVideo);
       }
