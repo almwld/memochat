@@ -290,9 +290,10 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> join(CallModel c, User user) async {
     if (joined || ending || (c.status != CallStatus.connected && widget.isOutgoing)) return;
     try {
-      // Media permissions are handled by IncomingCallScreen only after the
-      // receiver explicitly accepts the call. CallScreen never opens a
-      // permission dialog at startup.
+      // Request media access immediately before LiveKit publication. This covers
+      // outgoing calls as well as restored/retried call screens and avoids the
+      // publish attempt racing Android's permission state.
+      await live.ensureMediaPermissions(video: widget.isVideo);
       final registry = ActiveCallRegistry.instance;
       if (registry.hasActiveCall && !registry.isActive(c.id)) {
         throw StateError('مكالمة أخرى نشطة');
