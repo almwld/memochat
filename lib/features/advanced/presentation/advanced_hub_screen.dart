@@ -33,7 +33,7 @@ class AdvancedHubScreen extends StatelessWidget {
           const PremiumHero(
             icon: AppIcons.more,
             title: 'وسّع تجربة MemoChat',
-            subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع مزامنة وحماية أفضل.',
+            subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع حماية أفضل وخصوصية واضحة.',
           ),
           const SizedBox(height: 18),
           const _AdvancedSectionTitle(icon: Icons.bolt_rounded, title: 'تجارب حية'),
@@ -51,7 +51,7 @@ class AdvancedHubScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.verified_user_outlined, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: 12),
-                  Expanded(child: Text('مصمم للعمل مع LiveKit وFirestore والمزامنة المحلية دون مغادرة التطبيق.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4))),
+                  Expanded(child: Text('المكالمات الصوتية والغرف والمجتمعات محمية ومشفرة بين الطرفين حيث يدعم المسار ذلك.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4))),
                 ],
               ),
             ),
@@ -188,7 +188,7 @@ class _VoiceRoomsScreenState extends State<VoiceRoomsScreen> {
       builder: (context, snapshot) {
         if (snapshot.hasError) return const Center(child: Text('تعذر تحميل الغرف.'));
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        final rooms = snapshot.data!.docs;
+        final rooms = snapshot.data!;
         if (rooms.isEmpty) return const Center(child: Text('لا توجد غرف نشطة حالياً.'));
         return ListView.separated(
           padding: const EdgeInsets.all(16),
@@ -201,7 +201,23 @@ class _VoiceRoomsScreenState extends State<VoiceRoomsScreen> {
                 leading: const CircleAvatar(child: Icon(Icons.mic_rounded)),
                 title: Text(d['name']?.toString() ?? 'غرفة'),
                 subtitle: Text(d['topic']?.toString().isNotEmpty == true ? d['topic'].toString() : 'نقاش صوتي مباشر'),
-                trailing: const Icon(Icons.chevron_left_rounded),
+                trailing: d['ownerId']?.toString() == FirebaseAuth.instance.currentUser?.uid
+                    ? PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'hide' || value == 'show') {
+                            await _service.setVoiceRoomVisibility(rooms[i].id, value == 'show');
+                            if (mounted) setState(() {});
+                          } else if (value == 'close') {
+                            await _service.closeVoiceRoom(rooms[i].id);
+                            if (mounted) setState(() {});
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(value: d['visibility']?.toString() == 'hidden' ? 'show' : 'hide', child: Text(d['visibility']?.toString() == 'hidden' ? 'إظهار للجميع' : 'إخفاء من القائمة العامة')),
+                          const PopupMenuItem(value: 'close', child: Text('إغلاق الغرفة')),
+                        ],
+                      )
+                    : const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => VoiceRoomScreen(
                     roomId: rooms[i].id,
