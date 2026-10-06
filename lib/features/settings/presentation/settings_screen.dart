@@ -5,10 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
-import '../../../core/notifications/notification_inbox.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
 import 'advanced_privacy_screen.dart';
-import '../../../core/widgets/security_level_indicator.dart';
 import '../../../core/security/security_settings_service.dart';
 import '../../profile/presentation/profile_screen.dart';
 
@@ -27,7 +25,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _inbox = NotificationInbox();
   static const _notificationsKey = 'settings.notifications';
   static const _readReceiptsKey = 'settings.readReceipts';
   static const _typingKey = 'settings.typing';
@@ -224,29 +221,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => _SettingsSectionScreen(title: title, icon: icon, items: items)));
   }
 
-  Future<void> _theme() async {
-    final value = await showModalBottomSheet<ThemeMode>(
-      context: context, showDragHandle: true,
-      builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const ListTile(title: Text('المظهر', style: TextStyle(fontWeight: FontWeight.w900))),
-        for (final mode in const [ThemeMode.system, ThemeMode.light, ThemeMode.dark])
-          ListTile(
-            leading: Icon(mode == ThemeMode.system ? Icons.brightness_auto_rounded : mode == ThemeMode.light ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
-            title: Text(mode == ThemeMode.system ? 'حسب الجهاز' : mode == ThemeMode.light ? 'فاتح' : 'داكن'),
-            trailing: Radio<ThemeMode>(value: mode, groupValue: _theme, onChanged: (_) => Navigator.pop(context, mode)),
-            onTap: () => Navigator.pop(context, mode),
-          ),
-        const SizedBox(height: 10),
-      ])),
-    );
-    if (value == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_themeKey, value == ThemeMode.light ? 'light' : value == ThemeMode.dark ? 'dark' : 'system');
-    if (!mounted) return;
-    setState(() => _theme = value);
-    widget.onThemeModeChanged(value);
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -396,6 +370,97 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
     await prefs.setBool(_key(title), value);
   }
 
+  String _displayValue(_SettingItem item) {
+    final value = _values[item.title];
+    if (item.switchable) return item.subtitle;
+    return item.subtitle;
+  }
+
+  Future<void> _editItem(_SettingItem item) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _key(item.title);
+    final current = prefs.getString(key);
+    final options = <String, List<String>>{
+      'حجم الخط': ['صغير', 'متوسط', 'كبير', 'كبير جدًا'],
+      'خلفية المحادثة': ['افتراضية', 'هادئة', 'فاتحة', 'داكنة'],
+      'الإبقاء على المؤرشفة': ['تشغيل', 'إيقاف'],
+      'مجلدات المحادثات': ['كل المحادثات', 'المفضلة', 'العمل', 'العائلة'],
+      'التنزيل التلقائي للصور': ['دائمًا', 'Wi‑Fi فقط', 'أبدًا'],
+      'التنزيل التلقائي للفيديو': ['دائمًا', 'Wi‑Fi فقط', 'أبدًا'],
+      'التنزيل التلقائي للملفات': ['دائمًا', 'Wi‑Fi فقط', 'أبدًا'],
+      'التخزين': ['عرض معلومات التخزين'],
+      'الأجهزة الصوتية': ['تلقائي', 'سماعة الهاتف', 'مكبر الصوت'],
+      'خصوصية الحالة': ['جهات اتصالي', 'جهات اتصالي باستثناء...', 'مشاركة مع...'],
+      'من يمكنه إضافتي': ['الجميع', 'جهات الاتصال'],
+      'مركز المساعدة': ['دليل الاستخدام', 'الخصوصية والأمان'],
+      'الإبلاغ عن مشكلة': ['مشكلة في التطبيق', 'مشكلة في الحساب', 'مشكلة في المكالمات'],
+      'الشروط والخصوصية': ['الشروط', 'الخصوصية'],
+      'إصدار التطبيق': ['عرض الإصدار'],
+      'المصادر المفتوحة': ['عرض التراخيص'],
+      'التحقق بخطوتين': ['إعداد التحقق بخطوتين لاحقًا'],
+      'تنبيهات الأمان': ['تنبيهات الأمان'],
+      'الجلسات النشطة': ['عرض الجلسة الحالية'],
+    };
+    final list = options[item.title];
+    if (list == null) return;
+    if (item.title == 'التخزين') {
+      if (!mounted) return;
+      await showDialog<void>(context: context, builder: (_) => AlertDialog(
+        title: const Text('التخزين'),
+        content: const Text('يمكنك إدارة وسائط MemoChat من إعدادات النظام. لا نحذف ملفاتك أو ندّعي وجود مدير تخزين غير منفذ.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسنًا'))],
+      ));
+      return;
+    }
+    if (item.title == 'إصدار التطبيق') {
+      if (!mounted) return;
+      await showAboutDialog(context: context, applicationName: 'MemoChat', applicationLegalese: 'تطبيق مراسلة خاص', children: const [Text('معلومات الإصدار تعتمد على حزمة التطبيق المثبتة.')]);
+      return;
+    }
+    if (item.title == 'المصادر المفتوحة') {
+      if (!mounted) return;
+      await showLicensePage(context: context, applicationName: 'MemoChat');
+      return;
+    }
+    if (item.title == 'الإبلاغ عن مشكلة') {
+      if (!mounted) return;
+      final controller = TextEditingController();
+      final send = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+        title: const Text('الإبلاغ عن مشكلة'),
+        content: TextField(controller: controller, maxLines: 5, decoration: const InputDecoration(hintText: 'اكتب وصف المشكلة')),
+        actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('إرسال'))],
+      ));
+      final message = controller.text.trim();
+      controller.dispose();
+      if (send == true && message.isNotEmpty && Firebase.apps.isNotEmpty) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('reports').add({
+            'reporterId': user.uid,
+            'reason': message.substring(0, message.length > 500 ? 500 : message.length),
+            'source': 'settings',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ.')));
+        }
+      }
+      return;
+    }
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w900))),
+        for (final option in list)
+          RadioListTile<String>(value: option, groupValue: current, title: Text(option), onChanged: (v) => Navigator.pop(context, v)),
+        const SizedBox(height: 8),
+      ])),
+    );
+    if (selected == null) return;
+    await prefs.setString(key, selected);
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w900))),
@@ -413,8 +478,20 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
             Builder(builder: (_) {
               final item = widget.items[i];
               final child = item.switchable
-                  ? SwitchListTile(secondary: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), value: _values[item.title]!, onChanged: (v) => _setValue(item.title, v))
-                  : ListTile(leading: Icon(item.icon), title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(item.subtitle), trailing: const Icon(Icons.chevron_left_rounded), onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('إعداد ' + item.title + ' متاح من هذه الواجهة'))));
+                  ? SwitchListTile(
+                      secondary: Icon(item.icon),
+                      title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(item.subtitle),
+                      value: _values[item.title]!,
+                      onChanged: (v) => _setValue(item.title, v),
+                    )
+                  : ListTile(
+                      leading: Icon(item.icon),
+                      title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(_displayValue(item)),
+                      trailing: const Icon(Icons.chevron_left_rounded),
+                      onTap: () => _editItem(item),
+                    );
               return Column(children: [child, if (i < widget.items.length - 1) const Divider(height: 1)]);
             }),
         ])),
