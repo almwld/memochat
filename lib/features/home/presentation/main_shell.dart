@@ -6,7 +6,6 @@ import '../../../core/models/conversation.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../chat/presentation/chat_screen.dart';
-import '../../chat/presentation/calls_screen.dart';
 import '../../contacts/presentation/contacts_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../shake/presentation/shake_screen.dart';
@@ -94,7 +93,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       ContactsScreen(repository: widget.repository),
       const SocialScreen(),
       DiscoverScreen(repository: widget.repository),
-      const CallsScreen(),
       SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
     ];
     _consumeQuickAction();
@@ -112,7 +110,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       'chat' || 'compose' => 0,
       'contacts' => 1,
       'social' => 2,
-      'calls' => 4,
       _ => null,
     };
     if (nextIndex != null && nextIndex != _index) {
@@ -217,15 +214,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   iconSize: 21,
                 ),
                 label: 'اكتشف',
-              ),
-              NavigationDestination(
-                icon: AppIcon(AppIcons.phoneCall, size: 22),
-                selectedIcon: PremiumIconTile(
-                  icon: AppIcons.phoneCall,
-                  size: 42,
-                  iconSize: 21,
-                ),
-                label: 'المكالمات',
               ),
               NavigationDestination(
                 icon: AppIcon(AppIcons.settings, size: 22),
