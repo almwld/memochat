@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:memochat/features/chat/models/call_model.dart';
 import 'package:memochat/features/chat/services/active_call_registry.dart';
 import 'package:memochat/features/chat/services/call_service.dart';
@@ -139,7 +140,9 @@ class _CallScreenState extends State<CallScreen> {
       return 'انتهت مهلة الاتصال. تحقق من جودة الإنترنت وحاول مرة أخرى.';
     }
     if (raw.contains('permission') || raw.contains('إذن')) {
-      return 'تعذر تشغيل الكاميرا أو الميكروفون داخل محرك المكالمة. أعد المحاولة.';
+      return widget.isVideo
+          ? 'يلزم السماح بالكاميرا والميكروفون لإجراء مكالمة الفيديو.'
+          : 'يلزم السماح بالميكروفون لإجراء المكالمة الصوتية.';
     }
     if (raw.contains('network') || raw.contains('socket')) {
       return 'تعذر الاتصال بالشبكة. تحقق من الإنترنت وحاول مرة أخرى.';
@@ -288,8 +291,21 @@ class _CallScreenState extends State<CallScreen> {
   Future<void> join(CallModel c, User user) async {
     if (joined || ending || (c.status != CallStatus.connected && widget.isOutgoing)) return;
     try {
-      // Permissions were granted before the call was created. LiveKit can now
-      // start media without racing Android's permission dialog.
+      // Match Sehatak's call timing: media permissions are requested only
+      // after the call has been accepted/connected, immediately before
+      // LiveKit/WebRTC starts publishing microphone/camera tracks. There is
+      // no separate permission gate before accepting the incoming call.
+      final permissions = <Permission>[Permission.microphone];
+      if (widget.isVideo) permissions.add(Permission.camera);
+      final statuses = await permissions.request();
+      if (widget.isVideo &&
+          !(statuses[Permission.camera]?.isGranted ?? false)) {
+        throw StateError('يرجى منح إذن الكاميرا لإجراء مكالمة الفيديو');
+      }
+      if (!(statuses[Permission.microphone]?.isGranted ?? false)) {
+        throw StateError('يرجى منح إذن الميكروفون لإجراء المكالمة');
+      }
+
       final registry = ActiveCallRegistry.instance;
       if (registry.hasActiveCall && !registry.isActive(c.id)) {
         throw StateError('مكالمة أخرى نشطة');
