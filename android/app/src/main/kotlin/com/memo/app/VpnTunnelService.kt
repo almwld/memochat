@@ -123,7 +123,7 @@ class VpnTunnelService : VpnService() {
         }
 
         val base = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-        base.init(null)
+        base.init(null as java.security.KeyStore?)
         val delegate = base.trustManagers.filterIsInstance<X509TrustManager>().first()
         val pinned = object : X509TrustManager {
             override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> =
