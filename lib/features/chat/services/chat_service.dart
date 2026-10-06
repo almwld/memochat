@@ -92,6 +92,7 @@ class ChatService {
       'memberRoles': roles,
       'unreadCount': unread,
       'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': uid,
     });
   }
 
