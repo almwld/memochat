@@ -1,8 +1,9 @@
 import 'security_level.dart';
 import 'security_settings_service.dart';
 
-/// Applies conversation-level security policy to the non-secret Firestore
-/// envelope. Message content remains protected by the Signal E2EE layer.
+/// Applies conversation-level security metadata without changing the legacy
+/// chat transport. Encryption layers remain suspended until a complete,
+/// interoperable encrypted transport is explicitly re-enabled.
 class ConversationSecurityPolicy {
   ConversationSecurityPolicy({
     SecuritySettingsService? settings,
@@ -17,10 +18,10 @@ class ConversationSecurityPolicy {
 
   Map<String, dynamic> messageSecurity(String chatId) => {
         'version': 1,
-        'payload': 'signal-e2ee',
+        'payload': 'legacy-plaintext',
         'metadataProtection': metadataProtectionEnabled(chatId),
       };
 
   String? summarySenderId(String chatId, String senderId) =>
-      metadataProtectionEnabled(chatId) ? null : senderId;
+      senderId;
 }
