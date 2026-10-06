@@ -205,7 +205,6 @@ class CallService {
 
         tx.update(ref, {
           'isAnswered': true,
-          'answeredAt': FieldValue.serverTimestamp(),
         });
 
         if (callerId.isNotEmpty && receiverId.isNotEmpty) {
