@@ -253,7 +253,7 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
   if(useEncryption) await SignalSessionManager.instance.ensureReady();
   if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
   final participants=List<String>.from(chat.data()?['participants']??const []);
-  final type=metadata?['callId']!=null?'call':'system';
+  const type='system';
   final ref=_chatRef(chatId).collection('messages').doc();
   final batch=_firestore.batch();
   if(useEncryption){
@@ -264,7 +264,7 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
   } else {
     batch.set(ref,{'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'metadata':metadata??<String,dynamic>{},'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
   }
-  final update=<String,dynamic>{'lastMessage':useEncryption?(type=='call'?'مكالمة مشفرة':'رسالة نظامية مشفرة'):text,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':useEncryption?_security.summarySenderId(chatId,id):id,'updatedAt':FieldValue.serverTimestamp()};
+  final update=<String,dynamic>{'lastMessage':useEncryption?'رسالة نظامية مشفرة':text,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':useEncryption?_security.summarySenderId(chatId,id):id,'updatedAt':FieldValue.serverTimestamp()};
   for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
   batch.update(_chatRef(chatId),update);
   await batch.commit();
