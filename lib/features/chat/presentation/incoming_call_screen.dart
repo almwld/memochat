@@ -76,6 +76,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
   double _swipeProgress = 0.0;
   double _swipeDirection = 0.0;
   bool _swipeLocked = false;
+  bool _acceptedBeforeMediaPermission = false;
 
   @override
   void initState() {
@@ -264,6 +265,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       // permission prompts; request camera/microphone only after the receiver
       // explicitly accepts, immediately before entering the live call.
       await _callService.acceptCall(widget.callId);
+      _acceptedBeforeMediaPermission = true;
 
       final permissions = <Permission>[Permission.microphone];
       if (widget.isVideo) permissions.add(Permission.camera);
@@ -279,7 +281,15 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
         );
       }
     } catch (e) {
-      debugPrint('acceptCall before navigation failed: $e');
+      if (_acceptedBeforeMediaPermission) {
+        try {
+          await _callService.endCall(widget.callId);
+        } catch (cleanupError) {
+          debugPrint('call media permission cleanup failed: $cleanupError');
+        }
+        _acceptedBeforeMediaPermission = false;
+      }
+      debugPrint('acceptCall/media permission before navigation failed: $e');
       if (mounted) {
         setState(() {
           _isProcessing = false;
