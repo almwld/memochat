@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/premium_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../data/community_service.dart';
@@ -10,7 +11,7 @@ class CommunitiesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: const Text('المجتمعات', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [
