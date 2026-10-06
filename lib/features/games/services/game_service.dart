@@ -24,7 +24,37 @@ class GameService {
   }
 
   Future<void> joinGame({required String chatId,required String gameId,required String uid}) async {
-    await _games(chatId).doc(gameId).update({'players':FieldValue.arrayUnion([uid]),'status':GameStatus.playing.name,'startedAt':FieldValue.serverTimestamp(),'updatedAt':FieldValue.serverTimestamp()});
+    final chat = await _db.collection('chats').doc(chatId).get();
+    final participants = List<String>.from(
+      chat.data()?['participants'] as List? ?? const [],
+    );
+    if (!chat.exists || !participants.contains(uid)) {
+      throw StateError('لا يمكنك الانضمام إلى لعبة خارج المحادثة.');
+    }
+
+    final ref = _games(chatId).doc(gameId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('جلسة اللعبة غير موجودة.');
+      }
+      final data = snap.data() ?? <String, dynamic>{};
+      final players = List<String>.from(data['players'] as List? ?? const []);
+      if (players.contains(uid)) return;
+      if (players.length >= 2) {
+        throw StateError('اكتملت غرفة اللعبة.');
+      }
+      final updatedPlayers = [...players, uid];
+      tx.update(ref, {
+        'players': updatedPlayers,
+        'status': updatedPlayers.length >= 2
+            ? GameStatus.playing.name
+            : GameStatus.waiting.name,
+        if (updatedPlayers.length >= 2)
+          'startedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
   }
 
   Future<void> updateGame({required String chatId,required String gameId,required Map<String,dynamic> data}) async {
