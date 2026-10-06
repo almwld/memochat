@@ -148,7 +148,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   final _statusService = StatusService();
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _chatSub;
-  Timer? _messageStreamRetry;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
   Timer? _pendingRefreshTimer;
   Timer? _typingClearTimer;
@@ -352,7 +351,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   Future<void> _initializeRoomInternal() async {
     _roomLoadTimer?.cancel();
-    _messageStreamRetry?.cancel();
     _roomLoadTimer = Timer(const Duration(seconds: 15), () {
       if (!mounted || !_loading) return;
       setState(() {
@@ -581,15 +579,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     }, onError: (error) {
       debugPrint('chat messages stream: $error');
       if (!mounted) return;
-      // A transient Firestore/index/network error must not erase the room.
-      // Keep the current messages visible and reconnect automatically.
+      // Firestore snapshots reconnect themselves after transient network
+      // failures. Do not rebuild the listener from inside its own error
+      // callback: doing so can create a reconnect/rebuild loop.
+      // Keep the last rendered messages visible.
       setState(() {
         _loading = false;
         _loadError = null;
-      });
-      _messageStreamRetry?.cancel();
-      _messageStreamRetry = Timer(const Duration(seconds: 2), () {
-        if (mounted) unawaited(_listen());
       });
     });
   }
