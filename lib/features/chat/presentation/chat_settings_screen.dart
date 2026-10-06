@@ -63,12 +63,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
 
   @override Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.grey[50],
-    appBar: AppBar(title: const Text('إعدادات الدردشة'), backgroundColor: AppColors.primary, foregroundColor: Colors.white, actions: [IconButton(icon: _saving ? const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:Colors.white)) : const Icon(Icons.save), onPressed: _saving ? null : _saveSettings)]),
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text('إعدادات الدردشة'),
+        actions: [
+          IconButton(
+            tooltip: 'حفظ',
+            icon: _saving
+                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary))
+                : const Icon(Icons.save_outlined),
+            onPressed: _saving ? null : _saveSettings,
+          ),
+        ],
+      ),
     body: ListView(children: [
       _buildSection(title: 'المظهر', children: [
-        SwitchListTile(title: const Text('الوضع المظلم'), subtitle: const Text('تفعيل الوضع المظلم في الدردشة'), value: _darkMode, onChanged: (v) => setState(() => _darkMode = v), activeColor: AppColors.primary),
-        ListTile(leading: const Icon(Icons.text_fields, color: AppColors.primary), title: const Text('حجم الخط'), subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.remove, size: 20), onPressed: () { if (_fontSize > 10) setState(() => _fontSize--); }), IconButton(icon: const Icon(Icons.add, size: 20), onPressed: () { if (_fontSize < 24) setState(() => _fontSize++); })])),
+        SwitchListTile(title: const Text('الوضع المظلم'), subtitle: const Text('تفعيل الوضع المظلم في الدردشة'), value: _darkMode, onChanged: (v) => setState(() => _darkMode = v), activeColor: scheme.primary),
+        ListTile(leading: Icon(Icons.text_fields, color: scheme.primary), title: const Text('حجم الخط'), subtitle: Text('${_fontSize.toStringAsFixed(0)} بكسل'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.remove, size: 20), onPressed: () { if (_fontSize > 10) setState(() => _fontSize--); }), IconButton(icon: const Icon(Icons.add, size: 20), onPressed: () { if (_fontSize < 24) setState(() => _fontSize++); })])),
       ]),
       if (widget.chatId != null && widget.chatId!.isNotEmpty)
         _buildSection(title: 'تخصيص هذه المحادثة', children: [
