@@ -8,7 +8,7 @@ import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../../core/services/friend_request_service.dart';
-import '../../chat/presentation/chat_room_screen.dart';
+import '../../chat/presentation/chat_navigation.dart';
 import '../../communities/presentation/communities_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -302,7 +302,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
         otherUserPhoto: user.avatarUrl,
       );
       if (!mounted) return;
-      ChatNavigation.openRoom(context,chatId:chatId,otherUserId:user.id,otherUserName:user.displayName,otherUserImage:user.avatarUrl);
+      await ChatNavigation.openRoom(
+        context,
+        chatId: chatId,
+        otherUserId: user.id,
+        otherUserName: user.displayName,
+        otherUserImage: user.avatarUrl,
+      );
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء المحادثة. تحقق من الاتصال والصلاحيات.')));
     }
