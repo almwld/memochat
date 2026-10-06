@@ -223,29 +223,66 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: StreamBuilder<List<UserStatusModel>>(
                       stream: StatusService().streamActiveStatuses(),
                       builder: (context, snapshot) {
-                        final statuses = snapshot.data ?? const <UserStatusModel>[];
+                        final allStatuses =
+                            snapshot.data ?? const <UserStatusModel>[];
+                        final uid = FirebaseAuth.instance.currentUser?.uid;
+                        final ownStatus = uid == null
+                            ? null
+                            : allStatuses
+                                .where((status) => status.userId == uid)
+                                .firstOrNull;
+                        // The current user is represented by exactly one tile:
+                        // either "add status" or their existing status.
+                        final contacts = allStatuses
+                            .where((status) => status.userId != uid)
+                            .toList();
                         return SizedBox(
-                          height: 104,
+                          height: 166,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: statuses.length + 1,
-                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: contacts.length + 1,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 10),
                             itemBuilder: (context, index) {
                               if (index == 0) {
-                                return _StatusAddTile(onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddStatusScreen())));
+                                return _StatusAddTile(
+                                  status: ownStatus,
+                                  onTap: () {
+                                    if (ownStatus != null) {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => StoryViewerScreen(
+                                            status: ownStatus,
+                                          ),
+                                        ),
+                                      );
+                                    } else {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => const AddStatusScreen(),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                );
                               }
-                              final status = statuses[index - 1];
+                              final status = contacts[index - 1];
                               return _StatusTile(
                                 status: status,
-                                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewerScreen(status: status))),
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => StoryViewerScreen(
+                                      status: status,
+                                    ),
+                                  ),
+                                ),
                               );
                             },
                           ),
                         );
                       },
                     ),
-                  ),
-                ),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -568,36 +605,108 @@ class _StateView extends StatelessWidget {
 
 
 class _StatusAddTile extends StatelessWidget {
-  const _StatusAddTile({required this.onTap});
+  const _StatusAddTile({required this.status, required this.onTap});
+
+  final UserStatusModel? status;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final image = status?.userImage?.trim() ?? '';
+    final name = status == null ? 'حالتي' : 'حالتي';
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: SizedBox(
-        width: 72,
-        child: Column(
-          children: [
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: scheme.primaryContainer,
+        width: 112,
+        height: 160,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (image.isNotEmpty)
+                Image.network(
+                  image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: scheme.primaryContainer),
+                )
+              else
+                Container(color: scheme.primaryContainer),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(.72),
+                    ],
+                  ),
+                ),
               ),
-              child: Icon(Icons.add_rounded, color: scheme.primary, size: 30),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'حالتي',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-            ),
-          ],
+              PositionedDirectional(
+                top: 8,
+                start: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    border: Border.all(
+                      color: status == null
+                          ? scheme.primary
+                          : scheme.primary,
+                      width: 2.5,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundImage:
+                        image.isEmpty ? null : NetworkImage(image),
+                    child: image.isEmpty
+                        ? Icon(Icons.person_outline_rounded,
+                            color: scheme.primary)
+                        : null,
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                bottom: 10,
+                start: 10,
+                end: 10,
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                bottom: 36,
+                start: 10,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Icon(
+                    status == null ? Icons.add_rounded : Icons.edit_rounded,
+                    color: Colors.white,
+                    size: 17,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -606,24 +715,95 @@ class _StatusAddTile extends StatelessWidget {
 
 class _StatusTile extends StatelessWidget {
   const _StatusTile({required this.status, required this.onTap});
+
   final UserStatusModel status;
   final VoidCallback onTap;
-  @override Widget build(BuildContext context) {
+
+  @override
+  Widget build(BuildContext context) {
     final image = status.userImage?.trim() ?? '';
+    final borderColor = status.isViewed
+        ? Theme.of(context).dividerColor
+        : Theme.of(context).colorScheme.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
-      child: SizedBox(width: 72, child: Column(children: [
-        Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2)), child: CircleAvatar(radius: 29, backgroundImage: image.isEmpty ? null : NetworkImage(image), child: image.isEmpty ? Text(status.userName.characters.first) : null)),
-        const SizedBox(height: 6),
-        Text(
-          status.userName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+      child: SizedBox(
+        width: 112,
+        height: 160,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (image.isNotEmpty)
+                Image.network(
+                  image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+                )
+              else
+                Container(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Center(
+                    child: Text(
+                      status.userName.characters.first,
+                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(.78),
+                    ],
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                top: 8,
+                start: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    border: Border.all(color: borderColor, width: 2.5),
+                  ),
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundImage:
+                        image.isEmpty ? null : NetworkImage(image),
+                    child: image.isEmpty
+                        ? Text(status.userName.characters.first)
+                        : null,
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                bottom: 10,
+                start: 10,
+                end: 10,
+                child: Text(
+                  status.userName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ]),
-    ),
-  );
+      ),
+    );
   }
 }
