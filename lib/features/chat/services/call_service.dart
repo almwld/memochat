@@ -385,32 +385,13 @@ class CallService {
   }
 
   Future<void> handleIncomingCall(BuildContext context,RemoteMessage message) async {
-    final id=(message.data['callId']??message.data['id'])?.toString().trim();
-    if(id==null||id.isEmpty)return;
+    final id = (message.data['callId'] ?? message.data['id'])?.toString().trim();
+    if (id == null || id.isEmpty) return;
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final doc = await _firestore.collection('calls').doc(id).get();
-    if (!doc.exists) return;
-
-    final data = doc.data() ?? <String, dynamic>{};
-    final receiverId = data['receiverId']?.toString() ?? '';
-    if (receiverId != uid) {
-      debugPrint('handleIncomingCall: not receiver');
-      return;
-    }
-
-    final registry = ActiveCallRegistry.instance;
-    if (registry.hasActiveCall && !registry.isActive(id)) { debugPrint('CALL FCM MESSAGE BLOCKED id=$id active=${registry.activeCallId}'); await markBusy(id); return; }
-    final callerId=(message.data['callerId']??'').toString();
-    var chatId=message.data['chatId']?.toString();
-    chatId=(chatId==null||chatId.isEmpty)?await resolveChatId(id):chatId;
-    if(chatId==null||chatId.isEmpty){ToastService.showError('تعذر العثور على المحادثة المرتبطة بالمكالمة');return;}
-    if(!context.mounted)return;
-    if (registry.hasActiveCall && !registry.isActive(id)) { await markBusy(id); return; }
-    Navigator.of(context).push(MaterialPageRoute(builder:(_)=>IncomingCallScreen(callId:id,callerName:(message.data['callerName']??'مستخدم').toString(),callerId:callerId,callerImage:message.data['callerPhotoUrl']?.toString(),isVideo:message.data['isVideo']?.toString()=='true'||message.data['isVideoCall']?.toString()=='true',chatId:chatId!,onCallAnswered:(_){},)));
+    // Keep legacy FCM routing on the same single incoming-call UI owner.
+    await CallSoundCoordinator.instance.presentIncomingCallById(id);
   }
+
   void dispose(){_inCall=false;_current=null;}
 }
 class _Ctx { final String chatId; final CallType type; const _Ctx(this.chatId,this.type); }
