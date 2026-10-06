@@ -140,7 +140,7 @@ class _Bubble {
     required this.velocity, required this.phase,
   }) : colorIndex = math.Random().nextInt(5);
 
-  final Vector2 position;
+  Vector2 position;
   final double radius;
   final Vector2 velocity;
   final double phase;
