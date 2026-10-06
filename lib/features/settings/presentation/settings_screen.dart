@@ -471,7 +471,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
         Card(child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
-          PremiumIconTile(icon: widget.icon, size: 48, iconSize: 23),
+          Icon(widget.icon, size: 28),
           const SizedBox(width: 14),
           Expanded(child: Text(widget.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
         ]))),
