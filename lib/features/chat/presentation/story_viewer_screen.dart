@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
@@ -278,6 +279,37 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               ],
             ),
           ),
+          if (widget.status.userId == FirebaseAuth.instance.currentUser?.uid)
+            PopupMenuButton<String>(
+              iconColor: Colors.white,
+              onSelected: (value) async {
+                if (value == 'delete') {
+                  await _statusService.deleteStatus(widget.status.id);
+                  if (mounted) Navigator.of(context).pop();
+                } else if (value == 'edit' && _currentStory.type == 'text') {
+                  final controller = TextEditingController(text: _currentStory.text ?? '');
+                  final edited = await showDialog<String>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('تعديل الحالة'),
+                      content: TextField(controller: controller, maxLines: 5, maxLength: 2000),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                        FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('حفظ')),
+                      ],
+                    ),
+                  );
+                  controller.dispose();
+                  if (edited != null && edited.isNotEmpty) {
+                    await _statusService.updateTextStory(statusId: widget.status.id, storyIndex: _currentIndex, text: edited);
+                  }
+                }
+              },
+              itemBuilder: (_) => [
+                if (_currentStory.type == 'text') const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                const PopupMenuItem(value: 'delete', child: Text('حذف')),
+              ],
+            ),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close, color: Colors.white),
