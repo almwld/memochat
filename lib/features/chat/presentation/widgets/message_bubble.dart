@@ -617,7 +617,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         statusLabel = incoming ? 'مرفوضة' : 'تم رفضها';
         break;
       case 'busy':
-        icon = Icons.phone_busy_rounded;
+        icon = Icons.call_end_rounded;
         statusLabel = 'مشغول بمكالمة أخرى';
         break;
       case 'cancelled':
