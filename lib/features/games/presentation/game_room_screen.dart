@@ -64,7 +64,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                   Text('${game.players.length} لاعبين'),
                   const SizedBox(height: 24),
                   if (!joined) FilledButton.icon(
-                    onPressed: uid == null ? null : () => GameService.instance.joinGame(chatId: chatId, gameId: gameId, uid: uid),
+                    onPressed: uid == null ? null : () async { try { await GameService.instance.joinGame(chatId: widget.chatId, gameId: widget.gameId, uid: uid).timeout(const Duration(seconds: 8)); } catch (_) { if (!context.mounted) return; ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر الانضمام الآن. تحقق من الاتصال ثم حاول مجددًا.'))); } },
                     icon: const Icon(Icons.login_rounded),
                     label: const Text('انضم إلى اللعبة'),
                   ) else const Text('بانتظار لاعب آخر للبدء...'),
