@@ -298,6 +298,38 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
     }
   }
 
+  Future<void> _inviteUser() async {
+    final snap = await FirebaseFirestore.instance.collection('users').limit(100).get();
+    final candidates = snap.docs.where((doc) => doc.id != FirebaseAuth.instance.currentUser?.uid).toList();
+    if (!mounted) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: candidates.length,
+        itemBuilder: (_, index) {
+          final doc = candidates[index];
+          final d = doc.data();
+          final name = d['displayName']?.toString().trim().isNotEmpty == true ? d['displayName'].toString().trim() : 'مستخدم';
+          final photo = d['photoUrl']?.toString().trim() ?? '';
+          return ListTile(
+            leading: CircleAvatar(backgroundImage: photo.isEmpty ? null : NetworkImage(photo), child: photo.isEmpty ? const Icon(Icons.person_outline) : null),
+            title: Text(name),
+            onTap: () => Navigator.pop(context, doc.id),
+          );
+        },
+      ),
+    );
+    if (selected == null) return;
+    try {
+      await _service.inviteToVoiceRoom(roomId: widget.roomId, recipientId: selected);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال دعوة الغرفة الصوتية.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الدعوة: $e')));
+    }
+  }
+
   Future<void> _toggleMic() async {
     final value = await _liveKit.toggleMicrophone();
     if (mounted) setState(() => _mic = value);
@@ -372,6 +404,11 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> with SingleTickerProv
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
+          IconButton(
+            tooltip: 'دعوة إلى الغرفة',
+            onPressed: _inviteUser,
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+          ),
           IconButton(
             tooltip: _speaker ? 'السماعة الخارجية مفعلة' : 'السماعة الخارجية متوقفة',
             onPressed: _toggleSpeaker,
