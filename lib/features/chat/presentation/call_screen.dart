@@ -231,7 +231,7 @@ class _CallScreenState extends State<CallScreen> {
       );
 
       if (widget.isOutgoing && c.status != CallStatus.connected) {
-        timeout = Timer(const Duration(seconds: 30), () async {
+        timeout = Timer(const Duration(seconds: 45), () async {
           if (ending || joined) return;
           try {
             await calls.missCall(c.id);
