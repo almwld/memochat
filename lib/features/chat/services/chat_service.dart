@@ -172,9 +172,10 @@ class ChatService {
     final id=_uid(); final user=_auth.currentUser!; final chat=await _authorizedChat(chatId);
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
     final participants=List<String>.from(chat.data()?['participants']??const []);
-    final receiverIds=participants.where((p)=>p!=id).toList();
-    final receiverSnapshots=await Future.wait(receiverIds.map((p)=>_firestore.collection('users').doc(p).get()));
-    final delivered=receiverSnapshots.any((s)=>s.data()?['isOnline']==true);
+    // Message persistence must not depend on reading receiver presence/profile
+    // documents. Firestore is the source of truth; the receiver's realtime
+    // listener acknowledges delivery after it actually receives the message.
+    final delivered=false;
     final type=metadata?['kind']=='contact'?'contact':metadata?['kind']=='game_invite'?'game_invite':imageUrl!=null?'image':videoUrl!=null?'video':audioUrl!=null?'audio':fileUrl!=null?'file':locationUrl!=null?'location':'text';
     final preview=text.trim().isNotEmpty?text.trim():type=='image'?'📷 صورة':type=='video'?'🎬 فيديو':type=='audio'?'🎤 رسالة صوتية':type=='file'?'📎 ملف':'مرفق';
     Map<String,dynamic>? replyPreview;
