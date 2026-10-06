@@ -86,8 +86,8 @@ class SocialService {
     _authz();
     final post = _c('socialPosts').doc(postId);
     final like = post.collection('likes').doc(_uid);
-    final existing = await like.get();
     await _db.runTransaction((tx) async {
+      final existing = await tx.get(like);
       if (existing.exists) {
         tx.delete(like);
         tx.update(post, {
@@ -186,8 +186,8 @@ class SocialService {
     _authz();
     final content = _c('socialReels').doc(reelId);
     final ref = content.collection('likes').doc(_uid);
-    final existing = await ref.get();
     await _db.runTransaction((tx) async {
+      final existing = await tx.get(ref);
       if (existing.exists) {
         tx.delete(ref);
         tx.update(content, {
