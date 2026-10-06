@@ -11,7 +11,6 @@ async function archiveNotification(uid, payload) {
     body: String(payload.data?.body || 'لديك إشعار جديد'),
     data: payload.data || {},
     chatId: payload.data?.chatId || null,
-    callId: payload.data?.callId || null,
     isRead: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -34,42 +33,22 @@ async function sendToUser(uid,payload){
   const tokens=await getFcmTokens(uid);
   if(!tokens.length)return;
   try{
-    const type=String(payload.data?.type||'');
-    const isCall=type==='incoming_call';
     const message={
       tokens,
       data:Object.fromEntries(Object.entries(payload.data||{}).map(([k,v])=>[k,String(v??'')])),
-      // Chat messages use a real FCM notification payload when the app is
-      // backgrounded/terminated. This avoids relying solely on the Dart
-      // background isolate, which can be skipped by Android under power
-      // restrictions. Calls remain data-only because their dedicated local
-      // call notification/action flow must stay authoritative.
-      ...(isCall ? {} : {
-        notification:{
-          title:String(payload.data?.title||'MemoChat'),
-          body:String(payload.data?.body||'لديك رسالة جديدة في الدردشة'),
-        },
-      }),
+      notification:{
+        title:String(payload.data?.title||'MemoChat'),
+        body:String(payload.data?.body||'لديك إشعار جديد'),
+      },
       android:{
         priority:'high',
-        ttl:isCall?60*1000:60*60*1000,
-        ...(!isCall ? {
-          notification:{
-            channelId:'memochat_messages_v1',
-            sound:'notification',
-            priority:'high',
-          },
-        } : {}),
+        ttl:60*60*1000,
+        notification:{channelId:'memochat_messages_v1',sound:'notification',priority:'high'},
       },
       apns:{
-        headers:isCall
-          ? {'apns-priority':'10','apns-push-type':'alert'}
-          : {'apns-priority':'5','apns-push-type':'background'},
-        payload:{
-          aps:{
-            'content-available':1,
-            ...(isCall?{sound:'call_ringtone.caf'}:{}),
-          },
+        headers:{'apns-priority':'5','apns-push-type':'background'},
+        payload:{aps:{'content-available':1}},
+      },
         },
       },
     };
@@ -108,10 +87,6 @@ exports.notifyAdminNotification=onDocumentCreated('notifications/{notificationId
 exports.notifyNewChatMessage=onDocumentCreated('chats/{chatId}/messages/{messageId}',async event=>{
   const s=event.data;if(!s)return;
   const m=s.data()||{},chatId=event.params.chatId,senderId=String(m.senderId||'');
-  // Call lifecycle entries are timeline records, not chat messages. The
-  // incoming-call FCM is sent by notifyIncomingCall and must never produce a
-  // second notification that opens the chat room.
-  if (m.type === 'call' || m.metadata?.callId || m.callId) return;
   if(!senderId)return;
   const chatSnap=await db.collection('chats').doc(chatId).get();
   if(!chatSnap.exists)return;
@@ -179,35 +154,6 @@ function notificationPayload(type, title, body, extra = {}) {
 }
 
 
-
-// Canonical incoming-call delivery: Firestore is the source of truth and
-// this trigger is the single FCM producer for incoming calls.
-exports.notifyIncomingCall=onDocumentCreated('calls/{callId}',async event=>{
-  const snap=event.data;if(!snap)return;
-  const call=snap.data()||{};
-  const callId=event.params.callId;
-  const status=String(call.status||'');
-  if(!['calling','ringing'].includes(status))return;
-  const callerId=String(call.callerId||'');
-  const receiverId=String(call.receiverId||'');
-  const chatId=String(call.chatId||'');
-  if(!callerId||!receiverId||!chatId||callerId===receiverId)return;
-  const data={
-    type:'incoming_call',
-    callId,
-    chatId,
-    callerId,
-    receiverId,
-    callerName:String(call.callerName||'مستخدم'),
-    callerPhotoUrl:String(call.callerPhotoUrl||''),
-    isVideo:(call.isVideoCall===true||call.isVideo===true||String(call.callType||'')==='video')?'true':'false',
-    callType:String(call.callType||((call.isVideoCall===true||call.isVideo===true)?'video':'audio')),
-    title:String(call.callerName||'مكالمة واردة'),
-    body:String(call.isVideoCall===true||call.isVideo===true||String(call.callType||'')==='video'?'مكالمة فيديو واردة':'مكالمة صوتية واردة'),
-  };
-  await archiveNotification(receiverId,{data});
-  await sendToUser(receiverId,{data});
-});
 
 
 exports.notifyGroupMemberAdded=onDocumentUpdated('chats/{chatId}',async event=>{
