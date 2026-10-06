@@ -189,8 +189,28 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
   final update=<String,dynamic>{'lastMessage':'رسالة نظامية مشفرة','lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':id,'updatedAt':FieldValue.serverTimestamp()};for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}batch.update(_chatRef(chatId),update);await batch.commit();return ref.id;
 }
   Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}){
-    _uid();\n    final controller = StreamController<MessagePaginationResult>();\n    StreamSubscription<QuerySnapshot<Map<String,dynamic>>>? subscription;
-    Future<void> start() async {\n      try {\n        await _authorizedChat(chatId);\n        subscription = _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit).snapshots().listen((s) async {\n          try {\n            controller.add(MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit));\n          } catch (e, st) {\n            controller.addError(e, st);\n          }\n        }, onError: controller.addError);\n      } catch (e, st) {\n        controller.addError(e, st);\n        await controller.close();\n      }\n    }\n    controller.onCancel = () async { await subscription?.cancel(); };\n    unawaited(start());\n    return controller.stream;\n  }
+    _uid();
+    final controller = StreamController<MessagePaginationResult>();
+    StreamSubscription<QuerySnapshot<Map<String,dynamic>>>? subscription;
+    Future<void> start() async {
+      try {
+        await _authorizedChat(chatId);
+        subscription = _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit).snapshots().listen((s) async {
+          try {
+            controller.add(MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit));
+          } catch (e, st) {
+            controller.addError(e, st);
+          }
+        }, onError: controller.addError);
+      } catch (e, st) {
+        controller.addError(e, st);
+        await controller.close();
+      }
+    }
+    controller.onCancel = () async { await subscription?.cancel(); };
+    unawaited(start());
+    return controller.stream;
+  }
   Future<MessagePaginationResult> getMoreMessages({required String chatId,required int limit,DocumentSnapshot? startAfter})async{await _authorizedChat(chatId);Query<Map<String,dynamic>> q=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();return MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit);}
   Future<List<MessageModel>> searchMessages({required String chatId,required String query,int limit=200})async{await _authorizedChat(chatId);final needle=query.trim().toLowerCase();if(needle.isEmpty)return const [];final safeLimit=limit.clamp(20,500).toInt();final snapshot=await _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(safeLimit).get();final decrypted=await _decryptMessageDocs(snapshot.docs);return decrypted.where((m){final values=[m.text??'',m.senderName,m.fileName??'',m.fileMimeType??''];return values.any((v)=>v.toLowerCase().contains(needle));}).toList();}
   Future<void> markAsUnread(String chatId) async { final id=_uid(); await _authorizedChat(chatId); await _chatRef(chatId).update({'unreadCount.$id':FieldValue.increment(1),'updatedAt':FieldValue.serverTimestamp()}); }
