@@ -39,6 +39,7 @@ class AdvancedFeaturesService {
       'topic': cleanTopic,
       'roomName': 'memo_voice_${roomRef.id}',
       'active': true,
+      'visibility': 'public',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -63,6 +64,13 @@ class AdvancedFeaturesService {
 
   Future<void> leaveVoiceRoom(String roomId) async {
     await _rooms.doc(roomId).collection('members').doc(uid).delete();
+  }
+
+  Future<void> setVoiceRoomVisibility(String roomId, bool visible) async {
+    final ref = _rooms.doc(roomId);
+    final snap = await ref.get();
+    if (!snap.exists || snap.data()?['ownerId'] != uid) throw StateError('لا تملك صلاحية تعديل الغرفة');
+    await ref.update({'visibility': visible ? 'public' : 'hidden', 'updatedAt': FieldValue.serverTimestamp()});
   }
 
   Future<void> closeVoiceRoom(String roomId) async {
