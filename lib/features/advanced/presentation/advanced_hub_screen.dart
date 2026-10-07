@@ -131,6 +131,7 @@ class _AdvancedFeatureCard extends StatelessWidget {
           ),
         ),
       );
+  }
 }
 
 class VoiceRoomsScreen extends StatefulWidget {
