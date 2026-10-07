@@ -250,6 +250,14 @@ class FirebaseChatRepository implements ChatRepository {
                 unreadCount: data['unreadCount'] is Map ? ((data['unreadCount'] as Map)[_uid] as num?)?.toInt() ?? 0 : (data['unreadCount'] as num?)?.toInt() ?? 0,
                   isArchived: data['isArchived'] == true,
                   isGroup: isGroup,
+                  isPinned: data['pinnedFor'] is Map
+                      ? (data['pinnedFor'] as Map)[_uid] == true
+                      : data['isPinned'] == true,
+                  isMuted: data['mutedFor'] is Map
+                      ? (data['mutedFor'] as Map)[_uid] == true
+                      : data['isMuted'] == true,
+                  isTyping: data['typing'] is Map &&
+                      (data['typing'] as Map)[other] == true,
                 );
               } catch (error, stackTrace) {
                 // Ignore one malformed/legacy chat document instead of terminating
