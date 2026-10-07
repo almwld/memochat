@@ -449,6 +449,7 @@ class MemoArcadeGame extends FlameGame {
     score = math.max(0, score + (n == _mathCorrect ? 3 : -1));
     _specialRound++;
     _specialSecret = 0;
+    _mathAddend = 0;
     _mathOptions = const [];
     onScore(score);
     _syncScore();
