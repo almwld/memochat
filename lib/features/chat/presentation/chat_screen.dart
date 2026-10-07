@@ -652,13 +652,13 @@ class _ConversationCard extends StatelessWidget {
     final last = conversation.lastMessage;
     final preview = last?.text.trim().isNotEmpty == true
         ? last!.text.trim()
-        : last?.type == MessageType.image
+        : last?.imageUrl?.isNotEmpty == true
             ? 'صورة'
-            : last?.type == MessageType.audio
+            : last?.audioUrl?.isNotEmpty == true
                 ? 'رسالة صوتية'
-                : last?.type == MessageType.video
+                : last?.videoUrl?.isNotEmpty == true
                     ? 'فيديو'
-                    : last?.type == MessageType.file
+                    : last?.fileUrl?.isNotEmpty == true
                         ? 'ملف'
                         : 'ابدأ المحادثة الآن';
     return Card(
