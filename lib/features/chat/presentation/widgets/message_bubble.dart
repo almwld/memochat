@@ -190,23 +190,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               start: widget.isMe ? 4 : 0,
               end: widget.isMe ? 0 : 4,
             ),
-            padding: EdgeInsets.zero,
-            decoration: BoxDecoration(
-              color: widget.isMe
-                  ? AppColors.primary
-                  : (dark
-                      ? const Color(0xFF10201E)
-                      : const Color(0xFFFFFFFF)),
-              borderRadius: BorderRadiusDirectional.only(
-                topStart: Radius.circular(widget.isMe ? 18 : 6),
-                topEnd: Radius.circular(widget.isMe ? 6 : 18),
-                bottomStart: Radius.circular(16),
-                bottomEnd: Radius.circular(16),
-              ),
-              border: !widget.isMe && !dark
-                  ? Border.all(color: const Color(0xFFDCE5E3), width: .8)
-                  : null,
-            ),
+            color: Colors.transparent,
             child: child,
           ),
         ),
