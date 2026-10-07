@@ -186,6 +186,7 @@ class MemoArcadeGame extends FlameGame {
       case GameType.trueFalse:
       case GameType.flagQuiz:
       case GameType.animalQuiz:
+      case GameType.foodQuiz:
       case GameType.geographyQuiz:
       case GameType.scienceQuiz:
       case GameType.historyQuiz:
@@ -226,6 +227,7 @@ class MemoArcadeGame extends FlameGame {
 
   final List<int> _memoryOrder = <int>[];
   final Set<int> _memoryFound = <int>{};
+  final Set<int> _memoryVisible = <int>{};
   int _memoryFirst = -1;
   int _sequenceStep = 0;
   int _colorGoal = 0;
@@ -234,24 +236,57 @@ class MemoArcadeGame extends FlameGame {
     if (_memoryOrder.isEmpty) {
       _memoryOrder.addAll(List<int>.generate(12, (i) => i ~/ 2)..shuffle(random));
     }
-    final cell = (((point.y - 100) / math.max(1, size.x / 4)).floor()).clamp(0, 2) * 4 +
-        ((point.x / math.max(1, size.x / 4)).floor()).clamp(0, 3);
-    if (_memoryFound.contains(cell)) return;
+    final cellSize = math.max(1, size.x / 4);
+    final col = (point.x / cellSize).floor();
+    final row = ((point.y - 100) / 62.0).floor();
+    if (col < 0 || col >= 4 || row < 0 || row >= 3) return;
+    final cell = row * 4 + col;
+    if (_memoryFound.contains(cell) || _memoryVisible.contains(cell)) return;
     if (_memoryFirst < 0) {
       _memoryFirst = cell;
-      _memoryFound.add(cell);
+      _memoryVisible.add(cell);
       return;
     }
+    _memoryVisible.add(cell);
     if (_memoryOrder[cell] == _memoryOrder[_memoryFirst]) {
       score += 2;
-      _memoryFound.add(cell);
+      _memoryFound.addAll([_memoryFirst, cell]);
       _memoryFirst = -1;
       onScore(score);
       _syncScore();
     } else {
+      _memoryVisible.removeAll([_memoryFirst, cell]);
       _memoryFirst = -1;
       score = math.max(0, score - 1);
       onScore(score);
+      _syncScore();
+    }
+  }
+
+  void _renderMemory(Canvas canvas, Paint paint) {
+    if (_memoryOrder.isEmpty) {
+      _memoryOrder.addAll(List<int>.generate(12, (i) => i ~/ 2)..shuffle(random));
+    }
+    final w = (size.x - 36) / 4;
+    for (var n = 0; n < 12; n++) {
+      final x = 8 + (n % 4) * w;
+      final y = 105.0 + (n ~/ 4) * 62.0;
+      final visible = _memoryFound.contains(n) || _memoryVisible.contains(n);
+      paint.color = visible ? palette[_memoryOrder[n] % palette.length] : const Color(0xFF17383B);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, w - 5, 52),
+        const Radius.circular(10),
+      ), paint);
+      if (visible) {
+        final t = TextPainter(
+          text: TextSpan(
+            text: (_memoryOrder[n] + 1).toString(),
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        t.paint(canvas, Offset(x + (w - 5 - t.width) / 2, y + 14));
+      }
     }
   }
 
@@ -337,8 +372,9 @@ class MemoArcadeGame extends FlameGame {
 
   int _specialRound = 0;
   int _specialSecret = 0;
-  int _codeDigit = 0;
+  int _codeDigit = -1;
   int _codeAttempts = 0;
+  int _mathAddend = 0;
   int _mathCorrect = 0;
   List<int> _mathOptions = const [];
   List<String> _wordOptions = const [];
@@ -361,22 +397,22 @@ class MemoArcadeGame extends FlameGame {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
       case ArcadeMode.math:
-        if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
-        final q = '$_specialSecret + ؟';
+        if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; _mathAddend = b; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
+        final q = '$_specialSecret + $_mathAddend = ؟';
         _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList()); break;
       case ArcadeMode.word:
         final source = content.prompts.isEmpty ? 'كتاب' : content.prompts[_specialRound % content.prompts.length];
         if (_wordOptions.isEmpty) { _wordOptions = [source, 'هاتف', 'شجرة', 'مدينة']..shuffle(random); _wordCorrect = _wordOptions.indexOf(source); }
         final chars = source.runes.toList()..shuffle(random);
         _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
-      case ArcadeMode.code: if (_codeDigit == 0 && _codeAttempts == 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
+      case ArcadeMode.code: if (_codeDigit < 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
       case ArcadeMode.lights:
         for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100.0 + (n ~/ 3) * 68.0; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
       case ArcadeMode.pairs:
         _renderPairs(canvas, paint);
         break;
       case ArcadeMode.memory:
-        _renderPairs(canvas, paint);
+        _renderMemory(canvas, paint);
         break;
       case ArcadeMode.race:
         paint.color = const Color(0xFF39D5C5); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, size.y * .52, size.x - 36, 18), const Radius.circular(9)), paint); paint.color = Colors.white; final x = 24 + (_raceProgress / 100) * (size.x - 48); canvas.drawCircle(Offset(x, size.y * .52 + 9), 14, paint); break;
@@ -431,7 +467,7 @@ class MemoArcadeGame extends FlameGame {
   void _tapCode(Vector2 point) {
     final n = ((point.y - 150) / 62).floor();
     if (n < 0 || n > 3) return;
-    if (_codeDigit == 0 && _codeAttempts == 0) _codeDigit = random.nextInt(4);
+    if (_codeDigit < 0) _codeDigit = random.nextInt(4);
     if (n == _codeDigit) {
       score += 4;
       _codeDigit = random.nextInt(4);
