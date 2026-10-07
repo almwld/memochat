@@ -21,6 +21,7 @@ class SocialScreen extends StatefulWidget {
 }
 
 class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderStateMixin {
+  bool get _reelsVisible => tabs.index == 1;
   late final SocialService service = widget.service ?? SocialService();
   late final TabController tabs = TabController(length: 2, vsync: this);
 
@@ -80,7 +81,13 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
               controller: tabs,
               children: [
                 _Feed(service: service),
-                ReelsScreen(service: service),
+                AnimatedBuilder(
+                  animation: tabs,
+                  builder: (_, __) => ReelsScreen(
+                    service: service,
+                    visible: _reelsVisible,
+                  ),
+                ),
               ],
             ),
           ),
