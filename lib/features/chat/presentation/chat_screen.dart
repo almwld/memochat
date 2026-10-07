@@ -666,171 +666,268 @@ class _ConversationCard extends StatelessWidget {
             : scheme.onSurfaceVariant;
 
     return RepaintBoundary(
-      child: Card(
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        color: unread ? scheme.primaryContainer.withOpacity(.24) : scheme.surface,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(
-            color: unread ? scheme.primary.withOpacity(.32) : scheme.outlineVariant.withOpacity(.42),
-            width: unread ? 1.2 : 1,
-          ),
+      child: Dismissible(
+        key: ValueKey('conversation-${conversation.id}'),
+        direction: DismissDirection.horizontal,
+        resizeDuration: const Duration(milliseconds: 180),
+        movementDuration: const Duration(milliseconds: 220),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            await onMarkUnread();
+            return false;
+          }
+          await onArchive();
+          return true;
+        },
+        background: _SwipeAction(
+          alignment: AlignmentDirectional.centerStart,
+          icon: Icons.mark_chat_unread_rounded,
+          label: 'غير مقروءة',
+          color: scheme.primary,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: onTap,
-          onLongPress: onMarkUnread,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(12, 11, 10, 11),
-            child: Row(
-              children: [
-                _ConversationAvatar(user: user, unread: unread),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SizedBox(
-                    height: 58,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+        secondaryBackground: _SwipeAction(
+          alignment: AlignmentDirectional.centerEnd,
+          icon: conversation.isArchived
+              ? Icons.unarchive_rounded
+              : Icons.archive_outlined,
+          label: conversation.isArchived ? 'إلغاء الأرشفة' : 'أرشفة',
+          color: scheme.secondary,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: unread
+                ? scheme.primaryContainer.withOpacity(.24)
+                : scheme.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: unread
+                  ? scheme.primary.withOpacity(.38)
+                  : scheme.outlineVariant.withOpacity(.42),
+              width: unread ? 1.3 : 1,
+            ),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: onTap,
+              onLongPress: onMarkUnread,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 11, 10, 11),
+                child: Row(
+                  children: [
+                    _ConversationAvatar(user: user, unread: unread),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 58,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          user.displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 15.5,
+                                            fontWeight: unread
+                                                ? FontWeight.w900
+                                                : FontWeight.w800,
+                                            letterSpacing: -.1,
+                                          ),
+                                        ),
+                                      ),
+                                      if (conversation.isGroup) ...[
+                                        const SizedBox(width: 5),
+                                        Icon(
+                                          Icons.groups_2_rounded,
+                                          size: 15,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (conversation.isPinned)
+                                  Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      end: 4,
+                                    ),
+                                    child: Icon(
+                                      Icons.push_pin_rounded,
+                                      size: 14,
+                                      color: scheme.primary,
+                                    ),
+                                  ),
+                                Text(
+                                  last == null
+                                      ? ''
+                                      : _formatConversationTime(last.createdAt),
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: unread
+                                        ? FontWeight.w800
+                                        : FontWeight.w500,
+                                    color: unread
+                                        ? scheme.primary
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
                             Expanded(
                               child: Row(
                                 children: [
-                                  Flexible(
-                                    child: Text(
-                                      user.displayName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 15.5,
-                                        fontWeight: unread ? FontWeight.w900 : FontWeight.w800,
-                                        letterSpacing: -.1,
+                                  if (last?.isMine == true &&
+                                      !conversation.isTyping) ...[
+                                    _MessageStateIcon(
+                                      status: last!.status,
+                                      color: unread
+                                          ? scheme.primary
+                                          : scheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  Expanded(
+                                    child: conversation.isTyping
+                                        ? Row(
+                                            children: [
+                                              _TypingDots(color: scheme.primary),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'يكتب الآن',
+                                                style: TextStyle(
+                                                  color: scheme.primary,
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        : Row(
+                                            children: [
+                                              Icon(
+                                                _previewIcon(last),
+                                                size: 16,
+                                                color: previewColor,
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Expanded(
+                                                child: Text(
+                                                  preview,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: previewColor,
+                                                    fontSize: 12.5,
+                                                    fontWeight: unread
+                                                        ? FontWeight.w700
+                                                        : FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                  if (conversation.isMuted)
+                                    Padding(
+                                      padding: const EdgeInsetsDirectional.only(
+                                        start: 6,
+                                      ),
+                                      child: Icon(
+                                        Icons.notifications_off_rounded,
+                                        size: 15,
+                                        color: scheme.onSurfaceVariant,
                                       ),
                                     ),
-                                  ),
-                                  if (conversation.isGroup) ...[
-                                    const SizedBox(width: 5),
-                                    Icon(Icons.groups_2_rounded, size: 15, color: scheme.onSurfaceVariant),
+                                  if (unread) ...[
+                                    const SizedBox(width: 7),
+                                    AnimatedScale(
+                                      scale: unread ? 1 : .7,
+                                      duration:
+                                          const Duration(milliseconds: 220),
+                                      curve: Curves.easeOutBack,
+                                      child: Container(
+                                        constraints:
+                                            const BoxConstraints(minWidth: 22),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: scheme.primary,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          conversation.unreadCount > 99
+                                              ? '99+'
+                                              : conversation.unreadCount
+                                                  .toString(),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: scheme.onPrimary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            if (conversation.isPinned)
-                              Padding(
-                                padding: const EdgeInsetsDirectional.only(end: 4),
-                                child: Icon(Icons.push_pin_rounded, size: 14, color: scheme.primary),
-                              ),
-                            Text(
-                              last == null ? '' : _formatConversationTime(last.createdAt),
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: unread ? FontWeight.w800 : FontWeight.w500,
-                                color: unread ? scheme.primary : scheme.onSurfaceVariant,
-                              ),
-                            ),
+                            const SizedBox(height: 2),
+                            _LastCallStatus(chatId: conversation.id),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            if (last?.isMine == true && !conversation.isTyping) ...[
-                              _MessageStateIcon(
-                                status: last!.status,
-                                color: unread ? scheme.primary : scheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            Expanded(
-                              child: conversation.isTyping
-                                  ? Row(
-                                      children: [
-                                        _TypingDots(color: scheme.primary),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'يكتب الآن',
-                                          style: TextStyle(
-                                            color: scheme.primary,
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Row(
-                                      children: [
-                                        Icon(_previewIcon(last), size: 16, color: previewColor),
-                                        const SizedBox(width: 5),
-                                        Expanded(
-                                          child: Text(
-                                            preview,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: previewColor,
-                                              fontSize: 12.5,
-                                              fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                            if (conversation.isMuted)
-                              Padding(
-                                padding: const EdgeInsetsDirectional.only(start: 6),
-                                child: Icon(Icons.notifications_off_rounded, size: 15, color: scheme.onSurfaceVariant),
-                              ),
-                            if (unread) ...[
-                              const SizedBox(width: 7),
-                              Container(
-                                constraints: const BoxConstraints(minWidth: 22),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: scheme.primary,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  conversation.unreadCount > 99 ? '99+' : conversation.unreadCount.toString(),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: scheme.onPrimary,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    PopupMenuButton<String>(
+                      tooltip: 'خيارات المحادثة',
+                      padding: EdgeInsets.zero,
+                      iconSize: 20,
+                      onSelected: (value) {
+                        if (value == 'unread') onMarkUnread();
+                        if (value == 'archive') onArchive();
+                        if (value == 'folder') onFolder();
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'unread',
+                          child: Text('تحديد كغير مقروءة'),
+                        ),
+                        PopupMenuItem(
+                          value: 'archive',
+                          child: Text(
+                            conversation.isArchived
+                                ? 'إلغاء الأرشفة'
+                                : 'أرشفة',
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'folder',
+                          child: Text('تنظيم في مجلد'),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(width: 2),
-                PopupMenuButton<String>(
-                  tooltip: 'خيارات المحادثة',
-                  padding: EdgeInsets.zero,
-                  iconSize: 20,
-                  onSelected: (value) {
-                    if (value == 'unread') onMarkUnread();
-                    if (value == 'archive') onArchive();
-                    if (value == 'folder') onFolder();
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'unread', child: Text('تحديد كغير مقروءة')),
-                    PopupMenuItem(
-                      value: 'archive',
-                      child: Text(conversation.isArchived ? 'إلغاء الأرشفة' : 'أرشفة'),
-                    ),
-                    const PopupMenuItem(value: 'folder', child: Text('تنظيم في مجلد')),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -873,17 +970,165 @@ class _ConversationCard extends StatelessWidget {
   static String _formatConversationTime(DateTime date) {
     final now = DateTime.now();
     final local = date.toLocal();
-    if (now.year == local.year && now.month == local.month && now.day == local.day) {
-      final hour = local.hour == 0 ? 12 : local.hour > 12 ? local.hour - 12 : local.hour;
+    if (now.year == local.year &&
+        now.month == local.month &&
+        now.day == local.day) {
+      final hour = local.hour == 0
+          ? 12
+          : local.hour > 12
+              ? local.hour - 12
+              : local.hour;
       final minute = local.minute.toString().padLeft(2, '0');
       final period = local.hour >= 12 ? 'م' : 'ص';
       return hour.toString() + ':' + minute + ' ' + period;
     }
     if (now.difference(local).inDays < 7) {
-      const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+      const days = [
+        'الإثنين',
+        'الثلاثاء',
+        'الأربعاء',
+        'الخميس',
+        'الجمعة',
+        'السبت',
+        'الأحد',
+      ];
       return days[local.weekday - 1];
     }
     return local.day.toString() + '/' + local.month.toString();
+  }
+}
+
+class _SwipeAction extends StatelessWidget {
+  const _SwipeAction({
+    required this.alignment,
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final AlignmentGeometry alignment;
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(.13),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      alignment: alignment,
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: 22),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LastCallStatus extends StatelessWidget {
+  const _LastCallStatus({required this.chatId});
+
+  final String chatId;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('calls')
+          .where('chatId', isEqualTo: chatId)
+          .limit(5)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final docs = [...snapshot.data!.docs];
+        docs.sort((a, b) {
+          final aData = a.data();
+          final bData = b.data();
+          final aTime = _callTime(aData);
+          final bTime = _callTime(bData);
+          return bTime.compareTo(aTime);
+        });
+        final data = docs.first.data();
+        final status = data['status']?.toString().trim() ?? '';
+        final type = data['callType']?.toString().trim() ??
+            (data['isVideoCall'] == true ? 'video' : 'audio');
+        final statusText = _callStatusText(status);
+        if (statusText == null) return const SizedBox.shrink();
+
+        final icon = type == 'video'
+            ? Icons.videocam_outlined
+            : Icons.call_outlined;
+        final tone = status == 'connected' || status == 'ended'
+            ? scheme.onSurfaceVariant
+            : scheme.primary;
+
+        return Row(
+          children: [
+            Icon(icon, size: 13, color: tone),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                'آخر مكالمة: $statusText',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: tone,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static DateTime _callTime(Map<String, dynamic> data) {
+    final value = data['updatedAt'] ?? data['endedAt'] ?? data['startedAt'];
+    if (value is Timestamp) return value.toDate();
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  static String? _callStatusText(String status) {
+    switch (status) {
+      case 'calling':
+        return 'جارٍ الاتصال';
+      case 'ringing':
+        return 'يرن';
+      case 'connected':
+        return 'متصل';
+      case 'ended':
+        return 'انتهت';
+      case 'missed':
+        return 'فائتة';
+      case 'rejected':
+        return 'مرفوضة';
+      case 'busy':
+        return 'مشغول';
+      case 'cancelled':
+        return 'ملغاة';
+      default:
+        return null;
+    }
   }
 }
 
