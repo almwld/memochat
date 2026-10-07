@@ -638,7 +638,14 @@ class _HeaderIconButton extends StatelessWidget {
 }
 
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread, required this.onArchive, required this.onFolder});
+  const _ConversationCard({
+    required this.conversation,
+    required this.onTap,
+    required this.onMarkUnread,
+    required this.onArchive,
+    required this.onFolder,
+  });
+
   final Conversation conversation;
   final VoidCallback onTap;
   final Future<void> Function() onMarkUnread;
@@ -650,97 +657,343 @@ class _ConversationCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final user = conversation.participant;
     final last = conversation.lastMessage;
-    final preview = last?.text.trim().isNotEmpty == true
-        ? last!.text.trim()
-        : last?.imageUrl?.isNotEmpty == true
-            ? 'صورة'
-            : last?.audioUrl?.isNotEmpty == true
-                ? 'رسالة صوتية'
-                : last?.videoUrl?.isNotEmpty == true
-                    ? 'فيديو'
-                    : last?.fileUrl?.isNotEmpty == true
-                        ? 'ملف'
-                        : 'ابدأ المحادثة الآن';
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: scheme.outlineVariant.withOpacity(.42)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        onLongPress: onMarkUnread,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(13, 11, 8, 11),
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 29,
-                    backgroundColor: scheme.primaryContainer,
-                    backgroundImage: user.avatarUrl?.isNotEmpty == true ? NetworkImage(user.avatarUrl!) : null,
-                    child: user.avatarUrl?.isNotEmpty == true
-                        ? null
-                        : Text(
-                            user.displayName.characters.first,
-                            style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 19),
-                          ),
-                  ),
-                  if (user.isOnline)
-                    PositionedDirectional(
-                      bottom: 1,
-                      end: 1,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF28B86B),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Theme.of(context).cardColor, width: 2.5),
+    final unread = conversation.unreadCount > 0;
+    final preview = _preview(last);
+    final previewColor = conversation.isTyping
+        ? scheme.primary
+        : unread
+            ? scheme.onSurface
+            : scheme.onSurfaceVariant;
+
+    return RepaintBoundary(
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: unread ? scheme.primaryContainer.withOpacity(.24) : scheme.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(
+            color: unread ? scheme.primary.withOpacity(.32) : scheme.outlineVariant.withOpacity(.42),
+            width: unread ? 1.2 : 1,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          onLongPress: onMarkUnread,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 11, 10, 11),
+            child: Row(
+              children: [
+                _ConversationAvatar(user: user, unread: unread),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 58,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      user.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 15.5,
+                                        fontWeight: unread ? FontWeight.w900 : FontWeight.w800,
+                                        letterSpacing: -.1,
+                                      ),
+                                    ),
+                                  ),
+                                  if (conversation.isGroup) ...[
+                                    const SizedBox(width: 5),
+                                    Icon(Icons.groups_2_rounded, size: 15, color: scheme.onSurfaceVariant),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (conversation.isPinned)
+                              Padding(
+                                padding: const EdgeInsetsDirectional.only(end: 4),
+                                child: Icon(Icons.push_pin_rounded, size: 14, color: scheme.primary),
+                              ),
+                            Text(
+                              last == null ? '' : _formatConversationTime(last.createdAt),
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: unread ? FontWeight.w800 : FontWeight.w500,
+                                color: unread ? scheme.primary : scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            if (last?.isMine == true && !conversation.isTyping) ...[
+                              _MessageStateIcon(
+                                status: last!.status,
+                                color: unread ? scheme.primary : scheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: conversation.isTyping
+                                  ? Row(
+                                      children: [
+                                        _TypingDots(color: scheme.primary),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'يكتب الآن',
+                                          style: TextStyle(
+                                            color: scheme.primary,
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      children: [
+                                        Icon(_previewIcon(last), size: 16, color: previewColor),
+                                        const SizedBox(width: 5),
+                                        Expanded(
+                                          child: Text(
+                                            preview,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: previewColor,
+                                              fontSize: 12.5,
+                                              fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                            if (conversation.isMuted)
+                              Padding(
+                                padding: const EdgeInsetsDirectional.only(start: 6),
+                                child: Icon(Icons.notifications_off_rounded, size: 15, color: scheme.onSurfaceVariant),
+                              ),
+                            if (unread) ...[
+                              const SizedBox(width: 7),
+                              Container(
+                                constraints: const BoxConstraints(minWidth: 22),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: scheme.primary,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  conversation.unreadCount > 99 ? '99+' : conversation.unreadCount.toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: scheme.onPrimary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 4),
-                    Text(preview, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              if (conversation.unreadCount > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(20)),
-                  child: Text(
-                    conversation.unreadCount.toString(),
-                    style: TextStyle(color: scheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w900),
                   ),
-                )
-              else
-                PopupMenuButton<String>(
-                  onSelected: (value) { if (value == 'archive') onArchive(); if (value == 'folder') onFolder(); },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'archive', child: Text(conversation.isArchived ? 'إلغاء الأرشفة' : 'أرشفة')),
-                    const PopupMenuItem(value: 'folder', child: Text('مجلد')),
-                  ],
-                  icon: Icon(Icons.more_horiz_rounded, color: scheme.onSurfaceVariant),
                 ),
-            ],
+                const SizedBox(width: 2),
+                PopupMenuButton<String>(
+                  tooltip: 'خيارات المحادثة',
+                  padding: EdgeInsets.zero,
+                  iconSize: 20,
+                  onSelected: (value) {
+                    if (value == 'unread') onMarkUnread();
+                    if (value == 'archive') onArchive();
+                    if (value == 'folder') onFolder();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'unread', child: Text('تحديد كغير مقروءة')),
+                    PopupMenuItem(
+                      value: 'archive',
+                      child: Text(conversation.isArchived ? 'إلغاء الأرشفة' : 'أرشفة'),
+                    ),
+                    const PopupMenuItem(value: 'folder', child: Text('تنظيم في مجلد')),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  static String _preview(ChatMessage? message) {
+    if (message == null) return 'ابدأ المحادثة الآن';
+    switch (message.type) {
+      case MessageType.image:
+        return 'صورة';
+      case MessageType.video:
+        return 'فيديو';
+      case MessageType.file:
+        return 'ملف';
+      case MessageType.audio:
+        return 'رسالة صوتية';
+      case MessageType.text:
+        return message.text.trim().isEmpty ? 'رسالة' : message.text.trim();
+    }
+  }
+
+  static IconData _previewIcon(ChatMessage? message) {
+    if (message == null) return Icons.chat_bubble_outline_rounded;
+    switch (message.type) {
+      case MessageType.image:
+        return Icons.photo_outlined;
+      case MessageType.video:
+        return Icons.videocam_outlined;
+      case MessageType.file:
+        return Icons.attach_file_rounded;
+      case MessageType.audio:
+        return Icons.graphic_eq_rounded;
+      case MessageType.text:
+        return Icons.chat_bubble_outline_rounded;
+    }
+  }
+
+  static String _formatConversationTime(DateTime date) {
+    final now = DateTime.now();
+    final local = date.toLocal();
+    if (now.year == local.year && now.month == local.month && now.day == local.day) {
+      final hour = local.hour == 0 ? 12 : local.hour > 12 ? local.hour - 12 : local.hour;
+      final minute = local.minute.toString().padLeft(2, '0');
+      final period = local.hour >= 12 ? 'م' : 'ص';
+      return hour.toString() + ':' + minute + ' ' + period;
+    }
+    if (now.difference(local).inDays < 7) {
+      const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+      return days[local.weekday - 1];
+    }
+    return local.day.toString() + '/' + local.month.toString();
+  }
+}
+
+class _ConversationAvatar extends StatelessWidget {
+  const _ConversationAvatar({required this.user, required this.unread});
+
+  final ChatUser user;
+  final bool unread;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final image = user.avatarUrl?.trim() ?? '';
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 58,
+          height: 58,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: unread ? scheme.primary : scheme.outlineVariant.withOpacity(.65),
+              width: unread ? 2 : 1,
+            ),
+          ),
+          child: CircleAvatar(
+            backgroundColor: scheme.primaryContainer,
+            backgroundImage: image.isEmpty ? null : NetworkImage(image),
+            child: image.isNotEmpty
+                ? null
+                : Text(
+                    user.displayName.characters.first,
+                    style: TextStyle(
+                      color: scheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 19,
+                    ),
+                  ),
+          ),
+        ),
+        if (user.isOnline)
+          PositionedDirectional(
+            bottom: -1,
+            end: -1,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: const Color(0xFF20B66B),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  width: 2.5,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MessageStateIcon extends StatelessWidget {
+  const _MessageStateIcon({required this.status, required this.color});
+
+  final MessageStatus status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (status) {
+      case MessageStatus.sending:
+        return Icon(Icons.schedule_rounded, size: 14, color: color);
+      case MessageStatus.sent:
+        return Icon(Icons.check_rounded, size: 15, color: color);
+      case MessageStatus.delivered:
+        return Icon(Icons.done_all_rounded, size: 15, color: color);
+      case MessageStatus.read:
+        return Icon(Icons.done_all_rounded, size: 15, color: color);
+      case MessageStatus.failed:
+        return Icon(Icons.error_outline_rounded, size: 15, color: color);
+    }
+  }
+}
+
+class _TypingDots extends StatelessWidget {
+  const _TypingDots({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(
+          3,
+          (index) => Padding(
+            padding: EdgeInsetsDirectional.only(end: index == 2 ? 0 : 2),
+            child: Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _StateView extends StatelessWidget {
