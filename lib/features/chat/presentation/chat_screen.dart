@@ -119,59 +119,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) => ScrollAwareScaffold(
-        appBar: AppBar(
-          title: const Text('المحادثات', style: TextStyle(fontWeight: FontWeight.w900)),
-          actions: [
-            FutureBuilder<int>(
-              future: _unreadNotifications,
-              builder: (context, snapshot) {
-                final count = snapshot.data ?? 0;
-                return IconButton(
-                  tooltip: 'الإشعارات${count > 0 ? ' ($count)' : ''}',
-                  onPressed: _openNotifications,
-                  icon: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.notifications_outlined),
-                      if (count > 0)
-                        PositionedDirectional(
-                          top: -5,
-                          end: -6,
-                          child: Container(
-                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.error,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              count > 99 ? '99+' : '$count',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 9, fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(142),
+          child: _MemoChatHeader(
+            searchController: _search,
+            searchFocus: _searchFocus,
+            unreadFuture: _unreadNotifications,
+            onNotifications: _openNotifications,
+            onNewGroup: _openCreateGroup,
+            onShake: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ShakeScreen(repository: widget.repository),
+              ),
             ),
-            IconButton(
-              tooltip: 'رجّ للتعارف',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShakeScreen(repository: widget.repository))),
-              icon: const Icon(Icons.vibration_rounded),
-            ),
-            IconButton(
-              tooltip: 'مجموعة جديدة',
-              onPressed: _openCreateGroup,
-              icon: const Icon(Icons.group_add_outlined),
-            ),
-            IconButton(
-              tooltip: 'بحث',
-              onPressed: () => _searchFocus.requestFocus(),
-              icon: const AppIcon(AppIcons.search, size: 23),
-            ),
-          ],
+            onSearchChanged: () => setState(() {}),
+          ),
         ),
         body: StreamBuilder<List<Conversation>>(
           stream: _conversationsStream,
@@ -479,6 +441,202 @@ class _ChatScreenState extends State<ChatScreen> {
 
 enum _ConversationFilter { all, unread, online }
 
+class _MemoChatHeader extends StatelessWidget {
+  const _MemoChatHeader({
+    required this.searchController,
+    required this.searchFocus,
+    required this.unreadFuture,
+    required this.onNotifications,
+    required this.onNewGroup,
+    required this.onShake,
+    required this.onSearchChanged,
+  });
+
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final Future<int> unreadFuture;
+  final VoidCallback onNotifications;
+  final VoidCallback onNewGroup;
+  final VoidCallback onShake;
+  final VoidCallback onSearchChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: const BorderRadiusDirectional.only(
+                        topStart: Radius.circular(16),
+                        topEnd: Radius.circular(8),
+                        bottomEnd: Radius.circular(16),
+                        bottomStart: Radius.circular(8),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.forum_rounded,
+                      color: scheme.onPrimary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MemoChat',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -.3,
+                          ),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          'مساحتك للحديث',
+                          style: TextStyle(fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _HeaderIconButton(
+                    icon: Icons.group_add_outlined,
+                    tooltip: 'مجموعة جديدة',
+                    onPressed: onNewGroup,
+                  ),
+                  _HeaderIconButton(
+                    icon: Icons.vibration_rounded,
+                    tooltip: 'رجّ للتعارف',
+                    onPressed: onShake,
+                  ),
+                  FutureBuilder<int>(
+                    future: unreadFuture,
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _HeaderIconButton(
+                            icon: Icons.notifications_none_rounded,
+                            tooltip: 'الإشعارات',
+                            onPressed: onNotifications,
+                          ),
+                          if (count > 0)
+                            PositionedDirectional(
+                              top: -2,
+                              end: -1,
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minWidth: 17,
+                                  minHeight: 17,
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  color: scheme.primary,
+                                  border: Border.all(
+                                    color: Theme.of(context).scaffoldBackgroundColor,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  count > 99 ? '99+' : '$count',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: scheme.onPrimary,
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: searchController,
+                builder: (context, value, _) {
+                  return Container(
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest.withOpacity(.62),
+                      borderRadius: BorderRadius.circular(17),
+                      border: Border.all(
+                        color: value.text.trim().isEmpty
+                            ? scheme.outlineVariant.withOpacity(.45)
+                            : scheme.primary.withOpacity(.55),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: searchController,
+                      focusNode: searchFocus,
+                      onChanged: (_) => onSearchChanged(),
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: 'ابحث في محادثاتك',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 21),
+                        suffixIcon: value.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'مسح البحث',
+                                onPressed: searchController.clear,
+                                icon: const Icon(Icons.close_rounded, size: 19),
+                              ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      splashRadius: 22,
+      icon: Icon(icon, size: 22),
+    );
+  }
+}
+
 class _ConversationCard extends StatelessWidget {
   const _ConversationCard({required this.conversation, required this.onTap, required this.onMarkUnread, required this.onArchive, required this.onFolder});
   final Conversation conversation;
@@ -491,14 +649,32 @@ class _ConversationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final user = conversation.participant;
-    final preview = conversation.lastMessage?.text ?? 'ابدأ المحادثة الآن';
+    final last = conversation.lastMessage;
+    final preview = last?.text.trim().isNotEmpty == true
+        ? last!.text.trim()
+        : last?.type == MessageType.image
+            ? 'صورة'
+            : last?.type == MessageType.audio
+                ? 'رسالة صوتية'
+                : last?.type == MessageType.video
+                    ? 'فيديو'
+                    : last?.type == MessageType.file
+                        ? 'ملف'
+                        : 'ابدأ المحادثة الآن';
     return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: scheme.outlineVariant.withOpacity(.42)),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         onLongPress: onMarkUnread,
         child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
+          padding: const EdgeInsetsDirectional.fromSTEB(13, 11, 8, 11),
           child: Row(
             children: [
               Stack(
