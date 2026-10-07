@@ -50,10 +50,7 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     try {
       await controller.initialize();
       await controller.setLooping(true);
-      if (widget.active) {
-        await controller.play();
-        _recordViewIfReady(controller);
-      }
+      _syncPlayback();
       if (mounted) setState(() {});
     } catch (error) {
       if (mounted) setState(() {});
@@ -65,21 +62,32 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     super.didUpdateWidget(oldWidget);
     if (widget.active != oldWidget.active) {
       if (widget.active) {
-        _player?.play();
-        _recordViewIfReady(_player);
+        _syncPlayback();
       } else {
-        _player?.pause();
+        _syncPlayback();
       }
     }
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPlayback();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _syncPlayback(appResumed: state == AppLifecycleState.resumed);
+  }
+
+  void _syncPlayback({bool appResumed = true}) {
     final player = _player;
-    if (player == null) return;
-    if (state == AppLifecycleState.resumed && widget.active && player.value.isInitialized) {
+    if (player == null || !player.value.isInitialized) return;
+    final shouldPlay = appResumed && widget.active && TickerMode.of(context);
+    if (shouldPlay) {
       player.play();
-    } else if (state != AppLifecycleState.resumed) {
+      _recordViewIfReady(player);
+    } else {
       player.pause();
     }
   }
