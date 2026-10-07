@@ -81,7 +81,7 @@ class _GamesScreenState extends State<GamesScreen> {
     return SafeArea(child:Column(children:[
       Padding(padding:const EdgeInsets.fromLTRB(18,8,18,4),child:Row(children:[
         Container(width:44,height:44,decoration:BoxDecoration(color:Theme.of(context).colorScheme.primaryContainer,borderRadius:BorderRadius.circular(15)),child:GameArt(type: GameType.xo, size: 44, compact: true)),
-        const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('ألعاب الدردشة',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),Text(_soloMode ? 'العب فورًا دون انتظار لاعب آخر' : 'اختر لعبة وابدأ التحدي',style:const TextStyle(fontSize:12))])),
+        const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ألعاب الدردشة',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),Text(_soloMode ? 'العب فورًا دون انتظار لاعب آخر' : 'اختر لعبة وابدأ التحدي',style:const TextStyle(fontSize:12))])),
         IconButton(onPressed:()=>Navigator.pop(context),icon:const Icon(Icons.close_rounded)),
       ])),
       Padding(
