@@ -361,9 +361,9 @@ class MemoArcadeGame extends FlameGame {
         _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', [source, 'هاتف', 'شجرة', 'مدينة']); break;
       case ArcadeMode.code: _renderOptions(canvas, 'اضغط لمحاولة كسر الشفرة', ['0','1','2','3']); break;
       case ArcadeMode.lights:
-        for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100 + (n ~/ 3) * 68; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
+        for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100.0 + (n ~/ 3) * 68.0; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
       case ArcadeMode.pairs:
-        for (var n = 0; n < 16; n++) { final w = (size.x - 36) / 4; final x = 8 + (n % 4) * w; final y = 105 + (n ~/ 4) * 60; paint.color = palette[n % palette.length]; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w - 5, 52), const Radius.circular(10)), paint); } break;
+        for (var n = 0; n < 16; n++) { final w = (size.x - 36) / 4; final x = 8 + (n % 4) * w; final y = 105.0 + (n ~/ 4) * 60.0; paint.color = palette[n % palette.length]; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w - 5, 52), const Radius.circular(10)), paint); } break;
       case ArcadeMode.race:
         paint.color = const Color(0xFF39D5C5); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, size.y * .52, size.x - 36, 18), const Radius.circular(9)), paint); paint.color = Colors.white; final x = 24 + (_raceProgress / 100) * (size.x - 48); canvas.drawCircle(Offset(x, size.y * .52 + 9), 14, paint); break;
       case ArcadeMode.oddOneOut:
