@@ -41,32 +41,36 @@ class _MemoBubblePainter extends CustomPainter {
           : (dark ? const Color(0xFF10201E) : Colors.white);
     final r = emphasized ? 18.0 : 15.0;
     final path = ui.Path();
+    // WhatsApp-style compact tail: the tail sits on the lower outer corner,
+    // rather than a long centered pin that visually distorts the bubble.
+    const tail = 9.0;
     if (isMe) {
       path
         ..moveTo(r, 0)
-        ..lineTo(size.width - 6, 0)
+        ..lineTo(size.width - r, 0)
         ..quadraticBezierTo(size.width, 0, size.width, r)
-        ..lineTo(size.width, size.height - 16)
-        ..quadraticBezierTo(size.width, size.height - 5, size.width - 8, size.height - 4)
-        ..lineTo(size.width - 1, size.height)
-        ..lineTo(size.width - 17, size.height - 5)
-        ..lineTo(16, size.height - 5)
-        ..quadraticBezierTo(0, size.height - 5, 0, size.height - 20)
+        ..lineTo(size.width, size.height - 11)
+        ..quadraticBezierTo(size.width, size.height - 3, size.width - 8, size.height - 3)
+        ..lineTo(size.width - tail, size.height)
+        ..lineTo(size.width - tail - 5, size.height - 7)
+        ..lineTo(r, size.height - 3)
+        ..quadraticBezierTo(0, size.height - 3, 0, size.height - r)
         ..lineTo(0, r)
         ..quadraticBezierTo(0, 0, r, 0);
     } else {
       path
-        ..moveTo(6, 0)
+        ..moveTo(r, 0)
         ..lineTo(size.width - r, 0)
         ..quadraticBezierTo(size.width, 0, size.width, r)
-        ..lineTo(size.width, size.height - 20)
-        ..quadraticBezierTo(size.width, size.height - 5, size.width - 16, size.height - 5)
-        ..lineTo(8, size.height - 5)
-        ..lineTo(1, size.height)
-        ..lineTo(16, size.height - 4)
-        ..quadraticBezierTo(0, size.height - 5, 0, size.height - 20)
+        ..lineTo(size.width, size.height - r)
+        ..quadraticBezierTo(size.width, size.height - 3, size.width - r, size.height - 3)
+        ..lineTo(tail + 5, size.height - 3)
+        ..lineTo(tail, size.height)
+        ..lineTo(tail, size.height - 7)
+        ..lineTo(r, size.height - 3)
+        ..quadraticBezierTo(0, size.height - 3, 0, size.height - r)
         ..lineTo(0, r)
-        ..quadraticBezierTo(0, 0, 6, 0);
+        ..quadraticBezierTo(0, 0, r, 0);
     }
     canvas.drawPath(path, paint);
     if (!isMe && !dark) {
