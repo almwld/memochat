@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../love_letter/memo_dedication_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -300,10 +301,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingItem('الإبلاغ عن مشكلة', 'وصف المشكلة لفريق الدعم', Icons.bug_report_outlined),
               _SettingItem('الشروط والخصوصية', 'معلومات الاستخدام والخصوصية', Icons.description_outlined),
             ])),
-            _Row(Icons.info_outline_rounded, 'حول MemoChat', 'الإصدار والتراخيص', () => _open('حول MemoChat', Icons.info_outline_rounded, const [
-              _SettingItem('إصدار التطبيق', 'MemoChat', Icons.info_outline_rounded),
-              _SettingItem('المصادر المفتوحة', 'مكونات الطرف الثالث والتراخيص', Icons.code_rounded),
-            ])),
+            SecretSevenTap(
+              child: _Row(Icons.info_outline_rounded, 'حول MemoChat', 'الإصدار والتراخيص', () => _open('حول MemoChat', Icons.info_outline_rounded, const [
+                _SettingItem('إصدار التطبيق', 'MemoChat', Icons.info_outline_rounded),
+                _SettingItem('المصادر المفتوحة', 'مكونات الطرف الثالث والتراخيص', Icons.code_rounded),
+              ])),
+            ),
           ]),
           Card(child: ListTile(
             leading: Icon(Icons.logout_rounded, color: Theme.of(context).colorScheme.error),
