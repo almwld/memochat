@@ -220,7 +220,17 @@ class _MessageBubbleState extends State<MessageBubble> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AudioWaveformBubble(audioUrl: url, isMe: widget.isMe, isLocal: _isLocal(url)),
+                  Stack(
+                    children: [
+                      AudioWaveformBubble(
+                        audioUrl: url, isMe: widget.isMe, isLocal: _isLocal(url),
+                      ),
+                      PositionedDirectional(
+                        top: 5, start: 7,
+                        child: _mediaTypeChip(Icons.graphic_eq_rounded, 'صوت', dark),
+                      ),
+                    ],
+                  ),
                   _mediaMeta(m, compact: true),
                 ],
               ),
@@ -510,6 +520,46 @@ class _MessageBubbleState extends State<MessageBubble> {
     );
   }
 
+  Widget _mediaTypeChip(IconData icon, String label, bool dark) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.48),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.white.withOpacity(.18)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _uploadChip(Map<String, dynamic> m, bool dark) {
+    final progress = (m['uploadProgress'] as num?)?.toDouble();
+    final label = progress != null
+        ? '${(progress.clamp(0, 1) * 100).round()}%'
+        : 'جارٍ الإرسال';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: (widget.isMe ? Colors.black : AppColors.primary).withOpacity(.72),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(width: 11, height: 11,
+            child: CircularProgressIndicator(strokeWidth: 1.6, color: Colors.white)),
+          const SizedBox(width: 5),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+
   Widget _mediaMeta(Map<String, dynamic> m, {bool compact = false}) {
     final name = m['fileName']?.toString().trim() ?? '';
     final size = m['fileSize']?.toString().trim() ?? '';
@@ -551,15 +601,19 @@ class _MessageBubbleState extends State<MessageBubble> {
     final image = local
         ? Image.file(File(cleanPath), fit: BoxFit.contain)
         : CachedNetworkImage(imageUrl: path, fit: BoxFit.contain);
+    final mediaDark = Theme.of(context).brightness == Brightness.dark;
     final preview = ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: local
-          ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover)
-          : CachedNetworkImage(
-              imageUrl: path,
-              width: 230,
-              height: 230,
-              fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(13),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          local
+              ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover)
+              : CachedNetworkImage(
+                  imageUrl: path,
+                  width: 230,
+                  height: 230,
+                  fit: BoxFit.cover,
               placeholder: (_, __) => const SizedBox(
                 width: 230, height: 230,
                 child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -568,7 +622,19 @@ class _MessageBubbleState extends State<MessageBubble> {
                 width: 230, height: 230,
                 child: Center(child: Icon(Icons.broken_image_outlined)),
               ),
+          PositionedDirectional(
+            top: 8,
+            start: 8,
+            child: _mediaTypeChip(Icons.photo_outlined, 'صورة', mediaDark),
+          ),
+          if (m['isUploading'] == true)
+            PositionedDirectional(
+              bottom: 8,
+              start: 8,
+              child: _uploadChip(m, mediaDark),
             ),
+        ],
+      ),
     );
     return GestureDetector(
       onTap: () async {
@@ -607,14 +673,34 @@ class _MessageBubbleState extends State<MessageBubble> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InlineVideoPreview(
-          url: path,
-          isLocal: _isLocal(path),
+        Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: _InlineVideoPreview(
+                url: path,
+                isLocal: _isLocal(path),
           onOpen: () => showDialog<void>(
             context: context,
             barrierColor: Colors.black87,
             builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path)),
           ),
+                ),
+              ),
+            PositionedDirectional(
+              top: 8,
+              start: 8,
+              child: _mediaTypeChip(Icons.play_circle_outline_rounded, 'فيديو',
+                  Theme.of(context).brightness == Brightness.dark),
+            ),
+            if (widget.message['isUploading'] == true)
+              PositionedDirectional(
+                bottom: 8,
+                start: 8,
+                child: _uploadChip(widget.message,
+                    Theme.of(context).brightness == Brightness.dark),
+              ),
+          ],
         ),
         _mediaMeta(widget.message, compact: true),
       ],
@@ -732,10 +818,20 @@ class _MessageBubbleState extends State<MessageBubble> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isPdf ? Icons.picture_as_pdf_outlined : isText ? Icons.article_outlined : isOffice ? Icons.description_outlined : Icons.insert_drive_file_outlined,
-                color: isPdf ? Colors.red : tc,
-                size: 30,
+              Container(
+                width: 46, height: 46, alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: widget.isMe ? Colors.white.withOpacity(.14)
+                      : (dark ? Colors.white.withOpacity(.08) : const Color(0xFFEAF5F3)),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  isPdf ? Icons.picture_as_pdf_outlined
+                      : isText ? Icons.article_outlined
+                      : isOffice ? Icons.description_outlined
+                      : Icons.insert_drive_file_outlined,
+                  color: isPdf ? Colors.redAccent : tc, size: 25,
+                ),
               ),
               const SizedBox(width: 10),
               Flexible(child: Column(
