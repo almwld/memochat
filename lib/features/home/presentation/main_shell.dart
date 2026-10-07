@@ -80,7 +80,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   bool _navVisible = true;
-  late final List<Widget> _pages;
+  late final List<Widget?> _pages;
   late final Stream<List<Conversation>> _conversationsStream;
 
   @override
@@ -88,13 +88,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _conversationsStream = widget.repository.watchConversations();
-    _pages = [
-      ChatScreen(repository: widget.repository, onNewChat: () => setState(() => _index = 1)),
-      ContactsScreen(repository: widget.repository),
-      const SocialScreen(),
-      DiscoverScreen(repository: widget.repository),
-      SettingsScreen(onThemeModeChanged: widget.onThemeModeChanged, onSignOut: widget.onSignOut),
-    ];
+    _pages = List<Widget?>.filled(5, null);
+    _pages[0] = ChatScreen(
+      repository: widget.repository,
+      onNewChat: () => setState(() => _index = 1),
+    );
     _consumeQuickAction();
   }
 
@@ -113,7 +111,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _ => null,
     };
     if (nextIndex != null && nextIndex != _index) {
-      setState(() => _index = nextIndex);
+      setState(() {
+        _ensurePage(nextIndex);
+        _index = nextIndex;
+      });
     }
   }
 
@@ -121,6 +122,37 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  Widget _buildPageStack() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < _pages.length; i++)
+          if (_pages[i] != null)
+            Offstage(
+              offstage: i != _index,
+              child: TickerMode(
+                enabled: i == _index,
+                child: _pages[i]!,
+              ),
+            ),
+      ],
+    );
+  }
+
+  void _ensurePage(int index) {
+    if (_pages[index] != null) return;
+    _pages[index] = switch (index) {
+      1 => ContactsScreen(repository: widget.repository),
+      2 => const SocialScreen(),
+      3 => DiscoverScreen(repository: widget.repository),
+      4 => SettingsScreen(
+          onThemeModeChanged: widget.onThemeModeChanged,
+          onSignOut: widget.onSignOut,
+        ),
+      _ => null,
+    };
   }
 
   bool _handleNavigationScroll(UserScrollNotification notification) {
@@ -139,7 +171,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       extendBody: true,
       body: NotificationListener<UserScrollNotification>(
         onNotification: _handleNavigationScroll,
-        child: IndexedStack(index: _index, children: _pages),
+        child: _buildPageStack(),
       ),
       bottomNavigationBar: SafeArea(
         top: false,
@@ -157,7 +189,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 child: NavigationBar(
                   height: 72,
                   selectedIndex: _index,
-                  onDestinationSelected: (index) => setState(() => _index = index),
+                  onDestinationSelected: (index) => setState(() {
+                    _ensurePage(index);
+                    _index = index;
+                  }),
                   destinations: [
               NavigationDestination(
                 icon: StreamBuilder<List<Conversation>>(
