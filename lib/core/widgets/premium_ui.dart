@@ -271,7 +271,7 @@ class MemoListCard extends StatelessWidget {
                     Text(title, style: TextStyle(
                       color: scheme.onSurface,
                       fontSize: 15,
-                      fontWeight: FontWeight.w850,
+                      fontWeight: FontWeight.w800,
                     )),
                     const SizedBox(height: 3),
                     Text(
