@@ -174,7 +174,7 @@ class CommunityDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(
         title: Text(name),
         actions: [
