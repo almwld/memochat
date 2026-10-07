@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/call_model.dart';
 import '../services/active_call_registry.dart';
@@ -90,6 +91,35 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     try {
       await HapticFeedback.mediumImpact();
       await _calls.acceptCall(widget.callId);
+
+      // The explicit "قبول" action is the only runtime permission boundary.
+      // CallScreen itself must never trigger Android permission dialogs.
+      final requested = <Permission>[
+        Permission.microphone,
+        if (widget.isVideo) Permission.camera,
+      ];
+      final statuses = <Permission, PermissionStatus>{};
+      for (final permission in requested) {
+        statuses[permission] = await permission.status;
+      }
+      final missing = requested
+          .where((permission) => statuses[permission]?.isGranted != true)
+          .toList();
+      if (missing.isNotEmpty) {
+        statuses.addAll(await missing.request());
+      }
+      final microphoneGranted =
+          statuses[Permission.microphone]?.isGranted == true;
+      final cameraGranted =
+          !widget.isVideo || statuses[Permission.camera]?.isGranted == true;
+      if (!microphoneGranted || !cameraGranted) {
+        await _calls.rejectCall(widget.callId);
+        throw StateError(
+          widget.isVideo
+              ? 'تم رفض صلاحية الكاميرا أو الميكروفون'
+              : 'تم رفض صلاحية الميكروفون',
+        );
+      }
 
       if (!mounted) return;
       _stopAlerting();
