@@ -103,7 +103,9 @@ class _AdvancedFeatureCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
