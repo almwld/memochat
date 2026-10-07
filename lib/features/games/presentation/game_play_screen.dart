@@ -552,8 +552,7 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _ephemeralBubbles(ColorScheme scheme) {
