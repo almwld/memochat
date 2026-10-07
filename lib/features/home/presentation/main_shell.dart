@@ -125,18 +125,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Widget _buildPageStack() {
-    return Stack(
-      fit: StackFit.expand,
+    // Keep the stable IndexedStack layout while constructing secondary tabs lazily.
+    // A concrete placeholder is required for every slot so the first page always
+    // receives the same tight constraints as the original working shell.
+    return IndexedStack(
+      index: _index,
       children: [
-        for (var i = 0; i < _pages.length; i++)
-          if (_pages[i] != null)
-            Offstage(
-              offstage: i != _index,
-              child: TickerMode(
-                enabled: i == _index,
-                child: _pages[i]!,
-              ),
-            ),
+        for (final page in _pages) page ?? const SizedBox.shrink(),
       ],
     );
   }
