@@ -123,15 +123,18 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
           ),
           const SizedBox(height: 10),
           if (_games.isEmpty)
-            MemoListCard(
-              child: Column(
-                children: [
-                  Icon(Icons.search_off_rounded, size: 38, color: scheme.onSurfaceVariant),
-                  const SizedBox(height: 8),
-                  const Text('لا توجد ألعاب مطابقة', style: TextStyle(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text('جرّب كلمة بحث أخرى أو اختر تصنيفاً مختلفاً.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
-                ],
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Icon(Icons.search_off_rounded, size: 38, color: scheme.onSurfaceVariant),
+                    const SizedBox(height: 8),
+                    const Text('لا توجد ألعاب مطابقة', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('جرّب كلمة بحث أخرى أو اختر تصنيفاً مختلفاً.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                  ],
+                ),
               ),
             )
           else
@@ -215,26 +218,32 @@ class _GameListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return MemoListCard(
-      onTap: onTap,
-      leading: GameArt(type: game.type, size: 52),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 3),
-                Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-                const SizedBox(height: 4),
-                Text('$category • ${game.playersLabel}', style: TextStyle(color: scheme.primary, fontSize: 10, fontWeight: FontWeight.w700)),
-              ],
-            ),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 10, 10),
+          child: Row(
+            children: [
+              GameArt(type: game.type, size: 52),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text(game.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text('$category • ${game.playersLabel}', style: TextStyle(color: scheme.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              Icon(Icons.play_circle_outline_rounded, color: scheme.primary),
+            ],
           ),
-          const Icon(Icons.play_circle_outline_rounded),
-        ],
+        ),
       ),
-    );
-  }
+    );  }
 }
