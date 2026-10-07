@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,7 +40,7 @@ class _MemoBubblePainter extends CustomPainter {
           ? AppColors.primary
           : (dark ? const Color(0xFF10201E) : Colors.white);
     final r = emphasized ? 18.0 : 15.0;
-    final path = Path();
+    final path = ui.Path();
     if (isMe) {
       path
         ..moveTo(r, 0)
