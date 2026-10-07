@@ -773,7 +773,11 @@ class _ConversationCard extends StatelessWidget {
                 padding: const EdgeInsetsDirectional.fromSTEB(10, 10, 8, 10),
                 child: Row(
                   children: [
-                    _ConversationAvatar(user: user, unread: unread),
+                    _ConversationAvatar(
+                      user: user,
+                      unread: unread,
+                      typing: conversation.isTyping,
+                    ),
                     const SizedBox(width: 11),
                     Expanded(
                       child: SizedBox(
@@ -1187,66 +1191,95 @@ class _LastCallStatus extends StatelessWidget {
 }
 
 class _ConversationAvatar extends StatelessWidget {
-  const _ConversationAvatar({required this.user, required this.unread});
+  const _ConversationAvatar({
+    required this.user,
+    required this.unread,
+    required this.typing,
+  });
 
   final ChatUser user;
   final bool unread;
+  final bool typing;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final image = user.avatarUrl?.trim() ?? '';
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 60,
-          height: 60,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: unread ? scheme.primary : scheme.outlineVariant.withOpacity(.65),
-              width: unread ? 2 : 1,
+    final presenceColor = user.isOnline ? const Color(0xFF20B66B) : scheme.outlineVariant;
+    final ringColor = typing
+        ? scheme.primary
+        : unread
+            ? scheme.primary
+            : presenceColor.withOpacity(.72);
+
+    return Semantics(
+      label: typing
+          ? 'صورة ' + user.displayName + '، يكتب الآن'
+          : user.isOnline
+              ? 'صورة ' + user.displayName + '، متصل الآن'
+              : 'صورة ' + user.displayName,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            width: 60,
+            height: 60,
+            padding: EdgeInsets.all(typing ? 2.5 : unread ? 2 : 1.5),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: ringColor,
+                width: typing ? 2.2 : unread ? 2 : 1,
+              ),
+            ),
+            child: CircleAvatar(
+              backgroundColor: scheme.primaryContainer,
+              backgroundImage: image.isEmpty ? null : NetworkImage(image),
+              child: image.isNotEmpty
+                  ? null
+                  : Text(
+                      user.displayName.trim().isEmpty ? '؟' : user.displayName.characters.first,
+                      style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 19),
+                    ),
             ),
           ),
-          child: CircleAvatar(
-            backgroundColor: scheme.primaryContainer,
-            backgroundImage: image.isEmpty ? null : NetworkImage(image),
-            child: image.isNotEmpty
-                ? null
-                : Text(
-                    user.displayName.characters.first,
-                    style: TextStyle(
-                      color: scheme.onPrimaryContainer,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 19,
-                    ),
-                  ),
-          ),
-        ),
-        if (user.isOnline)
-          PositionedDirectional(
-            bottom: -1,
-            end: -1,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                color: const Color(0xFF20B66B),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  width: 2.5,
+          if (user.isOnline)
+            PositionedDirectional(
+              bottom: -1,
+              end: -1,
+              child: Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: presenceColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2.5),
                 ),
               ),
             ),
-          ),
-      ],
+          if (typing)
+            PositionedDirectional(
+              top: -3,
+              start: -3,
+              child: Container(
+                width: 21,
+                height: 21,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
+                ),
+                child: const _TypingDots(color: Colors.white),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
-
 class _MessageStateIcon extends StatelessWidget {
   const _MessageStateIcon({required this.status, required this.color});
 
