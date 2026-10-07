@@ -19,6 +19,71 @@ import 'package:memochat/features/chat/presentation/widgets/audio_waveform_bubbl
 import 'package:memochat/features/chat/presentation/widgets/media_viewer.dart';
 import 'package:memochat/features/games/presentation/game_room_screen.dart';
 
+class _MemoBubblePainter extends CustomPainter {
+  final bool isMe;
+  final bool dark;
+  final bool emphasized;
+
+  const _MemoBubblePainter({
+    required this.isMe,
+    required this.dark,
+    required this.emphasized,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    final paint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = isMe
+          ? AppColors.primary
+          : (dark ? const Color(0xFF10201E) : Colors.white);
+    final r = emphasized ? 18.0 : 15.0;
+    final path = Path();
+    if (isMe) {
+      path
+        ..moveTo(r, 0)
+        ..lineTo(size.width - 6, 0)
+        ..quadraticBezierTo(size.width, 0, size.width, r)
+        ..lineTo(size.width, size.height - 16)
+        ..quadraticBezierTo(size.width, size.height - 5, size.width - 8, size.height - 4)
+        ..lineTo(size.width - 1, size.height)
+        ..lineTo(size.width - 17, size.height - 5)
+        ..lineTo(16, size.height - 5)
+        ..quadraticBezierTo(0, size.height - 5, 0, size.height - 20)
+        ..lineTo(0, r)
+        ..quadraticBezierTo(0, 0, r, 0);
+    } else {
+      path
+        ..moveTo(6, 0)
+        ..lineTo(size.width - r, 0)
+        ..quadraticBezierTo(size.width, 0, size.width, r)
+        ..lineTo(size.width, size.height - 20)
+        ..quadraticBezierTo(size.width, size.height - 5, size.width - 16, size.height - 5)
+        ..lineTo(8, size.height - 5)
+        ..lineTo(1, size.height)
+        ..lineTo(16, size.height - 4)
+        ..quadraticBezierTo(0, size.height - 5, 0, size.height - 20)
+        ..lineTo(0, r)
+        ..quadraticBezierTo(0, 0, 6, 0);
+    }
+    canvas.drawPath(path, paint);
+    if (!isMe && !dark) {
+      final border = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8
+        ..color = const Color(0xFFDCE5E3);
+      canvas.drawPath(path, border);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MemoBubblePainter oldDelegate) =>
+      oldDelegate.isMe != isMe ||
+      oldDelegate.dark != dark ||
+      oldDelegate.emphasized != emphasized;
+}
+
 class MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
   final bool isMe;
@@ -603,6 +668,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildVideo(String path) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     if (path.isEmpty) {
       return const SizedBox(
         width: 230,
