@@ -18,17 +18,28 @@ class _MemoDedicationScreenState extends State<MemoDedicationScreen> with Ticker
  late final AnimationController bg,stars,hearts,petals,pulse,beam,entrance; late final List<_Star> ss;late final List<_Heart> hh;late final List<_Petal> pp;
  @override void initState(){super.initState();final r=Random(7047);ss=List.generate(80,(_)=>_Star(r.nextDouble(),r.nextDouble(),.6+r.nextDouble()*2.4,r.nextDouble()*2*pi,.4+r.nextDouble()*1.8,(r.nextDouble()-.5)*.02));hh=List.generate(25,(_)=>_Heart(r.nextDouble(),1+r.nextDouble()*.8,10+r.nextDouble()*22,.1+r.nextDouble()*.22,.02+r.nextDouble()*.05,r.nextDouble()*2*pi,320+r.nextDouble()*45));pp=List.generate(15,(_)=>_Petal(r.nextDouble(),-.2-r.nextDouble()*.5,6+r.nextDouble()*10,.06+r.nextDouble()*.12,.5+r.nextDouble()*2,.03+r.nextDouble()*.06,r.nextDouble()*2*pi));bg=AnimationController(vsync:this,duration:const Duration(seconds:20))..repeat();stars=AnimationController(vsync:this,duration:const Duration(seconds:5))..repeat();hearts=AnimationController(vsync:this,duration:const Duration(seconds:22))..repeat();petals=AnimationController(vsync:this,duration:const Duration(seconds:18))..repeat();pulse=AnimationController(vsync:this,duration:const Duration(milliseconds:1800))..repeat(reverse:true);beam=AnimationController(vsync:this,duration:const Duration(seconds:6))..repeat();entrance=AnimationController(vsync:this,duration:const Duration(milliseconds:1400))..forward();HapticFeedback.mediumImpact();}
  @override void dispose(){for(final c in [bg,stars,hearts,petals,pulse,beam,entrance])c.dispose();super.dispose();}
- @override Widget build(BuildContext c){final z=MediaQuery.sizeOf(c);return Scaffold(backgroundColor:Colors.black,body:GestureDetector(onTap:()=>Navigator.of(c).maybePop(),child:Stack(children:[AnimatedBuilder(animation:bg,builder:(_,__) {final t=bg.value;return Container(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment(-1+sin(t*2*pi)*.6,-1+cos(t*2*pi)*.6),end:Alignment(1-sin(t*2*pi)*.6,1-cos(t*2*pi)*.6),colors:const[Color(0xFF0D0221),Color(0xFF2A0845),Color(0xFF4A0E3C),Color(0xFF1A0B2E)])));}),AnimatedBuilder(animation:stars,builder:(_,__)=>CustomPaint(size:z,painter:_StarsPainter(ss,stars.value))),AnimatedBuilder(animation:petals,builder:(_,__)=>CustomPaint(size:z,painter:_PetalsPainter(pp,petals.value))),AnimatedBuilder(animation:hearts,builder:(_,__)=>CustomPaint(size:z,painter:_HeartsPainter(hh,hearts.value))),AnimatedBuilder(animation:beam,builder:(_,__)=>CustomPaint(size:z,painter:_BeamPainter(beam.value))),SafeArea(child:FadeTransition(opacity:entrance,child:SlideTransition(position:Tween(begin:const Offset(0,.15),end:Offset.zero).animate(CurvedAnimation(parent:entrance,curve:Curves.easeOutCubic)),child:SingleChildScrollView(padding:const EdgeInsets.symmetric(horizontal:32,vertical:40),child:Column(children:[const SizedBox(height:12),
+ @override Widget build(BuildContext c){final z=MediaQuery.sizeOf(c);return Scaffold(backgroundColor:Colors.black,body:GestureDetector(onTap:()=>Navigator.of(c).maybePop(),child:Stack(children:[AnimatedBuilder(animation:bg,builder:(_,__) {final t=bg.value;return Container(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment(-1+sin(t*2*pi)*.6,-1+cos(t*2*pi)*.6),end:Alignment(1-sin(t*2*pi)*.6,1-cos(t*2*pi)*.6),colors:const[Color(0xFF0D0221),Color(0xFF2A0845),Color(0xFF4A0E3C),Color(0xFF1A0B2E)])));}),AnimatedBuilder(animation:stars,builder:(_,__)=>CustomPaint(size:z,painter:_StarsPainter(ss,stars.value))),AnimatedBuilder(animation:petals,builder:(_,__)=>CustomPaint(size:z,painter:_PetalsPainter(pp,petals.value))),AnimatedBuilder(animation:hearts,builder:(_,__)=>CustomPaint(size:z,painter:_HeartsPainter(hh,hearts.value))),AnimatedBuilder(animation:beam,builder:(_,__)=>CustomPaint(size:z,painter:_BeamPainter(beam.value))),SafeArea(child:Stack(children:[
+          PositionedDirectional(top:12,end:16,child:_CloseButton()),
+          FadeTransition(opacity:entrance,child:SlideTransition(position:Tween(begin:const Offset(0,.15),end:Offset.zero).animate(CurvedAnimation(parent:entrance,curve:Curves.easeOutCubic)),child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(28,48,28,30),child:Column(children:[const SizedBox(height:12),
             _GlassLabel(),
             const SizedBox(height:26),
             _PulsingHeart(controller:pulse),
             const SizedBox(height:34),const _TypewriterText(text:_DedicationConfig.recipient,style:TextStyle(fontSize:38,color:_DedicationConfig.gold,fontWeight:FontWeight.bold,letterSpacing:2),charsPerSecond:4,delay:Duration(milliseconds:600)),const SizedBox(height:24),const _GoldenDivider(delay:Duration(milliseconds:1800)),
             const SizedBox(height:32),
             const _MemoryCaption(),
-            const SizedBox(height:34),const _TypewriterText(text:_DedicationConfig.body,style:TextStyle(fontSize:19,color:Colors.white,height:2,letterSpacing:.6),charsPerSecond:18,delay:Duration(milliseconds:2600)),const SizedBox(height:50),const _PulsingClosing(text:_DedicationConfig.closing,delay:Duration(milliseconds:11000)),const SizedBox(height:60),const _TypewriterText(text:_DedicationConfig.from,style:TextStyle(fontSize:22,color:_DedicationConfig.gold,fontStyle:FontStyle.italic),charsPerSecond:3,delay:Duration(milliseconds:13000)),const SizedBox(height:54),
+            const SizedBox(height:26),
+            _LetterCard(
+              child: const _TypewriterText(
+                text:_DedicationConfig.body,
+                style:TextStyle(fontSize:19,color:Colors.white,height:2,letterSpacing:.6),
+                charsPerSecond:18,
+                delay:Duration(milliseconds:2600),
+              ),
+            ),
+            const SizedBox(height:42),const _PulsingClosing(text:_DedicationConfig.closing,delay:Duration(milliseconds:11000)),const SizedBox(height:60),const _TypewriterText(text:_DedicationConfig.from,style:TextStyle(fontSize:22,color:_DedicationConfig.gold,fontStyle:FontStyle.italic),charsPerSecond:3,delay:Duration(milliseconds:13000)),const SizedBox(height:54),
             _CloseHint(),
             const SizedBox(height:24),
-          ])))))]));}
+          ])))))]))]);}
 }
 class _GlassLabel extends StatelessWidget {
   @override Widget build(BuildContext c) => Container(
@@ -60,6 +71,35 @@ class _CloseHint extends StatelessWidget {
     'اضغط في أي مكان للعودة',
     textAlign: TextAlign.center,
     style: TextStyle(color:Colors.white.withOpacity(.32),fontSize:11,letterSpacing:.8),
+  );
+}
+class _CloseButton extends StatelessWidget {
+  @override Widget build(BuildContext c) => Material(
+    color: Colors.white.withOpacity(.07),
+    shape: const CircleBorder(),
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: () => Navigator.of(c).maybePop(),
+      child: const SizedBox(width:42,height:42,child:Icon(Icons.close_rounded,color:Color(0xD9FFFFFF),size:20)),
+    ),
+  );
+}
+class _LetterCard extends StatelessWidget {
+  final Widget child;
+  const _LetterCard({required this.child});
+  @override Widget build(BuildContext c) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(22,24,22,24),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(.065),
+      borderRadius: BorderRadius.circular(28),
+      border: Border.all(color: Colors.white.withOpacity(.12)),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withOpacity(.22),blurRadius:34,offset:const Offset(0,18)),
+        BoxShadow(color:_DedicationConfig.pink.withOpacity(.07),blurRadius:28,spreadRadius:2),
+      ],
+    ),
+    child: child,
   );
 }
 class _PulsingHeart extends StatelessWidget{final AnimationController controller;const _PulsingHeart({required this.controller});@override Widget build(BuildContext c)=>AnimatedBuilder(animation:controller,builder:(_,__) {final g=30+controller.value*40;return Transform.scale(scale:1+controller.value*.18,child:Container(width:130,height:130,decoration:BoxDecoration(shape:BoxShape.circle,boxShadow:[BoxShadow(color:_DedicationConfig.pink.withOpacity(.6),blurRadius:g,spreadRadius:g/4),BoxShadow(color:_DedicationConfig.gold.withOpacity(.3),blurRadius:g*1.5)]),child:const Center(child:Text('💕',style:TextStyle(fontSize:80)))));});}
