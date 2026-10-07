@@ -18,7 +18,7 @@ class GameService {
     }
     final ref=_games(chatId).doc();
     final now=DateTime.now();
-    final session=GameSession(id:ref.id,type:type,players:[uid],status:GameStatus.waiting,timeLimit:timeLimit);
+    final session=GameSession(id:ref.id,type:type,players:[uid],status:GameStatus.waiting,scores:{uid:0},timeLimit:timeLimit);
     await ref.set({...session.toFirestore(),'createdAt':Timestamp.fromDate(now),'updatedAt':Timestamp.fromDate(now)});
     return ref.id;
   }
@@ -74,8 +74,31 @@ class GameService {
       final snap = await tx.get(ref);
       if (!snap.exists) return;
       final data = snap.data() ?? <String, dynamic>{};
+      final players = List<String>.from(data['players'] as List? ?? const []);
+      if (!players.contains(uid)) {
+        throw StateError('لا يمكنك تحديث لعبة لست لاعبًا فيها.');
+      }
+      if (data['status']?.toString() != GameStatus.playing.name) {
+        throw StateError('اللعبة ليست في حالة لعب.');
+      }
+      final startedRaw = data['startedAt'];
+      final startedAt = startedRaw is Timestamp ? startedRaw.toDate() : null;
+      final limitName = data['timeLimit']?.toString();
+      final limit = GameTimeLimit.values.firstWhere(
+        (e) => e.name == limitName,
+        orElse: () => GameTimeLimit.none,
+      );
+      if (startedAt != null && limit.duration != null &&
+          DateTime.now().difference(startedAt) >= limit.duration!) {
+        tx.update(ref, {
+          'status': GameStatus.ended.name,
+          'endedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return;
+      }
       final scores = Map<String, dynamic>.from(data['scores'] as Map? ?? const {});
-      if (score != null) scores[uid] = score;
+      if (score != null) scores[uid] = score < 0 ? 0 : score;
       final mergedState = Map<String, dynamic>.from(data['state'] as Map? ?? const {});
       mergedState.addAll(state);
       final update = <String, dynamic>{
