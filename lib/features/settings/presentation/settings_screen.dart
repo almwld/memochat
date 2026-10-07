@@ -456,7 +456,12 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
     }
     if (item.title == 'المصادر المفتوحة') {
       if (!mounted) return;
-      showLicensePage(context: context, applicationName: 'MemoChat');
+      showLicensePage(
+        context: context,
+        applicationName: 'MemoChat',
+        applicationLegalese:
+            'إهداء خاص إلى ميمو — في كل لحظة جميلة، تبقى بعض الذكريات أقرب إلى القلب.\n\nإلى ميمو، دائمًا.\n\nمن فلانتشتاين',
+      );
       return;
     }
     if (item.title == 'الإبلاغ عن مشكلة') {
