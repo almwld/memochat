@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/models/chat_user.dart';
 import '../../../core/models/message.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
