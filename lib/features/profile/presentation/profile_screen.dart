@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../games/presentation/game_leaderboard_screen.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/premium_ui.dart';
 import '../services/avatar_service.dart';
 
 class ProfileScreen extends StatefulWidget {
