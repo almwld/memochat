@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'firebase_options.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'app/app.dart';
 
@@ -12,9 +16,44 @@ Future<void> main() async {
     const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
 
-  // Do not block the first frame on Firebase/network startup. MemoChatApp
-  // initializes Firebase with its own bounded retry and renders a recoverable
-  // auth/loading state while that happens.
+  Object? lastError;
+  for (var attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
+      lastError = null;
+      debugPrint('MemoChat: Firebase initialized on attempt $attempt');
+      break;
+    } catch (error, stackTrace) {
+      lastError = error;
+      debugPrint('MemoChat: Firebase initialization attempt $attempt failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (attempt < 3) {
+        await Future<void>.delayed(Duration(milliseconds: 500 * attempt));
+      }
+    }
+  }
+
+  if (lastError != null && Firebase.apps.isEmpty) {
+    try {
+      await Firebase.initializeApp();
+      lastError = null;
+      debugPrint('MemoChat: Firebase initialized from native Android config');
+    } catch (error, stackTrace) {
+      lastError = error;
+      debugPrint('MemoChat: native Firebase initialization failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  if (lastError != null) {
+    runApp(_StartupErrorApp(error: lastError));
+    return;
+  }
+
   try {
     FirebaseMessaging.onBackgroundMessage(
       firebaseMessagingBackgroundHandler,
