@@ -31,6 +31,8 @@ class _MemoChatAppState extends State<MemoChatApp>
   static const _splashLastShownKey = 'memo_splash_last_shown_at_ms';
   static const _splashInterval = Duration(hours: 12);
 
+  static const _themeKey = 'settings.theme';
+
   ThemeMode _themeMode = ThemeMode.system;
   bool _firebaseReady = Firebase.apps.isNotEmpty;
   bool _showSplash = true;
@@ -53,6 +55,7 @@ class _MemoChatAppState extends State<MemoChatApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startInitialization();
+    unawaited(_loadPersistedTheme());
     unawaited(_initializeSplash());
   }
 
@@ -82,6 +85,21 @@ class _MemoChatAppState extends State<MemoChatApp>
           if (mounted) setState(() => _showSplash = false);
         });
       }
+    }
+  }
+
+  Future<void> _loadPersistedTheme() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getString(_themeKey);
+      final mode = switch (value) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+      if (mounted) setState(() => _themeMode = mode);
+    } catch (error) {
+      debugPrint('MemoChat: failed to restore theme: $error');
     }
   }
 
