@@ -530,8 +530,7 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return IgnorePointer(
-      child: Center(
+    return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
