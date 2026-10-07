@@ -505,53 +505,80 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   Widget _buildImage(String path) {
     final m = widget.message;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     if (path.isEmpty) {
       return _shell(
-        const SizedBox(width: 230, height: 100, child: Center(child: Icon(Icons.broken_image_outlined))),
-        Theme.of(context).brightness == Brightness.dark,
+        const SizedBox(
+          width: 230,
+          height: 100,
+          child: Center(child: Icon(Icons.broken_image_outlined)),
+        ),
+        dark,
       );
     }
+
     final local = _isLocal(path);
     final cleanPath = path.replaceFirst('file://', '');
     final image = local
         ? Image.file(File(cleanPath), fit: BoxFit.contain)
         : CachedNetworkImage(imageUrl: path, fit: BoxFit.contain);
-    final preview = ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: local
-          ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover)
-          : CachedNetworkImage(
-              imageUrl: path,
+
+    final previewImage = local
+        ? Image.file(
+            File(cleanPath),
+            width: 230,
+            height: 230,
+            fit: BoxFit.cover,
+          )
+        : CachedNetworkImage(
+            imageUrl: path,
+            width: 230,
+            height: 230,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => const SizedBox(
               width: 230,
               height: 230,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => const SizedBox(
-                width: 230, height: 230,
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-              errorWidget: (_, __, ___) => const SizedBox(
-                width: 230, height: 230,
-                child: Center(child: Icon(Icons.broken_image_outlined)),
+              child: Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+            errorWidget: (_, __, ___) => const SizedBox(
+              width: 230,
+              height: 230,
+              child: Center(child: Icon(Icons.broken_image_outlined)),
+            ),
+          );
+
+    final preview = Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: previewImage,
+        ),
+        PositionedDirectional(
+          top: 8,
+          start: 8,
+          child: _mediaTypeChip(Icons.photo_outlined, 'صورة', dark),
+        ),
+        if (m['isUploading'] == true)
           PositionedDirectional(
-            top: 8,
+            bottom: 8,
             start: 8,
-            child: _mediaTypeChip(Icons.photo_outlined, 'صورة', dark),
+            child: _uploadChip(m, dark),
           ),
-          if (m['isUploading'] == true)
-            PositionedDirectional(
-              bottom: 8,
-              start: 8,
-              child: _uploadChip(m, dark),
-            ),
-        ],
+      ],
     );
+
     return GestureDetector(
       onTap: () async {
         if (!local && path.startsWith('http')) {
           await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => MediaViewer(mediaUrl: path, mediaType: 'image')),
+            MaterialPageRoute(
+              builder: (_) => MediaViewer(
+                mediaUrl: path,
+                mediaType: 'image',
+              ),
+            ),
           );
         } else if (mounted) {
           await showDialog<void>(
@@ -567,7 +594,10 @@ class _MessageBubbleState extends State<MessageBubble> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [preview, _mediaMeta(m, compact: true)],
+        children: [
+          preview,
+          _mediaMeta(m, compact: true),
+        ],
       ),
     );
   }
