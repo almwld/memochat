@@ -6,18 +6,20 @@ import 'dart:ui' as ui;
 class _DedicationConfig {
   static const recipient='إلى ميمو', from='من فلانتشتاين';
   static const body='في كل نجمة أراها،\nأراكِ أنتِ.\n\nفي كل قلب ينبض،\nقلبك يسكنني.\n\nأنتِ الحكاية التي لم أكتبها بعد،\nوالبحر الذي لم أبحره بعد.\n\nأنتِ ميمو...\nوأنتِ كل شيء.';
-  static const closing='💕 أحبكِ 💕', gold=Color(0xFFFFD700), pink=Color(0xFFFF6B9D);
+  static const closing='أحبكِ', finalLine='إلى ميمو، دائمًا.', gold=Color(0xFFFFD700), pink=Color(0xFFFF6B9D);
 }
 class MemoDedicationScreen extends StatefulWidget{const MemoDedicationScreen({super.key});@override State<MemoDedicationScreen> createState()=>_MemoDedicationScreenState();}
 class _MemoDedicationScreenState extends State<MemoDedicationScreen> with TickerProviderStateMixin{
  late final AnimationController bg,stars,hearts,petals,pulse,beam,entrance; late final List<_Star> ss;late final List<_Heart> hh;late final List<_Petal> pp;
  @override void initState(){super.initState();final r=Random(7047);ss=List.generate(80,(_)=>_Star(r.nextDouble(),r.nextDouble(),.6+r.nextDouble()*2.4,r.nextDouble()*2*pi,.4+r.nextDouble()*1.8,(r.nextDouble()-.5)*.02));hh=List.generate(25,(_)=>_Heart(r.nextDouble(),1+r.nextDouble()*.8,10+r.nextDouble()*22,.1+r.nextDouble()*.22,.02+r.nextDouble()*.05,r.nextDouble()*2*pi,320+r.nextDouble()*45));pp=List.generate(15,(_)=>_Petal(r.nextDouble(),-.2-r.nextDouble()*.5,6+r.nextDouble()*10,.06+r.nextDouble()*.12,.5+r.nextDouble()*2,.03+r.nextDouble()*.06,r.nextDouble()*2*pi));bg=AnimationController(vsync:this,duration:const Duration(seconds:20))..repeat();stars=AnimationController(vsync:this,duration:const Duration(seconds:5))..repeat();hearts=AnimationController(vsync:this,duration:const Duration(seconds:22))..repeat();petals=AnimationController(vsync:this,duration:const Duration(seconds:18))..repeat();pulse=AnimationController(vsync:this,duration:const Duration(milliseconds:1800))..repeat(reverse:true);beam=AnimationController(vsync:this,duration:const Duration(seconds:6))..repeat();entrance=AnimationController(vsync:this,duration:const Duration(milliseconds:1400))..forward();HapticFeedback.mediumImpact();}
  @override void dispose(){for(final c in [bg,stars,hearts,petals,pulse,beam,entrance])c.dispose();super.dispose();}
- @override Widget build(BuildContext c){final z=MediaQuery.sizeOf(c);return Scaffold(backgroundColor:Colors.black,body:Stack(children:[AnimatedBuilder(animation:bg,builder:(_,__) {final t=bg.value;return Container(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment(-1+sin(t*2*pi)*.6,-1+cos(t*2*pi)*.6),end:Alignment(1-sin(t*2*pi)*.6,1-cos(t*2*pi)*.6),colors:const[Color(0xFF0D0221),Color(0xFF2A0845),Color(0xFF4A0E3C),Color(0xFF1A0B2E)])));}),AnimatedBuilder(animation:stars,builder:(_,__)=>CustomPaint(size:z,painter:_StarsPainter(ss,stars.value))),AnimatedBuilder(animation:petals,builder:(_,__)=>CustomPaint(size:z,painter:_PetalsPainter(pp,petals.value))),AnimatedBuilder(animation:hearts,builder:(_,__)=>CustomPaint(size:z,painter:_HeartsPainter(hh,hearts.value))),AnimatedBuilder(animation:beam,builder:(_,__)=>CustomPaint(size:z,painter:_BeamPainter(beam.value))),
+ @override Widget build(BuildContext c){final z=MediaQuery.sizeOf(c);return Scaffold(backgroundColor:Colors.black,body:Stack(children:[AnimatedBuilder(animation:bg,builder:(_,__) {final t=bg.value;return Container(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment(-1+sin(t*2*pi)*.6,-1+cos(t*2*pi)*.6),end:Alignment(1-sin(t*2*pi)*.6,1-cos(t*2*pi)*.6),colors:const[Color(0xFF0D0221),Color(0xFF2A0845),Color(0xFF4A0E3C),Color(0xFF1A0B2E)])));}),RepaintBoundary(child:AnimatedBuilder(animation:stars,builder:(_,__)=>CustomPaint(size:z,painter:_StarsPainter(ss,stars.value)))),RepaintBoundary(child:AnimatedBuilder(animation:petals,builder:(_,__)=>CustomPaint(size:z,painter:_PetalsPainter(pp,petals.value)))),RepaintBoundary(child:AnimatedBuilder(animation:hearts,builder:(_,__)=>CustomPaint(size:z,painter:_HeartsPainter(hh,hearts.value)))),RepaintBoundary(child:AnimatedBuilder(animation:beam,builder:(_,__)=>CustomPaint(size:z,painter:_BeamPainter(beam.value)))),
           CustomPaint(size:z,painter:_VignettePainter()),
           SafeArea(child:Stack(children:[
           PositionedDirectional(top:12,end:16,child:_CloseButton()),
           FadeTransition(opacity:entrance,child:SlideTransition(position:Tween(begin:const Offset(0,.15),end:Offset.zero).animate(CurvedAnimation(parent:entrance,curve:Curves.easeOutCubic)),child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(24,48,24,30),child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:560),child:Column(children:[const SizedBox(height:12),
+            const _MemoIdentity(),
+            const SizedBox(height:12),
             _GlassLabel(),
             const SizedBox(height:26),
             _MemoHeart(controller:pulse),
@@ -33,11 +35,17 @@ class _MemoDedicationScreenState extends State<MemoDedicationScreen> with Ticker
                 delay:Duration(milliseconds:2600),
               ),
             ),
-            const SizedBox(height:42),const _PulsingClosing(text:_DedicationConfig.closing,delay:Duration(milliseconds:11000)),const SizedBox(height:60),const _TypewriterText(text:_DedicationConfig.from,style:TextStyle(fontSize:21,color:Color(0xFFFFE6A3),fontStyle:FontStyle.italic,fontWeight:FontWeight.w500),charsPerSecond:3,delay:Duration(milliseconds:13000)),const SizedBox(height:54),
+            const SizedBox(height:42),const _PulsingClosing(text:_DedicationConfig.closing,delay:Duration(milliseconds:11000)),const SizedBox(height:22),const _FinalLine(delay:Duration(milliseconds:14500)),const SizedBox(height:56),const _TypewriterText(text:_DedicationConfig.from,style:TextStyle(fontSize:21,color:Color(0xFFFFE6A3),fontStyle:FontStyle.italic,fontWeight:FontWeight.w500),charsPerSecond:3,delay:Duration(milliseconds:13000)),const SizedBox(height:54),
             _CloseHint(),
             const SizedBox(height:24),
           ])))))]))]);}
 }
+
+class _MemoIdentity extends StatelessWidget{const _MemoIdentity();@override Widget build(BuildContext c)=>Semantics(label:'MemoChat',child:Row(mainAxisSize:MainAxisSize.min,mainAxisAlignment:MainAxisAlignment.center,children:[CustomPaint(size:const Size(34,28),painter:_MemoMarkPainter()),const SizedBox(width:9),Text('MemoChat',style:TextStyle(color:Colors.white.withOpacity(.72),fontSize:13,fontWeight:FontWeight.w600,letterSpacing:1.1))]));}
+class _MemoMarkPainter extends CustomPainter{@override void paint(Canvas c,Size s){final p=Paint()..color=_DedicationConfig.pink;final a=RRect.fromRectAndRadius(Rect.fromLTWH(1,2,25,18),const Radius.circular(7));c.drawRRect(a,p);final b=Path()..moveTo(7,18)..lineTo(5,25)..lineTo(13,19)..close();c.drawPath(b,p);final q=Paint()..color=_DedicationConfig.gold;final r=RRect.fromRectAndRadius(Rect.fromLTWH(11,8,22,16),const Radius.circular(6));c.drawRRect(r,q);final t=Path()..moveTo(26,22)..lineTo(29,27)..lineTo(22,23)..close();c.drawPath(t,q);}@override bool shouldRepaint(_)=>false;}
+class _FinalLine extends StatefulWidget{final Duration delay;const _FinalLine({required this.delay});@override State<_FinalLine> createState()=>_FinalLineState();}
+class _FinalLineState extends State<_FinalLine> with SingleTickerProviderStateMixin{late final AnimationController c;bool visible=false;@override void initState(){super.initState();c=AnimationController(vsync:this,duration:const Duration(milliseconds:900));Future.delayed(widget.delay,(){if(mounted){setState(()=>visible=true);c.forward();}});}@override void dispose(){c.dispose();super.dispose();}@override Widget build(BuildContext x)=>AnimatedBuilder(animation:c,builder:(_,__)=>Opacity(opacity:c.value,child:Transform.translate(offset:Offset(0,12*(1-c.value)),child:visible?const Text(_DedicationConfig.finalLine,style:TextStyle(color:Color(0xFFFFE6A3),fontSize:17,fontWeight:FontWeight.w500,letterSpacing:1.8)):const SizedBox(height:22))));}
+
 class _GlassLabel extends StatelessWidget {
   @override Widget build(BuildContext c) => Container(
     padding: const EdgeInsets.symmetric(horizontal:18, vertical:9),
