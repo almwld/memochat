@@ -257,10 +257,8 @@ class LiveKitService {
   }
 
   Future<Room> startCall({required String roomName, String? callerName, bool isVideo = true}) async {
-    // CallScreen performs the single batched Android permission request before
-    // entering LiveKit. Do not request the same permissions again here: Android
-    // can reject the second request while the first dialog/state transition is
-    // still active, which caused the call screen to ask for permissions twice.
+    // Runtime permissions are granted by the explicit call action before this
+    // service is entered. Keep this layer free of permission dialogs.
     final result = await connectRoom(roomName: LiveKitConfig.normalizeRoomName(roomName), participantName: callerName);
     if (!isVideo) return result;
 
