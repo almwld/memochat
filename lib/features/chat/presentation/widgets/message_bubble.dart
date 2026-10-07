@@ -884,34 +884,44 @@ class _MessageBubbleState extends State<MessageBubble> {
     final lat = (m['locationLat'] as num?)?.toDouble();
     final lng = (m['locationLng'] as num?)?.toDouble();
     final address = (m['locationAddress']?.toString().trim().isNotEmpty == true)
-        ? m['locationAddress'].toString()
-        : (m['text']?.toString() ?? 'الموقع');
-    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
-    final street = meta['locationStreet']?.toString() ?? '';
-    final neighborhood = meta['locationNeighborhood']?.toString() ?? '';
-    final city = meta['locationCity']?.toString() ?? '';
-    final url = m['locationUrl']?.toString() ?? '';
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
+        ? m['locationAddress'].toString().trim()
+        : (m['text']?.toString().trim().isNotEmpty == true
+            ? m['text'].toString().trim()
+            : 'الموقع');
+    final meta = m['metadata'] is Map
+        ? Map<String, dynamic>.from(m['metadata'] as Map)
+        : <String, dynamic>{};
+    final street = meta['locationStreet']?.toString().trim() ?? '';
+    final neighborhood = meta['locationNeighborhood']?.toString().trim() ?? '';
+    final city = meta['locationCity']?.toString().trim() ?? '';
+    final url = m['locationUrl']?.toString().trim() ?? '';
+    final tc = widget.isMe
+        ? Colors.white
+        : (dark ? Colors.white : const Color(0xFF20312F));
+    final secondary = widget.isMe
+        ? Colors.white70
+        : (dark ? Colors.white70 : const Color(0xFF647875));
 
     final details = <String>[];
     for (final value in [street, neighborhood, city]) {
-      final clean = value.trim();
-      if (clean.isEmpty) continue;
-      if (address.contains(clean)) continue;
-      if (details.any((item) => item == clean)) continue;
-      details.add(clean);
+      if (value.isEmpty || address.contains(value) || details.contains(value)) {
+        continue;
+      }
+      details.add(value);
     }
 
-    final map = lat == null || lng == null
-        ? const SizedBox.shrink()
-        : SizedBox(
+    final hasCoordinates = lat != null && lng != null;
+    final map = hasCoordinates
+        ? SizedBox(
             width: 250,
             height: 155,
             child: FlutterMap(
               options: MapOptions(
                 initialCenter: LatLng(lat, lng),
                 initialZoom: 16,
-                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
               ),
               children: [
                 TileLayer(
@@ -925,7 +935,11 @@ class _MessageBubbleState extends State<MessageBubble> {
                       width: 42,
                       height: 50,
                       alignment: Alignment.bottomCenter,
-                      child: const Icon(Icons.location_pin, color: Colors.red, size: 42),
+                      child: const Icon(
+                        Icons.location_pin,
+                        color: Colors.red,
+                        size: 42,
+                      ),
                     ),
                   ],
                 ),
@@ -934,7 +948,121 @@ class _MessageBubbleState extends State<MessageBubble> {
                 ),
               ],
             ),
-          );
+          )
+        : null;
+
+    final card = ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (map != null)
+            Stack(
+              children: [
+                map,
+                PositionedDirectional(
+                  top: 8,
+                  start: 8,
+                  child: _mediaTypeChip(
+                    Icons.location_on_rounded,
+                    'موقع',
+                    dark,
+                  ),
+                ),
+              ],
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: widget.isMe
+                            ? Colors.white.withOpacity(.14)
+                            : AppColors.primary.withOpacity(.11),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.location_on_rounded,
+                        size: 18,
+                        color: widget.isMe ? Colors.white : AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        address,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: tc,
+                          fontSize: 12,
+                          height: 1.35,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  Text(
+                    details.join(' • '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: secondary,
+                      fontSize: 10,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+                if (hasCoordinates) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    lat.toStringAsFixed(6) + ', ' + lng.toStringAsFixed(6),
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(
+                      color: secondary.withOpacity(.9),
+                      fontSize: 9,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+                if (url.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.open_in_new_rounded,
+                        size: 13,
+                        color: widget.isMe ? Colors.white70 : AppColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'فتح الخريطة',
+                        style: TextStyle(
+                          color: widget.isMe ? Colors.white : AppColors.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
 
     return _shell(
       InkWell(
@@ -946,48 +1074,8 @@ class _MessageBubbleState extends State<MessageBubble> {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }
               },
-        borderRadius: BorderRadius.circular(14),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (lat != null && lng != null) map,
-              Padding(
-                padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.location_on, color: Colors.redAccent, size: 22),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('الموقع المرسل', style: TextStyle(color: tc, fontWeight: FontWeight.w800, fontSize: 12)),
-                          const SizedBox(height: 3),
-                          Text(address, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc, fontSize: 12)),
-                          if (details.isNotEmpty) ...[
-                            const SizedBox(height: 5),
-                            Text(details.join(' • '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.75), fontSize: 10)),
-                          ],
-                          if (lat != null && lng != null) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}',
-                              textDirection: TextDirection.ltr,
-                              style: TextStyle(color: tc.withOpacity(.65), fontSize: 9),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        borderRadius: BorderRadius.circular(15),
+        child: card,
       ),
       dark,
     );
