@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/models/message.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/notifications/notification_inbox.dart';
@@ -501,9 +502,9 @@ class _MemoMarkPainter extends CustomPainter {
     canvas.drawPath(frontTail, p);
 
     p.color = Colors.white;
-    canvas.drawCircle(13*s, 22*s, 1.7*s, p);
-    canvas.drawCircle(18*s, 22*s, 1.7*s, p);
-    canvas.drawCircle(23*s, 22*s, 1.7*s, p);
+    canvas.drawCircle(Offset(13*s, 22*s), 1.7*s, p);
+    canvas.drawCircle(Offset(18*s, 22*s), 1.7*s, p);
+    canvas.drawCircle(Offset(23*s, 22*s), 1.7*s, p);
   }
 
   @override
