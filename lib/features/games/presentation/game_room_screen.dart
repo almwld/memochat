@@ -19,11 +19,12 @@ class GameRoomScreen extends StatefulWidget {
 
 class _GameRoomScreenState extends State<GameRoomScreen> {
   Timer? _networkGuard;
+  bool _timedOut = false;
 
   @override
   void initState() {
     super.initState();
-    _networkGuard = Timer(const Duration(seconds: 8), () { if (mounted) setState(() {}); });
+    _networkGuard = Timer(const Duration(seconds: 8), () { if (mounted) setState(() => _timedOut = true); });
   }
 
   @override
@@ -43,9 +44,20 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
             return Scaffold(appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true), body: _error(context));
           }
           if (game == null && snapshot.connectionState == ConnectionState.waiting) {
+            if (_timedOut) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true),
+                body: _error(context),
+              );
+            }
             return Scaffold(appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true), body: _waiting());
           }
-          if (game == null) return const Scaffold(body: Center(child: Text('لم تعد جلسة اللعبة متاحة.')));
+          if (game == null) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true),
+              body: _error(context),
+            );
+          }
           final uid = FirebaseAuth.instance.currentUser?.uid;
           final joined = uid != null && game.players.contains(uid);
           if (game.status == GameStatus.playing) {
@@ -70,15 +82,16 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
               ])),),
             );
           }
+          final title = ArcadeContentBank.forType(game.type).title;
           return Scaffold(
-            appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true),
+            appBar: AppBar(title: Text(title), centerTitle: true),
             body: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
                   const Icon(Icons.sports_esports_rounded, size: 54),
                   const SizedBox(height: 12),
-                  Text(game.type.name == 'xo' ? 'إكس أو' : 'لعبة ${game.type.name}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
                   Text('${game.players.length} لاعبين'),
                   const SizedBox(height: 24),
