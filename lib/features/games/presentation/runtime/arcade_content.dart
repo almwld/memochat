@@ -43,7 +43,7 @@ class ArcadeContent {
 class ArcadeContentBank {
   static const List<ArcadeContent> all = [
     ArcadeContent(type: GameType.xo, title: 'إكس أو', instruction: 'ضع علامتك بالتناوب', mode: ArcadeMode.choice, options: ['X','O']),
-    ArcadeContent(type: GameType.quizBattle, title: 'Quiz Battle', instruction: 'اختر الإجابة الصحيحة', mode: ArcadeMode.quiz, prompts: ['ما هو الكوكب الأحمر؟','كم عدد قارات العالم؟','ما عاصمة اليمن؟','كم ضلعًا للمثلث؟'], options: ['المريخ','الأرض','آسيا','سبعة','صنعاء','عدن','3','4'], correctAnswers: [0,2,4,6], choicesByPrompt: [['المريخ','الزهرة','الأرض','المشتري'],['7','5','6','8'],['صنعاء','عدن','تعز','الحديدة'],['3','4','5','6']]),
+    ArcadeContent(type: GameType.quizBattle, title: 'Quiz Battle', instruction: 'اختر الإجابة الصحيحة', mode: ArcadeMode.quiz, prompts: ['ما هو الكوكب الأحمر؟','كم عدد قارات العالم؟','ما عاصمة اليمن؟','كم ضلعًا للمثلث؟'], options: ['المريخ','الأرض','آسيا','سبعة','صنعاء','عدن','3','4'], correctAnswers: [0,0,0,0], choicesByPrompt: [['المريخ','الزهرة','الأرض','المشتري'],['7','5','6','8'],['صنعاء','عدن','تعز','الحديدة'],['3','4','5','6']]),
     ArcadeContent(type: GameType.emojiReaction, title: 'Emoji Reaction', instruction: 'اضغط الرمز المطلوب بأسرع وقت', mode: ArcadeMode.choice, options: ['❤','★','●','◆']),
     ArcadeContent(type: GameType.diceRoll, title: 'Dice Roll', instruction: 'ارمِ النرد واجمع أعلى مجموع', mode: ArcadeMode.timing),
     ArcadeContent(type: GameType.drawGuess, title: 'Draw & Guess', instruction: 'اختر كلمة وارسمها ليخمنها خصمك', mode: ArcadeMode.choice, options: ['بيت','شمس','قمر','سيارة']),
