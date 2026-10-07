@@ -50,6 +50,7 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     try {
       await controller.initialize();
       await controller.setLooping(true);
+      await controller.setVolume(0.0);
       _syncPlayback();
       if (mounted) setState(() {});
     } catch (error) {
@@ -85,10 +86,17 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     if (player == null || !player.value.isInitialized) return;
     final shouldPlay = appResumed && widget.active && TickerMode.of(context);
     if (shouldPlay) {
-      player.play();
+      // Reels own their audio. Always restore audible playback for the active
+      // reel and force muted/paused players to stop as soon as the reel loses
+      // focus.
+      player.setVolume(1.0);
+      unawaited(player.play());
       _recordViewIfReady(player);
     } else {
-      player.pause();
+      unawaited(player.pause());
+      // Explicitly mute inactive reels so no audio can leak through a kept-alive
+      // IndexedStack/TabBarView page.
+      player.setVolume(0.0);
     }
   }
 
