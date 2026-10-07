@@ -120,7 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) => ScrollAwareScaffold(
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(142),
+          preferredSize: const Size.fromHeight(136),
           child: _MemoChatHeader(
             searchController: _search,
             searchFocus: _searchFocus,
@@ -538,19 +538,19 @@ class _MemoChatHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          padding: const EdgeInsets.fromLTRB(16, 7, 16, 8),
           child: Column(
             children: [
               Row(
                 children: [
-                  const _MemoMark(size: 44),
+                  Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(17)), child: const Center(child: _MemoMark(size: 39))),
                   const SizedBox(width: 11),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'MemoChat',
+                          'محادثاتك',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
@@ -559,7 +559,7 @@ class _MemoChatHeader extends StatelessWidget {
                         ),
                         SizedBox(height: 1),
                         Text(
-                          'مساحتك للحديث',
+                          'تواصل، شارك، وابقَ قريبًا',
                           style: TextStyle(fontSize: 11.5),
                         ),
                       ],
@@ -622,7 +622,7 @@ class _MemoChatHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 9),
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: searchController,
                 builder: (context, value, _) {
@@ -753,7 +753,8 @@ class _ConversationCard extends StatelessWidget {
             color: unread
                 ? scheme.primaryContainer.withOpacity(.24)
                 : scheme.surface,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(19),
+            boxShadow: [if (unread) BoxShadow(color: scheme.primary.withOpacity(.07), blurRadius: 14, offset: const Offset(0, 5))],
             border: Border.all(
               color: unread
                   ? scheme.primary.withOpacity(.38)
@@ -765,11 +766,11 @@ class _ConversationCard extends StatelessWidget {
             type: MaterialType.transparency,
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(19),
               onTap: onTap,
               onLongPress: onMarkUnread,
               child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(12, 11, 10, 11),
+                padding: const EdgeInsetsDirectional.fromSTEB(10, 10, 8, 10),
                 child: Row(
                   children: [
                     _ConversationAvatar(user: user, unread: unread),
@@ -1199,8 +1200,8 @@ class _ConversationAvatar extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Container(
-          width: 58,
-          height: 58,
+          width: 60,
+          height: 60,
           padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -1357,7 +1358,7 @@ class _StatusAddTile extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(.72)],
+                  colors: [Colors.black.withOpacity(.05), Colors.black.withOpacity(.72)],
                 ),
               ),
             ),
@@ -1455,7 +1456,7 @@ class _StatusTile extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.transparent,
+                      Colors.black.withOpacity(.05),
                       Colors.black.withOpacity(.78),
                     ],
                   ),
