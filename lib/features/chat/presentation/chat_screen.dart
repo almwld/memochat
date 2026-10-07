@@ -774,10 +774,10 @@ class _ConversationCard extends StatelessWidget {
                 child: Row(
                   children: [
                     _ConversationAvatar(user: user, unread: unread),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 11),
                     Expanded(
                       child: SizedBox(
-                        height: 80,
+                        height: 76,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,7 +793,7 @@ class _ConversationCard extends StatelessWidget {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontSize: 15.5,
+                                            fontSize: 15.8,
                                             fontWeight: unread
                                                 ? FontWeight.w900
                                                 : FontWeight.w800,
@@ -829,7 +829,7 @@ class _ConversationCard extends StatelessWidget {
                                       ? ''
                                       : _formatConversationTime(last.createdAt),
                                   style: TextStyle(
-                                    fontSize: 10.5,
+                                    fontSize: 10.8,
                                     fontWeight: unread
                                         ? FontWeight.w800
                                         : FontWeight.w500,
@@ -840,7 +840,7 @@ class _ConversationCard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 5),
+                            const SizedBox(height: 4),
                             Expanded(
                               child: Row(
                                 children: [
@@ -864,7 +864,7 @@ class _ConversationCard extends StatelessWidget {
                                                 'يكتب الآن',
                                                 style: TextStyle(
                                                   color: scheme.primary,
-                                                  fontSize: 12.5,
+                                                  fontSize: 12.2,
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
@@ -886,7 +886,7 @@ class _ConversationCard extends StatelessWidget {
                                                       TextOverflow.ellipsis,
                                                   style: TextStyle(
                                                     color: previewColor,
-                                                    fontSize: 12.5,
+                                                    fontSize: 12.3,
                                                     fontWeight: unread
                                                         ? FontWeight.w700
                                                         : FontWeight.w500,
@@ -916,7 +916,7 @@ class _ConversationCard extends StatelessWidget {
                                       curve: Curves.easeOutBack,
                                       child: Container(
                                         constraints:
-                                            const BoxConstraints(minWidth: 22),
+                                            const BoxConstraints(minWidth: 23, minHeight: 22),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 6,
                                           vertical: 3,
@@ -924,7 +924,7 @@ class _ConversationCard extends StatelessWidget {
                                         decoration: BoxDecoration(
                                           color: scheme.primary,
                                           borderRadius:
-                                              BorderRadius.circular(12),
+                                              BorderRadius.circular(9),
                                         ),
                                         child: Text(
                                           conversation.unreadCount > 99
