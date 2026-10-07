@@ -614,14 +614,21 @@ class _MessageBubbleState extends State<MessageBubble> {
                   width: 230,
                   height: 230,
                   fit: BoxFit.cover,
-              placeholder: (_, __) => const SizedBox(
-                width: 230, height: 230,
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-              errorWidget: (_, __, ___) => const SizedBox(
-                width: 230, height: 230,
-                child: Center(child: Icon(Icons.broken_image_outlined)),
-              ),
+                  placeholder: (_, __) => const SizedBox(
+                    width: 230,
+                    height: 230,
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => const SizedBox(
+                    width: 230,
+                    height: 230,
+                    child: Center(
+                      child: Icon(Icons.broken_image_outlined),
+                    ),
+                  ),
+                ),
           PositionedDirectional(
             top: 8,
             start: 8,
