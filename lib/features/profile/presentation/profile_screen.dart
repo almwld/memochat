@@ -43,7 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final frame = data['profileFrame']?.toString() ?? 'primary';
         final hiddenFromContacts = data['hideFromContacts'] == true;
 
-        return Scaffold(
+        return ScrollAwareScaffold(
           appBar: AppBar(
             title: const Text('الملف الشخصي', style: TextStyle(fontWeight: FontWeight.w900)),
           ),
@@ -378,12 +378,9 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Padding(
-        padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
-        child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-      ),
+      MemoSectionLabel(title),
       child,
     ],
   );
