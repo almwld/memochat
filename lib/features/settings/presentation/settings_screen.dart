@@ -302,10 +302,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingItem('الشروط والخصوصية', 'معلومات الاستخدام والخصوصية', Icons.description_outlined),
             ])),
             SecretSevenTap(
-              child: _Row(Icons.info_outline_rounded, 'حول MemoChat', 'الإصدار والتراخيص', () => _open('حول MemoChat', Icons.info_outline_rounded, const [
-                _SettingItem('إصدار التطبيق', 'MemoChat', Icons.info_outline_rounded),
-                _SettingItem('المصادر المفتوحة', 'مكونات الطرف الثالث والتراخيص', Icons.code_rounded),
-              ])),
+              child: _Row(
+                Icons.info_outline_rounded,
+                'حول MemoChat',
+                'الإصدار والتراخيص',
+                () {},
+                disableTap: true,
+              ),
             ),
           ]),
           Card(child: ListTile(
@@ -341,11 +344,12 @@ class _Section extends StatelessWidget {
 
 
 class _Row extends StatelessWidget {
-  const _Row(this.icon, this.title, this.subtitle, this.onTap);
+  const _Row(this.icon, this.title, this.subtitle, this.onTap, {this.disableTap = false});
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool disableTap;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -353,7 +357,7 @@ class _Row extends StatelessWidget {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_left_rounded),
-        onTap: onTap,
+        onTap: disableTap ? null : onTap,
       );
 }
 
