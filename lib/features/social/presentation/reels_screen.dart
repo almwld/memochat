@@ -4,8 +4,9 @@ import '../data/social_service.dart';
 import 'widgets/reel_item.dart';
 
 class ReelsScreen extends StatefulWidget {
-  const ReelsScreen({super.key, required this.service});
+  const ReelsScreen({super.key, required this.service, this.visible = true});
   final SocialService service;
+  final bool visible;
 
   @override
   State<ReelsScreen> createState() => _ReelsScreenState();
@@ -52,7 +53,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
               service: widget.service,
               id: doc.id,
               data: doc.data(),
-              active: index == _active,
+              active: widget.visible && index == _active,
             );
           },
         );
