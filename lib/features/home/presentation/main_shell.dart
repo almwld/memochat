@@ -284,71 +284,71 @@ class DiscoverScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
+          const MemoPageHeader(
+            title: 'اكتشف',
+            subtitle: 'أشخاص وطرق جديدة للتواصل، بنفس تجربة MemoChat الموحدة.',
+            icon: Icons.search,
+          ),
+          const SizedBox(height: 8),
           _ProfileEntryCard(),
-          const SizedBox(height: 12),
-          PremiumHero(
-            icon: AppIcons.search,
-            title: 'اكتشف أشخاصاً وطرقاً جديدة للتواصل',
-            subtitle: 'ابحث عن الأشخاص، ابدأ محادثة، أو استخدم الرجّ للتعارف القريب.',
-            action: const SizedBox.shrink(),
+          const MemoSectionLabel('التواصل'),
+          MemoListCard(
+            icon: Icons.person_search_rounded,
+            title: 'العثور على أشخاص',
+            subtitle: 'ابحث بالاسم أو المعرّف العام وابدأ محادثة.',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ContactsScreen(repository: repository)),
+            ),
           ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const PremiumIconTile(icon: AppIcons.contacts, size: 48, iconSize: 23),
-              title: const Text('العثور على أشخاص', style: TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: const Text('ابحث بالاسم أو المعرّف العام وابدأ محادثة.'),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ContactsScreen(repository: repository)),
-              ),
+          const SizedBox(height: 8),
+          MemoListCard(
+            icon: Icons.sync_alt_rounded,
+            title: 'رجّ للتعارف',
+            subtitle: 'اعثر على شخص آخر يهز هاتفه في الوقت نفسه.',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ShakeScreen(repository: repository)),
+            ),
+          ),
+          const MemoSectionLabel('مساحات MemoChat'),
+          MemoListCard(
+            icon: Icons.auto_awesome_outlined,
+            title: 'المزايا المتقدمة',
+            subtitle: 'غرف صوتية، Mini Apps، وملفات Business.',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdvancedHubScreen()),
             ),
           ),
           const SizedBox(height: 8),
           Card(
-            child: ListTile(
-              leading: const PremiumIconTile(icon: AppIcons.chat, size: 48, iconSize: 23),
-              title: const Text('رجّ للتعارف', style: TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: const Text('رجّ هاتفك للعثور على شخص آخر يهز هاتفه في الوقت نفسه.'),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ShakeScreen(repository: repository)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const PremiumIconTile(icon: AppIcons.chat, size: 48, iconSize: 23),
-              title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: const Text('غرف صوتية، Mini Apps، وملفات Business.'),
-              trailing: const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AdvancedHubScreen()),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GamesHubScreen())),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const GamesHubScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 10, 12),
+                child: Row(
+                  children: [
+                    PremiumIconTile(
+                      icon: AppIcons.chat,
+                      size: 46,
+                      iconSize: 23,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('ألعاب MemoChat',
+                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                          SizedBox(height: 3),
+                          Text('تحديات حقيقية بنقاط ومستويات ونتائج شخصية.',
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_left_rounded),
+                  ],
                 ),
-                padding: const EdgeInsets.all(14),
-                child: Row(children: [
-                  Container(width: 50, height: 50, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.sports_esports_rounded, color: Theme.of(context).colorScheme.primary, size: 27)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('ألعاب MemoChat', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 16)),
-                    SizedBox(height: 4),
-                    Text('55 تحدياً بنقاط ومستويات ونتائج شخصية.', style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(.78), fontSize: 12)),
-                  ])),
-                  Icon(Icons.arrow_back_ios_new_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer, size: 16),
-                ]),
               ),
             ),
           ),
