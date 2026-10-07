@@ -1,4 +1,4 @@
-import '../models/game.dart';
+import '../../models/game.dart';
 
 enum ArcadeMode {
   target,
