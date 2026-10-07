@@ -123,7 +123,7 @@ class MemoArcadeGame extends FlameGame {
 
   @override void render(Canvas canvas) {
     super.render(canvas);
-    if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut}.contains(content.mode)) { _renderSpecial(canvas); return; }
+    if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
     canvas.drawRect(Rect.fromLTWH(0,0,size.x,size.y),paint);
@@ -337,7 +337,16 @@ class MemoArcadeGame extends FlameGame {
 
   int _specialRound = 0;
   int _specialSecret = 0;
+  int _codeDigit = 0;
+  int _codeAttempts = 0;
+  int _mathCorrect = 0;
+  List<int> _mathOptions = const [];
+  List<String> _wordOptions = const [];
+  int _wordCorrect = 0;
   final List<bool> _lights = List<bool>.filled(9, true);
+  final List<int> _pairOrder = <int>[];
+  final Set<int> _pairMatched = <int>{};
+  int _pairFirst = -1;
   int _raceProgress = 0;
 
   void _renderSpecial(Canvas canvas) {
@@ -352,18 +361,23 @@ class MemoArcadeGame extends FlameGame {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
       case ArcadeMode.math:
-        _specialSecret = _specialSecret == 0 ? 10 + random.nextInt(50) : _specialSecret;
-        final q = type == GameType.numberGuess ? 'الرقم السري قريب من $_specialSecret' : '$_specialSecret + ${5 + (_specialRound % 9)} = ؟';
-        _renderOptions(canvas, q, ['${_specialSecret + 5}', '${_specialSecret + 7}', '${_specialSecret + 3}', '${_specialSecret + 9}']); break;
+        if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
+        final q = '$_specialSecret + ؟';
+        _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList()); break;
       case ArcadeMode.word:
         final source = content.prompts.isEmpty ? 'كتاب' : content.prompts[_specialRound % content.prompts.length];
+        if (_wordOptions.isEmpty) { _wordOptions = [source, 'هاتف', 'شجرة', 'مدينة']..shuffle(random); _wordCorrect = _wordOptions.indexOf(source); }
         final chars = source.runes.toList()..shuffle(random);
-        _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', [source, 'هاتف', 'شجرة', 'مدينة']); break;
-      case ArcadeMode.code: _renderOptions(canvas, 'اضغط لمحاولة كسر الشفرة', ['0','1','2','3']); break;
+        _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
+      case ArcadeMode.code: if (_codeDigit == 0 && _codeAttempts == 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
       case ArcadeMode.lights:
         for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100.0 + (n ~/ 3) * 68.0; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
       case ArcadeMode.pairs:
-        for (var n = 0; n < 16; n++) { final w = (size.x - 36) / 4; final x = 8 + (n % 4) * w; final y = 105.0 + (n ~/ 4) * 60.0; paint.color = palette[n % palette.length]; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w - 5, 52), const Radius.circular(10)), paint); } break;
+        _renderPairs(canvas, paint);
+        break;
+      case ArcadeMode.memory:
+        _renderPairs(canvas, paint);
+        break;
       case ArcadeMode.race:
         paint.color = const Color(0xFF39D5C5); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, size.y * .52, size.x - 36, 18), const Radius.circular(9)), paint); paint.color = Colors.white; final x = 24 + (_raceProgress / 100) * (size.x - 48); canvas.drawCircle(Offset(x, size.y * .52 + 9), 14, paint); break;
       case ArcadeMode.oddOneOut:
@@ -382,12 +396,99 @@ class MemoArcadeGame extends FlameGame {
     for (var n = 0; n < visible.length; n++) { final y = 150 + n * 62.0; paint.color = palette[n % palette.length]; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, y, size.x - 36, 48), const Radius.circular(14)), paint); final t = TextPainter(text: TextSpan(text: visible[n], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)), textDirection: TextDirection.rtl)..layout(maxWidth: size.x - 50); t.paint(canvas, Offset(size.x / 2 - t.width / 2, y + 13)); }
   }
 
-  void _tapChoice(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; final promptIndex = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final correct = content.correctAnswers.isNotEmpty && promptIndex < content.correctAnswers.length ? content.correctAnswers[promptIndex] : 0; score += n == correct ? 2 : 0; _specialRound++; onScore(score); _syncScore(); }
-  void _tapMath(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; score += n == 0 ? 3 : 0; _specialRound++; _specialSecret = 10 + random.nextInt(50); onScore(score); _syncScore(); }
-  void _tapWord(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; score += n == 0 ? 3 : 1; _specialRound++; onScore(score); _syncScore(); }
-  void _tapCode(Vector2 point) { if (point.y < 140) return; score += 2; _specialRound++; onScore(score); _syncScore(); }
+  void _tapChoice(Vector2 point) {
+    final n = ((point.y - 150) / 62).floor();
+    if (n < 0 || n > 3) return;
+    final promptIndex = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
+    final correct = content.correctAnswers.isNotEmpty && promptIndex < content.correctAnswers.length ? content.correctAnswers[promptIndex] : 0;
+    score = math.max(0, score + (n == correct ? 2 : -1));
+    _specialRound++;
+    onScore(score);
+    _syncScore();
+  }
+
+  void _tapMath(Vector2 point) {
+    final n = ((point.y - 150) / 62).floor();
+    if (n < 0 || n >= _mathOptions.length) return;
+    score = math.max(0, score + (n == _mathCorrect ? 3 : -1));
+    _specialRound++;
+    _specialSecret = 0;
+    _mathOptions = const [];
+    onScore(score);
+    _syncScore();
+  }
+
+  void _tapWord(Vector2 point) {
+    final n = ((point.y - 150) / 62).floor();
+    if (n < 0 || n >= _wordOptions.length) return;
+    score = math.max(0, score + (n == _wordCorrect ? 3 : -1));
+    _specialRound++;
+    _wordOptions = const [];
+    onScore(score);
+    _syncScore();
+  }
+
+  void _tapCode(Vector2 point) {
+    final n = ((point.y - 150) / 62).floor();
+    if (n < 0 || n > 3) return;
+    if (_codeDigit == 0 && _codeAttempts == 0) _codeDigit = random.nextInt(4);
+    if (n == _codeDigit) {
+      score += 4;
+      _codeDigit = random.nextInt(4);
+      _codeAttempts = 0;
+      _specialRound++;
+    } else {
+      _codeAttempts++;
+      score = math.max(0, score - 1);
+      if (_codeAttempts >= 3) {
+        _codeDigit = random.nextInt(4);
+        _codeAttempts = 0;
+        _specialRound++;
+      }
+    }
+    onScore(score);
+    _syncScore();
+  }
   void _tapLights(Vector2 point) { if (point.y < 100) return; final col = ((point.x - 8) / ((size.x - 24) / 3)).floor(); final row = ((point.y - 100) / 68).floor(); if (row < 0 || row > 2 || col < 0 || col > 2) return; final n = row * 3 + col; for (final j in [n, n - 1, n + 1, n - 3, n + 3]) { if (j >= 0 && j < 9 && (j ~/ 3 == row || j % 3 == col)) _lights[j] = !_lights[j]; } if (_lights.every((v) => !v)) { score += 5; for (var k = 0; k < 9; k++) _lights[k] = true; onScore(score); _syncScore(); } }
-  void _tapPairs(Vector2 point) { if (point.y < 100) return; score += 1; onScore(score); _syncScore(); }
+  void _renderPairs(Canvas canvas, Paint paint) {
+    if (_pairOrder.isEmpty) _pairOrder.addAll(List<int>.generate(16, (i) => i ~/ 2)..shuffle(random));
+    final w = (size.x - 36) / 4;
+    for (var n = 0; n < 16; n++) {
+      final x = 8 + (n % 4) * w;
+      final y = 105.0 + (n ~/ 4) * 60.0;
+      final visible = _pairMatched.contains(n) || n == _pairFirst;
+      paint.color = visible ? palette[_pairOrder[n] % palette.length] : const Color(0xFF17383B);
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w - 5, 52), const Radius.circular(10)), paint);
+      if (visible) {
+        final t = TextPainter(text: TextSpan(text: (_pairOrder[n] + 1).toString(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)), textDirection: TextDirection.ltr)..layout();
+        t.paint(canvas, Offset(x + (w - 5 - t.width) / 2, y + 14));
+      }
+    }
+  }
+
+  void _tapPairs(Vector2 point) {
+    if (point.y < 100) return;
+    if (_pairOrder.isEmpty) _pairOrder.addAll(List<int>.generate(16, (i) => i ~/ 2)..shuffle(random));
+    final cellWidth = (size.x - 36) / 4;
+    final col = ((point.x - 8) / cellWidth).floor();
+    final row = ((point.y - 105) / 60).floor();
+    if (col < 0 || col >= 4 || row < 0 || row >= 4) return;
+    final cell = row * 4 + col;
+    if (_pairMatched.contains(cell) || cell == _pairFirst) return;
+    if (_pairFirst < 0) {
+      _pairFirst = cell;
+      return;
+    }
+    if (_pairOrder[_pairFirst] == _pairOrder[cell]) {
+      _pairMatched.addAll([_pairFirst, cell]);
+      score += 2;
+    } else {
+      score = math.max(0, score - 1);
+    }
+    _pairFirst = -1;
+    onScore(score);
+    _syncScore();
+  }
   void _tapOddOneOut(Vector2 point) { if (point.y < 100) return; final col = (point.x / ((size.x - 12) / 4)).floor(); final row = ((point.y - 110) / 65).floor(); final n = row * 4 + col; if (n < 0 || n >= 12) return; score += n == 7 ? 4 : 0; onScore(score); _syncScore(); }
   void _tapRace(Vector2 point) { if (point.y < size.y * .42) return; _raceProgress = math.min(100, _raceProgress + 8); score++; if (_raceProgress >= 100) { score += 10; _raceProgress = 0; } onScore(score); _syncScore(); }
   Future<void> _syncScore() async {
