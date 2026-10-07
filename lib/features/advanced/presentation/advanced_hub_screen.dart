@@ -19,12 +19,12 @@ class AdvancedHubScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final liveItems = [
-      ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded, const VoiceRoomsScreen(), const Color(0xFF0A8F83)),
-      ('المجتمعات', 'قنوات منظمة للنقاش، الأعضاء والمحتوى المشترك.', Icons.groups_rounded, const CommunitiesScreen(), const Color(0xFF1677C8)),
-      ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded, const BusinessScreen(), const Color(0xFF7B4DFF)),
+      ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded),
+      ('المجتمعات', 'قنوات منظمة للنقاش، الأعضاء والمحتوى المشترك.', Icons.groups_rounded),
+      ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded),
     ];
     final productivityItems = [
-      ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded, const MiniAppsScreen(), const Color(0xFFEA7B24)),
+      ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded),
     ];
     return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900))),
@@ -37,11 +37,11 @@ class AdvancedHubScreen extends StatelessWidget {
             subtitle: 'أدوات حية وإنتاجية مصممة لتعمل داخل محادثاتك، مع حماية أفضل وخصوصية واضحة.',
           ),
           const SizedBox(height: 18),
-          const _AdvancedSectionTitle(icon: Icons.bolt_rounded, title: 'تجارب حية'),
+          const MemoSectionLabel('تجارب حية', action: Icon(Icons.bolt_rounded)),
           const SizedBox(height: 8),
           _AdvancedFeatureGrid(items: liveItems),
           const SizedBox(height: 20),
-          const _AdvancedSectionTitle(icon: Icons.auto_awesome_rounded, title: 'إنتاجية داخلية'),
+          const MemoSectionLabel('إنتاجية داخلية', action: Icon(Icons.auto_awesome_rounded)),
           const SizedBox(height: 8),
           _AdvancedFeatureGrid(items: productivityItems),
           const SizedBox(height: 18),
@@ -63,9 +63,24 @@ class AdvancedHubScreen extends StatelessWidget {
   }
 }
 
+Widget _screenFor(String title) {
+  switch (title) {
+    case 'غرف صوتية':
+      return const VoiceRoomsScreen();
+    case 'المجتمعات':
+      return const CommunitiesScreen();
+    case 'Business':
+      return const BusinessScreen();
+    case 'Mini Apps':
+      return const MiniAppsScreen();
+    default:
+      return const SizedBox.shrink();
+  }
+}
+
 class _AdvancedFeatureGrid extends StatelessWidget {
   const _AdvancedFeatureGrid({required this.items});
-  final List<(String, String, IconData, Widget, Color)> items;
+  final List<(String, String, IconData)> items;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -87,8 +102,7 @@ class _AdvancedFeatureGrid extends StatelessWidget {
                 title: item.$1,
                 subtitle: item.$2,
                 icon: item.$3,
-                color: item.$5,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.$4)),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _screenFor(item.$1))),
               );
             },
           );
@@ -97,11 +111,10 @@ class _AdvancedFeatureGrid extends StatelessWidget {
 }
 
 class _AdvancedFeatureCard extends StatelessWidget {
-  const _AdvancedFeatureCard({required this.title, required this.subtitle, required this.icon, required this.color, required this.onTap});
+  const _AdvancedFeatureCard({required this.title, required this.subtitle, required this.icon, required this.onTap});
   final String title;
   final String subtitle;
   final IconData icon;
-  final Color color;
   final VoidCallback onTap;
 
   @override
@@ -116,8 +129,8 @@ class _AdvancedFeatureCard extends StatelessWidget {
                 Container(
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(17)),
-                  child: Icon(icon, color: color, size: 28),
+                  decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(17)),
+                  child: Icon(icon, color: scheme.primary, size: 28),
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -131,14 +144,6 @@ class _AdvancedFeatureCard extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _AdvancedSectionTitle extends StatelessWidget {
-  const _AdvancedSectionTitle({required this.icon, required this.title});
-  final IconData icon;
-  final String title;
-  @override
-  Widget build(BuildContext context) => Row(children: [Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))]);
 }
 
 class VoiceRoomsScreen extends StatefulWidget {
