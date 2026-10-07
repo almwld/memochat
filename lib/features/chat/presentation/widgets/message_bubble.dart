@@ -144,7 +144,17 @@ class _MessageBubbleState extends State<MessageBubble> {
               padding: const EdgeInsetsDirectional.only(end: 7, bottom: 6),
               child: _mediaStatus(m),
             ),
-            _shell(AudioWaveformBubble(audioUrl: url, isMe: widget.isMe, isLocal: _isLocal(url)), dark),
+            _shell(
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AudioWaveformBubble(audioUrl: url, isMe: widget.isMe, isLocal: _isLocal(url)),
+                  _mediaMeta(m, compact: true),
+                ],
+              ),
+              dark,
+            ),
           ],
         );
       case 'file':
@@ -415,20 +425,85 @@ class _MessageBubbleState extends State<MessageBubble> {
     );
   }
 
+  Widget _mediaMeta(Map<String, dynamic> m, {bool compact = false}) {
+    final name = m['fileName']?.toString().trim() ?? '';
+    final size = m['fileSize']?.toString().trim() ?? '';
+    final mime = m['fileMimeType']?.toString().trim() ?? '';
+    final duration = m['audioDuration']?.toString().trim() ?? '';
+    final type = m['type']?.toString() ?? '';
+    final parts = <String>[];
+    if (name.isNotEmpty) parts.add(name);
+    if (size.isNotEmpty) parts.add(size);
+    if (mime.isNotEmpty && name.isEmpty) parts.add(mime);
+    if (type == 'audio' && duration.isNotEmpty) parts.add(duration);
+    if (parts.isEmpty) return const SizedBox.shrink();
+    final tc = widget.isMe ? Colors.white70 : (Theme.of(context).brightness == Brightness.dark ? Colors.white60 : const Color(0xFF617370));
+    return Padding(
+      padding: EdgeInsets.only(top: compact ? 4 : 6),
+      child: Text(
+        parts.join(' • '),
+        maxLines: compact ? 1 : 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: tc, fontSize: compact ? 9 : 10, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   Widget _buildImage(String path) {
-    if (path.isEmpty) return const SizedBox(width: 230, height: 100, child: Center(child: Text('تعذر تحميل الصورة')));
+    final m = widget.message;
+    if (path.isEmpty) {
+      return _shell(
+        const SizedBox(width: 230, height: 100, child: Center(child: Icon(Icons.broken_image_outlined))),
+        Theme.of(context).brightness == Brightness.dark,
+      );
+    }
     final local = _isLocal(path);
     final cleanPath = path.replaceFirst('file://', '');
-    final image = local ? Image.file(File(cleanPath), fit: BoxFit.contain) : CachedNetworkImage(imageUrl: path, fit: BoxFit.contain);
+    final image = local
+        ? Image.file(File(cleanPath), fit: BoxFit.contain)
+        : CachedNetworkImage(imageUrl: path, fit: BoxFit.contain);
+    final preview = ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: local
+          ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover)
+          : CachedNetworkImage(
+              imageUrl: path,
+              width: 230,
+              height: 230,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const SizedBox(
+                width: 230, height: 230,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+              errorWidget: (_, __, ___) => const SizedBox(
+                width: 230, height: 230,
+                child: Center(child: Icon(Icons.broken_image_outlined)),
+              ),
+            ),
+    );
     return GestureDetector(
       onTap: () async {
         if (!local && path.startsWith('http')) {
-          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => MediaViewer(mediaUrl: path, mediaType: 'image')));
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => MediaViewer(mediaUrl: path, mediaType: 'image')),
+          );
         } else if (mounted) {
-          await showDialog<void>(context: context, barrierColor: Colors.black87, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: InteractiveViewer(child: image)));
+          await showDialog<void>(
+            context: context,
+            barrierColor: Colors.black87,
+            builder: (_) => Dialog(
+              backgroundColor: Colors.transparent,
+              child: InteractiveViewer(child: image),
+            ),
+          );
         }
       },
-      child: ClipRRect(borderRadius: BorderRadius.circular(14), child: local ? Image.file(File(cleanPath), width: 230, height: 230, fit: BoxFit.cover) : CachedNetworkImage(imageUrl: path, width: 230, height: 230, fit: BoxFit.cover, placeholder: (_, __) => const SizedBox(width: 230, height: 230, child: Center(child: CircularProgressIndicator(strokeWidth: 2))), errorWidget: (_, __, ___) => const SizedBox(width: 230, height: 230, child: Center(child: Icon(Icons.broken_image))))));
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [preview, _mediaMeta(m, compact: true)],
+      ),
+    );
   }
 
   Widget _buildVideo(String path) {
@@ -439,14 +514,21 @@ class _MessageBubbleState extends State<MessageBubble> {
         child: Center(child: Text('تعذر تحميل الفيديو')),
       );
     }
-    return _InlineVideoPreview(
-      url: path,
-      isLocal: _isLocal(path),
-      onOpen: () => showDialog<void>(
-        context: context,
-        barrierColor: Colors.black87,
-        builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path)),
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _InlineVideoPreview(
+          url: path,
+          isLocal: _isLocal(path),
+          onOpen: () => showDialog<void>(
+            context: context,
+            barrierColor: Colors.black87,
+            builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path)),
+          ),
+        ),
+        _mediaMeta(widget.message, compact: true),
+      ],
     );
   }
 
@@ -572,8 +654,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc, fontWeight: FontWeight.w700)),
-                  if ((m['fileSize']?.toString() ?? '').isNotEmpty)
-                    Text(m['fileSize'].toString(), style: TextStyle(color: tc.withOpacity(.65), fontSize: 10)),
+                  _mediaMeta(m),
                 ],
               )),
               const SizedBox(width: 8),
