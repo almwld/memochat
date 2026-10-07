@@ -349,7 +349,7 @@ class MemoArcadeGame extends FlameGame {
     final i = TextPainter(text: TextSpan(text: content.instruction, style: const TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)), textDirection: TextDirection.rtl)..layout(maxWidth: size.x - 30);
     i.paint(canvas, Offset(size.x / 2 - i.width / 2, 52));
     switch (content.mode) {
-      case ArcadeMode.quiz: _renderOptions(canvas, content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length], content.options); break;
+      case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
       case ArcadeMode.math:
         _specialSecret = _specialSecret == 0 ? 10 + random.nextInt(50) : _specialSecret;
@@ -382,7 +382,7 @@ class MemoArcadeGame extends FlameGame {
     for (var n = 0; n < visible.length; n++) { final y = 150 + n * 62.0; paint.color = palette[n % palette.length]; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, y, size.x - 36, 48), const Radius.circular(14)), paint); final t = TextPainter(text: TextSpan(text: visible[n], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)), textDirection: TextDirection.rtl)..layout(maxWidth: size.x - 50); t.paint(canvas, Offset(size.x / 2 - t.width / 2, y + 13)); }
   }
 
-  void _tapChoice(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; score += n == 0 ? 2 : 1; _specialRound++; onScore(score); _syncScore(); }
+  void _tapChoice(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; final promptIndex = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final correct = content.correctAnswers.isNotEmpty && promptIndex < content.correctAnswers.length ? content.correctAnswers[promptIndex] : 0; score += n == correct ? 2 : 0; _specialRound++; onScore(score); _syncScore(); }
   void _tapMath(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; score += n == 0 ? 3 : 0; _specialRound++; _specialSecret = 10 + random.nextInt(50); onScore(score); _syncScore(); }
   void _tapWord(Vector2 point) { final n = ((point.y - 150) / 62).floor(); if (n < 0 || n > 3) return; score += n == 0 ? 3 : 1; _specialRound++; onScore(score); _syncScore(); }
   void _tapCode(Vector2 point) { if (point.y < 140) return; score += 2; _specialRound++; onScore(score); _syncScore(); }
