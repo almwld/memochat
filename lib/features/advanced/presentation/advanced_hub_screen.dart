@@ -19,12 +19,12 @@ class AdvancedHubScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final liveItems = [
-      ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded),
-      ('المجتمعات', 'قنوات منظمة للنقاش، الأعضاء والمحتوى المشترك.', Icons.groups_rounded),
-      ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded),
+      ('غرف صوتية', 'نقاشات مباشرة عبر LiveKit مع حضور لحظي.', Icons.mic_rounded, const VoiceRoomsScreen()),
+      ('المجتمعات', 'قنوات منظمة للنقاش، الأعضاء والمحتوى المشترك.', Icons.groups_rounded, const CommunitiesScreen()),
+      ('Business', 'ملف نشاط احترافي قابل للاكتشاف والتواصل.', Icons.storefront_rounded, const BusinessScreen()),
     ];
     final productivityItems = [
-      ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded),
+      ('Mini Apps', 'ملاحظات وحاسبة داخل التطبيق مع مزامنة آمنة.', Icons.apps_rounded, const MiniAppsScreen()),
     ];
     return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('المزايا المتقدمة', style: TextStyle(fontWeight: FontWeight.w900))),
@@ -63,24 +63,9 @@ class AdvancedHubScreen extends StatelessWidget {
   }
 }
 
-Widget _screenFor(String title) {
-  switch (title) {
-    case 'غرف صوتية':
-      return const VoiceRoomsScreen();
-    case 'المجتمعات':
-      return const CommunitiesScreen();
-    case 'Business':
-      return const BusinessScreen();
-    case 'Mini Apps':
-      return const MiniAppsScreen();
-    default:
-      return const SizedBox.shrink();
-  }
-}
-
 class _AdvancedFeatureGrid extends StatelessWidget {
   const _AdvancedFeatureGrid({required this.items});
-  final List<(String, String, IconData)> items;
+  final List<(String, String, IconData, Widget)> items;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -102,7 +87,7 @@ class _AdvancedFeatureGrid extends StatelessWidget {
                 title: item.$1,
                 subtitle: item.$2,
                 icon: item.$3,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _screenFor(item.$1))),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => item.$4)),
               );
             },
           );
