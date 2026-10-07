@@ -42,29 +42,12 @@ class _GamesHubScreenState extends State<GamesHubScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: scheme.surface,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(
-                    Icons.sports_esports_rounded,
-                    color: scheme.primary,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 14),
+          const PremiumHero(
+            icon: AppIcons.chat,
+            title: 'وقت اللعب',
+            subtitle: '55 تحدياً فعلياً بنقاط ومستويات ونتائج شخصية، ضمن نفس هوية MemoChat.',
+          ),
+          const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
