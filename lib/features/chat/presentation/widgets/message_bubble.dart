@@ -557,14 +557,52 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (mime.isNotEmpty && name.isEmpty) parts.add(mime);
     if (type == 'audio' && duration.isNotEmpty) parts.add(duration);
     if (parts.isEmpty) return const SizedBox.shrink();
-    final tc = widget.isMe ? Colors.white70 : (Theme.of(context).brightness == Brightness.dark ? Colors.white60 : const Color(0xFF617370));
+
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = widget.isMe
+        ? Colors.white70
+        : (dark ? Colors.white70 : const Color(0xFF617370));
+    final background = widget.isMe
+        ? Colors.white.withOpacity(.10)
+        : (dark ? Colors.white.withOpacity(.08) : const Color(0xFFEAF5F3));
+    final icon = switch (type) {
+      'audio' => Icons.graphic_eq_rounded,
+      'video' => Icons.videocam_outlined,
+      'image' => Icons.photo_outlined,
+      'file' => Icons.insert_drive_file_outlined,
+      'location' => Icons.location_on_outlined,
+      _ => Icons.info_outline_rounded,
+    };
+
     return Padding(
-      padding: EdgeInsets.only(top: compact ? 4 : 6),
-      child: Text(
-        parts.join(' • '),
-        maxLines: compact ? 1 : 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: tc, fontSize: compact ? 9 : 10, fontWeight: FontWeight.w600),
+      padding: EdgeInsets.only(top: compact ? 5 : 7),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: compact ? 11 : 12, color: foreground),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  parts.join(' • '),
+                  maxLines: compact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: compact ? 9 : 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
