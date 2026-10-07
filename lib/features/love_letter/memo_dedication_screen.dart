@@ -163,9 +163,8 @@ class _SecretSevenTapState extends State<SecretSevenTap> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _tap,
-      behavior: HitTestBehavior.opaque,
+    return Listener(
+      onPointerUp: (_) => _tap(),
       child: widget.child,
     );
   }
