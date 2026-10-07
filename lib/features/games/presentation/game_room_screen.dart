@@ -6,6 +6,7 @@ import 'package:memochat/features/games/models/game.dart';
 import 'package:memochat/features/games/models/game_session.dart';
 import 'package:memochat/features/games/presentation/game_play_screen.dart';
 import 'package:memochat/features/games/services/game_service.dart';
+import 'game_factory.dart';
 
 class GameRoomScreen extends StatefulWidget {
   final String chatId;
@@ -47,9 +48,27 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
           if (game == null) return const Scaffold(body: Center(child: Text('لم تعد جلسة اللعبة متاحة.')));
           final uid = FirebaseAuth.instance.currentUser?.uid;
           final joined = uid != null && game.players.contains(uid);
-          if (game.status == GameStatus.playing || game.status == GameStatus.ended) {
-            final definition = game.type.name == 'xo' ? 'إكس أو' : 'لعبة ${game.type.name}';
-            return GamePlayScreen(type: game.type, title: definition, chatId: widget.chatId, gameId: widget.gameId);
+          if (game.status == GameStatus.playing) {
+            final definition = ArcadeContentBank.forType(game.type);
+            return GamePlayScreen(type: game.type, title: definition.title, chatId: widget.chatId, gameId: widget.gameId);
+          }
+          if (game.status == GameStatus.ended) {
+            final uid = FirebaseAuth.instance.currentUser?.uid;
+            final mine = uid == null ? 0 : (game.scores[uid] ?? 0);
+            final best = game.scores.values.fold<int>(0, (a, b) => a > b ? a : b);
+            final won = mine == best && best > 0;
+            return Scaffold(
+              appBar: AppBar(title: const Text('نتيجة اللعبة'), centerTitle: true),
+              body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(won ? Icons.emoji_events_rounded : Icons.flag_rounded, size: 64),
+                const SizedBox(height: 14),
+                Text(won ? 'فزت!' : 'انتهت اللعبة', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Text('نتيجتك: $mine نقطة', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 20),
+                FilledButton.icon(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded), label: const Text('العودة للألعاب')),
+              ])),),
+            );
           }
           return Scaffold(
             appBar: AppBar(title: const Text('غرفة اللعبة'), centerTitle: true),
