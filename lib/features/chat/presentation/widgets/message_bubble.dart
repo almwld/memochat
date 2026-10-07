@@ -110,20 +110,22 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   Widget _shell(Widget child, bool dark) => GestureDetector(
         onLongPress: widget.onSelect ?? _options,
-        child: Container(
-            decoration: BoxDecoration(
-                color: widget.isMe
-                    ? AppColors.primary
-                    : (dark
-                        ? const Color(0xFF10201E)
-                        : const Color(0xFFFFFFFF)),
-                borderRadius: widget.isFirstInChat
-                    ? BorderRadius.circular(18)
-                    : BorderRadius.circular(14),
-                border: !widget.isMe && !dark
-                    ? Border.all(color: const Color(0xFFDCE5E3), width: .8)
-                    : null),
-            child: child));
+        child: CustomPaint(
+          painter: _MemoBubblePainter(
+            isMe: widget.isMe,
+            dark: dark,
+            emphasized: widget.isFirstInChat,
+          ),
+          child: Container(
+            margin: EdgeInsetsDirectional.only(
+              start: widget.isMe ? 4 : 0,
+              end: widget.isMe ? 0 : 4,
+            ),
+            color: Colors.transparent,
+            child: child,
+          ),
+        ),
+      );
   Widget _buildContent(String type, bool dark) {
     final m = widget.message;
     switch (type) {
@@ -149,7 +151,20 @@ class _MessageBubbleState extends State<MessageBubble> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AudioWaveformBubble(audioUrl: url, isMe: widget.isMe, isLocal: _isLocal(url)),
+                  Stack(
+                    children: [
+                      AudioWaveformBubble(
+                        audioUrl: url,
+                        isMe: widget.isMe,
+                        isLocal: _isLocal(url),
+                      ),
+                      PositionedDirectional(
+                        top: 5,
+                        start: 7,
+                        child: _mediaTypeChip(Icons.graphic_eq_rounded, 'صوت', dark),
+                      ),
+                    ],
+                  ),
                   _mediaMeta(m, compact: true),
                 ],
               ),
@@ -388,11 +403,11 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   String _replyAttachmentPreview(Map preview) {
     switch (preview['type']?.toString()) {
-      case 'image': return '📷 صورة';
-      case 'video': return '🎬 فيديو';
-      case 'audio': return '🎤 رسالة صوتية';
-      case 'file': return '📎 ملف';
-      case 'location': return '📍 موقع';
+      case 'image': return 'صورة';
+      case 'video': return 'فيديو';
+      case 'audio': return 'رسالة صوتية';
+      case 'file': return 'ملف';
+      case 'location': return 'موقع';
       default: return 'مرفق';
     }
   }
@@ -402,9 +417,9 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   Widget _status(Map<String, dynamic> m) {
     if (m['isSending'] == true) return const Icon(Icons.schedule, size: 14, color: Colors.grey);
-    if (m['isRead'] == true) return const Icon(Icons.done_all, size: 15, color: AppColors.primary);
-    if (m['isDelivered'] == true) return const Icon(Icons.done_all, size: 15, color: Colors.grey);
-    return const Icon(Icons.check, size: 15, color: Colors.grey);
+    if (m['isRead'] == true) return const Icon(Icons.done_all_rounded, size: 15, color: AppColors.primary);
+    if (m['isDelivered'] == true) return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
+    return const Icon(Icons.done_rounded, size: 15, color: Colors.grey);
   }
 
   Widget _reactions(Map<String, dynamic> m, bool dark) {
@@ -421,6 +436,45 @@ class _MessageBubbleState extends State<MessageBubble> {
           decoration: BoxDecoration(color: dark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(10)),
           child: Text('${entry.key} ${entry.value}', style: const TextStyle(fontSize: 10)),
         )).toList(),
+      ),
+    );
+  }
+
+  Widget _mediaTypeChip(IconData icon, String label, bool dark) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.48),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.white.withOpacity(.18)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _uploadChip(Map<String, dynamic> m, bool dark) {
+    final progress = (m['uploadProgress'] as num?)?.toDouble();
+    final label = progress != null
+        ? '${(progress.clamp(0, 1) * 100).round()}%'
+        : 'جارٍ الإرسال';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: (widget.isMe ? Colors.black : AppColors.primary).withOpacity(.72),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(width: 11, height: 11, child: CircularProgressIndicator(strokeWidth: 1.6, color: Colors.white)),
+          const SizedBox(width: 5),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+        ]),
       ),
     );
   }
@@ -480,6 +534,18 @@ class _MessageBubbleState extends State<MessageBubble> {
                 child: Center(child: Icon(Icons.broken_image_outlined)),
               ),
             ),
+          PositionedDirectional(
+            top: 8,
+            start: 8,
+            child: _mediaTypeChip(Icons.photo_outlined, 'صورة', dark),
+          ),
+          if (m['isUploading'] == true)
+            PositionedDirectional(
+              bottom: 8,
+              start: 8,
+              child: _uploadChip(m, dark),
+            ),
+        ],
     );
     return GestureDetector(
       onTap: () async {
@@ -518,14 +584,32 @@ class _MessageBubbleState extends State<MessageBubble> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InlineVideoPreview(
-          url: path,
-          isLocal: _isLocal(path),
-          onOpen: () => showDialog<void>(
-            context: context,
-            barrierColor: Colors.black87,
-            builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path)),
-          ),
+        Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: _InlineVideoPreview(
+                url: path,
+                isLocal: _isLocal(path),
+                onOpen: () => showDialog<void>(
+                  context: context,
+                  barrierColor: Colors.black87,
+                  builder: (_) => _VideoViewer(url: path, isLocal: _isLocal(path)),
+                ),
+              ),
+            ),
+            PositionedDirectional(
+              top: 8,
+              start: 8,
+              child: _mediaTypeChip(Icons.play_circle_outline_rounded, 'فيديو', dark),
+            ),
+            if (widget.message['isUploading'] == true)
+              PositionedDirectional(
+                bottom: 8,
+                start: 8,
+                child: _uploadChip(widget.message, dark),
+              ),
+          ],
         ),
         _mediaMeta(widget.message, compact: true),
       ],
@@ -643,10 +727,21 @@ class _MessageBubbleState extends State<MessageBubble> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isPdf ? Icons.picture_as_pdf_outlined : isText ? Icons.article_outlined : isOffice ? Icons.description_outlined : Icons.insert_drive_file_outlined,
-                color: isPdf ? Colors.red : tc,
-                size: 30,
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: widget.isMe
+                      ? Colors.white.withOpacity(.14)
+                      : (dark ? Colors.white.withOpacity(.08) : const Color(0xFFEAF5F3)),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  isPdf ? Icons.picture_as_pdf_outlined : isText ? Icons.article_outlined : isOffice ? Icons.description_outlined : Icons.insert_drive_file_outlined,
+                  color: isPdf ? Colors.redAccent : tc,
+                  size: 25,
+                ),
               ),
               const SizedBox(width: 10),
               Flexible(child: Column(
