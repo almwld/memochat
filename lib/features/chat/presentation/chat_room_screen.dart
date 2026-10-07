@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_location_picker.dart';
 import 'package:memochat/core/theme/app_colors.dart';
 import 'package:memochat/features/chat/models/message_model.dart';
@@ -785,7 +786,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
     return 'آخر ظهور ${value.day.toString().padLeft(2,'0')}/${value.month.toString().padLeft(2,'0')}';
   }
 
-  void _call(bool video) {
+  Future<void> _call(bool video) async {
+    final permissions = <Permission>[
+      Permission.microphone,
+      if (video) Permission.camera,
+    ];
+    final statuses = await permissions.request();
+    final micGranted = statuses[Permission.microphone]?.isGranted == true;
+    final cameraGranted = !video || statuses[Permission.camera]?.isGranted == true;
+    if (!micGranted || !cameraGranted) {
+      if (mounted) {
+        ToastService.showError(
+          video
+              ? 'السماح بالكاميرا والميكروفون مطلوب لبدء المكالمة.'
+              : 'السماح بالميكروفون مطلوب لبدء المكالمة.',
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
         builder: (_) => CallScreen(
             chatId: _chatId,
