@@ -79,7 +79,7 @@ class _CloseButton extends StatelessWidget {
       onTap: () => Navigator.of(c).maybePop(),
       child: const SizedBox(width:42,height:42,child:Icon(Icons.close_rounded,color:Color(0xD9FFFFFF),size:20)),
     ),
-  ));
+  );
 }
 class _LetterCard extends StatelessWidget {
   final Widget child;
