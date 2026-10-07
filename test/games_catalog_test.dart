@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memochat/features/games/data/games_catalog.dart';
 import 'package:memochat/features/games/models/game.dart';
@@ -10,33 +11,20 @@ void main() {
     expect(GamesCatalog.all.map((e) => e.type), containsAll(GameType.values));
   });
 
-  test('every game type has a dedicated renderer or classic fallback', () {
+  test('every catalog entry has usable presentation metadata', () {
+    for (final game in GamesCatalog.all) {
+      expect(game.title.trim(), isNotEmpty);
+      expect(game.subtitle.trim(), isNotEmpty);
+      expect(game.playersLabel.trim(), isNotEmpty);
+      expect(game.minPlayers, greaterThanOrEqualTo(1));
+      expect(game.maxPlayers, greaterThanOrEqualTo(game.minPlayers));
+    }
+  });
+
+  test('every game type resolves to a playable widget', () {
     for (final type in GameType.values) {
-      final dedicated = DedicatedGameFactory.build(type);
-      // The classic six/several legacy games are intentionally built by
-      // GamePlayScreen's switch; all extended games must have a factory widget.
-      if (dedicated == null) {
-        expect(
-          {
-            GameType.xo,
-            GameType.quizBattle,
-            GameType.emojiReaction,
-            GameType.diceRoll,
-            GameType.drawGuess,
-            GameType.wordChain,
-            GameType.truthDare,
-            GameType.guessSong,
-            GameType.memoryMatch,
-            GameType.trivia,
-            GameType.quickTap,
-            GameType.wouldYouRather,
-            GameType.speedMath,
-            GameType.movieQuiz,
-            GameType.sudokuDuel,
-          },
-          contains(type),
-        );
-      }
+      final widget = DedicatedGameFactory.build(type);
+      expect(widget, isA<Widget>(), reason: 'Missing renderer for ${type.name}');
     }
   });
 }
