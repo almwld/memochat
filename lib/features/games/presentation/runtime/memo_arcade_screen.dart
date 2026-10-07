@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/game_service.dart';
 import '../../models/game.dart';
+import 'arcade_content.dart';
 
 class MemoArcadeScreen extends StatefulWidget {
   const MemoArcadeScreen({super.key, required this.type, this.chatId = '', this.gameId});
@@ -70,7 +71,7 @@ class MemoArcadeGame extends FlameGame {
   int score = 0;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
 
-  int get profile => type.index % 8;
+  ArcadeContent get content => ArcadeContentBank.forType(type);
   Color get background => const Color(0xFF071719);
   List<Color> get palette {
     const p = <List<Color>>[
@@ -145,15 +146,14 @@ class MemoArcadeGame extends FlameGame {
       paint.color=Colors.white.withOpacity(.2); canvas.drawCircle(Offset(c.dx-r*.28,c.dy-r*.28),r*.18,paint);
     }
     for(final p in particles){paint.color=palette[p.kind%palette.length].withOpacity(math.max(0,1-p.age/.7));canvas.drawCircle(Offset(p.position.x,p.position.y),p.radius*(1+p.age*2),paint);}
-    final hud=TextPainter(text:TextSpan(text:title+'  •  '+score.toString()+' نقطة',style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
+    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة',style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
     hud.paint(canvas,Offset(size.x/2-hud.width/2,20));
     final help=TextPainter(text:TextSpan(text:_instruction,style:const TextStyle(color:Color(0xB8FFFFFF),fontSize:12,fontWeight:FontWeight.w700)),textDirection:TextDirection.rtl)..layout();
     help.paint(canvas,Offset(size.x/2-help.width/2,49));
   }
 
   String get _instruction {
-    const a=['اضغط الأهداف المتحركة','التقط النجوم قبل اختفائها','اضرب الأشكال المتحركة','اجمع الأهداف المتوهجة','طابق الحركة مع اللحظة المناسبة','احصل على أكبر سلسلة','اضغط بسرعة وتجنب الأخطاء','اصنع أعلى نتيجة'];
-    return a[profile];
+    return content.instruction;
   }
 
   void tap(Vector2 point) {
