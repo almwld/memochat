@@ -42,6 +42,75 @@ class MessageBubble extends StatefulWidget {
   State<MessageBubble> createState() => _MessageBubbleState();
 }
 
+class _MemoBubblePainter extends CustomPainter {
+  final bool isMe;
+  final bool dark;
+  final bool emphasized;
+
+  const _MemoBubblePainter({
+    required this.isMe,
+    required this.dark,
+    required this.emphasized,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    final paint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = isMe
+          ? AppColors.primary
+          : (dark ? const Color(0xFF10201E) : Colors.white);
+
+    // The small lower-side notch is MemoChat's visual signature:
+    // asymmetric, quiet, and intentionally unlike the standard chat tail.
+    final r = emphasized ? 18.0 : 15.0;
+    final path = Path();
+    if (isMe) {
+      path
+        ..moveTo(r, 0)
+        ..lineTo(size.width - 6, 0)
+        ..quadraticBezierTo(size.width, 0, size.width, r)
+        ..lineTo(size.width, size.height - 16)
+        ..quadraticBezierTo(size.width, size.height - 5, size.width - 8, size.height - 4)
+        ..lineTo(size.width - 1, size.height)
+        ..lineTo(size.width - 17, size.height - 5)
+        ..lineTo(16, size.height - 5)
+        ..quadraticBezierTo(0, size.height - 5, 0, size.height - 20)
+        ..lineTo(0, r)
+        ..quadraticBezierTo(0, 0, r, 0);
+    } else {
+      path
+        ..moveTo(6, 0)
+        ..lineTo(size.width - r, 0)
+        ..quadraticBezierTo(size.width, 0, size.width, r)
+        ..lineTo(size.width, size.height - 20)
+        ..quadraticBezierTo(size.width, size.height - 5, size.width - 16, size.height - 5)
+        ..lineTo(8, size.height - 5)
+        ..lineTo(1, size.height)
+        ..lineTo(16, size.height - 4)
+        ..quadraticBezierTo(0, size.height - 5, 0, size.height - 20)
+        ..lineTo(0, r)
+        ..quadraticBezierTo(0, 0, 6, 0);
+    }
+    canvas.drawPath(path, paint);
+
+    if (!isMe && !dark) {
+      final border = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8
+        ..color = const Color(0xFFDCE5E3);
+      canvas.drawPath(path, border);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MemoBubblePainter oldDelegate) =>
+      oldDelegate.isMe != isMe ||
+      oldDelegate.dark != dark ||
+      oldDelegate.emphasized != emphasized;
+}
+
 class _MessageBubbleState extends State<MessageBubble> {
   bool _isLocal(String path) => widget.message['isLocal'] == true || widget.message['isUploading'] == true || path.startsWith('file://') || (path.isNotEmpty && !path.startsWith('http') && File(path).existsSync());
 
@@ -110,20 +179,38 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   Widget _shell(Widget child, bool dark) => GestureDetector(
         onLongPress: widget.onSelect ?? _options,
-        child: Container(
+        child: CustomPaint(
+          painter: _MemoBubblePainter(
+            isMe: widget.isMe,
+            dark: dark,
+            emphasized: widget.isFirstInChat,
+          ),
+          child: Container(
+            margin: EdgeInsetsDirectional.only(
+              start: widget.isMe ? 4 : 0,
+              end: widget.isMe ? 0 : 4,
+            ),
+            padding: EdgeInsets.zero,
             decoration: BoxDecoration(
-                color: widget.isMe
-                    ? AppColors.primary
-                    : (dark
-                        ? const Color(0xFF10201E)
-                        : const Color(0xFFFFFFFF)),
-                borderRadius: widget.isFirstInChat
-                    ? BorderRadius.circular(18)
-                    : BorderRadius.circular(14),
-                border: !widget.isMe && !dark
-                    ? Border.all(color: const Color(0xFFDCE5E3), width: .8)
-                    : null),
-            child: child));
+              color: widget.isMe
+                  ? AppColors.primary
+                  : (dark
+                      ? const Color(0xFF10201E)
+                      : const Color(0xFFFFFFFF)),
+              borderRadius: BorderRadiusDirectional.only(
+                topStart: Radius.circular(widget.isMe ? 18 : 6),
+                topEnd: Radius.circular(widget.isMe ? 6 : 18),
+                bottomStart: Radius.circular(16),
+                bottomEnd: Radius.circular(16),
+              ),
+              border: !widget.isMe && !dark
+                  ? Border.all(color: const Color(0xFFDCE5E3), width: .8)
+                  : null,
+            ),
+            child: child,
+          ),
+        ),
+      );
   Widget _buildContent(String type, bool dark) {
     final m = widget.message;
     switch (type) {
@@ -388,11 +475,11 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   String _replyAttachmentPreview(Map preview) {
     switch (preview['type']?.toString()) {
-      case 'image': return '📷 صورة';
-      case 'video': return '🎬 فيديو';
-      case 'audio': return '🎤 رسالة صوتية';
-      case 'file': return '📎 ملف';
-      case 'location': return '📍 موقع';
+      case 'image': return 'صورة';
+      case 'video': return 'فيديو';
+      case 'audio': return 'رسالة صوتية';
+      case 'file': return 'ملف';
+      case 'location': return 'موقع';
       default: return 'مرفق';
     }
   }
@@ -401,11 +488,25 @@ class _MessageBubbleState extends State<MessageBubble> {
   String _timeLabel(dynamic value) { final DateTime? date = value is Timestamp ? value.toDate() : value is DateTime ? value : value is String ? DateTime.tryParse(value) : null; if (date == null) return ''; final h = date.hour.toString().padLeft(2, '0'); final min = date.minute.toString().padLeft(2, '0'); return '$h:$min'; }
 
   Widget _status(Map<String, dynamic> m) {
-    if (m['isSending'] == true) return const Icon(Icons.schedule, size: 14, color: Colors.grey);
-    if (m['isRead'] == true) return const Icon(Icons.done_all, size: 15, color: AppColors.primary);
-    if (m['isDelivered'] == true) return const Icon(Icons.done_all, size: 15, color: Colors.grey);
-    return const Icon(Icons.check, size: 15, color: Colors.grey);
+    final onMe = widget.isMe;
+    final base = onMe ? Colors.white70 : (darkenForStatus(context) ? Colors.white60 : const Color(0xFF60736F));
+    if (m['hasError'] == true) {
+      return const Icon(Icons.error_outline_rounded, size: 15, color: Colors.redAccent);
+    }
+    if (m['isSending'] == true) {
+      return Icon(Icons.schedule_rounded, size: 14, color: base);
+    }
+    if (m['isRead'] == true) {
+      return const Icon(Icons.done_all_rounded, size: 15, color: AppColors.primary);
+    }
+    if (m['isDelivered'] == true) {
+      return Icon(Icons.done_all_rounded, size: 15, color: base);
+    }
+    return Icon(Icons.done_rounded, size: 15, color: base);
   }
+
+  bool darkenForStatus(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
 
   Widget _reactions(Map<String, dynamic> m, bool dark) {
     final raw = m['reactions'];
@@ -437,7 +538,11 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (mime.isNotEmpty && name.isEmpty) parts.add(mime);
     if (type == 'audio' && duration.isNotEmpty) parts.add(duration);
     if (parts.isEmpty) return const SizedBox.shrink();
-    final tc = widget.isMe ? Colors.white70 : (Theme.of(context).brightness == Brightness.dark ? Colors.white60 : const Color(0xFF617370));
+    final tc = widget.isMe
+        ? Colors.white70
+        : (Theme.of(context).brightness == Brightness.dark
+            ? Colors.white60
+            : const Color(0xFF617370));
     return Padding(
       padding: EdgeInsets.only(top: compact ? 4 : 6),
       child: Text(
@@ -698,573 +803,3 @@ class _MessageBubbleState extends State<MessageBubble> {
         icon = Icons.call_end_rounded;
         statusLabel = 'مشغول بمكالمة أخرى';
         break;
-      case 'cancelled':
-        icon = Icons.call_end_rounded;
-        statusLabel = incoming ? 'أُلغي الاتصال' : 'تم إلغاء الاتصال';
-        break;
-      case 'calling':
-      case 'ringing':
-        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
-        statusLabel = incoming ? 'مكالمة واردة' : 'جاري الاتصال';
-        break;
-      default:
-        icon = incoming ? Icons.call_received_rounded : Icons.call_made_rounded;
-        statusLabel = incoming ? 'مكالمة واردة' : 'مكالمة صادرة';
-    }
-
-    final title = 'مكالمة ${video ? 'فيديو' : 'صوتية'}';
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
-    final statusColor = switch (status) {
-      'missed' || 'rejected' => Colors.red,
-      'busy' => Colors.orange,
-      'cancelled' => Colors.grey,
-      'ended' => AppColors.primary,
-      _ => incoming ? Colors.green : AppColors.primary,
-    };
-
-    return _shell(
-      Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(color: statusColor.withOpacity(.15), shape: BoxShape.circle),
-              child: Icon(icon, color: statusColor, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: tc, fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 3),
-                  Text(statusLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 11)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => widget.onCallAgain?.call(video ? 'video' : 'audio'),
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Icon(video ? Icons.videocam_rounded : Icons.call_rounded, color: tc, size: 20),
-              ),
-            ),
-          ],
-        ),
-      ),
-      dark,
-    );
-  }
-
-  Widget _buildContact(Map<String, dynamic> m, bool dark) {
-    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
-    final name = meta['contactName']?.toString().trim().isNotEmpty == true ? meta['contactName'].toString() : 'جهة اتصال';
-    final phone = meta['contactPhone']?.toString().trim() ?? '';
-    final email = meta['contactEmail']?.toString().trim() ?? '';
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
-    return _shell(Padding(
-      padding: const EdgeInsets.all(12),
-      child: SizedBox(
-        width: 250,
-        child: Row(children: [
-          CircleAvatar(backgroundColor: widget.isMe ? Colors.white24 : AppColors.primary.withOpacity(.12), child: Icon(Icons.person, color: widget.isMe ? Colors.white : AppColors.primary)),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc, fontWeight: FontWeight.w800)),
-            if (phone.isNotEmpty) Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.75), fontSize: 12)),
-            if (email.isNotEmpty) Text(email, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.65), fontSize: 11)),
-          ])),
-        ]),
-      ),
-    ), dark);
-  }
-
-  Widget _buildLocation(Map<String, dynamic> m, bool dark) {
-    final lat = (m['locationLat'] as num?)?.toDouble();
-    final lng = (m['locationLng'] as num?)?.toDouble();
-    final address = (m['locationAddress']?.toString().trim().isNotEmpty == true)
-        ? m['locationAddress'].toString()
-        : (m['text']?.toString() ?? 'الموقع');
-    final meta = m['metadata'] is Map ? Map<String, dynamic>.from(m['metadata'] as Map) : <String, dynamic>{};
-    final street = meta['locationStreet']?.toString() ?? '';
-    final neighborhood = meta['locationNeighborhood']?.toString() ?? '';
-    final city = meta['locationCity']?.toString() ?? '';
-    final url = m['locationUrl']?.toString() ?? '';
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
-
-    final details = <String>[];
-    for (final value in [street, neighborhood, city]) {
-      final clean = value.trim();
-      if (clean.isEmpty) continue;
-      if (address.contains(clean)) continue;
-      if (details.any((item) => item == clean)) continue;
-      details.add(clean);
-    }
-
-    final map = lat == null || lng == null
-        ? const SizedBox.shrink()
-        : SizedBox(
-            width: 250,
-            height: 155,
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: LatLng(lat, lng),
-                initialZoom: 16,
-                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.memo.app',
-                ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: LatLng(lat, lng),
-                      width: 42,
-                      height: 50,
-                      alignment: Alignment.bottomCenter,
-                      child: const Icon(Icons.location_pin, color: Colors.red, size: 42),
-                    ),
-                  ],
-                ),
-                const RichAttributionWidget(
-                  attributions: [TextSourceAttribution('OpenStreetMap')],
-                ),
-              ],
-            ),
-          );
-
-    return _shell(
-      InkWell(
-        onTap: url.isEmpty
-            ? null
-            : () async {
-                final uri = Uri.tryParse(url);
-                if (uri != null && await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-        borderRadius: BorderRadius.circular(14),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (lat != null && lng != null) map,
-              Padding(
-                padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.location_on, color: Colors.redAccent, size: 22),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('الموقع المرسل', style: TextStyle(color: tc, fontWeight: FontWeight.w800, fontSize: 12)),
-                          const SizedBox(height: 3),
-                          Text(address, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc, fontSize: 12)),
-                          if (details.isNotEmpty) ...[
-                            const SizedBox(height: 5),
-                            Text(details.join(' • '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: tc.withOpacity(.75), fontSize: 10)),
-                          ],
-                          if (lat != null && lng != null) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}',
-                              textDirection: TextDirection.ltr,
-                              style: TextStyle(color: tc.withOpacity(.65), fontSize: 9),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      dark,
-    );
-  }
-
-  Widget _buildSystem(Map<String, dynamic> m) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Center(child: Text(m['text']?.toString() ?? '', style: const TextStyle(fontSize: 11, color: Color(0xFF49615E)))));
-
-  void _options() {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Wrap(
-          children: [
-            if (widget.onReaction != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: ['👍', '❤️', '😂', '😮', '🙏']
-                      .map((emoji) => IconButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              widget.onReaction?.call(emoji);
-                            },
-                            icon: Text(emoji, style: const TextStyle(fontSize: 24)),
-                          ))
-                      .toList(),
-                ),
-              ),
-            if ((widget.message['text']?.toString().trim() ?? '').isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.copy),
-                title: const Text('نسخ الرسالة'),
-                onTap: () async {
-                  await Clipboard.setData(ClipboardData(text: widget.message['text'].toString()));
-                  if (mounted) Navigator.pop(context);
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('معلومات الرسالة'),
-              onTap: () {
-                Navigator.pop(context);
-                _showMessageInfo();
-              },
-            ),
-            if (widget.onReply != null)
-              ListTile(
-                leading: const Icon(Icons.reply),
-                title: const Text('رد'),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onReply?.call();
-                },
-              ),
-            if (widget.onEdit != null && widget.message['isDeleted'] != true && (widget.message['text']?.toString().trim() ?? '').isNotEmpty)
-              ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () { Navigator.pop(context); widget.onEdit?.call(); }),
-            if (widget.onStar != null)
-              ListTile(leading: Icon(widget.message['isStarred'] == true ? Icons.star : Icons.star_border), title: Text(widget.message['isStarred'] == true ? 'إزالة من المفضلة' : 'حفظ في المفضلة'), onTap: () { Navigator.pop(context); widget.onStar?.call(); }),
-            if (widget.onPin != null)
-              ListTile(leading: Icon((widget.message['isPinned'] == true) ? Icons.push_pin : Icons.push_pin_outlined), title: Text(widget.message['isPinned'] == true ? 'إلغاء تثبيت الرسالة' : 'تثبيت الرسالة'), onTap: () { Navigator.pop(context); widget.onPin?.call(); }),
-            if (widget.onForward != null)
-              ListTile(
-                leading: const Icon(Icons.forward_outlined),
-                title: const Text('إعادة توجيه'),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onForward?.call();
-                },
-              ),
-            if (widget.onDeleteForMe != null)
-              ListTile(leading: const Icon(Icons.delete_sweep_outlined), title: const Text('حذف لدي فقط'), onTap: () { Navigator.pop(context); widget.onDeleteForMe?.call(); }),
-            if (widget.onDelete != null)
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('حذف للجميع'),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onDelete?.call();
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TextDocumentDialog extends StatelessWidget {
-  final String title;
-  final String content;
-  const _TextDocumentDialog({required this.title, required this.content});
-  @override
-  Widget build(BuildContext context) => Dialog(
-    insetPadding: const EdgeInsets.all(12),
-    child: SizedBox(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height * .82,
-      child: Column(children: [
-        AppBar(title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis), automaticallyImplyLeading: false,
-          actions: [IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close))]),
-        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: SelectableText(content, textDirection: TextDirection.rtl, style: const TextStyle(fontSize: 14, height: 1.7)))),
-      ]),
-    ),
-  );
-}
-
-class _DocumentWebViewDialog extends StatefulWidget {
-  final String title;
-  final String url;
-  const _DocumentWebViewDialog({required this.title, required this.url});
-  @override State<_DocumentWebViewDialog> createState() => _DocumentWebViewDialogState();
-}
-
-class _DocumentWebViewDialogState extends State<_DocumentWebViewDialog> {
-  late final WebViewController _controller;
-  @override
-  void initState() {
-    super.initState();
-    final viewerUrl = 'https://docs.google.com/gview?embedded=1&url=${Uri.encodeComponent(widget.url)}';
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse(viewerUrl));
-  }
-  @override
-  Widget build(BuildContext context) => Dialog(
-    insetPadding: const EdgeInsets.all(8),
-    child: SizedBox(
-      width: double.infinity,
-      height: MediaQuery.of(context).size.height * .9,
-      child: Column(children: [
-        AppBar(title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis), automaticallyImplyLeading: false,
-          actions: [
-            IconButton(onPressed: () async { final uri = Uri.tryParse(widget.url); if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication); }, icon: const Icon(Icons.open_in_new)),
-            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
-          ]),
-        Expanded(child: WebViewWidget(controller: _controller)),
-      ]),
-    ),
-  );
-}
-
-class _InlineVideoPreview extends StatefulWidget {
-  const _InlineVideoPreview({
-    required this.url,
-    required this.isLocal,
-    required this.onOpen,
-  });
-
-  final String url;
-  final bool isLocal;
-  final VoidCallback onOpen;
-
-  @override
-  State<_InlineVideoPreview> createState() => _InlineVideoPreviewState();
-}
-
-class _InlineVideoPreviewState extends State<_InlineVideoPreview> {
-  VideoPlayerController? _controller;
-  Object? _error;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _initialize();
-  }
-
-  Future<void> _initialize() async {
-    final rawPath = widget.url.trim();
-    final localPath = rawPath.replaceFirst('file://', '');
-    try {
-      final controller = widget.isLocal
-          ? VideoPlayerController.file(File(localPath))
-          : VideoPlayerController.networkUrl(Uri.parse(rawPath));
-
-      _controller = controller;
-      await controller.initialize();
-      await controller.setLooping(false);
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      setState(() => _loading = false);
-    } catch (error) {
-      await _controller?.dispose();
-      _controller = null;
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = error;
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const width = 230.0;
-    const height = 160.0;
-
-    if (_loading) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: const SizedBox(
-          width: width,
-          height: height,
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-      );
-    }
-
-    if (_error != null || _controller == null || !_controller!.value.isInitialized) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: SizedBox(
-          width: width,
-          height: height,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.video_file_outlined,
-                size: 34,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 7),
-              Text(
-                'تعذر تحميل الفيديو',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _loading = true;
-                    _error = null;
-                  });
-                  _initialize();
-                },
-                child: const Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final controller = _controller!;
-    return GestureDetector(
-      onTap: widget.onOpen,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: SizedBox(
-          width: width,
-          height: height,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              ColoredBox(
-                color: Colors.black,
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: controller.value.aspectRatio > 0
-                        ? controller.value.aspectRatio
-                        : 16 / 9,
-                    child: VideoPlayer(controller),
-                  ),
-                ),
-              ),
-              ValueListenableBuilder<VideoPlayerValue>(
-                valueListenable: controller,
-                builder: (context, value, _) {
-                  final playing = value.isPlaying;
-                  return AnimatedOpacity(
-                    opacity: playing ? 0.0 : 1.0,
-                    duration: const Duration(milliseconds: 150),
-                    child: IgnorePointer(
-                      ignoring: playing,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Colors.black38,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 44,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VideoViewer extends StatefulWidget {
-  final String url;
-  final bool isLocal;
-  const _VideoViewer({required this.url, required this.isLocal});
-  @override State<_VideoViewer> createState() => _VideoViewerState();
-}
-
-class _VideoViewerState extends State<_VideoViewer> {
-  late final VideoPlayerController controller;
-  @override void initState() {
-    super.initState();
-    final path = widget.url.replaceFirst('file://', '');
-    controller = widget.isLocal ? VideoPlayerController.file(File(path)) : VideoPlayerController.networkUrl(Uri.parse(path));
-    controller.initialize().then((_) { if (mounted) setState(() {}); });
-  }
-  @override void dispose() { controller.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) {
-    if (!controller.value.isInitialized) return const Dialog(backgroundColor: Colors.black, child: SizedBox(height: 240, child: Center(child: CircularProgressIndicator())));
-    return Dialog(backgroundColor: Colors.black, insetPadding: const EdgeInsets.all(12), child: AspectRatio(aspectRatio: controller.value.aspectRatio, child: Stack(alignment: Alignment.center, children: [VideoPlayer(controller), IconButton(icon: Icon(controller.value.isPlaying ? Icons.pause_circle : Icons.play_circle, color: Colors.white, size: 52), onPressed: () => setState(() => controller.value.isPlaying ? controller.pause() : controller.play()))])));
-  }
-}
-
-class JustAudioMessagePlayer extends StatefulWidget {
-  final String url;
-  final bool local;
-  const JustAudioMessagePlayer({super.key, required this.url, this.local = false});
-  @override State<JustAudioMessagePlayer> createState() => _JustAudioMessagePlayerState();
-}
-
-class _JustAudioMessagePlayerState extends State<JustAudioMessagePlayer> {
-  final player = AudioPlayer();
-  bool ready = false;
-  @override void dispose() { player.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) {
-    return StreamBuilder<PlayerState>(
-      stream: player.playerStateStream,
-      builder: (context, snapshot) {
-        final playing = snapshot.data?.playing ?? false;
-        return IconButton(
-          icon: Icon(playing ? Icons.pause_circle : Icons.play_circle),
-          onPressed: () async {
-            if (!ready) {
-              if (widget.local) {
-                await player.setFilePath(widget.url.replaceFirst('file://', ''));
-              } else {
-                await player.setUrl(widget.url);
-              }
-              ready = true;
-            }
-            if (playing) {
-              await player.pause();
-            } else {
-              await player.play();
-            }
-          },
-        );
-      },
-    );
-  }
-}
-
-
-
