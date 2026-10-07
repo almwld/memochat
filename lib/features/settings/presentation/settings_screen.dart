@@ -227,7 +227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final user = _user;
-    return Scaffold(
+    return ScrollAwareScaffold(
       appBar: AppBar(title: const Text('الإعدادات', style: TextStyle(fontWeight: FontWeight.w900))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
@@ -327,20 +327,18 @@ class _Section extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-              child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-            ),
-            ...children,
-          ],
-        ),
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MemoSectionLabel(title),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: children),
+          ),
+        ],
       );
 }
+
 
 class _Row extends StatelessWidget {
   const _Row(this.icon, this.title, this.subtitle, this.onTap);
