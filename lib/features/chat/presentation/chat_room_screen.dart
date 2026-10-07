@@ -1245,48 +1245,95 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                   status.stories.isNotEmpty &&
                   status.stories.first.type == 'image' &&
                   status.stories.first.url.isNotEmpty;
+              final presenceColor = _otherTyping
+                  ? AppColors.primary
+                  : _online
+                      ? const Color(0xFF20B66B)
+                      : AppColors.primary.withOpacity(.30);
               final avatar = InkWell(
                 onTap: status != null && status.stories.isNotEmpty
                     ? () => _openOtherUserStatus(status)
                     : _profile,
-                borderRadius: BorderRadius.circular(22),
-                child: Container(
-                  width: 42,
-                  height: 42,
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: status != null && status.stories.isNotEmpty
-                        ? Border.all(color: AppColors.primary, width: 2)
-                        : null,
-                  ),
-                  child: ClipOval(
-                    child: hasStoryImage
-                        ? CachedNetworkImage(
-                            imageUrl: status.stories.first.url,
-                            fit: BoxFit.cover,
-                          )
-                        : image != null && image.trim().isNotEmpty
+                borderRadius: BorderRadius.circular(23),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      width: 44,
+                      height: 44,
+                      padding: EdgeInsets.all(_otherTyping || _online ? 2.2 : 1.5),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: status != null && status.stories.isNotEmpty
+                              ? AppColors.primary
+                              : presenceColor,
+                          width: _otherTyping ? 2.2 : 1.3,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: hasStoryImage
                             ? CachedNetworkImage(
-                                imageUrl: image.trim(),
+                                imageUrl: status.stories.first.url,
                                 fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => _AvatarFallback(name: widget.otherUserName),
                               )
-                            : Container(
-                                color: AppColors.primary.withOpacity(.12),
-                                child: Center(
-                                  child: Text(
-                                    widget.otherUserName.isEmpty
-                                        ? 'م'
-                                        : widget.otherUserName.substring(0, 1),
-                                    style: const TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                  ),
+                            : image != null && image.trim().isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: image.trim(),
+                                    fit: BoxFit.cover,
+                                    errorWidget: (_, __, ___) =>
+                                        _AvatarFallback(name: widget.otherUserName),
+                                  )
+                                : _AvatarFallback(name: widget.otherUserName),
+                      ),
+                    ),
+                    if (_online)
+                      PositionedDirectional(
+                        end: -1,
+                        bottom: -1,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF20B66B),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: dark
+                                  ? const Color(0xFF101827)
+                                  : const Color(0xFFF7FBFA),
+                              width: 2.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_otherTyping)
+                      PositionedDirectional(
+                        start: -3,
+                        top: -3,
+                        child: Container(
+                          width: 19,
+                          height: 19,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: dark
+                                  ? const Color(0xFF101827)
+                                  : const Color(0xFFF7FBFA),
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            size: 10,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               );
               return Row(children: [
