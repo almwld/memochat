@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import '../../../core/repositories/chat_repository.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/theme/app_icons.dart';
@@ -80,6 +81,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   bool _navVisible = true;
+  DateTime? _lastBackPress;
   late final List<Widget?> _pages;
   late final Stream<List<Conversation>> _conversationsStream;
 
@@ -160,9 +162,40 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     return false;
   }
 
+  Future<void> _handleBack() async {
+    if (!mounted) return;
+    if (_index != 0) {
+      setState(() => _index = 0);
+      return;
+    }
+
+    final now = DateTime.now();
+    final previous = _lastBackPress;
+    if (previous == null || now.difference(previous) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('انقر مرة ثانية للخروج من MemoChat'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      return;
+    }
+
+    _lastBackPress = null;
+    await SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_handleBack());
+      },
+      child: Scaffold(
       extendBody: true,
       body: NotificationListener<UserScrollNotification>(
         onNotification: _handleNavigationScroll,
@@ -260,6 +293,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
           ),
         ),
+      ),
       ),
     );
   }
