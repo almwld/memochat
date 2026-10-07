@@ -6,7 +6,7 @@ import 'package:memochat/features/games/models/game.dart';
 import 'package:memochat/features/games/models/game_session.dart';
 import 'package:memochat/features/games/presentation/game_play_screen.dart';
 import 'package:memochat/features/games/services/game_service.dart';
-import 'game_factory.dart';
+import 'runtime/arcade_content.dart';
 
 class GameRoomScreen extends StatefulWidget {
   final String chatId;
