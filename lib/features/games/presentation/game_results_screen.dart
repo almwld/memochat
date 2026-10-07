@@ -33,8 +33,10 @@ class GameResultsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20,24,20,48),
         children: [
-          MemoListCard(
-            child: Column(
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
               children: [
                 Icon(Icons.emoji_events_rounded, size: 64, color: scheme.primary),
                 const SizedBox(height: 12),
@@ -44,6 +46,7 @@ class GameResultsScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text('أفضل نتيجة: $best', style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w700)),
               ],
+              ),
             ),
           ),
           const SizedBox(height: 14),
