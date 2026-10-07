@@ -10,6 +10,9 @@ class Conversation {
     this.unreadCount = 0,
     this.isArchived = false,
     this.isGroup = false,
+    this.isPinned = false,
+    this.isMuted = false,
+    this.isTyping = false,
   });
 
   final String id;
@@ -21,4 +24,7 @@ class Conversation {
   final int unreadCount;
   final bool isArchived;
   final bool isGroup;
+  final bool isPinned;
+  final bool isMuted;
+  final bool isTyping;
 }
