@@ -229,7 +229,6 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const SizedBox(height: 12),
                   TextField(
                     controller: _peerId,
                     textInputAction: TextInputAction.next,
