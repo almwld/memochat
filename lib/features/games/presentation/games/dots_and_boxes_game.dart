@@ -22,7 +22,10 @@ class _DotsAndBoxesGameState extends State<DotsAndBoxesGame> {
 
   void _selectEdge(String key, {required bool horizontal}) {
     final edges = horizontal ? _horizontalEdges : _verticalEdges;
-    if (edges.contains(key) || _completedBoxes.length == 9) return;
+    if (edges.contains(key) ||
+        _completedBoxes.length == (_gridSize - 1) * (_gridSize - 1)) {
+      return;
+    }
 
     var gained = 0;
     setState(() {
