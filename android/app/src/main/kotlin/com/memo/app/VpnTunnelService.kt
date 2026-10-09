@@ -41,6 +41,7 @@ class VpnTunnelService : VpnService() {
     private var uplinkThread: Thread? = null
     private var downlinkThread: Thread? = null
     private val stateLock = Any()
+    private var generation = 0
 
     private val magic = byteArrayOf(0x4d, 0x43, 0x56, 0x54)
     private val version: Byte = 1
@@ -63,8 +64,23 @@ class VpnTunnelService : VpnService() {
     }
 
     private fun startTunnel(host: String, fingerprint: String, peerId: String, sharedSecret: String, address: String, route: String) {
-        stopTunnel()
-        if (host.isBlank() || peerId.isBlank() || sharedSecret.length < 24) return
+        val attempt = synchronized(stateLock) {
+            generation += 1
+            running = false
+            generation
+        }
+        // Replacing a tunnel must close old resources without calling stopSelf(),
+        // otherwise Android may destroy the service immediately after a new start.
+        closeTunnelResources()
+        connectThread?.interrupt()
+        uplinkThread?.interrupt()
+        downlinkThread?.interrupt()
+
+        if (host.isBlank() || peerId.isBlank() || sharedSecret.length < 24) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
 
         createNotificationChannel()
         startForeground(
@@ -81,18 +97,25 @@ class VpnTunnelService : VpnService() {
         val prefix = address.substringAfter('/', "32").toIntOrNull() ?: 32
         val routeIp = route.substringBefore('/')
         val routePrefix = route.substringAfter('/', "24").toIntOrNull() ?: 24
-        if (addressIp.split('.').size != 4 || routeIp.split('.').size != 4) {
-            stopTunnel()
+        if (addressIp.split('.').size != 4 || routeIp.split('.').size != 4 ||
+            prefix !in 0..32 || routePrefix !in 0..32) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
             return
         }
 
         connectThread = Thread({
+            var candidateSocket: SSLSocket? = null
+            var candidateFd: ParcelFileDescriptor? = null
             try {
                 val socket = createSslSocket(host, fingerprint)
+                candidateSocket = socket
                 if (!protect(socket)) throw IllegalStateException("تعذر حماية قناة النفق من مسار TUN")
                 socket.connect(InetSocketAddress(host, 4433), 10000)
+                socket.soTimeout = 10000
                 socket.startHandshake()
                 registerPeer(socket, peerId, sharedSecret, addressIp)
+                socket.soTimeout = 0
 
                 val fd = Builder()
                     .setSession("MemoChat Tunnel")
@@ -101,22 +124,41 @@ class VpnTunnelService : VpnService() {
                     .addRoute(routeIp, routePrefix)
                     .setBlocking(false)
                     .establish() ?: throw IllegalStateException("تعذر إنشاء واجهة TUN")
+                candidateFd = fd
 
                 synchronized(stateLock) {
+                    if (generation != attempt) {
+                        try { fd.close() } catch (_: Exception) {}
+                        try { socket.close() } catch (_: Exception) {}
+                        return@Thread
+                    }
                     tunnelSocket = socket
                     interfaceFd = fd
                     running = true
                 }
-                startPacketLoops(fd, socket)
-            } catch (_: Exception) {
-                synchronized(stateLock) { running = false }
-                closeTunnelResources()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                startPacketLoops(fd, socket, attempt)
+            } catch (error: Exception) {
+                val shouldStop = synchronized(stateLock) {
+                    if (generation != attempt) false else {
+                        running = false
+                        true
+                    }
+                }
+                if (shouldStop) {
+                    closeTunnelResources()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                } else {
+                    try { candidateSocket?.close() } catch (_: Exception) {}
+                    try { candidateFd?.close() } catch (_: Exception) {}
+                }
             }
         }, "MemoChat-Tunnel-Connect")
         connectThread?.start()
     }
+
+    private fun isCurrentGeneration(attempt: Int): Boolean =
+        synchronized(stateLock) { generation == attempt }
 
     private fun createSslSocket(host: String, fingerprint: String): SSLSocket {
         val normalizedPin = normalizeFingerprint(fingerprint)
