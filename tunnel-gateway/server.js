@@ -15,7 +15,8 @@ const VERSION = 1;
 const TYPE_PACKET = 1;
 const TYPE_REGISTER = 2;
 const TYPE_REGISTER_ACK = 3;
-const peersById = new Map();
+const configuredPeers = new Map();
+const activePeers = new Map();
 const peersByAddress = new Map();
 
 function ipv4ToNumber(value) {
@@ -74,10 +75,10 @@ function readPeers() {
     if (peersByAddress.has(address)) {
       throw new Error(`Duplicate virtual address configured: ${address}`);
     }
-    peersById.set(peerId, { peerId, address, secret });
+    configuredPeers.set(peerId, { peerId, address, secret });
     peersByAddress.set(address, null);
   }
-  if (peersById.size < 2) {
+  if (configuredPeers.size < 2) {
     throw new Error('Configure at least two distinct peers in TUNNEL_PEERS_JSON');
   }
 }
@@ -116,8 +117,8 @@ function parseIpv4Packet(packet) {
 function unregister(socket) {
   const peer = socket.memoPeer;
   if (!peer) return;
-  if (peersById.get(peer.peerId)?.socket === socket) {
-    peersById.delete(peer.peerId);
+  if (activePeers.get(peer.peerId)?.socket === socket) {
+    activePeers.delete(peer.peerId);
     peersByAddress.set(peer.address, null);
     console.log(`peer disconnected: ${peer.peerId} (${peer.address})`);
   }
@@ -135,20 +136,21 @@ function registerPeer(socket, payload) {
   const peerId = String(request.peerId || '').trim();
   const address = String(request.address || '').trim();
   const secret = String(request.secret || '');
-  const configured = peersById.get(peerId);
+  const configured = configuredPeers.get(peerId);
   if (!configured || !constantTimeEqual(secret, configured.secret) || address !== configured.address) {
     sendControl(socket, TYPE_REGISTER_ACK, { ok: false, message: 'Peer credentials or virtual address are invalid' });
     socket.end();
     return;
   }
 
-  const previous = peersById.get(peerId)?.socket;
+  const previous = activePeers.get(peerId)?.socket;
   if (previous && previous !== socket) previous.destroy();
   const peer = { peerId, address, socket };
-  peersById.set(peerId, peer);
+  activePeers.set(peerId, peer);
   peersByAddress.set(address, peer);
   socket.memoPeer = peer;
-  socket.setTimeout(IDLE_TIMEOUT_MS);
+  socket.setKeepAlive(true, 30000);
+  socket.setTimeout(0);
   sendControl(socket, TYPE_REGISTER_ACK, { ok: true, peerId, address, cidr: CIDR });
   console.log(`peer connected: ${peerId} (${address})`);
 }
@@ -192,7 +194,8 @@ function start() {
     rejectUnauthorized: false,
   }, socket => {
     socket.setNoDelay(true);
-    socket.setTimeout(IDLE_TIMEOUT_MS);
+    socket.setKeepAlive(true, 30000);
+    socket.setTimeout(0);
     socket.memoBuffer = Buffer.alloc(0);
     socket.on('timeout', () => socket.destroy(new Error('Tunnel idle timeout')));
     socket.on('data', chunk => {
@@ -231,7 +234,7 @@ function start() {
     process.exitCode = 1;
   });
   server.listen(PORT, HOST, () => {
-    console.log(`MemoChat tunnel gateway listening on ${HOST}:${PORT}; virtual network ${CIDR}; peers configured: ${peersById.size}`);
+    console.log(`MemoChat tunnel gateway listening on ${HOST}:${PORT}; virtual network ${CIDR}; peers configured: ${configuredPeers.size}`);
   });
 }
 
