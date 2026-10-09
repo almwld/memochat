@@ -92,7 +92,6 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
           final event = Map<String, dynamic>.from(raw);
           final type = event['type']?.toString() ?? '';
           final body = event['message']?.toString() ?? '';
-          final id = event['id']?.toString() ?? '';
           if (type == 'state' || type == 'error') {
             _hint = body;
             changed = true;
@@ -298,6 +297,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
                         final item = _messages[index];
                         return Align(
                           alignment: item.incoming ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
+                          key: ValueKey(item.id),
                           child: Container(
                             constraints: const BoxConstraints(maxWidth: 320),
                             margin: const EdgeInsets.only(bottom: 8),
@@ -367,11 +367,4 @@ class _LocalMessage {
   final String text;
   final bool incoming;
   final bool delivered;
-
-  _LocalMessage copyWith({bool? delivered}) => _LocalMessage(
-        id: id,
-        text: text,
-        incoming: incoming,
-        delivered: delivered ?? this.delivered,
-      );
 }
