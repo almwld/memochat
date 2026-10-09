@@ -26,7 +26,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final notificationPreferences = NotificationPreferences(preferences: prefs);
     if (!mounted) return;
     var fontSize = prefs.getDouble('font_size') ?? 14.0;
     var wallpaper = 'default';
