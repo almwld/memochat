@@ -119,6 +119,10 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       _show('رقم المنفذ غير صالح.');
       return false;
     }
+    if (_service.isListening && port != _service.port) {
+      _show('أوقف الاستماع المحلي أولاً، ثم غيّر المنفذ وأعد تشغيل القناة.');
+      return false;
+    }
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('offline_link.remote_peer_id', remoteId);
