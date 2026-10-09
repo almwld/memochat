@@ -476,7 +476,7 @@ class _MemoChatHeader extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(17)), child: const Center(
+                  Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(17)), child: Center(
                     child: SvgPicture.asset(
                       'assets/icon/icon_app.svg',
                       width: 39,
