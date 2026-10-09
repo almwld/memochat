@@ -44,3 +44,6 @@ jobs:
 
       - name: Check authenticated offline tunnel gateway syntax
         run: node --check tunnel-gateway/server.js
+
+      - name: Test offline tunnel framing and IPv4 validation
+        run: cd tunnel-gateway && npm test
