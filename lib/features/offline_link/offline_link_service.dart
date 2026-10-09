@@ -132,6 +132,11 @@ class OfflineLinkService extends ChangeNotifier {
     required String sharedSecret,
     int port = defaultPort,
   }) {
+    // The bound TCP listener cannot move ports in-place. Reject a live port
+    // change instead of letting the UI believe it is listening on a new port.
+    if (_server != null && port != _port) {
+      throw StateError('أوقف مستمع Offline Link قبل تغيير المنفذ.');
+    }
     _localPeerId = localPeerId.trim();
     _remotePeerId = remotePeerId.trim();
     _remoteAddress = remoteAddress.trim();
