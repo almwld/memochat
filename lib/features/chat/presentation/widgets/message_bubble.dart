@@ -556,7 +556,14 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (type == 'audio') {
       // Voice notes show human-readable details only; never expose storage IDs
       // or generated .m4a filenames in the conversation UI.
-      if (duration.isNotEmpty) parts.add(duration);
+      if (duration.isNotEmpty) {
+        final seconds = int.tryParse(duration);
+        if (seconds != null && seconds >= 0) {
+          parts.add('${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}');
+        } else {
+          parts.add(duration);
+        }
+      }
       final bytes = int.tryParse(rawSize.replaceAll(RegExp(r'[^0-9]'), ''));
       if (bytes != null && bytes > 0) {
         parts.add(bytes < 1024
