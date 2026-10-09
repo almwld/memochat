@@ -36,19 +36,12 @@ async function sendToUser(uid,payload){
     const message={
       tokens,
       data:Object.fromEntries(Object.entries(payload.data||{}).map(([k,v])=>[k,String(v??'')])),
-      notification:{
-        title:String(payload.data?.title||'MemoChat'),
-        body:String(payload.data?.body||'لديك إشعار جديد'),
-      },
+      // Data-only FCM is required so the app can apply the user's notification
+      // preferences and render the correct message/call/system notification,
+      // including actions, rather than Android auto-rendering a generic alert.
       android:{
         priority:'high',
         ttl:60*60*1000,
-        notification:{
-          channelId:'memochat_messages_v1',
-          sound:'message_tone',
-          priority:'high',
-          icon:'ic_memochat_notification',
-        },
       },
       apns:{
         headers:{'apns-priority':'5','apns-push-type':'background'},
