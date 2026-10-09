@@ -17,6 +17,7 @@ import '../core/services/sync_coordinator.dart';
 import '../core/media/media_transfer_engine.dart';
 import '../features/chat/services/chat_media_transfer_service.dart';
 import '../core/notifications/push_notification_service.dart';
+import '../core/services/fcm_token_service.dart';
 import '../features/chat/services/notification_service.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -263,6 +264,10 @@ class _MemoChatAppState extends State<MemoChatApp>
     try {
       await _identity.markOffline();
     } catch (_) {}
+    // Remove this device's token while Firestore still authorizes the current
+    // user; otherwise their future messages could notify a later account on
+    // the same phone.
+    await FcmTokenService.instance.removeCurrentToken();
     await FirebaseAuth.instance.signOut();
 
     // Clear user-specific push lifecycle state after auth has switched to
