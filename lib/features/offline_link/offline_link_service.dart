@@ -145,7 +145,16 @@ class OfflineLinkService extends ChangeNotifier {
     if (_localPeerId.isEmpty || _sharedSecret.trim().length < 16) {
       throw StateError('أكمل معرّف الجهاز ومفتاح التشفير أولاً.');
     }
-    if (!RegExp(r'^[a-zA-Z0-9_.-]{1,64}    if (port < 1024 || port > 65535) {
+    if (!RegExp(r'^[a-zA-Z0-9_.-]{1,64}$').hasMatch(_localPeerId) ||
+        !RegExp(r'^[a-zA-Z0-9_.-]{1,64}$').hasMatch(_remotePeerId) ||
+        _localPeerId == _remotePeerId) {
+      throw StateError('تحقق من معرّفي الجهازين قبل تشغيل القناة.');
+    }
+    final remoteIp = InternetAddress.tryParse(_remoteAddress);
+    if (remoteIp == null || remoteIp.type != InternetAddressType.IPv4) {
+      throw StateError('أدخل عنوان IPv4 الحقيقي للجهاز الآخر داخل الشبكة المترابطة.');
+    }
+    if (port < 1024 || port > 65535) {
       throw ArgumentError.value(port, 'port', 'منفذ غير صالح');
     }
     // Android may not expose the VPN TUN address as a bindable interface address.
