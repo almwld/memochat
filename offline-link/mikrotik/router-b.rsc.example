@@ -1,0 +1,42 @@
+# MemoChat Offline Link — Router B (RouterOS v7)
+# EXAMPLE ONLY. Replace every __...__ value before importing.
+# Router A's transport IP must already be reachable WITHOUT Internet.
+#
+# Example topology (replace LAN subnets if yours differ):
+# Router A LAN: 192.168.10.0/24
+# Router B LAN: 192.168.20.0/24
+# WireGuard A: 10.144.0.1/30
+# WireGuard B: 10.144.0.2/30
+# WireGuard port: UDP 1440
+#
+# Export a backup first. Import this script only once after editing.
+
+# 1) RouterOS generates a private key when creating the interface.
+/interface/wireguard add name=wg-memochat listen-port=1440 mtu=1420 comment="MemoChat offline site-to-site"
+
+# 2) Assign Router B's tunnel address.
+/ip/address add address=10.144.0.2/30 interface=wg-memochat comment="MemoChat WG B"
+
+# 3) Replace the remote transport IP and Router A public key.
+/interface/wireguard/peers add interface=wg-memochat public-key="__ROUTER_A_PUBLIC_KEY__" endpoint-address=__ROUTER_A_TRANSPORT_IP__ endpoint-port=1440 allowed-address=10.144.0.1/32,192.168.10.0/24 persistent-keepalive=25s comment="MemoChat Router A"
+
+# 4) Route Router A LAN through WireGuard.
+/ip/route add dst-address=192.168.10.0/24 gateway=wg-memochat comment="MemoChat route to A LAN"
+
+# 5) Allow only the WireGuard handshake from Router A's transport IP.
+/ip/firewall/filter add chain=input action=accept protocol=udp src-address=__ROUTER_A_TRANSPORT_IP__ dst-port=1440 comment="MemoChat WG handshake from A" place-before=0
+
+# 6) Permit traffic only between the example LANs.
+/ip/firewall/filter add chain=forward action=accept src-address=192.168.20.0/24 dst-address=192.168.10.0/24 comment="MemoChat LAN B to LAN A" place-before=0
+/ip/firewall/filter add chain=forward action=accept src-address=192.168.10.0/24 dst-address=192.168.20.0/24 comment="MemoChat LAN A to LAN B" place-before=0
+
+# 7) Bypass generic masquerade for site-to-site traffic.
+/ip/firewall/nat add chain=srcnat action=accept src-address=192.168.20.0/24 dst-address=192.168.10.0/24 comment="No NAT MemoChat B to A" place-before=0
+/ip/firewall/nat add chain=srcnat action=accept src-address=192.168.10.0/24 dst-address=192.168.20.0/24 comment="No NAT MemoChat A to B" place-before=0
+
+# 8) Get Router B's public key and place it in router-a.rsc.example:
+# /interface/wireguard/print detail where name=wg-memochat
+# Verify handshake:
+# /interface/wireguard/peers/print detail
+# /ping 10.144.0.1
+# /ping 192.168.10.1
