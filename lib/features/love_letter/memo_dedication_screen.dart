@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// The dedication remains deliberately hidden behind seven rapid taps.
 class MemoDedicationScreen extends StatefulWidget {
   const MemoDedicationScreen({super.key});
 
@@ -11,6 +14,7 @@ class MemoDedicationScreen extends StatefulWidget {
 class _MemoDedicationScreenState extends State<MemoDedicationScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
+  late final AnimationController _stars;
 
   @override
   void initState() {
@@ -19,34 +23,47 @@ class _MemoDedicationScreenState extends State<MemoDedicationScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
+    _stars = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
     HapticFeedback.mediumImpact();
   }
 
   @override
   void dispose() {
     _pulse.dispose();
+    _stars.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF120A24),
+      backgroundColor: const Color(0xFF090718),
       body: SafeArea(
         child: Stack(
           children: [
-            PositionedDirectional(
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _stars,
+                builder: (_, __) => CustomPaint(
+                  painter: _StarfieldPainter(_stars.value),
+                ),
+              ),
+            ),
+            Positioned(
               top: 12,
-              end: 16,
+              right: 16,
               child: IconButton(
                 tooltip: 'إغلاق',
                 onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                icon: const Icon(Icons.close_rounded, color: Colors.white70),
               ),
             ),
             Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
+                padding: const EdgeInsets.fromLTRB(24, 54, 24, 30),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 560),
                   child: Column(
@@ -55,57 +72,115 @@ class _MemoDedicationScreenState extends State<MemoDedicationScreen>
                       const Text(
                         'MemoChat',
                         style: TextStyle(
-                          color: Color(0xFFFFD76A),
+                          color: Color(0xFFFFE7A0),
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
+                          letterSpacing: 2.2,
                         ),
                       ),
                       const SizedBox(height: 22),
                       AnimatedBuilder(
                         animation: _pulse,
                         builder: (_, __) => Transform.scale(
-                          scale: 1 + (_pulse.value * .06),
-                          child: const Icon(
-                            Icons.favorite_rounded,
-                            size: 88,
-                            color: Color(0xFFFF6B9D),
+                          scale: 1 + (_pulse.value * .07),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFF70B5)
+                                      .withOpacity(.16 + _pulse.value * .22),
+                                  blurRadius: 22 + _pulse.value * 28,
+                                  spreadRadius: 2 + _pulse.value * 7,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.favorite_rounded,
+                              size: 76,
+                              color: Color(0xFFFF78B7),
+                              shadows: [
+                                Shadow(color: Color(0xFFFFB7D8), blurRadius: 24),
+                                Shadow(color: Color(0xFFFF4FA3), blurRadius: 44),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 22),
                       const Text(
                         'إهداء خاص إلى ميمو',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0xFFFFD700),
-                          fontSize: 32,
+                          color: Color(0xFFFFE6A0),
+                          fontSize: 30,
                           fontWeight: FontWeight.w800,
+                          shadows: [
+                            Shadow(color: Color(0xFFFFD76A), blurRadius: 18),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 23,
+                          vertical: 27,
+                        ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.07),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white24),
+                          color: const Color(0xFF211632).withOpacity(.84),
+                          borderRadius: BorderRadius.circular(26),
+                          border: Border.all(
+                            color: const Color(0xFFFFD98A).withOpacity(.42),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFB47BFF).withOpacity(.12),
+                              blurRadius: 30,
+                              spreadRadius: 2,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFFFFD76A).withOpacity(.08),
+                              blurRadius: 22,
+                            ),
+                          ],
                         ),
                         child: const Text(
-                          'في كل لحظة جميلة، تبقى بعض الذكريات أقرب إلى القلب.\n\nإلى ميمو، دائمًا.\n\nمن فلانتشتاين',
+                          'إلى ميمو،\n'
+                          'إلى الاسم الذي يحمل في حروفه دفئًا لا تصفه الكلمات، '
+                          'وإلى الذكرى التي تستطيع أن تجعل لحظة عادية شيئًا ثمينًا.\n\n'
+                          'بعض الأشخاص لا تقاس مكانتهم بطول الحديث معهم، ولا بعدد الأيام التي تمر، '
+                          'بل بالأثر الهادئ الذي يتركونه في القلب؛ ابتسامة تأتي في وقتها، '
+                          'وكلمة صغيرة تبقى طويلًا، وتفاصيل بسيطة تصبح مع الأيام حكاية لا تشبه سواها.\n\n'
+                          'لهذا صُنعت هذه الرسالة لتكون زاوية صغيرة مخبأة بين تفاصيل التطبيق؛ '
+                          'مفاجأة لا تظهر من أول نظرة، مثل المعاني الجميلة التي لا تكشف نفسها إلا لمن يبحث عنها. '
+                          'وخلف كل نجمة تلمع هنا أمنية بأن تبقى لحظاتك مضيئة، '
+                          'وأن تجد في أيامك سكينةً وفرحًا وأسبابًا كثيرة للابتسام.\n\n'
+                          'أتمنى لك أيامًا أخفّ من القلق، وأوسع من الأحلام، '
+                          'وأقرب إلى كل ما تحب. وإن ازدحمت الحياة، فلتظل هناك دائمًا ذكرى لطيفة '
+                          'تعيد إلى قلبك شعور الطمأنينة، وتذكّرك بأن أجمل الأشياء قد تسكن في التفاصيل الصغيرة.\n\n'
+                          'إلى ميمو، بكل الودّ، اليوم وغدًا، وفي كل ذكرى تستحق أن تبقى.\n\n'
+                          'دائمًا لكِ هذه الكلمات،\n'
+                          'من فلانتشتاين',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Color(0xFFF9F5FA),
-                            fontSize: 19,
+                            color: Color(0xFFFFF8FF),
+                            fontSize: 17,
                             height: 1.9,
+                            letterSpacing: .1,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 34),
+                      const SizedBox(height: 24),
                       const Text(
-                        'اضغط على زر الإغلاق للعودة',
-                        style: TextStyle(color: Colors.white38, fontSize: 11),
+                        'بعض الرسائل لا تُعلن عن نفسها؛ يكفي أن تعرف أين تبحث.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFFC8B9D9),
+                          fontSize: 12,
+                          height: 1.6,
+                        ),
                       ),
                     ],
                   ),
@@ -114,6 +189,125 @@ class _MemoDedicationScreenState extends State<MemoDedicationScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StarfieldPainter extends CustomPainter {
+  _StarfieldPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final random = math.Random(731942);
+    for (var i = 0; i < 115; i++) {
+      final x = random.nextDouble() * size.width;
+      final baseY = random.nextDouble() * size.height;
+      final radius = .45 + random.nextDouble() * 1.65;
+      final phase = random.nextDouble() * math.pi * 2;
+      final twinkle = (.25 + .75 *
+          ((math.sin(progress * math.pi * 2 * (1 + (i % 4)) + phase) + 1) / 2));
+      final drift = (progress * (8 + i % 19)) % (size.height + 18);
+      final y = (baseY + drift) % (size.height + 18) - 9;
+      final color = i % 7 == 0
+          ? const Color(0xFFFFE7A0)
+          : i % 5 == 0
+              ? const Color(0xFFD9B8FF)
+              : const Color(0xFFFFFFFF);
+      final paint = Paint()..color = color.withOpacity(twinkle * .85);
+      canvas.drawCircle(Offset(x, y), radius * (.7 + twinkle * .45), paint);
+      if (i % 9 == 0) {
+        final glow = Paint()
+          ..color = color.withOpacity(twinkle * .34)
+          ..strokeWidth = .7
+          ..strokeCap = StrokeCap.round;
+        final length = 3 + twinkle * 5;
+        canvas.drawLine(Offset(x - length, y), Offset(x + length, y), glow);
+        canvas.drawLine(Offset(x, y - length), Offset(x, y + length), glow);
+        canvas.drawCircle(
+          Offset(x, y),
+          length * 1.25,
+          Paint()
+            ..color = color.withOpacity(twinkle * .08)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StarfieldPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+/// The ordinary licenses entry is visible; the dedication itself is not.
+class MemoLicensesScreen extends StatelessWidget {
+  const MemoLicensesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('حول MemoChat')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Column(
+                children: [
+                  SecretSevenTap(
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Column(
+                        children: [
+                          Icon(Icons.forum_rounded, size: 42),
+                          SizedBox(height: 8),
+                          Text(
+                            'MemoChat',
+                            style: TextStyle(
+                              fontSize: 23,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'المراسلة، الذكريات، واللحظات التي تستحق أن تبقى.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.article_outlined),
+              title: const Text('المصادر المفتوحة والتراخيص'),
+              subtitle: const Text('عرض التراخيص ومعلومات الحزم المستخدمة'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: 'MemoChat',
+                applicationLegalese: 'MemoChat — تطبيق للمراسلة والذكريات.',
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.all(14),
+            child: Text(
+              'تلميح: توجد تفاصيل صغيرة في التطبيق لا تظهر إلا لمن يلاحظها.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -164,6 +358,7 @@ class _SecretSevenTapState extends State<SecretSevenTap> {
   @override
   Widget build(BuildContext context) {
     return Listener(
+      behavior: HitTestBehavior.opaque,
       onPointerUp: (_) => _tap(),
       child: widget.child,
     );
