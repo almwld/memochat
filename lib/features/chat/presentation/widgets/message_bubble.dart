@@ -171,7 +171,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           child: Stack(clipBehavior: Clip.none, children: [
             _buildContent(type, dark),
             if (progress != null && progress >= 0 && progress < 1) Positioned(left: 8, right: 8, bottom: 3, child: LinearProgressIndicator(value: progress, minHeight: 2)),
-            if (widget.message['hasError'] == true) PositionedDirectional(start: -38, bottom: 5, child: IconButton(tooltip: 'إعادة المحاولة', onPressed: () => widget.message['onRetry']?.call(), icon: const Icon(Icons.refresh, color: Colors.red, size: 22))),
+
           ]),
         ),
       ),
@@ -228,11 +228,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         isMe: widget.isMe,
                         isLocal: _isLocal(url),
                       ),
-                      PositionedDirectional(
-                        top: 5,
-                        start: 7,
-                        child: _mediaTypeChip(Icons.graphic_eq_rounded, 'صوت', dark),
-                      ),
+
                     ],
                   ),
                   _mediaMeta(m, compact: true),
@@ -550,16 +546,30 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _mediaMeta(Map<String, dynamic> m, {bool compact = false}) {
-    final name = m['fileName']?.toString().trim() ?? '';
-    final size = m['fileSize']?.toString().trim() ?? '';
+    final type = m['type']?.toString() ?? '';
+    final rawName = m['fileName']?.toString().trim() ?? '';
+    final rawSize = m['fileSize']?.toString().trim() ?? '';
     final mime = m['fileMimeType']?.toString().trim() ?? '';
     final duration = m['audioDuration']?.toString().trim() ?? '';
-    final type = m['type']?.toString() ?? '';
     final parts = <String>[];
-    if (name.isNotEmpty) parts.add(name);
-    if (size.isNotEmpty) parts.add(size);
-    if (mime.isNotEmpty && name.isEmpty) parts.add(mime);
-    if (type == 'audio' && duration.isNotEmpty) parts.add(duration);
+
+    if (type == 'audio') {
+      // Voice notes show human-readable details only; never expose storage IDs
+      // or generated .m4a filenames in the conversation UI.
+      if (duration.isNotEmpty) parts.add(duration);
+      final bytes = int.tryParse(rawSize.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (bytes != null && bytes > 0) {
+        parts.add(bytes < 1024
+            ? '${bytes} B'
+            : '${(bytes / 1024).round()} KB');
+      } else if (rawSize.isNotEmpty) {
+        parts.add(rawSize);
+      }
+    } else {
+      if (rawName.isNotEmpty) parts.add(rawName);
+      if (rawSize.isNotEmpty) parts.add(rawSize);
+      if (mime.isNotEmpty && rawName.isEmpty) parts.add(mime);
+    }
     if (parts.isEmpty) return const SizedBox.shrink();
 
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -579,7 +589,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     };
 
     return Padding(
-      padding: EdgeInsets.only(top: compact ? 5 : 7),
+      padding: EdgeInsets.only(top: compact ? 3 : 7),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background,
