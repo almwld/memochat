@@ -155,7 +155,8 @@ class OfflineLinkService extends ChangeNotifier {
     if (port < 1024 || port > 65535) {
       throw ArgumentError.value(port, 'port', 'منفذ غير صالح');
     }
-    // Bind only to the VPN virtual address, not every Wi-Fi/mobile interface.
+    // Android may not expose the VPN TUN address as a bindable interface address.
+    // Bind wildcard for compatibility, then reject every source except the configured peer IP.
     final server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
     _server = server;
     _port = port;
