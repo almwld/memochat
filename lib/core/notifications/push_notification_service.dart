@@ -14,6 +14,7 @@ import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
 import '../../features/chat/services/call_service.dart';
 import '../../features/chat/presentation/chat_navigation.dart';
+import '../../features/notifications/presentation/notification_center_screen.dart';
 import '../../features/chat/services/call_sound_coordinator.dart';
 import 'ringtone_service.dart';
 import 'notification_preferences.dart';
@@ -219,11 +220,15 @@ class PushNotificationService {
     final chatId = data['chatId']?.toString().trim() ?? '';
     final senderId = data['senderId']?.toString().trim() ?? '';
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final route = data['route']?.toString() ?? '';
     if (navigator != null &&
         chatId.isNotEmpty &&
         senderId.isNotEmpty &&
         currentUid.isNotEmpty &&
-        senderId != currentUid) {
+        senderId != currentUid &&
+        !route.startsWith('community:') &&
+        !route.startsWith('voice_room:') &&
+        !route.startsWith('contacts:')) {
       await ChatNavigation.openRoom(
         navigator.context,
         chatId: chatId,
@@ -234,6 +239,12 @@ class PushNotificationService {
         otherUserImage: data['senderPhotoUrl']?.toString() ??
             data['photoUrl']?.toString(),
       );
+      return;
+    }
+    if (navigator != null) {
+      await navigator.push(MaterialPageRoute<void>(
+        builder: (_) => const NotificationCenterScreen(),
+      ));
     }
   }
 }
@@ -298,7 +309,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           ...notification.toJson(),
           ...message.data,
         },
-        payload: notification.encode(),
+        payload: jsonEncode(<String, dynamic>{
+          'type': notification.type.wireName,
+          'data': <String, dynamic>{...notification.toJson(), ...message.data},
+        }),
         playSound: playSound,
         vibrate: vibrate,
       );
