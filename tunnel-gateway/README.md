@@ -4,7 +4,7 @@ This directory contains an **optional, isolated transport layer** for the Androi
 
 ## Recommended gateway
 
-Use `server.js` for the authenticated, peer-to-peer IPv4 tunnel. It accepts the same MCVT frame format as the Android client and adds a small registration handshake before packet traffic. The legacy `gateway.py` is retained for compatibility but does not authenticate clients and should not be exposed to untrusted networks.
+Use `server.js` for the authenticated, peer-to-peer IPv4 tunnel. It accepts the MCVT frame format plus the registration handshake used by the current Android client. The older `gateway.py` does not implement that handshake and is not compatible with the current client; use `server.js` for this configuration.
 
 The gateway is not an Internet exit and cannot create a physical connection between routers. The two MikroTik routers must already have a routed LAN/WAN/radio link so both devices can reach the gateway host on TCP 4433. Internet access is not required when that private routed link works.
 
