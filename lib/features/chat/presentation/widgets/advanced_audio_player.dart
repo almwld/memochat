@@ -29,17 +29,15 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
   static AudioPlayer? _activePlayer;
 
   Color get _foreground {
-    if (widget.isMe) return Colors.white;
     return Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF53BDB0)
-        : const Color(0xFF0D8274);
+        ? const Color(0xFF53BDEB)
+        : const Color(0xFF075E54);
   }
 
   Color get _muted {
-    if (widget.isMe) return Colors.white.withOpacity(.85);
     return Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFFD4E1DE)
-        : const Color(0xFF263238);
+        : const Color(0xFF667781);
   }
 
   @override
