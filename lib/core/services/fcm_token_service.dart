@@ -17,6 +17,8 @@ class FcmTokenService {
   StreamSubscription<User?>? _authSubscription;
   Future<void>? _syncInFlight;
   String? _lastSyncedKey;
+  String? _lastSyncedUid;
+  String? _lastSyncedToken;
   bool _started = false;
   FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
@@ -35,6 +37,8 @@ class FcmTokenService {
     _authSubscription = _auth.authStateChanges().listen((user) {
       if (user == null) {
         _lastSyncedKey = null;
+        _lastSyncedUid = null;
+        _lastSyncedToken = null;
       } else {
         unawaited(syncCurrentToken());
       }
@@ -68,14 +72,85 @@ class FcmTokenService {
       await previous;
       if (_lastSyncedKey == syncKey) return;
     }
+    final previousUid = _lastSyncedUid;
+    final previousToken = _lastSyncedToken;
     final future = _writeToken(user.uid, normalized);
     _syncInFlight = future;
     try {
       await future;
-      if (_auth.currentUser?.uid == user.uid) _lastSyncedKey = syncKey;
+      if (_auth.currentUser?.uid == user.uid) {
+        _lastSyncedKey = syncKey;
+        _lastSyncedUid = user.uid;
+        _lastSyncedToken = normalized;
+        // FCM may rotate a device token. Keep the new token before removing
+        // the old one so the account never has an avoidable notification gap.
+        if (previousUid == user.uid &&
+            previousToken != null &&
+            previousToken.isNotEmpty &&
+            previousToken != normalized) {
+          await _removeTokenForUser(user.uid, previousToken);
+        }
+      }
     } finally {
       if (identical(_syncInFlight, future)) _syncInFlight = null;
     }
+  }
+
+  Future<void> _removeTokenForUser(String uid, String token) async {
+    if (_auth.currentUser?.uid != uid || token.trim().isEmpty) return;
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('private')
+          .doc('tokens')
+          .set({
+        'tokens': FieldValue.arrayRemove([token.trim()]),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'platform': 'android',
+      }, SetOptions(merge: true));
+    } catch (error, stack) {
+      debugPrint('FCM stale token cleanup failed: $error');
+      debugPrintStack(stackTrace: stack);
+    }
+  }
+
+  /// Removes this device's push token while the account is still authenticated.
+  /// Call before signing out; Firestore rules may reject cleanup afterwards.
+  Future<void> removeCurrentToken() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final tokens = <String>{};
+    try {
+      final token = await _messaging.getToken();
+      if (token != null && token.trim().isNotEmpty) tokens.add(token.trim());
+    } catch (error) {
+      debugPrint('FCM token lookup during sign-out failed: $error');
+    }
+    if (_lastSyncedUid == user.uid &&
+        _lastSyncedToken?.trim().isNotEmpty == true) {
+      tokens.add(_lastSyncedToken!.trim());
+    }
+    if (tokens.isNotEmpty) {
+      try {
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('private')
+            .doc('tokens')
+            .set({
+          'tokens': FieldValue.arrayRemove(tokens.toList()),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'platform': 'android',
+        }, SetOptions(merge: true));
+      } catch (error, stack) {
+        debugPrint('FCM token cleanup during sign-out failed: $error');
+        debugPrintStack(stackTrace: stack);
+      }
+    }
+    _lastSyncedKey = null;
+    _lastSyncedUid = null;
+    _lastSyncedToken = null;
   }
 
   Future<void> _writeToken(String uid, String token) async {
@@ -95,6 +170,8 @@ class FcmTokenService {
     _authSubscription = null;
     _syncInFlight = null;
     _lastSyncedKey = null;
+    _lastSyncedUid = null;
+    _lastSyncedToken = null;
     _started = false;
   }
 }
