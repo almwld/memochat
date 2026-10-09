@@ -15,6 +15,7 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import javax.net.ssl.SSLContext
+import org.json.JSONObject
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
@@ -27,6 +28,8 @@ class VpnTunnelService : VpnService() {
         const val EXTRA_FINGERPRINT = "fingerprint"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_ROUTE = "route"
+        const val EXTRA_PEER_ID = "peerId"
+        const val EXTRA_SHARED_SECRET = "sharedSecret"
         private const val CHANNEL_ID = "memochat_vpn"
         @Volatile var running = false
             private set
@@ -50,6 +53,8 @@ class VpnTunnelService : VpnService() {
             ACTION_START -> startTunnel(
                 intent.getStringExtra(EXTRA_HOST).orEmpty(),
                 intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty(),
+                intent.getStringExtra(EXTRA_PEER_ID).orEmpty(),
+                intent.getStringExtra(EXTRA_SHARED_SECRET).orEmpty(),
                 intent.getStringExtra(EXTRA_ADDRESS) ?: "10.254.0.2/32",
                 intent.getStringExtra(EXTRA_ROUTE) ?: "10.254.0.0/24"
             )
@@ -57,9 +62,9 @@ class VpnTunnelService : VpnService() {
         return START_STICKY
     }
 
-    private fun startTunnel(host: String, fingerprint: String, address: String, route: String) {
+    private fun startTunnel(host: String, fingerprint: String, peerId: String, sharedSecret: String, address: String, route: String) {
         stopTunnel()
-        if (host.isBlank()) return
+        if (host.isBlank() || peerId.isBlank() || sharedSecret.length < 24) return
 
         createNotificationChannel()
         startForeground(
@@ -87,6 +92,7 @@ class VpnTunnelService : VpnService() {
                 if (!protect(socket)) throw IllegalStateException("تعذر حماية قناة النفق من مسار TUN")
                 socket.connect(InetSocketAddress(host, 4433), 10000)
                 socket.startHandshake()
+                registerPeer(socket, peerId, sharedSecret, addressIp)
 
                 val fd = Builder()
                     .setSession("MemoChat Tunnel")
@@ -184,7 +190,7 @@ class VpnTunnelService : VpnService() {
                     val count = input.read(buffer)
                     if (count < 0) break
                     if (count == 0) continue
-                    writeFrame(output, buffer, count)
+                    writeFrame(output, packetType, buffer, count)
                 }
             } catch (_: Exception) {
             } finally {
@@ -224,10 +230,39 @@ class VpnTunnelService : VpnService() {
         downlinkThread?.start()
     }
 
-    private fun writeFrame(output: DataOutputStream, packet: ByteArray, length: Int) {
+    private fun registerPeer(socket: SSLSocket, peerId: String, sharedSecret: String, address: String) {
+        val output = DataOutputStream(socket.outputStream)
+        val input = DataInputStream(socket.inputStream)
+        val request = JSONObject()
+            .put("peerId", peerId)
+            .put("secret", sharedSecret)
+            .put("address", address)
+            .toString()
+            .toByteArray(Charsets.UTF_8)
+        writeFrame(output, 2.toByte(), request, request.size)
+
+        val header = ByteArray(10)
+        input.readFully(header)
+        if (!header.copyOfRange(0, 4).contentEquals(magic) ||
+            header[4] != version || header[5] != 3.toByte()) {
+            throw IllegalStateException("استجابة تسجيل Tunnel غير صالحة")
+        }
+        val length = ByteBuffer.wrap(header, 6, 4).int
+        if (length <= 0 || length > 4096) {
+            throw IllegalStateException("حجم استجابة تسجيل Tunnel غير صالح")
+        }
+        val response = ByteArray(length)
+        input.readFully(response)
+        val acknowledgement = JSONObject(String(response, Charsets.UTF_8))
+        if (!acknowledgement.optBoolean("ok", false)) {
+            throw IllegalStateException(acknowledgement.optString("message", "رفضت بوابة Tunnel تسجيل الجهاز"))
+        }
+    }
+
+    private fun writeFrame(output: DataOutputStream, type: Byte, packet: ByteArray, length: Int) {
         output.write(magic)
         output.writeByte(version.toInt())
-        output.writeByte(packetType.toInt())
+        output.writeByte(type.toInt())
         output.writeInt(length)
         output.write(packet, 0, length)
         output.flush()
