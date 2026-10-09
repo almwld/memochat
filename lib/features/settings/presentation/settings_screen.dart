@@ -302,7 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _Section(title: 'الأمان', children: [
             _Row(Icons.shield_outlined, 'مركز الأمان والتشفير', 'مستوى الحماية والتشفير الفعلي', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen()))),
             _Row(Icons.vpn_lock_outlined, 'VPN Tunnel', 'اتصال استثنائي للشبكات المعزولة عند انقطاع الإنترنت', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VpnTunnelScreen()))),
-            _Row(Icons.cell_tower_rounded, 'Offline Link', 'مراسلة محلية مشفرة عبر النفق دون Firebase أو إنترنت', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OfflineLinkScreen()))),
+            _Row(Icons.device_hub_rounded, 'Offline Link', 'مراسلة محلية مشفرة عبر النفق دون Firebase أو إنترنت', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OfflineLinkScreen()))),
           ]),
           _Section(title: 'الدعم', children: [
             _Row(Icons.help_outline_rounded, 'المساعدة', 'مركز المساعدة والإبلاغ', () => _open('المساعدة', Icons.help_outline_rounded, const [
