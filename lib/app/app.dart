@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/repositories/chat_repository.dart';
@@ -13,6 +15,7 @@ import '../core/services/firebase_bootstrap.dart';
 import '../core/services/identity_state_service.dart';
 import '../core/services/sync_coordinator.dart';
 import '../core/media/media_transfer_engine.dart';
+import '../features/chat/services/chat_media_transfer_service.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../features/chat/services/notification_service.dart';
 import '../features/auth/presentation/auth_screen.dart';
@@ -32,6 +35,7 @@ class _MemoChatAppState extends State<MemoChatApp>
   static const _splashInterval = Duration(hours: 12);
 
   static const _themeKey = 'settings.theme';
+  static const _pendingCameraChatKey = 'memochat.pending_camera_chat_id';
 
   ThemeMode _themeMode = ThemeMode.system;
   bool _firebaseReady = Firebase.apps.isNotEmpty;
@@ -57,6 +61,7 @@ class _MemoChatAppState extends State<MemoChatApp>
     _startInitialization();
     unawaited(_loadPersistedTheme());
     unawaited(_initializeSplash());
+    unawaited(_recoverLostCameraMedia());
   }
 
   Future<void> _initializeSplash() async {
@@ -85,6 +90,58 @@ class _MemoChatAppState extends State<MemoChatApp>
           if (mounted) setState(() => _showSplash = false);
         });
       }
+    }
+  }
+
+  Future<void> _recoverLostCameraMedia() async {
+    // Only query ImagePicker when a camera request was recorded. This avoids
+    // consuming a lost result belonging to another picker flow.
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final chatId = preferences.getString(_pendingCameraChatKey);
+      if (chatId == null || chatId.trim().isEmpty) return;
+
+      final response = await ImagePicker().retrieveLostData();
+      if (response.isEmpty) {
+        await preferences.remove(_pendingCameraChatKey);
+        return;
+      }
+      if (response.exception != null) {
+        debugPrint('MemoChat: lost camera result recovery failed: ${response.exception}');
+        await preferences.remove(_pendingCameraChatKey);
+        return;
+      }
+
+      final files = response.files ?? const <XFile>[];
+      if (files.isEmpty) {
+        await preferences.remove(_pendingCameraChatKey);
+        return;
+      }
+
+      for (final picked in files) {
+        final file = File(picked.path);
+        if (!await file.exists() || await file.length() == 0) continue;
+        final lowerPath = picked.path.toLowerCase();
+        final mime = lowerPath.endsWith('.png')
+            ? 'image/png'
+            : lowerPath.endsWith('.webp')
+                ? 'image/webp'
+                : 'image/jpeg';
+        await ChatMediaTransferService.instance.enqueue(
+          chatId: chatId,
+          sourceFile: file,
+          type: 'image',
+          folder: 'images',
+          preview: '📷 صورة',
+          fileName: picked.name,
+          mimeType: mime,
+        );
+      }
+      await preferences.remove(_pendingCameraChatKey);
+      debugPrint('MemoChat: recovered lost camera result for chat $chatId');
+    } catch (error, stackTrace) {
+      debugPrint('MemoChat: camera result recovery failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
