@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../love_letter/memo_dedication_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -302,13 +301,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingItem('الإبلاغ عن مشكلة', 'وصف المشكلة لفريق الدعم', Icons.bug_report_outlined),
               _SettingItem('الشروط والخصوصية', 'معلومات الاستخدام والخصوصية', Icons.description_outlined),
             ])),
-            SecretSevenTap(
-              child: _Row(
-                Icons.info_outline_rounded,
-                'حول MemoChat',
-                'الإصدار والتراخيص',
-                () {},
-                disableTap: true,
+            _Row(
+              Icons.info_outline_rounded,
+              'حول MemoChat',
+              'الإصدار والتراخيص والإهداء',
+              () => showLicensePage(
+                context: context,
+                applicationName: 'MemoChat',
+                applicationLegalese:
+                    'إهداء خاص إلى ميمو — في كل لحظة جميلة، تبقى بعض الذكريات أقرب إلى القلب.\n\nإلى ميمو، دائمًا.\n\nمن فلانتشتاين',
               ),
             ),
           ]),
