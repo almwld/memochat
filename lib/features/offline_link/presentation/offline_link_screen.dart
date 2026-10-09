@@ -108,7 +108,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     }
     final parsedIp = InternetAddress.tryParse(remoteIp);
     if (parsedIp == null || parsedIp.type != InternetAddressType.IPv4) {
-      _show('أدخل عنوان IPv4 الافتراضي للجهاز الآخر، مثل 10.254.0.3.');
+      _show('أدخل عنوان IPv4 للجهاز الآخر داخل شبكة MikroTik، مثل 192.168.20.10.');
       return false;
     }
     if (key.trim().length < 24) {
@@ -263,8 +263,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
                 enabled: !service.isListening,
                 keyboardType: TextInputType.url,
                 decoration: const InputDecoration(
-                  labelText: 'عنوان IP للجهاز الآخر عبر شبكة MikroTik',
-                  hintText: '10.254.0.3',
+                  labelText: 'عنوان IP للجهاز الآخر داخل شبكة MikroTik',
+                  hintText: '192.168.20.10',
                 ),
               ),
               const SizedBox(height: 8),
