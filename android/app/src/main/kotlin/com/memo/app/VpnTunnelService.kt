@@ -88,7 +88,7 @@ class VpnTunnelService : VpnService() {
             Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("MemoChat VPN Tunnel")
                 .setContentText("جاري الاتصال ببوابة $host")
-                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .setSmallIcon(R.drawable.ic_memochat_notification)
                 .setOngoing(true)
                 .build()
         )
