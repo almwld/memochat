@@ -587,12 +587,10 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (parts.isEmpty) return const SizedBox.shrink();
 
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final foreground = widget.isMe
-        ? Colors.white70
-        : (dark ? Colors.white70 : const Color(0xFF617370));
-    final background = widget.isMe
-        ? Colors.white.withOpacity(.10)
-        : (dark ? Colors.white.withOpacity(.08) : const Color(0xFFEAF5F3));
+    final foreground = dark ? Colors.white70 : const Color(0xFF667781);
+    final background = dark
+        ? Colors.white.withOpacity(.08)
+        : Colors.black.withOpacity(.035);
     final icon = switch (type) {
       'audio' => Icons.graphic_eq_rounded,
       'video' => Icons.videocam_outlined,
