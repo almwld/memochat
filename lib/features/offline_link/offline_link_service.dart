@@ -206,7 +206,7 @@ class OfflineLinkService extends ChangeNotifier {
     }
     final remoteIp = InternetAddress.tryParse(_remoteAddress);
     if (remoteIp == null || remoteIp.type != InternetAddressType.IPv4) {
-      throw StateError('أدخل عنوان IPv4 الافتراضي للجهاز الآخر، مثل 10.254.0.3.');
+      throw StateError('أدخل عنوان IPv4 للجهاز الآخر داخل شبكة MikroTik، مثل 192.168.20.10.');
     }
     if (_localPeerId.isEmpty || _remotePeerId.isEmpty) {
       throw StateError('أكمل معرّف الجهاز المحلي والبعيد.');
