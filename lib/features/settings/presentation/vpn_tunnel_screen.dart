@@ -76,8 +76,12 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
 
   Future<void> _toggle() async {
     if (_running) {
-      await _channel.invokeMethod<void>('stop');
-      if (mounted) setState(() => _running = false);
+      try {
+        await _channel.invokeMethod<void>('stop');
+        if (mounted) setState(() => _running = false);
+      } catch (error) {
+        _snack('تعذر إيقاف Tunnel بأمان: ' + error.toString());
+      }
       return;
     }
 
