@@ -228,6 +228,29 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
                     ),
                   ),
                   const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _peerId,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'معرّف الجهاز في البوابة',
+                      hintText: 'phone-a',
+                      prefixIcon: Icon(Icons.devices_other_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _sharedSecret,
+                    obscureText: true,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: 'المفتاح المشترك لهذا الجهاز',
+                      hintText: '24 حرفًا عشوائيًا على الأقل',
+                      prefixIcon: Icon(Icons.key_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _fingerprint,
                     keyboardType: TextInputType.text,
@@ -272,7 +295,7 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'النفق الآن يعالج حزم IP بين TUN وبوابة TLS فعلية. يجب تشغيل tunnel-gateway على جهاز Linux متصل بالشبكة المعزولة وضبط التوجيه/الجدار الناري. هذا الوضع لا يصنع الرابط الفيزيائي بين MikroTik تلقائيًا.',
+                'الاتصال يتطلب بوابة TLS تدعم تسجيل الأجهزة بالمفتاح المشترك، مع عنوان مختلف لكل جهاز. يجب أن يكون هناك مسار شبكي فعلي بين الراوترين؛ لا ينشئ VPN رابطًا فيزيائيًا بين MikroTik.',
               ),
             ),
           ),
