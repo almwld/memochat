@@ -34,27 +34,29 @@ class _MemoBubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = isMe
-          ? AppColors.primary
-          : (dark ? const Color(0xFF10201E) : Colors.white);
-    final r = emphasized ? 18.0 : 15.0;
+
+    // WhatsApp-inspired palette: pale sage outgoing bubbles in light mode,
+    // deep green outgoing bubbles in dark mode, and neutral incoming bubbles.
+    final color = isMe
+        ? (dark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3))
+        : (dark ? const Color(0xFF202C33) : const Color(0xFFFFFFFF));
+    final paint = Paint()..style = PaintingStyle.fill..color = color;
+    final r = emphasized ? 17.0 : 12.0;
+    const tail = 7.0;
     final path = ui.Path();
-    // WhatsApp-style compact tail: the tail sits on the lower outer corner,
-    // rather than a long centered pin that visually distorts the bubble.
-    const tail = 9.0;
+
     if (isMe) {
       path
         ..moveTo(r, 0)
         ..lineTo(size.width - r, 0)
         ..quadraticBezierTo(size.width, 0, size.width, r)
-        ..lineTo(size.width, size.height - 11)
-        ..quadraticBezierTo(size.width, size.height - 3, size.width - 8, size.height - 3)
-        ..lineTo(size.width - tail, size.height)
-        ..lineTo(size.width - tail - 5, size.height - 7)
-        ..lineTo(r, size.height - 3)
-        ..quadraticBezierTo(0, size.height - 3, 0, size.height - r)
+        ..lineTo(size.width, size.height - r)
+        ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
+        ..lineTo(14, size.height)
+        ..lineTo(size.width - 1, size.height - 1)
+        ..lineTo(size.width - tail, size.height - 8)
+        ..lineTo(r, size.height)
+        ..quadraticBezierTo(0, size.height, 0, size.height - r)
         ..lineTo(0, r)
         ..quadraticBezierTo(0, 0, r, 0);
     } else {
@@ -63,21 +65,22 @@ class _MemoBubblePainter extends CustomPainter {
         ..lineTo(size.width - r, 0)
         ..quadraticBezierTo(size.width, 0, size.width, r)
         ..lineTo(size.width, size.height - r)
-        ..quadraticBezierTo(size.width, size.height - 3, size.width - r, size.height - 3)
-        ..lineTo(tail + 5, size.height - 3)
-        ..lineTo(tail, size.height)
-        ..lineTo(tail, size.height - 7)
-        ..lineTo(r, size.height - 3)
-        ..quadraticBezierTo(0, size.height - 3, 0, size.height - r)
+        ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
+        ..lineTo(14, size.height)
+        ..lineTo(tail, size.height - 1)
+        ..lineTo(tail + 5, size.height - 8)
+        ..lineTo(r, size.height)
+        ..quadraticBezierTo(0, size.height, 0, size.height - r)
         ..lineTo(0, r)
         ..quadraticBezierTo(0, 0, r, 0);
     }
+
     canvas.drawPath(path, paint);
     if (!isMe && !dark) {
       final border = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = .8
-        ..color = const Color(0xFFDCE5E3);
+        ..strokeWidth = .45
+        ..color = const Color(0xFFE7EDEF);
       canvas.drawPath(path, border);
     }
   }
@@ -187,15 +190,18 @@ class _MessageBubbleState extends State<MessageBubble> {
             emphasized: widget.isFirstInChat,
           ),
           child: Container(
+            constraints: const BoxConstraints(minWidth: 44),
             margin: EdgeInsetsDirectional.only(
-              start: widget.isMe ? 4 : 0,
-              end: widget.isMe ? 0 : 4,
+              start: widget.isMe ? 3 : 0,
+              end: widget.isMe ? 0 : 3,
             ),
+            padding: const EdgeInsets.symmetric(vertical: 1),
             color: Colors.transparent,
             child: child,
           ),
         ),
       );
+
   Widget _buildContent(String type, bool dark) {
     final m = widget.message;
     switch (type) {
@@ -280,7 +286,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       return const Icon(Icons.schedule, size: 14, color: Colors.grey);
     }
     if (m['isRead'] == true) {
-      return const Icon(Icons.done_all_rounded, size: 15, color: AppColors.primary);
+      return const Icon(Icons.done_all_rounded, size: 15, color: const Color(0xFF53BDEB));
     }
     if (m['isDelivered'] == true) {
       return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
@@ -312,7 +318,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                     title,
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)),
+                      color: dark ? Colors.white : const Color(0xFF111B21),
                     ),
                   ),
                 ),
@@ -370,9 +376,9 @@ class _MessageBubbleState extends State<MessageBubble> {
           if (m['isEdited'] == true) _editedMarker(dark),
           if (m['replyPreview'] is Map) _replyPreview(m['replyPreview'] as Map, dark),
           Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Flexible(child: Text(m['text']?.toString() ?? '', style: TextStyle(color: widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F)), fontSize: widget.fontSize))),
+            Flexible(child: Text(m['text']?.toString() ?? '', style: TextStyle(color: dark ? Colors.white : const Color(0xFF111B21), fontSize: widget.fontSize))),
             const SizedBox(width: 6),
-            Text(_timeLabel(m['timestamp'] ?? m['clientTimestamp']), style: TextStyle(color: widget.isMe ? Colors.white70 : (dark ? Colors.white60 : const Color(0xFF6B7D7D)), fontSize: 9)),
+            Text(_timeLabel(m['timestamp'] ?? m['clientTimestamp']), style: TextStyle(color: dark ? Colors.white60 : const Color(0xFF667781), fontSize: 9)),
           ]),
           _reactions(m, dark),
         ],
@@ -483,7 +489,7 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   Widget _status(Map<String, dynamic> m) {
     if (m['isSending'] == true) return const Icon(Icons.schedule, size: 14, color: Colors.grey);
-    if (m['isRead'] == true) return const Icon(Icons.done_all_rounded, size: 15, color: AppColors.primary);
+    if (m['isRead'] == true) return const Icon(Icons.done_all_rounded, size: 15, color: const Color(0xFF53BDEB));
     if (m['isDelivered'] == true) return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
     return const Icon(Icons.done_rounded, size: 15, color: Colors.grey);
   }
@@ -783,7 +789,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final isText = {'txt','text','log','csv','md'}.contains(ext) || mime.startsWith('text/');
     final isOffice = {'doc','docx','xls','xlsx','ppt','pptx'}.contains(ext) ||
         mime.contains('word') || mime.contains('spreadsheet') || mime.contains('presentation');
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
+    final tc = dark ? Colors.white : const Color(0xFF111B21);
 
     Future<File?> downloadRemote() async {
       if (url.isEmpty || _isLocal(url)) return File(url.replaceFirst('file://', ''));
@@ -964,7 +970,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     }
 
     final title = 'مكالمة ${video ? 'فيديو' : 'صوتية'}';
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
+    final tc = dark ? Colors.white : const Color(0xFF111B21);
     final statusColor = switch (status) {
       'missed' || 'rejected' => Colors.red,
       'busy' => Colors.orange,
@@ -1036,7 +1042,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final name = meta['contactName']?.toString().trim().isNotEmpty == true ? meta['contactName'].toString() : 'جهة اتصال';
     final phone = meta['contactPhone']?.toString().trim() ?? '';
     final email = meta['contactEmail']?.toString().trim() ?? '';
-    final tc = widget.isMe ? Colors.white : (dark ? Colors.white : const Color(0xFF20312F));
+    final tc = dark ? Colors.white : const Color(0xFF111B21);
     return _shell(
       Padding(
         padding: const EdgeInsets.all(11),
