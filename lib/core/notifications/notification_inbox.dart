@@ -52,7 +52,9 @@ class NotificationInboxItem {
 }
 
 class NotificationInbox {
-  NotificationInbox({SharedPreferences? preferences}) : _preferences = preferences;
+  NotificationInbox({SharedPreferences? preferences, String? userId})
+      : _preferences = preferences,
+        _userId = userId;
 
   /// Shared badge state for screens that need to react to inbox mutations.
   static final ValueNotifier<int> unreadCountNotifier = ValueNotifier<int>(0);
@@ -60,8 +62,11 @@ class NotificationInbox {
   static const _key = 'notification_inbox_v2';
   static const _dedupeKey = 'notification_dedupe_v1';
   SharedPreferences? _preferences;
+  final String? _userId;
 
   String get _accountScope {
+    final suppliedUid = _userId?.trim() ?? '';
+    if (suppliedUid.isNotEmpty) return suppliedUid;
     try {
       if (Firebase.apps.isNotEmpty) {
         final uid = FirebaseAuth.instance.currentUser?.uid;
