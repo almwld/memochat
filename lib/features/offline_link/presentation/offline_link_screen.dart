@@ -58,15 +58,19 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
 
   Future<void> _load() async {
     await _service.initialize();
+    if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     _localPeerId = prefs.getString('vpn.tunnel.peer_id') ?? '';
     _localAddress = prefs.getString('vpn.tunnel.address') ?? '';
     _remotePeerId.text = prefs.getString('offline_link.remote_peer_id') ?? '';
     _remoteAddress.text = prefs.getString('offline_link.remote_address') ?? '';
     _port.text = (prefs.getInt('offline_link.port') ?? OfflineLinkService.defaultPort).toString();
-    _sharedKey.text = await _secureStorage.read(key: _messageKeyName) ?? '';
+    final key = await _secureStorage.read(key: _messageKeyName);
+    if (!mounted) return;
+    _sharedKey.text = key ?? '';
     _configureService();
-    if (mounted) setState(() => _loading = false);
+    setState(() => _loading = false);
   }
 
   void _configureService() {
