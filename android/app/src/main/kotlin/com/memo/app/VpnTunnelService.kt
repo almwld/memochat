@@ -244,7 +244,7 @@ class VpnTunnelService : VpnService() {
             try {
                 val input = DataInputStream(socket.inputStream)
                 val output = FileOutputStream(fd.fileDescriptor)
-                while (running) {
+                while (running && isCurrentGeneration(attempt)) {
                     val header = ByteArray(10)
                     input.readFully(header)
                     if (!header.copyOfRange(0, 4).contentEquals(magic)) {
@@ -264,7 +264,7 @@ class VpnTunnelService : VpnService() {
                 }
             } catch (_: Exception) {
             } finally {
-                if (running) stopTunnel()
+                if (running && isCurrentGeneration(attempt)) stopTunnel()
             }
         }, "MemoChat-Tun-Downlink")
 
