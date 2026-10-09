@@ -13,6 +13,7 @@ import 'notification_models.dart';
 import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
 import '../../features/chat/services/call_service.dart';
+import '../../features/chat/presentation/chat_navigation.dart';
 import '../../features/chat/services/call_sound_coordinator.dart';
 import 'ringtone_service.dart';
 import 'notification_preferences.dart';
@@ -145,7 +146,10 @@ class PushNotificationService {
           ...notification.toJson(),
           ...message.data,
         },
-        payload: notification.encode(),
+        payload: jsonEncode(<String, dynamic>{
+          'type': notification.type.wireName,
+          'data': <String, dynamic>{...notification.toJson(), ...message.data},
+        }),
         playSound: playSound,
         vibrate: vibrate,
       );
@@ -195,7 +199,42 @@ class PushNotificationService {
       return;
     }
 
-    final notification = AppNotification.fromRemote(decoded!);
+    final envelope = decoded!;
+    final data = envelope['data'] is Map
+        ? Map<String, dynamic>.from(envelope['data'] as Map)
+        : envelope;
+    final type = envelope['type']?.toString() ?? data['type']?.toString() ?? '';
+    final callId = data['callId']?.toString().trim() ?? '';
+    final navigator = memoNavigatorKey.currentState;
+    if (callId.isNotEmpty &&
+        (NotificationTypeCodec.parse(type) == NotificationType.call ||
+            type == 'incoming_call' ||
+            type == 'incoming_video_call')) {
+      if (navigator != null) {
+        await CallService().handleIncomingCallById(navigator.context, callId);
+      }
+      return;
+    }
+
+    final chatId = data['chatId']?.toString().trim() ?? '';
+    final senderId = data['senderId']?.toString().trim() ?? '';
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (navigator != null &&
+        chatId.isNotEmpty &&
+        senderId.isNotEmpty &&
+        currentUid.isNotEmpty &&
+        senderId != currentUid) {
+      await ChatNavigation.openRoom(
+        navigator.context,
+        chatId: chatId,
+        otherUserId: senderId,
+        otherUserName: data['senderName']?.toString() ??
+            data['title']?.toString() ??
+            'مستخدم',
+        otherUserImage: data['senderPhotoUrl']?.toString() ??
+            data['photoUrl']?.toString(),
+      );
+    }
   }
 }
 
