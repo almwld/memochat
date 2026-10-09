@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/notifications/notification_preferences.dart';
+
 import '../../../app/app.dart';
 import '../presentation/incoming_call_screen.dart';
 import '../models/call_model.dart';
@@ -68,7 +70,7 @@ class CallSoundCoordinator {
     });
   }
 
-  Future<void> presentIncomingCallById(String callId) async {
+  Future<void> presentIncomingCallById(String callId, {bool playSound = true}) async {
     final normalized = callId.trim();
     if (normalized.isEmpty) {
       debugPrint('❌ CALL PRESENT: empty callId');
@@ -129,7 +131,11 @@ class CallSoundCoordinator {
 
       _activeCallId = normalized;
       _incomingMuted = false;
-      await _sounds.playCallRingtone().catchError((_) {});
+      if (playSound && await NotificationPreferences().callSounds) {
+        await _sounds.playCallRingtone().catchError((_) {});
+      } else {
+        await _sounds.stopCallAudio();
+      }
       _showIncomingCall(data, normalized);
     } catch (e, st) {
       debugPrint('❌ CALL PRESENT: error id=$normalized error=$e');
@@ -239,7 +245,7 @@ class CallSoundCoordinator {
       if (_incomingMuted) {
         unawaited(_sounds.stopCallAudio());
       } else {
-        unawaited(_sounds.playCallRingtone().catchError((_) {}));
+        unawaited(_playIncomingRingtone());
       }
       if (isNewCall) _showIncomingCall(data, callId);
     } else {
@@ -346,12 +352,20 @@ class CallSoundCoordinator {
     }));
   }
 
+  Future<void> _playIncomingRingtone() async {
+    if (await NotificationPreferences().callSounds) {
+      await _sounds.playCallRingtone().catchError((_) {});
+    } else {
+      await _sounds.stopCallAudio();
+    }
+  }
+
   Future<void> setIncomingMuted(bool muted) async {
     _incomingMuted = muted;
     if (muted) {
       await _sounds.stopCallAudio();
     } else if (_activeCallId != null && !ActiveCallRegistry.instance.hasActiveCall) {
-      await _sounds.playCallRingtone();
+      await _playIncomingRingtone();
     }
   }
 
