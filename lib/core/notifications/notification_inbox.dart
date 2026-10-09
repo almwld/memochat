@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_models.dart';
@@ -58,18 +60,36 @@ class NotificationInbox {
   static const _key = 'notification_inbox_v2';
   static const _dedupeKey = 'notification_dedupe_v1';
   SharedPreferences? _preferences;
-  Future<SharedPreferences> get _prefs async => _preferences ??= await SharedPreferences.getInstance();
+
+  String get _accountScope {
+    try {
+      if (Firebase.apps.isNotEmpty) {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null && uid.isNotEmpty) return uid;
+      }
+    } catch (_) {
+      // The local inbox remains available before Firebase bootstrap.
+    }
+    return 'signed_out';
+  }
+
+  String get _scopedInboxKey => '${_key}_$_accountScope';
+  String get _scopedDedupeKey => '${_dedupeKey}_$_accountScope';
+
+  Future<SharedPreferences> get _prefs async =>
+      _preferences ??= await SharedPreferences.getInstance();
+
   Future<List<NotificationInboxItem>> read() async {
-    final values = (await _prefs).getStringList(_key) ?? const [];
+    final values = (await _prefs).getStringList(_scopedInboxKey) ?? const [];
     return values.map((value) => NotificationInboxItem.fromJson(jsonDecode(value) as Map<String, dynamic>)).toList();
   }
   Future<bool> claim(String key) async {
     final prefs = await _prefs;
-    final values = (prefs.getStringList(_dedupeKey) ?? const []).toSet();
+    final values = (prefs.getStringList(_scopedDedupeKey) ?? const []).toSet();
     if (!values.add(key)) return false;
     final retained = values.toList();
     if (retained.length > 500) retained.removeRange(0, retained.length - 500);
-    await prefs.setStringList(_dedupeKey, retained);
+    await prefs.setStringList(_scopedDedupeKey, retained);
     return true;
   }
   Future<bool> addNotification(AppNotification notification) async {
@@ -82,7 +102,7 @@ class NotificationInbox {
     values.removeWhere((existing) => existing.id == item.id);
     values.insert(0, item);
     await (await _prefs).setStringList(
-      _key,
+      _scopedInboxKey,
       values.take(200).map((v) => jsonEncode(v.toJson())).toList(),
     );
     await _publishUnreadCount();
@@ -102,7 +122,7 @@ class NotificationInbox {
     final values = await read();
     final updated = values.map((item) => item.id == id ? item.copyWith(read: true) : item);
     await (await _prefs).setStringList(
-      _key,
+      _scopedInboxKey,
       updated.map((value) => jsonEncode(value.toJson())).toList(),
     );
     await _publishUnreadCount();
