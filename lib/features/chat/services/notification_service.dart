@@ -233,7 +233,7 @@ class NotificationService {
   static const _messageChannel = AndroidNotificationChannel(
     messageChannelId, 'MemoChat - الرسائل',
     description: 'إشعارات الرسائل الجديدة في الدردشة', importance: Importance.high,
-    playSound: true, sound: RawResourceAndroidNotificationSound('message_tone'),
+    playSound: true,
   );
   static const _promotionalChannel = AndroidNotificationChannel(
     promotionalChannelId, 'MemoChat - العروض',
@@ -304,7 +304,6 @@ class NotificationService {
     required Importance importance,
     required bool playSound,
     required bool vibrate,
-    required String soundResource,
   }) async {
     final soundPart = playSound ? 'sound' : 'silent';
     final vibrationPart = vibrate ? 'vibrate' : 'still';
@@ -316,7 +315,7 @@ class NotificationService {
       description: name,
       importance: importance,
       playSound: playSound,
-      sound: playSound ? RawResourceAndroidNotificationSound(soundResource) : null,
+      sound: null,
       enableVibration: vibrate,
     ));
     return id;
@@ -435,7 +434,6 @@ class NotificationService {
       importance: _importanceFor(family),
       playSound: resolvedSound,
       vibrate: resolvedVibration,
-      soundResource: 'message_tone',
     );
     final channelName = _channelNameFor(family);
     final importance = _importanceFor(family);
@@ -473,9 +471,7 @@ class NotificationService {
             ? Priority.high
             : Priority.defaultPriority,
         playSound: resolvedSound,
-        sound: resolvedSound
-            ? const RawResourceAndroidNotificationSound('message_tone')
-            : null,
+        sound: null,
         enableVibration: resolvedVibration,
         category: _categoryFor(family),
         visibility: NotificationVisibility.public,
@@ -626,7 +622,6 @@ class NotificationService {
       importance: Importance.high,
       playSound: resolvedSound,
       vibrate: resolvedVibration,
-      soundResource: 'message_tone',
     );
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -636,9 +631,7 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
         playSound: resolvedSound,
-        sound: resolvedSound
-            ? const RawResourceAndroidNotificationSound('message_tone')
-            : null,
+        sound: null,
         enableVibration: resolvedVibration,
         category: AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,
@@ -710,13 +703,12 @@ class NotificationService {
       importance: Importance.max,
       playSound: playSound,
       vibrate: vibrate,
-      soundResource: 'call_ringtone',
     );
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         callChannel, 'MemoChat - المكالمات', channelDescription: 'إشعارات المكالمات الواردة',
         importance: Importance.max, priority: Priority.max, playSound: playSound,
-        sound: playSound ? const RawResourceAndroidNotificationSound('call_ringtone') : null,
+        sound: null,
         enableVibration: vibrate,
         category: AndroidNotificationCategory.call, visibility: NotificationVisibility.public,
         fullScreenIntent: true, ongoing: true, autoCancel: false, onlyAlertOnce: true,
