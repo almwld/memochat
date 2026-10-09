@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,7 +16,6 @@ class OfflineLinkScreen extends StatefulWidget {
 }
 
 class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
-  static const _vpnChannel = MethodChannel('com.memo.app/vpn_tunnel');
   static const _secureStorage = FlutterSecureStorage();
   static const _messageKeyName = 'offline_link.message_key';
 
@@ -29,7 +28,6 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
   final _service = OfflineLinkService.instance;
 
   String _localPeerId = '';
-  String _localAddress = '';
   bool _loading = true;
   bool _sending = false;
 
@@ -38,6 +36,14 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     super.initState();
     _service.addListener(_onServiceChanged);
     unawaited(_load());
+  }
+
+  String _createLocalPeerId() {
+    final random = Random.secure();
+    final suffix = List<int>.generate(12, (_) => random.nextInt(256))
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return 'mc-$suffix';
   }
 
   void _onServiceChanged() {
@@ -61,8 +67,11 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    _localPeerId = prefs.getString('vpn.tunnel.peer_id') ?? '';
-    _localAddress = prefs.getString('vpn.tunnel.address') ?? '';
+    _localPeerId = prefs.getString('offline_link.local_peer_id') ?? '';
+    if (_localPeerId.isEmpty) {
+      _localPeerId = _createLocalPeerId();
+      await prefs.setString('offline_link.local_peer_id', _localPeerId);
+    }
     _remotePeerId.text = prefs.getString('offline_link.remote_peer_id') ?? '';
     _remoteAddress.text = prefs.getString('offline_link.remote_address') ?? '';
     _port.text = (prefs.getInt('offline_link.port') ?? OfflineLinkService.defaultPort).toString();
@@ -77,7 +86,6 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     _service.configure(
       localPeerId: _localPeerId,
       remotePeerId: _remotePeerId.text.trim(),
-      localAddress: _localAddress,
       remoteAddress: _remoteAddress.text.trim(),
       sharedSecret: _sharedKey.text,
       port: int.tryParse(_port.text.trim()) ?? OfflineLinkService.defaultPort,
@@ -89,8 +97,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     final remoteIp = _remoteAddress.text.trim();
     final key = _sharedKey.text;
     final port = int.tryParse(_port.text.trim());
-    if (_localPeerId.isEmpty || _localAddress.isEmpty) {
-      _show('أكمل إعداد VPN المحلي أولاً.');
+    if (_localPeerId.isEmpty) {
+      _show('تعذر إنشاء معرّف الجهاز المحلي. أعد فتح الصفحة.');
       return false;
     }
     if (!RegExp(r'^[a-zA-Z0-9_.-]{1,64}$').hasMatch(remoteId) ||
@@ -99,13 +107,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       return false;
     }
     final parsedIp = InternetAddress.tryParse(remoteIp);
-    final localIp = InternetAddress.tryParse(_localAddress.split('/').first);
     if (parsedIp == null || parsedIp.type != InternetAddressType.IPv4) {
       _show('أدخل عنوان IPv4 الافتراضي للجهاز الآخر، مثل 10.254.0.3.');
-      return false;
-    }
-    if (localIp != null && localIp.address == parsedIp.address) {
-      _show('يجب أن يكون لكل جهاز عنوان TUN مختلف.');
       return false;
     }
     if (key.trim().length < 24) {
@@ -133,11 +136,6 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       return;
     }
     try {
-      final vpnRunning = await _vpnChannel.invokeMethod<bool>('status') ?? false;
-      if (!vpnRunning) {
-        _show('شغّل VPN Tunnel وتأكد من اتصال الجهاز بالبوابة أولاً.');
-        return;
-      }
       if (!await _saveAndValidate()) return;
       final port = int.parse(_port.text.trim());
       await _service.startListening(port: port);
@@ -234,7 +232,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
                   child: Text(
                     service.isListening
                         ? 'القناة المحلية نشطة — المنفذ ' + service.port.toString()
-                        : 'مسار مستقل عن محادثات Firebase؛ يحتاج VPN متصلًا على الجهازين.',
+                        : 'قناة مستقلة عن Firebase؛ استخدم عنوان الجهاز عبر شبكة MikroTik المترابطة.',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -265,7 +263,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
                 enabled: !service.isListening,
                 keyboardType: TextInputType.url,
                 decoration: const InputDecoration(
-                  labelText: 'عنوان TUN للجهاز الآخر',
+                  labelText: 'عنوان IP للجهاز الآخر عبر شبكة MikroTik',
                   hintText: '10.254.0.3',
                 ),
               ),
@@ -295,8 +293,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
               Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(
-                  'عنوان جهازك: ' + (_localAddress.isEmpty ? 'غير مضبوط' : _localAddress) +
-                  '. لا تستخدم المفتاح نفسه المستخدم لمصادقة بوابة VPN.',
+                  'معرّف جهازك: ' + _localPeerId +
+                  '. اسمح باتصال TCP على المنفذ المحدد بين شبكتي الراوترين.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),
