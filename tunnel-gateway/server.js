@@ -238,9 +238,20 @@ function start() {
   });
 }
 
-try {
-  start();
-} catch (error) {
-  console.error('Unable to start MemoChat tunnel gateway:', error.message);
-  process.exit(1);
+module.exports = {
+  ipv4ToNumber,
+  parseCidr,
+  inTunnelCidr,
+  constantTimeEqual,
+  encodeFrame,
+  parseIpv4Packet,
+};
+
+if (require.main === module) {
+  try {
+    start();
+  } catch (error) {
+    console.error('Unable to start MemoChat tunnel gateway:', error.message);
+    process.exit(1);
+  }
 }
