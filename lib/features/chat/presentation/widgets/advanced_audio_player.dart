@@ -237,20 +237,4 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
     );
   }
 
-  Widget _miniButton(IconData icon, VoidCallback onPressed, String tooltip, {String? label}) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: _loading ? null : onPressed,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 15, color: _muted),
-            if (label != null) ...[const SizedBox(width: 2), Text(label, style: TextStyle(color: _muted, fontSize: 9, fontWeight: FontWeight.w600))],
-          ]),
-        ),
-      ),
-    );
-  }
 }
