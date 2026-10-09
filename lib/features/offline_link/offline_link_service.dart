@@ -138,7 +138,7 @@ class OfflineLinkService extends ChangeNotifier {
     _remotePeerId = remotePeerId.trim();
     _localAddress = localAddress.trim().split('/').first;
     _remoteAddress = remoteAddress.trim();
-    _sharedSecret = sharedSecret;
+    _sharedSecret = sharedSecret.trim();
     _port = port;
   }
 
