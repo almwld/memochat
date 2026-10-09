@@ -222,13 +222,13 @@ class VpnTunnelService : VpnService() {
         MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
 
-    private fun startPacketLoops(fd: ParcelFileDescriptor, socket: SSLSocket) {
+    private fun startPacketLoops(fd: ParcelFileDescriptor, socket: SSLSocket, attempt: Int) {
         uplinkThread = Thread({
             try {
                 val input = DataInputStream(FileInputStream(fd.fileDescriptor))
                 val output = DataOutputStream(socket.outputStream)
                 val buffer = ByteArray(32768)
-                while (running) {
+                while (running && isCurrentGeneration(attempt)) {
                     val count = input.read(buffer)
                     if (count < 0) break
                     if (count == 0) continue
@@ -236,7 +236,7 @@ class VpnTunnelService : VpnService() {
                 }
             } catch (_: Exception) {
             } finally {
-                if (running) stopTunnel()
+                if (running && isCurrentGeneration(attempt)) stopTunnel()
             }
         }, "MemoChat-Tun-Uplink")
 
@@ -311,7 +311,10 @@ class VpnTunnelService : VpnService() {
     }
 
     private fun stopTunnel() {
-        synchronized(stateLock) { running = false }
+        synchronized(stateLock) {
+            generation += 1
+            running = false
+        }
         closeTunnelResources()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -330,7 +333,10 @@ class VpnTunnelService : VpnService() {
     }
 
     override fun onDestroy() {
-        synchronized(stateLock) { running = false }
+        synchronized(stateLock) {
+            generation += 1
+            running = false
+        }
         closeTunnelResources()
         super.onDestroy()
     }
