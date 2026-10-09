@@ -268,7 +268,10 @@ class PushNotificationService {
 
       final isGroup = chat['isGroup'] == true;
       final senderId = data['senderId']?.toString().trim() ?? '';
-      final otherUserId = !isGroup && senderId.isNotEmpty && senderId != currentUid
+      final otherUserId = !isGroup &&
+              senderId.isNotEmpty &&
+              senderId != currentUid &&
+              participants.contains(senderId)
           ? senderId
           : participants.firstWhere(
               (value) => value != currentUid,
