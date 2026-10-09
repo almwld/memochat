@@ -4,10 +4,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
-import android.util.Base64
 import org.json.JSONObject
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -57,12 +57,18 @@ class LocalPeerLinkService : Service() {
             return result
         }
 
+        fun history(context: Context): List<Map<String, Any?>> =
+            LocalLinkStore(context).let { store ->
+                try { store.history() } finally { store.close() }
+            }
+
         private fun emit(type: String, message: String = "", id: String = "") {
             events.offer(mapOf("type" to type, "message" to message, "id" to id))
         }
     }
 
     private val executor = Executors.newCachedThreadPool()
+    private lateinit var store: LocalLinkStore
     private val random = SecureRandom()
     private val pendingAcks = ConcurrentHashMap<String, Long>()
     private val writeLock = Any()
@@ -70,6 +76,11 @@ class LocalPeerLinkService : Service() {
     @Volatile private var socket: Socket? = null
     @Volatile private var output: DataOutputStream? = null
     @Volatile private var pairingCode: String = ""
+
+    override fun onCreate() {
+        super.onCreate()
+        store = LocalLinkStore(this)
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -194,13 +205,14 @@ class LocalPeerLinkService : Service() {
                                 val id = json.optString("id")
                                 val body = json.optString("text")
                                 if (id.isNotBlank() && body.isNotBlank()) {
-                                    emit("received", body, id)
+                                    if (store.saveIncoming(id, body)) emit("received", body, id)
                                     writeJson(JSONObject().put("type", "ack").put("id", id))
                                 }
                             }
                             "ack" -> {
                                 val id = json.optString("id")
                                 pendingAcks.remove(id)
+                                store.markDelivered(id)
                                 emit("delivered", "استلم الجهاز الآخر الرسالة.", id)
                             }
                         }
@@ -212,6 +224,7 @@ class LocalPeerLinkService : Service() {
                     }
                 }
             }
+            executor.execute { flushOutbox() }
         } catch (e: Exception) {
             fail("تعذر تهيئة قناة الاتصال: ${e.localizedMessage ?: "خطأ"}")
         }
@@ -223,19 +236,29 @@ class LocalPeerLinkService : Service() {
             emit("error", "الرسالة فارغة أو أطول من 4000 حرف.")
             return
         }
+        store.saveOutgoing(id, body)
+        emit("sent", body, id)
         if (state != "connected" || socket?.isConnected != true) {
-            emit("error", "لا يوجد اتصال محلي؛ لم تُرسل الرسالة.")
+            emit("state", "حُفظت الرسالة على هذا الهاتف، وستُرسل عند عودة اتصال Memo Offline Link.")
             return
         }
-        executor.execute {
+        executor.execute { flushOutbox() }
+    }
+
+    private fun flushOutbox() {
+        if (state != "connected" || socket?.isConnected != true) return
+        for (message in store.pendingOutgoing()) {
+            if (state != "connected" || socket?.isConnected != true) return
+            if (pendingAcks.putIfAbsent(message.id, System.currentTimeMillis()) != null) continue
             try {
-                pendingAcks[id] = System.currentTimeMillis()
-                emit("sent", body, id)
-                writeJson(JSONObject().put("type", "message").put("id", id)
-                    .put("text", body).put("sentAt", System.currentTimeMillis()))
+                store.markSending(message.id)
+                writeJson(JSONObject().put("type", "message").put("id", message.id)
+                    .put("text", message.text).put("sentAt", message.createdAt))
             } catch (e: Exception) {
-                pendingAcks.remove(id)
-                emit("error", "فشل إرسال الرسالة: ${e.localizedMessage ?: "خطأ اتصال"}", id)
+                pendingAcks.remove(message.id)
+                store.markQueued(message.id)
+                emit("state", "تعذر إرسال بعض الرسائل؛ حُفظت محليًا لإعادة المحاولة.")
+                return
             }
         }
     }
@@ -303,6 +326,7 @@ class LocalPeerLinkService : Service() {
     override fun onDestroy() {
         stopNetworkOnly()
         executor.shutdownNow()
+        store.close()
         state = "stopped"
         super.onDestroy()
     }
