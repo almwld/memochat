@@ -56,5 +56,5 @@ If the routers have no Ethernet, radio, Wi-Fi, or other routed path between them
 - Only valid IPv4 packets are accepted; source addresses must match the peer's configured virtual address.
 - Packets are forwarded to the exact destination peer. Broadcast, multicast, IPv6, whole-LAN bridging, and Internet exit are not provided.
 - Both peers must be connected to the same gateway at the same time.
-- A connected tunnel only provides IP transport. An application-level listener/protocol is still needed to send messages directly between devices; this gateway does not redirect normal Firebase chat traffic.
+- The separate Offline Link screen in MemoChat provides the application-level listener on TCP 1440. Both devices must start that listener and configure each other's virtual IP/peer ID. Message bodies are encrypted with the same manually shared AES-GCM key before entering the TLS gateway. Normal Firebase chat traffic is never redirected or changed.
 - The service is manually enabled and isolated from normal MemoChat behavior.
