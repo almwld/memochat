@@ -13,6 +13,7 @@ import 'notification_models.dart';
 import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
 import '../../features/chat/services/call_service.dart';
+import '../../features/chat/services/call_sound_coordinator.dart';
 import 'ringtone_service.dart';
 import 'notification_preferences.dart';
 
@@ -105,46 +106,49 @@ class PushNotificationService {
         : isMessage
             ? await preferences.messageNotifications
             : await preferences.otherNotifications;
-    if (enabled) {
-      final soundEnabled = isCall
-          ? await preferences.callSounds
-          : isMessage
-              ? await preferences.messageSounds
-              : await preferences.otherSounds;
-      final vibrationEnabled = isCall
-          ? await preferences.callVibration
-          : isMessage
-              ? await preferences.messageVibration
-              : await preferences.otherVibration;
-      final playSound = notification.sound && soundEnabled;
-      final vibrate = notification.vibration && vibrationEnabled;
-      if (isCall && notification.callId?.trim().isNotEmpty == true) {
+    final soundEnabled = isCall
+        ? await preferences.callSounds
+        : isMessage
+            ? await preferences.messageSounds
+            : await preferences.otherSounds;
+    final vibrationEnabled = isCall
+        ? await preferences.callVibration
+        : isMessage
+            ? await preferences.messageVibration
+            : await preferences.otherVibration;
+    final playSound = notification.sound && soundEnabled;
+    final vibrate = notification.vibration && vibrationEnabled;
+
+    if (isCall && notification.callId?.trim().isNotEmpty == true) {
+      // A disabled external-alert preference must not prevent the actual
+      // incoming call screen from opening while the app is in the foreground.
+      await CallSoundCoordinator.instance.presentIncomingCallById(
+        notification.callId!,
+        playSound: enabled && playSound,
+      );
+      if (enabled) {
         await _localNotifications.showIncomingCallNotification(
           callerName: message.data['callerName']?.toString() ?? notification.title,
           callId: notification.callId!,
           isVideo: message.data['isVideo']?.toString().toLowerCase() == 'true' ||
               message.data['callType']?.toString().toLowerCase() == 'video',
-          // The in-app ringtone owns foreground call audio; keep the OS
-          // notification silent to avoid playing two ringtones at once.
           playSound: false,
-          vibrate: vibrate,
-          presentInApp: true,
-          inAppSound: playSound,
-        );
-      } else {
-        await _localNotifications.showTypedNotification(
-          type: notification.type.wireName,
-          title: notification.title,
-          body: notification.body,
-          data: {
-            ...notification.toJson(),
-            ...message.data,
-          },
-          payload: notification.encode(),
-          playSound: playSound,
           vibrate: vibrate,
         );
       }
+    } else if (enabled) {
+      await _localNotifications.showTypedNotification(
+        type: notification.type.wireName,
+        title: notification.title,
+        body: notification.body,
+        data: {
+          ...notification.toJson(),
+          ...message.data,
+        },
+        payload: notification.encode(),
+        playSound: playSound,
+        vibrate: vibrate,
+      );
     }
     await _recordHistory(notification);
   }
