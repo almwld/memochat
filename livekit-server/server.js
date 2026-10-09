@@ -388,7 +388,9 @@ app.post('/call-notification', async (req, res) => {
   try {
     const decodedToken = await verifyFirebaseUser(req);
     const callId = String(req.body?.callId || '').trim();
-    if (!callId) return res.status(400).json({ success: false, message: 'callId is required', requestId });
+    if (!/^[A-Za-z0-9_-]{1,180}$/.test(callId)) {
+      return res.status(400).json({ success: false, message: 'A valid callId is required', requestId });
+    }
 
     const callSnapshot = await db.collection('calls').doc(callId).get();
     if (!callSnapshot.exists) return res.status(404).json({ success: false, message: 'Call not found', requestId });
@@ -417,8 +419,15 @@ app.post('/call-notification', async (req, res) => {
       : [];
 
     if (!fcmTokens.length) {
-      return res.status(200).json({
-        success: true, sent: false, reason: 'fcm_token_missing', receiverId, requestId,
+      // A 2xx response is interpreted by CallService as a successful wake-up.
+      // Fail explicitly when no device can receive the external call alert.
+      return res.status(503).json({
+        success: false,
+        sent: false,
+        code: 'FCM_TOKEN_MISSING',
+        message: 'The receiver has no registered push token',
+        receiverId,
+        requestId,
       });
     }
 
@@ -426,14 +435,25 @@ app.post('/call-notification', async (req, res) => {
       tokens: fcmTokens,
       data: {
         type: 'incoming_call',
+        notificationId: callId,
         callId,
         chatId,
+        senderId: callerId,
+        senderName: String(call.callerName || 'مستخدم'),
+        senderPhotoUrl: String(call.callerPhotoUrl || ''),
+        recipientId: receiverId,
         callerId,
         receiverId,
         userId: receiverId,
         callerName: String(call.callerName || 'مستخدم'),
         callerPhotoUrl: String(call.callerPhotoUrl || ''),
-        isVideo: (call.isVideoCall === true || call.isVideo === true) ? 'true' : 'false',
+        title: String(call.callerName || 'مستخدم'),
+        body: (call.isVideoCall === true || call.isVideo === true || call.callType === 'video')
+          ? 'مكالمة فيديو واردة'
+          : 'مكالمة صوتية واردة',
+        route: 'call:' + callId,
+        timestamp: String(Date.now()),
+        isVideo: (call.isVideoCall === true || call.isVideo === true || call.callType === 'video') ? 'true' : 'false',
         callType: String(call.callType || ((call.isVideoCall || call.isVideo) ? 'video' : 'audio')),
       },
       android: { priority: 'high', ttl: 60 * 1000 },
