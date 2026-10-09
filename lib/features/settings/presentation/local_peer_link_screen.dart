@@ -29,6 +29,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
 
   bool get _connected => _state == 'connected';
   bool get _listening => _state == 'listening';
+  bool get _retrying => _state == 'retrying' || _state == 'disconnected';
 
   @override
   void initState() {
@@ -176,7 +177,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final active = _connected || _listening || _state == 'connecting';
+    final active = _connected || _listening || _state == 'connecting' || _retrying;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Memo Offline Link', style: TextStyle(fontWeight: FontWeight.w900)),
@@ -200,7 +201,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
                           Expanded(
                             child: Text(
                               _connected ? 'القناة متصلة' : _listening ? 'بانتظار الهاتف الآخر' :
-                                  _state == 'connecting' ? 'جاري الاتصال' : 'القناة متوقفة',
+                                  _state == 'connecting' ? 'جاري الاتصال' : _retrying ? 'إعادة الاتصال تلقائيًا' : 'القناة متوقفة',
                               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                             ),
                           ),
