@@ -411,6 +411,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
       }
       if (widget.title == 'الإشعارات والأصوات') {
         _values['إشعارات الرسائل'] = prefs.getBool('notification_message_enabled') ?? true;
+        _values['معاينة الرسائل'] = prefs.getBool('notification_message_preview') ?? true;
         _values['صوت الإشعارات'] = prefs.getBool('notification_message_sounds') ?? true;
         _values['الاهتزاز'] = prefs.getBool('notification_message_vibration') ?? true;
         _values['إشعارات المكالمات'] = prefs.getBool('notification_call_enabled') ?? true;
@@ -434,6 +435,9 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
       switch (title) {
         case 'إشعارات الرسائل':
           await notifications.setMessageNotifications(value);
+          break;
+        case 'معاينة الرسائل':
+          await notifications.setMessagePreview(value);
           break;
         case 'صوت الإشعارات':
           await notifications.setMessageSounds(value);
