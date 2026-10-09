@@ -1,0 +1,7 @@
+# Local TLS credentials and peer secrets must never be committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+config.local.json
