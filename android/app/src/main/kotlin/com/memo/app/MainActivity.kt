@@ -34,6 +34,8 @@ class MainActivity : FlutterFragmentActivity() {
                                 action = VpnTunnelService.ACTION_START
                                 putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
                                 putExtra(VpnTunnelService.EXTRA_FINGERPRINT, call.argument<String>("fingerprint"))
+                                putExtra(VpnTunnelService.EXTRA_PEER_ID, call.argument<String>("peerId"))
+                                putExtra(VpnTunnelService.EXTRA_SHARED_SECRET, call.argument<String>("sharedSecret"))
                                 putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
                                 putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
                             }
@@ -47,6 +49,8 @@ class MainActivity : FlutterFragmentActivity() {
                             action = VpnTunnelService.ACTION_START
                             putExtra(VpnTunnelService.EXTRA_HOST, call.argument<String>("host"))
                             putExtra(VpnTunnelService.EXTRA_FINGERPRINT, call.argument<String>("fingerprint"))
+                            putExtra(VpnTunnelService.EXTRA_PEER_ID, call.argument<String>("peerId"))
+                            putExtra(VpnTunnelService.EXTRA_SHARED_SECRET, call.argument<String>("sharedSecret"))
                             putExtra(VpnTunnelService.EXTRA_ADDRESS, call.argument<String>("address"))
                             putExtra(VpnTunnelService.EXTRA_ROUTE, call.argument<String>("route"))
                         }
