@@ -122,7 +122,7 @@ class VpnTunnelService : VpnService() {
                     .setMtu(1400)
                     .addAddress(addressIp, prefix)
                     .addRoute(routeIp, routePrefix)
-                    .setBlocking(false)
+                    .setBlocking(true)
                     .establish() ?: throw IllegalStateException("تعذر إنشاء واجهة TUN")
                 candidateFd = fd
 
