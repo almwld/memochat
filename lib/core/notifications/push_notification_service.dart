@@ -33,6 +33,12 @@ class PushNotificationService {
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
     try {
+      final launchPayload = await _localNotifications.getLaunchPayload();
+      if (launchPayload != null) await _handleLocalTap(launchPayload);
+    } catch (error) {
+      debugPrint('Local notification launch routing skipped: $error');
+    }
+    try {
       await _messaging.requestPermission(alert: true, badge: true, sound: true).timeout(const Duration(seconds: 8));
     } catch (error) {
       debugPrint('FCM permission request skipped: $error');
