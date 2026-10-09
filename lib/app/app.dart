@@ -198,10 +198,12 @@ class _MemoChatAppState extends State<MemoChatApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && _pushInitializedUid != user.uid) {
-      // Retry a transient push setup failure when the app becomes active again.
-      unawaited(_initializePushNotifications(user));
+    if (Firebase.apps.isNotEmpty) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && _pushInitializedUid != user.uid) {
+        // Retry a transient push setup failure when the app becomes active again.
+        unawaited(_initializePushNotifications(user));
+      }
     }
 
     if (Firebase.apps.isEmpty) {
