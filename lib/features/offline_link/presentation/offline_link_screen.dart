@@ -287,7 +287,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       'm': base64UrlEncode(box.mac.bytes),
     });
     if (envelope.length > 12000) throw const FormatException('Encrypted frame too large');
-    socket.write('\$envelope\\n');
+    socket.write('$envelope\n');
   }
 
   Future<void> _sendMessage() async {
@@ -315,7 +315,6 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(_OfflineMessage(
-          id: id,
           text: text,
           time: now,
           outgoing: true,
