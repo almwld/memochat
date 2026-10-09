@@ -9,7 +9,7 @@ class LiveKitConfig {
   static const String serverUrl = 'wss://memo-2jv45qyl.livekit.cloud';
   static const String tokenServerUrl = String.fromEnvironment(
     'LIVEKIT_TOKEN_SERVER_URL',
-    defaultValue: 'https://memochat-production-451e.up.railway.app',
+    defaultValue: 'https://c3mhwp72itmc-production-ar6e2elm.us-central1.suga.run',
   );
 
   // Same proven media profile used by Sehatak.

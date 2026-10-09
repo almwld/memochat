@@ -69,7 +69,7 @@ class CallService {
   String _lockId(String a, String b) { final ids = [a,b]..sort(); return '${ids[0]}_${ids[1]}'; }
   static const String _callNotificationEndpoint = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'https://memochat-production-451e.up.railway.app',
+    defaultValue: 'https://c3mhwp72itmc-production-ar6e2elm.us-central1.suga.run',
   );
 
   Future<void> _notifyIncomingCall({required String callId}) async {
