@@ -307,7 +307,7 @@ class NotificationService {
   }) async {
     final soundPart = playSound ? 'sound' : 'silent';
     final vibrationPart = vibrate ? 'vibrate' : 'still';
-    final id = 'memochat_${family}_${soundPart}_${vibrationPart}_v2';
+    final id = 'memochat_${family}_${soundPart}_${vibrationPart}_v3';
     final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await android?.createNotificationChannel(AndroidNotificationChannel(
       id,
