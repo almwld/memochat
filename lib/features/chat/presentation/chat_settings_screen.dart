@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/toast_service.dart';
 import '../../../core/services/chat_preferences_service.dart';
+import '../../../core/notifications/notification_preferences.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key, this.chatId});
@@ -25,6 +26,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final notificationPreferences = NotificationPreferences(preferences: prefs);
     if (!mounted) return;
     var fontSize = prefs.getDouble('font_size') ?? 14.0;
     var wallpaper = 'default';
@@ -35,9 +37,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     if (!mounted) return;
     setState(() {
       _darkMode = prefs.getBool('dark_mode') ?? false;
-      _notifications = prefs.getBool('notifications') ?? true;
-      _sound = prefs.getBool('sound') ?? true;
-      _vibration = prefs.getBool('vibration') ?? true;
+      _notifications = prefs.getBool('notification_message_enabled') ?? true;
+      _sound = prefs.getBool('notification_message_sounds') ?? true;
+      _vibration = prefs.getBool('notification_message_vibration') ?? true;
       _fontSize = fontSize;
       _wallpaper = wallpaper;
     });
@@ -49,9 +51,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     try {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', _darkMode);
-    await prefs.setBool('notifications', _notifications);
-    await prefs.setBool('sound', _sound);
-    await prefs.setBool('vibration', _vibration);
+    final notificationPreferences = NotificationPreferences(preferences: prefs);
+    await notificationPreferences.setMessageNotifications(_notifications);
+    await notificationPreferences.setMessageSounds(_sound);
+    await notificationPreferences.setMessageVibration(_vibration);
     await prefs.setDouble('font_size', _fontSize);
     if (widget.chatId != null && widget.chatId!.isNotEmpty) {
       await _chatPrefs.setFontSize(widget.chatId!, _fontSize);
@@ -256,6 +259,18 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
 
   void _showDeleteConfirmation() {
-    showDialog(context: context, builder: (dialogContext) => AlertDialog(title: const Text('حذف جميع المحادثات'), content: const Text('هل أنت متأكد من حذف جميع المحادثات؟ هذا الإجراء لا يمكن التراجع عنه.'), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), TextButton(onPressed: () { Navigator.pop(dialogContext); ToastService.showSuccess('تم حذف جميع المحادثات'); }, style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('حذف الكل'))]));
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف جميع المحادثات'),
+        content: const Text('الحذف الجماعي غير متاح حاليًا. لم يتم حذف أي محادثة.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('حسنًا'),
+          ),
+        ],
+      ),
+    );
   }
 }
