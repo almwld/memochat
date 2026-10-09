@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_models.dart';
 
@@ -50,6 +51,10 @@ class NotificationInboxItem {
 
 class NotificationInbox {
   NotificationInbox({SharedPreferences? preferences}) : _preferences = preferences;
+
+  /// Shared badge state for screens that need to react to inbox mutations.
+  static final ValueNotifier<int> unreadCountNotifier = ValueNotifier<int>(0);
+
   static const _key = 'notification_inbox_v2';
   static const _dedupeKey = 'notification_dedupe_v1';
   SharedPreferences? _preferences;
@@ -76,9 +81,23 @@ class NotificationInbox {
     final values = await read();
     values.removeWhere((existing) => existing.id == item.id);
     values.insert(0, item);
-    await (await _prefs).setStringList(_key, values.take(200).map((v) => jsonEncode(v.toJson())).toList());
+    await (await _prefs).setStringList(
+      _key,
+      values.take(200).map((v) => jsonEncode(v.toJson())).toList(),
+    );
+    await _publishUnreadCount();
   }
-  Future<int> unreadCount() async => (await read()).where((item) => !item.read).length;
+
+  Future<int> unreadCount() async =>
+      (await read()).where((item) => !item.read).length;
+
+  Future<void> _publishUnreadCount() async {
+    try {
+      unreadCountNotifier.value = await unreadCount();
+    } catch (error) {
+      debugPrint('Notification inbox unread count refresh failed: $error');
+    }
+  }
   Future<void> markRead(String id) async {
     final values = await read();
     final updated = values.map((item) => item.id == id ? item.copyWith(read: true) : item);
@@ -86,6 +105,7 @@ class NotificationInbox {
       _key,
       updated.map((value) => jsonEncode(value.toJson())).toList(),
     );
+    await _publishUnreadCount();
   }
 
   Future<void> markAllRead() async {
@@ -96,5 +116,6 @@ class NotificationInbox {
       _key,
       updated.map((value) => jsonEncode(value.toJson())).toList(),
     );
+    await _publishUnreadCount();
   }
 }
