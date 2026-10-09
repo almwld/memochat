@@ -216,6 +216,11 @@ class _MemoChatAppState extends State<MemoChatApp>
 
   Future<void> _initializePushNotifications(User user) async {
     if (_pushInitializedUid == user.uid) return;
+    final previous = _pushNotifications;
+    _pushNotifications = null;
+    if (previous != null) {
+      await previous.dispose();
+    }
     _pushInitializedUid = user.uid;
     final service = PushNotificationService(
       localNotifications: _localNotifications,
@@ -250,6 +255,14 @@ class _MemoChatAppState extends State<MemoChatApp>
       await _identity.markOffline();
     } catch (_) {}
     await FirebaseAuth.instance.signOut();
+
+    // Clear user-specific push lifecycle state after auth has switched to
+    // signed-out, so the same account can initialize notifications again.
+    final push = _pushNotifications;
+    _pushNotifications = null;
+    _pushInitializedUid = null;
+    _lastSyncedUid = null;
+    if (push != null) await push.dispose();
   }
 
   void _setThemeMode(ThemeMode mode) {
