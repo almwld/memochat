@@ -244,6 +244,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
             children: [
               TextField(
                 controller: _remotePeerId,
+                enabled: !service.isListening,
                 decoration: const InputDecoration(
                   labelText: 'معرّف الجهاز الآخر',
                   hintText: 'phone-b',
@@ -252,6 +253,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: _remoteAddress,
+                enabled: !service.isListening,
                 keyboardType: TextInputType.url,
                 decoration: const InputDecoration(
                   labelText: 'عنوان TUN للجهاز الآخر',
@@ -261,6 +263,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: _sharedKey,
+                enabled: !service.isListening,
                 obscureText: true,
                 autocorrect: false,
                 enableSuggestions: false,
@@ -272,6 +275,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: _port,
+                enabled: !service.isListening,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'منفذ المراسلة',
