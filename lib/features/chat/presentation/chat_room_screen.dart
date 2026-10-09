@@ -153,6 +153,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _chatSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
   Timer? _pendingRefreshTimer;
+  int _pendingMediaLoadGeneration = 0;
   Timer? _typingClearTimer;
   Timer? _roomLoadTimer;
   bool _otherTyping = false;
@@ -238,22 +239,45 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _loadPendingMedia() async {
+    final generation = ++_pendingMediaLoadGeneration;
     try {
       final jobs =
           await ChatMediaTransferService.instance.pendingForChat(_chatId);
-      if (!mounted) return;
-      final pending = jobs.map(_pendingMap).toList();
-      // Keep optimistic media visible until its Firestore message is observed.
-      // The outbox can become sent before the messages listener receives the
-      // new snapshot; clearing it here makes media disappear and reappear.
+      if (!mounted || generation != _pendingMediaLoadGeneration) return;
+
+      // A pending query can finish after the Firestore listener has already
+      // observed the canonical message. Reconcile against the latest snapshot
+      // *after* the await so a stale outbox result cannot resurrect a retry
+      // bubble beside the successfully published message.
+      final remoteIds = _messages.map((m) => m.id).toSet();
+      final remoteMediaKeys = _messages
+          .map((m) => m.idempotencyKey)
+          .whereType<String>()
+          .where((key) => key.startsWith('media_'))
+          .map((key) => key.substring('media_'.length))
+          .toSet();
+      bool alreadyPublished(Map<String, dynamic> media) {
+        final id = media['id']?.toString();
+        final outboxId = media['outboxId']?.toString();
+        return (id != null && remoteIds.contains(id)) ||
+            (outboxId != null && remoteMediaKeys.contains(outboxId));
+      }
+
+      final pending = jobs
+          .map(_pendingMap)
+          .where((media) => !alreadyPublished(media))
+          .toList();
       final pendingIds = pending
           .map((m) => m['outboxId']?.toString())
           .whereType<String>()
           .toSet();
-      final retained = _localMedia.where((m) {
-        final id = m['outboxId']?.toString();
-        return id != null && !pendingIds.contains(id);
+      final retained = _localMedia.where((media) {
+        final id = media['outboxId']?.toString();
+        return !alreadyPublished(media) &&
+            id != null &&
+            !pendingIds.contains(id);
       }).toList();
+
       setState(() {
         _localMedia
           ..clear()
@@ -261,22 +285,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
           ..addAll(pending);
       });
       _pendingRefreshTimer?.cancel();
+      _pendingRefreshTimer = null;
       if (pending.isNotEmpty) {
         _pendingRefreshTimer = Timer.periodic(
           const Duration(milliseconds: 800),
-          (_) async {
-            if (!mounted) return;
-            final jobs =
-                await ChatMediaTransferService.instance.pendingForChat(_chatId);
-            if (!mounted) return;
-            if (jobs.isEmpty) {
-              _pendingRefreshTimer?.cancel();
-              _pendingRefreshTimer = null;
-              await _loadPendingMedia();
-            } else {
-              await _loadPendingMedia();
-            }
-          },
+          (_) => unawaited(_loadPendingMedia()),
         );
       }
     } catch (e) {
@@ -1197,8 +1210,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (message['isUploading'] == true) return UploadStatus.uploading;
     }
     if (message['isLocal'] != true &&
-        message['senderId'] == _auth.currentUser?.uid)
-      return UploadStatus.delivered;
+        message['senderId'] == _auth.currentUser?.uid) {
+      // Firestore publication means "sent", not "delivered". Only the
+      // receiver's acknowledgement may advance the indicator.
+      if (message['isRead'] == true ||
+          message['status']?.toString() == 'read') {
+        return UploadStatus.read;
+      }
+      if (message['isDelivered'] == true ||
+          message['status']?.toString() == 'delivered') {
+        return UploadStatus.delivered;
+      }
+      return UploadStatus.sent;
+    }
     return null;
   }
 
