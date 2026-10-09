@@ -278,8 +278,15 @@ class OfflineLinkService extends ChangeNotifier {
           .first
           .timeout(const Duration(seconds: 8));
       final response = Map<String, dynamic>.from(jsonDecode(line) as Map);
-      if (response['accepted'] != true || response['id']?.toString() != message.id) {
-        throw StateError('لم يؤكد الجهاز الآخر استلام الرسالة.');
+      final expectedProof = await Hmac.sha256().calculateMac(
+        utf8.encode('ack:${message.id}'),
+        secretKey: key,
+      );
+      final receivedProof = base64Decode(response['proof']?.toString() ?? '');
+      if (response['accepted'] != true ||
+          response['id']?.toString() != message.id ||
+          !_constantTimeEquals(receivedProof, expectedProof.bytes)) {
+        throw StateError('لم يؤكد الجهاز الآخر استلام الرسالة بشكل موثوق.');
       }
       await _replace(message.copyWith(status: 'sent'));
       return true;
@@ -344,7 +351,15 @@ class OfflineLinkService extends ChangeNotifier {
           status: 'received',
         ));
       }
-      socket.write('${jsonEncode(<String, dynamic>{'accepted': true, 'id': id})}\n');
+      final acknowledgementProof = await Hmac.sha256().calculateMac(
+        utf8.encode('ack:$id'),
+        secretKey: key,
+      );
+      socket.write('${jsonEncode(<String, dynamic>{
+        'accepted': true,
+        'id': id,
+        'proof': base64Encode(acknowledgementProof.bytes),
+      })}\n');
       await socket.flush();
     } catch (error) {
       debugPrint('Offline Link receive rejected: $error');
@@ -356,6 +371,15 @@ class OfflineLinkService extends ChangeNotifier {
       _clients.remove(socket);
       socket.destroy();
     }
+  }
+
+  bool _constantTimeEquals(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    var difference = 0;
+    for (var i = 0; i < a.length; i++) {
+      difference |= a[i] ^ b[i];
+    }
+    return difference == 0;
   }
 
   Future<void> _append(OfflineLinkMessage message) async {
