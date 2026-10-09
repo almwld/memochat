@@ -76,6 +76,9 @@ class LocalPeerLinkService : Service() {
     @Volatile private var socket: Socket? = null
     @Volatile private var output: DataOutputStream? = null
     @Volatile private var pairingCode: String = ""
+    @Volatile private var targetHost: String? = null
+    @Volatile private var targetPort: Int = DEFAULT_PORT
+    @Volatile private var generation: Int = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -163,18 +166,43 @@ class LocalPeerLinkService : Service() {
         }
         stopNetworkOnly()
         pairingCode = code.trim()
+        targetHost = host
+        targetPort = port
+        val runToken = generation
         startForegroundNotice("جاري الاتصال بالجهاز المحلي")
         state = "connecting"
         active = true
         emit("state", "جاري الاتصال بـ $host:$port")
         executor.execute {
-            try {
-                val peer = Socket()
-                peer.connect(InetSocketAddress(host, port), 8000)
-                peer.tcpNoDelay = true
-                attachSocket(peer)
-            } catch (e: Exception) {
-                fail("تعذر الاتصال بالجهاز: ${e.localizedMessage ?: "تحقق من الشبكة ورمز الاقتران"}")
+            while (active && generation == runToken && targetHost == host && targetPort == port) {
+                try {
+                    if (state == "connected") {
+                        Thread.sleep(500)
+                        continue
+                    }
+                    state = "connecting"
+                    val peer = Socket()
+                    peer.connect(InetSocketAddress(host, port), 5000)
+                    peer.tcpNoDelay = true
+                    if (!active || generation != runToken) {
+                        peer.close()
+                        break
+                    }
+                    attachSocket(peer)
+                    while (active && generation == runToken && state == "connected" && socket === peer) {
+                        Thread.sleep(500)
+                    }
+                    if (active && generation == runToken) {
+                        emit("state", "انقطع الاتصال؛ تجري محاولة إعادة الاتصال تلقائيًا.")
+                        Thread.sleep(2000)
+                    }
+                } catch (e: Exception) {
+                    if (active && generation == runToken) {
+                        state = "retrying"
+                        emit("state", "تعذر الوصول إلى الهاتف الآخر؛ ستُعاد المحاولة تلقائيًا.")
+                        try { Thread.sleep(2500) } catch (_: InterruptedException) { break }
+                    }
+                }
             }
         }
     }
@@ -219,8 +247,11 @@ class LocalPeerLinkService : Service() {
                     }
                 } catch (e: Exception) {
                     if (active && socket === peer) {
+                        socket = null
+                        output = null
+                        pendingAcks.clear()
                         state = "disconnected"
-                        emit("state", "انقطع الاتصال المحلي؛ أعد الاتصال لإرسال الرسائل.")
+                        emit("state", "انقطع الاتصال المحلي؛ جارٍ تجهيز إعادة الاتصال.")
                     }
                 }
             }
@@ -307,6 +338,9 @@ class LocalPeerLinkService : Service() {
 
     private fun stopNetworkOnly() {
         active = false
+        generation += 1
+        targetHost = null
+        targetPort = DEFAULT_PORT
         try { socket?.close() } catch (_: Exception) {}
         try { server?.close() } catch (_: Exception) {}
         socket = null
