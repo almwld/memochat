@@ -37,6 +37,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
   bool _connected = false;
   String _status = 'غير متصل';
 
+  bool get _listening => _server != null;
+
   @override
   void initState() {
     super.initState();
@@ -170,6 +172,10 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
   }
 
   void _attachSocket(Socket socket) {
+    if (_hostMode && _connected) {
+      socket.destroy();
+      return;
+    }
     if (!mounted) {
       socket.destroy();
       return;
@@ -214,7 +220,6 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       if (!_seenIds.add(id) || !mounted) return;
       setState(() {
         _messages.add(_OfflineMessage(
-          id: id,
           text: text,
           time: DateTime.fromMillisecondsSinceEpoch(timestamp),
           outgoing: false,
@@ -402,7 +407,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
               ),
             ],
             selected: {_hostMode},
-            onSelectionChanged: _connected || _starting
+            onSelectionChanged: _connected || _starting || _listening
                 ? null
                 : (selection) => setState(() => _hostMode = selection.first),
           ),
@@ -452,7 +457,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
                       runSpacing: 8,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: _connected || _starting
+                          onPressed: _connected || _starting || _listening
                               ? null
                               : () {
                                   _generateSessionCode();
@@ -613,6 +618,14 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
               label: const Text('إيقاف القناة'),
             ),
           ],
+          if (_listening && !_connected) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _stop,
+              icon: const Icon(Icons.stop_circle_outlined),
+              label: const Text('إيقاف الاستماع المحلي'),
+            ),
+          ],
         ],
       ),
     );
@@ -621,13 +634,11 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
 
 class _OfflineMessage {
   const _OfflineMessage({
-    required this.id,
     required this.text,
     required this.time,
     required this.outgoing,
   });
 
-  final String id;
   final String text;
   final DateTime time;
   final bool outgoing;
