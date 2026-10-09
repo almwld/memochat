@@ -48,7 +48,7 @@ class AvatarService {
       final result = await _nextcloud.uploadFile(
         file: file,
         path: 'avatars',
-        fileName: 'avatar$extension',
+        fileName: 'avatar_${uid}_${DateTime.now().millisecondsSinceEpoch}$extension',
         mimeType: _mimeType(extension),
         createShare: true,
       );
