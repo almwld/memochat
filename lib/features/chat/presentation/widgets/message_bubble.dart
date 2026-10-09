@@ -52,9 +52,10 @@ class _MemoBubblePainter extends CustomPainter {
         ..quadraticBezierTo(size.width, 0, size.width, r)
         ..lineTo(size.width, size.height - r)
         ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
-        ..lineTo(14, size.height)
-        ..lineTo(size.width - 1, size.height - 1)
-        ..lineTo(size.width - tail, size.height - 8)
+        ..lineTo(size.width - 28, size.height)
+        ..lineTo(size.width - 12, size.height - 1)
+        ..lineTo(size.width - 18, size.height - 8)
+        ..lineTo(size.width - 24, size.height)
         ..lineTo(r, size.height)
         ..quadraticBezierTo(0, size.height, 0, size.height - r)
         ..lineTo(0, r)
@@ -286,7 +287,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       return const Icon(Icons.schedule, size: 14, color: Colors.grey);
     }
     if (m['isRead'] == true) {
-      return const Icon(Icons.done_all_rounded, size: 15, color: const Color(0xFF53BDEB));
+      return const Icon(Icons.done_all_rounded, size: 15, color: Color(0xFF53BDEB));
     }
     if (m['isDelivered'] == true) {
       return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
