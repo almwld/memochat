@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Unified upload state indicator for chat media.
-enum UploadStatus { uploading, delivered, pending, failed }
+enum UploadStatus { uploading, sent, delivered, read, pending, failed }
 
 class MediaUploadStatusWidget extends StatelessWidget {
   const MediaUploadStatusWidget({
@@ -19,7 +19,8 @@ class MediaUploadStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PositionedDirectional(end: -24, bottom: 5, child: _indicator());
+    // Keep the state indicator inside the bubble, as in modern chat clients.
+    return PositionedDirectional(end: 8, bottom: 5, child: _indicator());
   }
 
   Widget _indicator() {
@@ -45,8 +46,12 @@ class MediaUploadStatusWidget extends StatelessWidget {
             ],
           ),
         );
+      case UploadStatus.sent:
+        return const Icon(Icons.check_rounded, color: Color(0xFF667781), size: 15);
       case UploadStatus.delivered:
-        return const Icon(Icons.check, color: Colors.grey, size: 15);
+        return const Icon(Icons.done_all_rounded, color: Color(0xFF667781), size: 16);
+      case UploadStatus.read:
+        return const Icon(Icons.done_all_rounded, color: Color(0xFF53BDEB), size: 16);
       case UploadStatus.pending:
         return GestureDetector(
           onTap: onCancel,
