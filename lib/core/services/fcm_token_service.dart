@@ -122,7 +122,7 @@ class FcmTokenService {
     if (user == null) return;
     final tokens = <String>{};
     try {
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken().timeout(const Duration(seconds: 4));
       if (token != null && token.trim().isNotEmpty) tokens.add(token.trim());
     } catch (error) {
       debugPrint('FCM token lookup during sign-out failed: $error');
@@ -142,7 +142,7 @@ class FcmTokenService {
           'tokens': FieldValue.arrayRemove(tokens.toList()),
           'updatedAt': FieldValue.serverTimestamp(),
           'platform': 'android',
-        }, SetOptions(merge: true));
+        }, SetOptions(merge: true)).timeout(const Duration(seconds: 4));
       } catch (error, stack) {
         debugPrint('FCM token cleanup during sign-out failed: $error');
         debugPrintStack(stackTrace: stack);
