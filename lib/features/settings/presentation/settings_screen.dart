@@ -10,6 +10,7 @@ import '../../notifications/presentation/notification_center_screen.dart';
 import 'advanced_privacy_screen.dart';
 import 'vpn_tunnel_screen.dart';
 import '../../../core/security/security_settings_service.dart';
+import '../../../core/notifications/notification_preferences.dart';
 import '../../profile/presentation/profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -389,6 +390,8 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
     _restore();
   }
 
+  final Map<String, String> _selectedValues = {};
+
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -398,19 +401,43 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
           _values[item.title] = prefs.getBool(_key(item.title)) ?? item.defaultValue;
         }
       }
+      if (widget.title == 'الإشعارات والأصوات') {
+        _values['إشعارات الرسائل'] = prefs.getBool('notification_message_enabled') ?? true;
+        _values['صوت الإشعارات'] = prefs.getBool('notification_message_sounds') ?? true;
+        _values['الاهتزاز'] = prefs.getBool('notification_message_vibration') ?? true;
+      }
+      for (final item in widget.items) {
+        final selected = prefs.getString(_key(item.title));
+        if (selected != null) _selectedValues[item.title] = selected;
+      }
     });
   }
 
   Future<void> _setValue(String title, bool value) async {
-    setState(() => _values[title] = value);
     final prefs = await SharedPreferences.getInstance();
+    final notifications = NotificationPreferences(preferences: prefs);
+    if (widget.title == 'الإشعارات والأصوات') {
+      switch (title) {
+        case 'إشعارات الرسائل':
+          await notifications.setMessageNotifications(value);
+          break;
+        case 'صوت الإشعارات':
+          await notifications.setMessageSounds(value);
+          break;
+        case 'الاهتزاز':
+          await notifications.setMessageVibration(value);
+          break;
+      }
+    }
     await prefs.setBool(_key(title), value);
+    if (!mounted) return;
+    setState(() => _values[title] = value);
   }
 
   String _displayValue(_SettingItem item) {
-    final value = _values[item.title];
     if (item.switchable) return item.subtitle;
-    return item.subtitle;
+    final selected = _selectedValues[item.title];
+    return selected == null ? item.subtitle : '$selected • ${item.subtitle}';
   }
 
   Future<void> _editItem(_SettingItem item) async {
@@ -501,7 +528,7 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
     );
     if (selected == null) return;
     await prefs.setString(key, selected);
-    if (mounted) setState(() {});
+    if (mounted) setState(() => _selectedValues[item.title] = selected);
   }
 
   @override
