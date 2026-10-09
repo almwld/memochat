@@ -139,18 +139,24 @@ class VpnTunnelService : VpnService() {
                 startPacketLoops(fd, socket, attempt)
             } catch (error: Exception) {
                 val shouldStop = synchronized(stateLock) {
-                    if (generation != attempt) false else {
+                    if (generation != attempt) {
+                        false
+                    } else {
                         running = false
+                        if (tunnelSocket === candidateSocket) tunnelSocket = null
+                        if (interfaceFd === candidateFd) interfaceFd = null
                         true
                     }
                 }
+                try { candidateSocket?.close() } catch (_: Exception) {}
+                try { candidateFd?.close() } catch (_: Exception) {}
                 if (shouldStop) {
-                    closeTunnelResources()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                } else {
-                    try { candidateSocket?.close() } catch (_: Exception) {}
-                    try { candidateFd?.close() } catch (_: Exception) {}
+                    synchronized(stateLock) {
+                        if (generation == attempt) {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                        }
+                    }
                 }
             }
         }, "MemoChat-Tunnel-Connect")
