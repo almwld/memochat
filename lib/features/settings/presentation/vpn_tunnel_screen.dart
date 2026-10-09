@@ -79,46 +79,87 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
       if (mounted) setState(() => _running = false);
       return;
     }
-    if (_host.text.trim().isEmpty) {
-      _snack('أدخل عنوان بوابة VPN أولاً.');
+
+    final host = _host.text.trim();
+    final peerId = _peerId.text.trim();
+    final sharedSecret = _sharedSecret.text;
+    if (host.isEmpty) {
+      _snack('أدخل عنوان بوابة Tunnel أولاً.');
+      return;
+    }
+    if (!RegExp(r'^[a-zA-Z0-9_.-]{1,64}$').hasMatch(peerId)) {
+      _snack('أدخل معرّف جهاز صالحًا كما هو مسجل في إعدادات البوابة.');
+      return;
+    }
+    if (sharedSecret.length < 24) {
+      _snack('المفتاح المشترك يجب أن يحتوي على 24 حرفًا على الأقل.');
       return;
     }
 
     final p = await SharedPreferences.getInstance();
-    await p.setString('vpn.tunnel.host', _host.text.trim());
+    await p.setString('vpn.tunnel.host', host);
+    await p.setString('vpn.tunnel.peer_id', peerId);
+    await _secureStorage.write(key: 'vpn.tunnel.shared_secret', value: sharedSecret);
     await p.setString('vpn.tunnel.fingerprint', _fingerprint.text.trim());
     await p.setString('vpn.tunnel.address', _address.text.trim());
     await p.setString('vpn.tunnel.route', _route.text.trim());
 
+    final arguments = <String, dynamic>{
+      'host': host,
+      'peerId': peerId,
+      'sharedSecret': sharedSecret,
+      'fingerprint': _fingerprint.text.trim(),
+      'address': _address.text.trim(),
+      'route': _route.text.trim(),
+    };
     try {
-      final prepared = await _channel.invokeMethod<bool>('prepare', {
-        'host': _host.text.trim(),
-        'fingerprint': _fingerprint.text.trim(),
-        'address': _address.text.trim(),
-        'route': _route.text.trim(),
-      }) ?? false;
+      final prepared = await _channel.invokeMethod<bool>('prepare', arguments) ?? false;
       if (!prepared) {
-        _snack('تم طلب إذن VPN من النظام؛ بعد الموافقة سيبدأ النفق تلقائيًا.');
+        _waitingForPermission = true;
+        _snack('وافق على طلب VPN من النظام؛ سنتحقق من نجاح المصافحة بعد العودة.');
         return;
       }
 
-      final started = await _channel.invokeMethod<bool>('start', {
-        'host': _host.text.trim(),
-        'fingerprint': _fingerprint.text.trim(),
-        'address': _address.text.trim(),
-        'route': _route.text.trim(),
-      });
-      if (mounted) {
-        setState(() => _running = started == true);
+      final started = await _channel.invokeMethod<bool>('start', arguments) ?? false;
+      if (!started) {
+        if (mounted) setState(() => _running = false);
+        _snack('تعذر بدء خدمة Tunnel.');
+        return;
       }
-      if (started == true) {
-        _snack('جاري إنشاء قناة TLS مع البوابة على المنفذ 4433.');
+
+      _snack('بدأت الخدمة؛ جار التحقق من TLS وهوية الجهاز وواجهة TUN…');
+      final connected = await _waitForTunnelState(showFailure: false);
+      if (connected) {
+        _snack('تم الاتصال ببوابة Tunnel والتحقق من هوية الجهاز.');
       } else {
-        _snack('تعذر بدء Tunnel.');
+        _snack('لم يكتمل الاتصال. تحقق من عنوان البوابة والمنفذ 4433 وبصمة الشهادة وبيانات الجهاز.');
       }
     } on PlatformException catch (e) {
+      if (mounted) setState(() => _running = false);
       _snack(e.message ?? 'تعذر تشغيل VPN.');
+    } catch (_) {
+      if (mounted) setState(() => _running = false);
+      _snack('تعذر حفظ إعدادات Tunnel أو تشغيله.');
     }
+  }
+
+  Future<bool> _waitForTunnelState({required bool showFailure}) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    while (DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      try {
+        final active = await _channel.invokeMethod<bool>('status') ?? false;
+        if (active) {
+          if (mounted) setState(() => _running = true);
+          return true;
+        }
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _running = false);
+    if (showFailure && mounted) {
+      _snack('لم يتصل النفق بعد الموافقة. تحقق من الوصول إلى البوابة وإعدادات TLS.');
+    }
+    return false;
   }
 
   void _snack(String s) {
