@@ -34,7 +34,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
   final _inbox = NotificationInbox();
@@ -51,10 +51,40 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationInbox.unreadCountNotifier.addListener(_onUnreadCountChanged);
     _conversationsStream = widget.repository.watchConversations();
     _inviteSubscription = InviteHandler.instance.links.listen(_handleInvite);
     _unreadNotifications = _inbox.unreadCount();
+    unawaited(_syncUnreadCount());
     unawaited(_loadActiveFolder());
+  }
+
+  void _onUnreadCountChanged() {
+    if (!mounted) return;
+    setState(() {
+      _unreadNotifications =
+          Future<int>.value(NotificationInbox.unreadCountNotifier.value);
+    });
+  }
+
+  Future<void> _syncUnreadCount() async {
+    try {
+      final count = await _inbox.unreadCount();
+      if (!mounted) return;
+      if (NotificationInbox.unreadCountNotifier.value != count) {
+        NotificationInbox.unreadCountNotifier.value = count;
+      }
+    } catch (error) {
+      debugPrint('Notification badge refresh failed: $error');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_syncUnreadCount());
+    }
   }
 
   Future<void> _loadActiveFolder() async {
@@ -106,7 +136,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   @override
-  void dispose() { _inviteSubscription?.cancel(); _search.dispose(); _searchFocus.dispose(); super.dispose(); }
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    NotificationInbox.unreadCountNotifier.removeListener(_onUnreadCountChanged);
+    _inviteSubscription?.cancel();
+    _search.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   Future<void> _openFolders() async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FoldersManagerScreen()));
