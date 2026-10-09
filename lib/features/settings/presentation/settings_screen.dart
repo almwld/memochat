@@ -9,6 +9,7 @@ import '../../notifications/presentation/notification_center_screen.dart';
 import '../../love_letter/memo_dedication_screen.dart';
 import 'advanced_privacy_screen.dart';
 import 'vpn_tunnel_screen.dart';
+import 'local_peer_link_screen.dart';
 import '../../../core/security/security_settings_service.dart';
 import '../../../core/notifications/notification_preferences.dart';
 import '../../profile/presentation/profile_screen.dart';
@@ -295,6 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _Section(title: 'الأمان', children: [
             _Row(Icons.shield_outlined, 'مركز الأمان والتشفير', 'مستوى الحماية والتشفير الفعلي', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedPrivacyScreen()))),
             _Row(Icons.vpn_lock_outlined, 'VPN Tunnel', 'اتصال استثنائي للشبكات المعزولة عند انقطاع الإنترنت', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VpnTunnelScreen()))),
+            _Row(Icons.wifi_tethering_rounded, 'Memo Offline Link', 'مراسلة نصية مباشرة عبر الشبكة المحلية دون إنترنت؛ مستقلة عن الدردشات المعتادة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LocalPeerLinkScreen()))),
           ]),
           _Section(title: 'الدعم', children: [
             _Row(Icons.help_outline_rounded, 'المساعدة', 'مركز المساعدة والإبلاغ', () => _open('المساعدة', Icons.help_outline_rounded, const [
