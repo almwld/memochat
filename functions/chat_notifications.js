@@ -42,10 +42,44 @@ async function archiveNotification(uid, payload) {
   return ref.id;
 }
 
+async function applyUnreadNotificationDelta(event, uid, delta) {
+  const eventId = String(event.id || '').trim();
+  if (!eventId || !uid) return;
+  const ledgerId = crypto.createHash('sha256').update(eventId).digest('hex');
+  const ledgerRef = db.collection('_notificationCounterEvents').doc(ledgerId);
+  const userRef = db.collection('users').doc(uid);
+  await db.runTransaction(async transaction => {
+    const processed = await transaction.get(ledgerRef);
+    if (processed.exists) return;
+    const userSnapshot = await transaction.get(userRef);
+    const current = Number(userSnapshot.data()?.unreadNotificationsCount || 0);
+    transaction.set(userRef, {
+      unreadNotificationsCount: current + delta,
+      notificationCounterUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    transaction.create(ledgerRef, {
+      uid,
+      delta,
+      processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
 exports.archiveNotificationUnreadCounter=onDocumentCreated('notifications/{notificationId}', async event => {
-  const s=event.data;if(!s)return;
-  const uid=String(s.data()?.userId||'');if(!uid)return;
-  await db.collection('users').doc(uid).set({unreadNotificationsCount:admin.firestore.FieldValue.increment(1)},{merge:true});
+  const snapshot = event.data;
+  if (!snapshot) return;
+  const uid = String(snapshot.data()?.userId || '');
+  if (!uid || snapshot.data()?.isRead === true) return;
+  await applyUnreadNotificationDelta(event, uid, 1);
+});
+
+exports.decrementNotificationUnreadCounter=onDocumentUpdated('notifications/{notificationId}', async event => {
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!before || !after || before.isRead === true || after.isRead !== true) return;
+  const uid = String(after.userId || '');
+  if (!uid) return;
+  await applyUnreadNotificationDelta(event, uid, -1);
 });
 
 async function getFcmTokens(uid){
