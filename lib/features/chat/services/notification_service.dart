@@ -380,8 +380,17 @@ class NotificationService {
     }
     final family = MemoChatNotificationTypeValue.fromWireValue(type) ?? MemoChatNotificationType.system;
 
-    final isChatMessage =
-        type == 'new_message' || type == 'chat_message' || type == 'message';
+    final isChatMessage = const {
+      'new_message',
+      'chat_message',
+      'message',
+      'text_message',
+      'image_message',
+      'video_message',
+      'file_message',
+      'audio_message',
+      'reply',
+    }.contains(normalizedType);
     final safeTitle = isChatMessage
         ? (data?['senderName']?.toString().trim().isNotEmpty == true
             ? data!['senderName'].toString()
@@ -658,12 +667,13 @@ class NotificationService {
     bool playSound = true,
     bool vibrate = true,
     bool presentInApp = false,
+    bool? inAppSound,
   }) async {
     await initialize();
     if (presentInApp) {
       unawaited(CallSoundCoordinator.instance.presentIncomingCallById(
         callId,
-        playSound: playSound,
+        playSound: inAppSound ?? playSound,
       ));
     }
     final id = _callNotificationId(callId);
