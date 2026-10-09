@@ -245,6 +245,60 @@ class PushNotificationService {
     });
     await _handleLocalTap(envelope);
   }
+  Future<bool> _openChatFromNotification(
+    BuildContext context, {
+    required String chatId,
+    required String currentUid,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatId)
+          .get()
+          .timeout(const Duration(seconds: 5));
+      if (!snapshot.exists) return false;
+      final chat = snapshot.data() ?? <String, dynamic>{};
+      final participants = (chat['participants'] as List?)
+              ?.map((value) => value.toString())
+              .where((value) => value.isNotEmpty)
+              .toSet() ??
+          <String>{};
+      if (!participants.contains(currentUid)) return false;
+
+      final isGroup = chat['isGroup'] == true;
+      final senderId = data['senderId']?.toString().trim() ?? '';
+      final otherUserId = !isGroup && senderId.isNotEmpty && senderId != currentUid
+          ? senderId
+          : participants.firstWhere(
+              (value) => value != currentUid,
+              orElse: () => '',
+            );
+      if (!isGroup && otherUserId.isEmpty) return false;
+
+      await ChatNavigation.openRoom(
+        context,
+        chatId: chatId,
+        otherUserId: isGroup ? '' : otherUserId,
+        otherUserName: isGroup
+            ? (chat['groupName']?.toString().trim().isNotEmpty == true
+                ? chat['groupName'].toString()
+                : 'مجموعة')
+            : (data['senderName']?.toString().trim().isNotEmpty == true
+                ? data['senderName'].toString()
+                : data['title']?.toString() ?? 'مستخدم'),
+        otherUserImage: data['senderPhotoUrl']?.toString() ??
+            data['photoUrl']?.toString(),
+        isGroup: isGroup,
+        groupImage: chat['groupPhoto']?.toString(),
+      );
+      return true;
+    } catch (error) {
+      debugPrint('Notification chat routing lookup failed: $error');
+      return false;
+    }
+  }
+
   Future<void> _handleLocalTap(String? payload) async {
     if (payload == null || payload.trim().isEmpty) return;
     Map<String, dynamic>? decoded;
@@ -306,27 +360,21 @@ class PushNotificationService {
     }
 
     final chatId = data['chatId']?.toString().trim() ?? '';
-    final senderId = data['senderId']?.toString().trim() ?? '';
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final route = data['route']?.toString() ?? '';
+    final excludedRoute = route.startsWith('community:') ||
+        route.startsWith('voice_room:') ||
+        route.startsWith('contacts:');
     if (navigator != null &&
         chatId.isNotEmpty &&
-        senderId.isNotEmpty &&
         currentUid.isNotEmpty &&
-        senderId != currentUid &&
-        !route.startsWith('community:') &&
-        !route.startsWith('voice_room:') &&
-        !route.startsWith('contacts:')) {
-      await ChatNavigation.openRoom(
-        navigator.context,
-        chatId: chatId,
-        otherUserId: senderId,
-        otherUserName: data['senderName']?.toString() ??
-            data['title']?.toString() ??
-            'مستخدم',
-        otherUserImage: data['senderPhotoUrl']?.toString() ??
-            data['photoUrl']?.toString(),
-      );
+        !excludedRoute &&
+        await _openChatFromNotification(
+          navigator.context,
+          chatId: chatId,
+          currentUid: currentUid,
+          data: data,
+        )) {
       return;
     }
     if (navigator != null) {
