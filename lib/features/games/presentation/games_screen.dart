@@ -11,7 +11,12 @@ import 'widgets/game_art.dart';
 
 class GamesScreen extends StatefulWidget {
   final String chatId;
-  const GamesScreen({super.key,required this.chatId});
+  final ScrollController? scrollController;
+  const GamesScreen({
+    super.key,
+    required this.chatId,
+    this.scrollController,
+  });
   @override State<GamesScreen> createState()=>_GamesScreenState();
 }
 
@@ -111,7 +116,7 @@ class _GamesScreenState extends State<GamesScreen> {
         items:GameTimeLimit.values.map((e)=>DropdownMenuItem(value:e,child:Text(e.label))).toList(),
       )),
       const SizedBox(height:4),
-      Expanded(child:GameGrid(onGameTap:_openGame)),
+      Expanded(child: GameGrid(controller: widget.scrollController, onGameTap: _openGame)),
     ]));
   }
 }
@@ -120,6 +125,18 @@ Future<void> showGamesSheet(BuildContext context,{required String chatId}) async
   await showModalBottomSheet<void>(
     context:context,isScrollControlled:true,showDragHandle:false,backgroundColor:Colors.transparent,
     sheetAnimationStyle:AnimationStyle(duration:Duration(milliseconds:280),reverseDuration:Duration(milliseconds:220)),
-    builder:(_)=>DraggableScrollableSheet(initialChildSize:.82,minChildSize:.55,maxChildSize:.95,expand:false,builder:(_,controller)=>ClipRRect(borderRadius:const BorderRadius.vertical(top:Radius.circular(28)),child:Material(color:Theme.of(context).scaffoldBackgroundColor,child:GamesScreen(chatId:chatId)))),
+    builder: (_) => DraggableScrollableSheet(
+      initialChildSize: .82,
+      minChildSize: .55,
+      maxChildSize: .95,
+      expand: false,
+      builder: (_, controller) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: Material(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: GamesScreen(chatId: chatId, scrollController: controller),
+        ),
+      ),
+    ),
   );
 }
