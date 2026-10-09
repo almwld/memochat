@@ -19,50 +19,64 @@ class ChatService {
   String _uid(){final id=currentUserId;if(id==null||id.isEmpty)throw Exception('يجب تسجيل الدخول');return id;}
   DocumentReference<Map<String,dynamic>> _chatRef(String id)=>_firestore.collection('chats').doc(id);
   Future<DocumentSnapshot<Map<String,dynamic>>> _authorizedChat(String chatId)async{final id=_uid();final snap=await _chatRef(chatId).get();if(!snap.exists)throw Exception('المحادثة غير موجودة');final participants=List<String>.from(snap.data()?['participants']??const []);if(!participants.contains(id))throw Exception('ليس لديك صلاحية لهذه المحادثة');return snap;}
+  bool _isEncryptedEnvelope(Map<String, dynamic> data) =>
+      data['type']?.toString() == 'encrypted' ||
+      data['e2eeVersion'] != null ||
+      data['e2eePayloads'] is Map;
+
   Future<Map<String,dynamic>> _decryptMessageData(String currentUid, Map<String,dynamic> data) async {
+    // Encryption is opt-in at send time. The receiver must inspect the actual
+    // message envelope rather than its own local preference, otherwise a
+    // perfectly valid encrypted message becomes an empty text bubble on the
+    // other device.
+    if (!_isEncryptedEnvelope(data)) return data;
     final chatId = data['chatId']?.toString().trim() ?? '';
-    if (chatId.isEmpty) return data;
-    // Plaintext is the default transport. Never touch Signal ciphertext unless
-    // this exact conversation has an explicit, persisted E2EE opt-in.
-    await _security.ensureReady();
-    if (!_security.isEncryptionEnabledForChat(chatId)) return data;
-    final raw=data['e2eePayloads'];
-    final senderId=data['senderId']?.toString().trim() ?? '';
-    if(raw is Map && senderId.isNotEmpty){
-      final encoded=raw[currentUid]?.toString();
-      if(encoded!=null&&encoded.isNotEmpty){
-        final clear=await SignalSessionManager.instance.decryptFrom(senderId,base64Decode(encoded),chatId:data['chatId']?.toString());
-        final payload=jsonDecode(utf8.decode(clear));
-        if(payload is Map)return <String,dynamic>{...data,...Map<String,dynamic>.from(payload),'senderId':senderId,'chatId':data['chatId']};
-      }
+    if (chatId.isEmpty) throw StateError('Encrypted message has no chat ID');
+    final raw = data['e2eePayloads'];
+    final senderId = data['senderId']?.toString().trim() ?? '';
+    if (raw is! Map || senderId.isEmpty) {
+      throw StateError('Encrypted message envelope is incomplete');
     }
-    return data;
+    final encoded = raw[currentUid]?.toString();
+    if (encoded == null || encoded.isEmpty) {
+      throw StateError('No encrypted payload was addressed to this device');
+    }
+    final clear = await SignalSessionManager.instance.decryptFrom(
+      senderId,
+      base64Decode(encoded),
+      chatId: chatId,
+    );
+    final payload = jsonDecode(utf8.decode(clear));
+    if (payload is! Map) throw const FormatException('Invalid decrypted message payload');
+    return <String, dynamic>{
+      ...data,
+      ...Map<String, dynamic>.from(payload),
+      'senderId': senderId,
+      'chatId': chatId,
+    };
   }
+
   Future<List<MessageModel>> _decryptMessageDocs(List<QueryDocumentSnapshot<Map<String,dynamic>>> docs) async {
-    final uid=_uid();
+    final uid = _uid();
     return Future.wait(docs.map((d) async {
-      final data=d.data();
+      final data = d.data();
+      if (!_isEncryptedEnvelope(data)) {
+        return MessageModel.fromFirestore(d.id, data);
+      }
       try {
-        return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,data));
-      } catch (firstError) {
-        // Ciphertext is processed only when this conversation is explicitly
-        // E2EE-enabled. Plaintext chats must never bootstrap Signal.
-        final chatId = data['chatId']?.toString() ?? '';
-        if (chatId.isNotEmpty) {
-          await SecuritySettingsService.instance.load();
-        }
-        final e2eeEnabled = chatId.isNotEmpty &&
-            SecuritySettingsService.instance.isEncryptionEnabledForChat(chatId);
-        if (data['type'] == 'encrypted' && e2eeEnabled) {
-          try {
-            await SignalSessionManager.instance.ensureReady();
-            return MessageModel.fromFirestore(d.id,await _decryptMessageData(uid,data));
-          } catch (_) {
-            debugPrint('Signal decrypt failed for message '+d.id+': '+firstError.toString());
-            return MessageModel.fromFirestore(d.id,{...data,'text':null,'type':'system'});
-          }
-        }
-        return MessageModel.fromFirestore(d.id,data);
+        await SignalSessionManager.instance.ensureReady();
+        final clear = await _decryptMessageData(uid, data);
+        return MessageModel.fromFirestore(d.id, clear);
+      } catch (error) {
+        debugPrint('Signal decrypt failed for message ${d.id}: $error');
+        // Never render encrypted records as blank text bubbles. If the local
+        // Signal session cannot decrypt a message, make the failure explicit
+        // without exposing or replacing the ciphertext.
+        return MessageModel.fromFirestore(d.id, {
+          ...data,
+          'text': 'تعذر فك تشفير هذه الرسالة على هذا الجهاز.',
+          'type': 'system',
+        });
       }
     }));
   }
