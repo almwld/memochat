@@ -274,7 +274,7 @@ class OfflineLinkService extends ChangeNotifier {
       socket.write('${jsonEncode(envelope)}\n');
       await socket.flush();
       final line = await socket
-          .transform(utf8.decoder)
+          .cast<List<int>>().transform(utf8.decoder)
           .transform(const LineSplitter())
           .first
           .timeout(const Duration(seconds: 8));
@@ -309,7 +309,7 @@ class OfflineLinkService extends ChangeNotifier {
         throw const FormatException('Unexpected source address');
       }
       final line = await socket
-          .transform(utf8.decoder)
+          .cast<List<int>>().transform(utf8.decoder)
           .transform(const LineSplitter())
           .first
           .timeout(const Duration(seconds: 8));
