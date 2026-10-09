@@ -50,7 +50,7 @@ class FcmTokenService {
     final user = _auth.currentUser;
     if (user == null) return null;
     try {
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken().timeout(const Duration(seconds: 4));
       if (token == null || token.trim().isEmpty) return null;
       await syncToken(token);
       return token;
@@ -108,7 +108,7 @@ class FcmTokenService {
         'tokens': FieldValue.arrayRemove([token.trim()]),
         'updatedAt': FieldValue.serverTimestamp(),
         'platform': 'android',
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 4));
     } catch (error, stack) {
       debugPrint('FCM stale token cleanup failed: $error');
       debugPrintStack(stackTrace: stack);
