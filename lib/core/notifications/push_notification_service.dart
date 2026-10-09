@@ -171,6 +171,22 @@ class PushNotificationService {
   Future<void> _handleOpened(RemoteMessage message) async {
     final notification = _parse(message);
     await _inbox.markRead(notification.id);
+
+    // A remote push tap must follow the same route as a local notification,
+    // including when Android launches MemoChat from a terminated state.
+    // Do not render another local notification here: this is tap routing only.
+    final envelope = jsonEncode(<String, dynamic>{
+      'type': notification.type.wireName,
+      'data': <String, dynamic>{
+        ...notification.toJson(),
+        ...message.data,
+        if (message.notification?.title != null)
+          'title': message.notification!.title,
+        if (message.notification?.body != null)
+          'body': message.notification!.body,
+      },
+    });
+    await _handleLocalTap(envelope);
   }
   Future<void> _handleLocalTap(String? payload) async {
     if (payload == null || payload.trim().isEmpty) return;
@@ -188,7 +204,7 @@ class PushNotificationService {
 
     final action = decoded!['action']?.toString().trim() ?? '';
     final actionPayload = decoded!['payload']?.toString();
-    if (action == 'call_answer' || action == 'call_reject') {
+    if (action == 'call_answer' || action == 'call_reject' || action == 'call_message') {
       Map<String, dynamic>? envelope;
       try {
         final value = actionPayload == null ? null : jsonDecode(actionPayload);
@@ -205,7 +221,11 @@ class PushNotificationService {
       } else {
         final navigator = memoNavigatorKey.currentState;
         if (navigator != null) {
-          await CallService().answerIncomingCallById(navigator.context, callId);
+          if (action == 'call_message') {
+            await CallService().openChatForCall(navigator.context, callId);
+          } else {
+            await CallService().answerIncomingCallById(navigator.context, callId);
+          }
         }
       }
       return;
