@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -443,76 +444,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
 enum _ConversationFilter { all, unread, online }
 
-class _MemoMark extends StatelessWidget {
-  const _MemoMark({this.size = 44});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _MemoMarkPainter(
-          primary: scheme.primary,
-          secondary: scheme.primary.withOpacity(.34),
-        ),
-      ),
-    );
-  }
-}
-
-class _MemoMarkPainter extends CustomPainter {
-  const _MemoMarkPainter({required this.primary, required this.secondary});
-  final Color primary;
-  final Color secondary;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide / 44;
-    final p = Paint()..style = PaintingStyle.fill;
-    p.color = secondary;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(9*s, 4*s, 25*s, 20*s),
-        Radius.circular(9*s),
-      ),
-      p,
-    );
-    final backTail = Path()
-      ..moveTo(13*s, 21*s)
-      ..lineTo(11*s, 29*s)
-      ..lineTo(19*s, 24*s)
-      ..close();
-    canvas.drawPath(backTail, p);
-
-    p.color = primary;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(4*s, 12*s, 28*s, 21*s),
-        Radius.circular(10*s),
-      ),
-      p,
-    );
-    final frontTail = Path()
-      ..moveTo(9*s, 29*s)
-      ..lineTo(7*s, 37*s)
-      ..lineTo(16*s, 32*s)
-      ..close();
-    canvas.drawPath(frontTail, p);
-
-    p.color = Colors.white;
-    canvas.drawCircle(Offset(13*s, 22*s), 1.7*s, p);
-    canvas.drawCircle(Offset(18*s, 22*s), 1.7*s, p);
-    canvas.drawCircle(Offset(23*s, 22*s), 1.7*s, p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MemoMarkPainter oldDelegate) =>
-      oldDelegate.primary != primary || oldDelegate.secondary != secondary;
-}
-
 class _MemoChatHeader extends StatelessWidget {
   const _MemoChatHeader({
     required this.searchController,
@@ -545,7 +476,15 @@ class _MemoChatHeader extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(17)), child: const Center(child: _MemoMark(size: 39))),
+                  Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(17)), child: const Center(
+                    child: SvgPicture.asset(
+                      'assets/icon/icon_app.svg',
+                      width: 39,
+                      height: 39,
+                      fit: BoxFit.contain,
+                      semanticsLabel: 'MemoChat',
+                    ),
+                  )),
                   const SizedBox(width: 11),
                   const Expanded(
                     child: Column(
