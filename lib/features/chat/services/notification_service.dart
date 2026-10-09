@@ -24,7 +24,9 @@ void notificationActionBackgroundHandler(NotificationResponse response) async {
   final action = response.actionId?.trim();
   if (action == null || action.isEmpty) return;
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    }
   } catch (e) {
     debugPrint('❌ background notification action Firebase init failed: $e');
     return;
