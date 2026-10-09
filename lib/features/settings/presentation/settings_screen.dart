@@ -261,6 +261,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingItem('إشعارات الرسائل', 'تنبيهات الرسائل الخاصة والمجموعات', Icons.chat_outlined, switchable: true),
               _SettingItem('صوت الإشعارات', 'تشغيل أصوات التنبيه', Icons.volume_up_outlined, switchable: true),
               _SettingItem('الاهتزاز', 'اهتزاز الجهاز مع التنبيهات', Icons.vibration_outlined, switchable: true),
+              _SettingItem('إشعارات المكالمات', 'تنبيهات المكالمات الصوتية والمرئية', Icons.call_outlined, switchable: true),
+              _SettingItem('صوت المكالمات', 'تشغيل نغمة المكالمة الواردة', Icons.ring_volume_outlined, switchable: true),
+              _SettingItem('اهتزاز المكالمات', 'اهتزاز الجهاز عند ورود مكالمة', Icons.vibration_rounded, switchable: true),
+              _SettingItem('الإشعارات الأخرى', 'تنبيهات النظام والدعوات والتفاعلات', Icons.notifications_active_outlined, switchable: true),
+              _SettingItem('صوت الإشعارات الأخرى', 'تشغيل الصوت للتنبيهات غير الرسائل والمكالمات', Icons.volume_up_outlined, switchable: true),
+              _SettingItem('اهتزاز الإشعارات الأخرى', 'اهتزاز الجهاز للتنبيهات الأخرى', Icons.vibration_outlined, switchable: true),
               _SettingItem('معاينة الرسائل', 'إظهار محتوى الرسالة في الإشعار', Icons.preview_outlined, switchable: true),
             ])),
             _Row(Icons.notifications_active_outlined, 'مركز الإشعارات', 'السجل والإشعارات غير المقروءة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationCenterScreen()))),
@@ -407,6 +413,12 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
         _values['إشعارات الرسائل'] = prefs.getBool('notification_message_enabled') ?? true;
         _values['صوت الإشعارات'] = prefs.getBool('notification_message_sounds') ?? true;
         _values['الاهتزاز'] = prefs.getBool('notification_message_vibration') ?? true;
+        _values['إشعارات المكالمات'] = prefs.getBool('notification_call_enabled') ?? true;
+        _values['صوت المكالمات'] = prefs.getBool('notification_call_sounds') ?? true;
+        _values['اهتزاز المكالمات'] = prefs.getBool('notification_call_vibration') ?? true;
+        _values['الإشعارات الأخرى'] = prefs.getBool('notification_other_enabled') ?? true;
+        _values['صوت الإشعارات الأخرى'] = prefs.getBool('notification_other_sounds') ?? true;
+        _values['اهتزاز الإشعارات الأخرى'] = prefs.getBool('notification_other_vibration') ?? true;
       }
       for (final item in widget.items) {
         final selected = prefs.getString(_key(item.title));
@@ -428,6 +440,24 @@ class _SettingsSectionScreenState extends State<_SettingsSectionScreen> {
           break;
         case 'الاهتزاز':
           await notifications.setMessageVibration(value);
+          break;
+        case 'إشعارات المكالمات':
+          await notifications.setCallNotifications(value);
+          break;
+        case 'صوت المكالمات':
+          await notifications.setCallSounds(value);
+          break;
+        case 'اهتزاز المكالمات':
+          await notifications.setCallVibration(value);
+          break;
+        case 'الإشعارات الأخرى':
+          await notifications.setOtherNotifications(value);
+          break;
+        case 'صوت الإشعارات الأخرى':
+          await notifications.setOtherSounds(value);
+          break;
+        case 'اهتزاز الإشعارات الأخرى':
+          await notifications.setOtherVibration(value);
           break;
       }
     }
