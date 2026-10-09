@@ -31,6 +31,18 @@ void notificationActionBackgroundHandler(NotificationResponse response) async {
   }
   if (['message_reply', 'message_read', 'message_mute'].contains(action)) {
     await handleMessageNotificationAction(action: action, input: response.input, payload: response.payload);
+    return;
+  }
+  if (action == 'call_reject') {
+    final envelope = await _decodeNotificationEnvelope(response.payload);
+    final data = envelope?['data'] is Map
+        ? Map<String, dynamic>.from(envelope!['data'] as Map)
+        : <String, dynamic>{};
+    final callId = data['callId']?.toString().trim() ?? '';
+    if (callId.isNotEmpty) {
+      await CallService().rejectCall(callId);
+      await NotificationService().cancelIncomingCallNotification(callId);
+    }
   }
 }
 
