@@ -137,7 +137,7 @@ class OfflineLinkService extends ChangeNotifier {
       throw ArgumentError.value(port, 'port', 'منفذ غير صالح');
     }
     // Bind only to the VPN virtual address, not every Wi-Fi/mobile interface.
-    final server = await ServerSocket.bind(localIp, port);
+    final server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
     _server = server;
     _port = port;
     _serverSubscription = server.listen(
@@ -187,7 +187,7 @@ class OfflineLinkService extends ChangeNotifier {
   Future<bool> sendMessage(String text) async {
     await initialize();
     final clean = text.trim();
-    if (clean.isEmpty || _busy) return false;
+    if (clean.isEmpty || clean.length > 8000 || _busy) return false;
     if (_server == null) {
       throw StateError('شغّل مستمع Offline Link أولاً لاستقبال الرد والتأكيد.');
     }
@@ -277,6 +277,10 @@ class OfflineLinkService extends ChangeNotifier {
 
   Future<void> _handleIncoming(Socket socket) async {
     try {
+      if (_remoteAddress.isEmpty ||
+          socket.remoteAddress.address != _remoteAddress) {
+        throw const FormatException('Unexpected source address');
+      }
       final line = await socket
           .transform(utf8.decoder)
           .transform(const LineSplitter())
