@@ -26,24 +26,24 @@ class _GamesScreenState extends State<GamesScreen> {
   bool _soloMode=false;
 
   Future<void> _openGame(int index) async {
-    if (_opening) return;
+    if (_opening || index < 0 || index >= GamesCatalog.all.length) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || index < 0 || index >= GamesCatalog.all.length) return;
+    if (uid == null) return;
     final definition = GamesCatalog.all[index];
 
-    // Solo mode must never create a Firestore room or wait for another player.
-    if (_soloMode || widget.chatId.trim().isEmpty) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => DedicatedGameFactory.build(definition.type),
-        ),
-      );
-      return;
-    }
-
+    // Guard both solo and multiplayer navigation against double taps.
     setState(() => _opening = true);
-
     try {
+      // Solo mode must never create a Firestore room or wait for another player.
+      if (_soloMode || widget.chatId.trim().isEmpty) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DedicatedGameFactory.build(definition.type),
+          ),
+        );
+        return;
+      }
+
       // Create the challenge before navigation so the second player can accept it immediately.
       // ChatService.sendMessage encrypts the invitation payload through Signal Protocol.
       final id = await GameService.instance.createGame(
