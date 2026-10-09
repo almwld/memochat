@@ -1,0 +1,41 @@
+name: Backend Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - 'livekit-server/**'
+      - '.github/workflows/backend-validation.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - 'livekit-server/**'
+      - '.github/workflows/backend-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-backend:
+    name: Validate backend JavaScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check Firebase Functions syntax
+        run: |
+          node --check functions/index.js
+          node --check functions/chat_notifications.js
+
+      - name: Check LiveKit and call-notification server syntax
+        run: node --check livekit-server/server.js
