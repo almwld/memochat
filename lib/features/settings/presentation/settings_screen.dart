@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/premium_ui.dart';
 import '../../notifications/presentation/notification_center_screen.dart';
+import '../../love_letter/memo_dedication_screen.dart';
 import 'advanced_privacy_screen.dart';
 import 'vpn_tunnel_screen.dart';
 import '../../../core/security/security_settings_service.dart';
@@ -304,12 +305,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _Row(
               Icons.info_outline_rounded,
               'حول MemoChat',
-              'الإصدار والتراخيص والإهداء',
-              () => showLicensePage(
-                context: context,
-                applicationName: 'MemoChat',
-                applicationLegalese:
-                    'إهداء خاص إلى ميمو — في كل لحظة جميلة، تبقى بعض الذكريات أقرب إلى القلب.\n\nإلى ميمو، دائمًا.\n\nمن فلانتشتاين',
+              'الإصدار والتراخيص',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const MemoLicensesScreen(),
+                ),
               ),
             ),
           ]),
