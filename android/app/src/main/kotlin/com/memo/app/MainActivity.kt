@@ -110,6 +110,7 @@ class MainActivity : FlutterFragmentActivity() {
                             mapOf("active" to LocalPeerLinkService.active, "state" to LocalPeerLinkService.state)
                         )
                         "poll" -> result.success(LocalPeerLinkService.pollEvents())
+                        "history" -> result.success(LocalPeerLinkService.history(this))
                         "addresses" -> {
                             val addresses = mutableListOf<String>()
                             val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
