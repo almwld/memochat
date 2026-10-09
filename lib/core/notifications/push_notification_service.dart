@@ -346,7 +346,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     fallbackId: message.messageId,
   );
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
-  final inbox = NotificationInbox();
+  final inbox = NotificationInbox(
+    userId: message.data['recipientId']?.toString(),
+  );
   if (!await inbox.addNotification(notification)) return;
 
   final preferences = NotificationPreferences();
