@@ -1,19 +1,45 @@
 const {onDocumentCreated,onDocumentUpdated}=require('firebase-functions/v2/firestore');
 const admin=require('firebase-admin');
+const crypto=require('crypto');
 const db=admin.firestore();
 
+function stableNotificationId(uid, data) {
+  const identity = [data?.notificationId, data?.messageId, data?.inviteId, data?.requestId, data?.callId]
+    .map(value => String(value || '').trim())
+    .find(Boolean);
+  if (!identity) return null;
+  return crypto.createHash('sha256').update(`${uid}\\0${identity}`).digest('hex');
+}
+
 async function archiveNotification(uid, payload) {
-  if (!uid) return;
-  await db.collection('notifications').add({
+  if (!uid) return null;
+  const data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+  const id = stableNotificationId(uid, data);
+  const ref = id
+    ? db.collection('notifications').doc(id)
+    : db.collection('notifications').doc();
+  // Carry a stable ID into the data-only FCM payload so app-side inbox
+  // deduplication agrees with server-side archival deduplication.
+  if (id) data.notificationId = ref.id;
+  const record = {
     userId: uid,
-    type: String(payload.data?.type || 'system'),
-    title: String(payload.data?.title || payload.data?.senderName || 'MemoChat'),
-    body: String(payload.data?.body || 'لديك إشعار جديد'),
-    data: payload.data || {},
-    chatId: payload.data?.chatId || null,
+    notificationId: ref.id,
+    type: String(data.type || 'system'),
+    title: String(data.title || data.senderName || 'MemoChat'),
+    body: String(data.body || 'لديك إشعار جديد'),
+    data,
+    chatId: data.chatId || null,
     isRead: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  // Cloud Functions may retry an event. Create-only transactional writes keep
+  // retries from producing duplicate notification rows or unread-count bumps,
+  // and never reset an already-read notification back to unread.
+  await db.runTransaction(async transaction => {
+    const existing = await transaction.get(ref);
+    if (!existing.exists) transaction.create(ref, record);
   });
+  return ref.id;
 }
 
 exports.archiveNotificationUnreadCounter=onDocumentCreated('notifications/{notificationId}', async event => {
@@ -162,6 +188,7 @@ exports.notifyGroupMemberAdded=onDocumentUpdated('chats/{chatId}',async event=>{
       chatId:event.params.chatId,
       senderId:senderId||event.params.chatId,
       recipientId:uid,
+      notificationId:`group_${event.id}_${uid}`,
       route:'chat:'+event.params.chatId,
     };
     await archiveNotification(uid,{data});
