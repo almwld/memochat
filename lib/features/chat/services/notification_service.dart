@@ -283,6 +283,30 @@ class NotificationService {
 
   bool get isInitialized => _initialized;
 
+  Future<String> _configuredChannel({
+    required String family,
+    required String name,
+    required Importance importance,
+    required bool playSound,
+    required bool vibrate,
+    required String soundResource,
+  }) async {
+    final soundPart = playSound ? 'sound' : 'silent';
+    final vibrationPart = vibrate ? 'vibrate' : 'still';
+    final id = 'memochat_${family}_${soundPart}_${vibrationPart}_v2';
+    final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(AndroidNotificationChannel(
+      id,
+      '$name • ${playSound ? 'صوت' : 'صامت'} • ${vibrate ? 'اهتزاز' : 'بدون اهتزاز'}',
+      description: name,
+      importance: importance,
+      playSound: playSound,
+      sound: playSound ? RawResourceAndroidNotificationSound(soundResource) : null,
+      enableVibration: vibrate,
+    ));
+    return id;
+  }
+
   Future<bool> requestNotificationPermission() async {
     await initialize();
     try {
@@ -334,18 +358,27 @@ class NotificationService {
     Map<String, dynamic>? data,
     String? payload,
     bool? playSound,
+    bool? vibrate,
   }) async {
     await initialize();
-    final family = MemoChatNotificationTypeValue.fromWireValue(type);
-    if (family == null) {
-      await showMessageNotification(
-        title: title,
-        body: body,
-        payload: payload ?? _encodePayload(type, data),
-        data: data,
-      );
+    final normalizedType = type.trim().toLowerCase();
+    if (['call', 'incoming_call', 'incoming_video_call'].contains(normalizedType) ||
+        (data?['callId']?.toString().trim().isNotEmpty == true &&
+            (data?['callType'] != null || data?['isVideo'] != null))) {
+      final callId = data?['callId']?.toString().trim() ?? '';
+      if (callId.isNotEmpty) {
+        await showIncomingCallNotification(
+          callerName: data?['callerName']?.toString() ?? data?['senderName']?.toString() ?? title,
+          callId: callId,
+          isVideo: data?['isVideo']?.toString().toLowerCase() == 'true' ||
+              data?['callType']?.toString().toLowerCase() == 'video',
+          playSound: playSound ?? true,
+          vibrate: vibrate ?? true,
+        );
+      }
       return;
     }
+    final family = MemoChatNotificationTypeValue.fromWireValue(type) ?? MemoChatNotificationType.system;
 
     final isChatMessage =
         type == 'new_message' || type == 'chat_message' || type == 'message';
@@ -365,15 +398,23 @@ class NotificationService {
         payload: payload ?? _encodePayload(type, data),
         data: data,
         playSound: playSound,
+        vibrate: vibrate,
       );
       return;
     }
 
-    final channelId = _channelFor(family);
+    final resolvedSound = playSound ?? family != MemoChatNotificationType.promotional;
+    final resolvedVibration = vibrate ?? family != MemoChatNotificationType.promotional;
+    final channelId = await _configuredChannel(
+      family: _channelFor(family),
+      name: _channelNameFor(family),
+      importance: _importanceFor(family),
+      playSound: resolvedSound,
+      vibrate: resolvedVibration,
+      soundResource: 'message_tone',
+    );
     final channelName = _channelNameFor(family);
     final importance = _importanceFor(family);
-    final resolvedSound =
-        playSound ?? family != MemoChatNotificationType.promotional;
     StyleInformation style = const BigTextStyleInformation('');
     final imageUrl = (data?['imageUrl'] ??
             data?['mediaUrl'] ??
@@ -411,6 +452,7 @@ class NotificationService {
         sound: resolvedSound
             ? const RawResourceAndroidNotificationSound('message_tone')
             : null,
+        enableVibration: resolvedVibration,
         category: _categoryFor(family),
         visibility: NotificationVisibility.public,
         styleInformation: style,
@@ -442,9 +484,11 @@ class NotificationService {
     String? payload,
     Map<String, dynamic>? data,
     bool? playSound,
+    bool? vibrate,
   }) async {
     await initialize();
     final resolvedSound = playSound ?? true;
+    final resolvedVibration = vibrate ?? true;
     final notificationData = data ?? const <String, dynamic>{};
     final chatId = notificationData['chatId']?.toString().trim() ?? '';
     final senderId = notificationData['senderId']?.toString().trim() ?? '';
@@ -552,9 +596,17 @@ class NotificationService {
         ),
     ];
 
+    final messageChannel = await _configuredChannel(
+      family: 'messages',
+      name: 'MemoChat - الرسائل',
+      importance: Importance.high,
+      playSound: resolvedSound,
+      vibrate: resolvedVibration,
+      soundResource: 'message_tone',
+    );
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        messageChannelId,
+        messageChannel,
         'MemoChat - الرسائل',
         channelDescription: 'إشعارات الرسائل الجديدة في الدردشة',
         importance: Importance.high,
@@ -563,6 +615,7 @@ class NotificationService {
         sound: resolvedSound
             ? const RawResourceAndroidNotificationSound('message_tone')
             : null,
+        enableVibration: resolvedVibration,
         category: AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,
         styleInformation: style,
@@ -573,10 +626,10 @@ class NotificationService {
         actions: actions,
         groupKey: chatId.isEmpty ? null : 'memochat_chat_$chatId',
       ),
-      iOS: const DarwinNotificationDetails(
+      iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: resolvedSound,
       ),
     );
 
@@ -598,26 +651,48 @@ class NotificationService {
   /// Incoming calls stay visible outside the app until the call reaches a
   /// terminal state (answered, rejected, cancelled, missed or ended).
   /// No artificial 500ms icon swap and no timeoutAfter are used.
-  Future<void> showIncomingCallNotification({required String callerName, required String callId, required bool isVideo, bool silent = false}) async {
+  Future<void> showIncomingCallNotification({
+    required String callerName,
+    required String callId,
+    required bool isVideo,
+    bool playSound = true,
+    bool vibrate = true,
+    bool presentInApp = false,
+  }) async {
     await initialize();
-    if (silent) unawaited(CallSoundCoordinator.instance.presentIncomingCallById(callId));
+    if (presentInApp) {
+      unawaited(CallSoundCoordinator.instance.presentIncomingCallById(
+        callId,
+        playSound: playSound,
+      ));
+    }
     final id = _callNotificationId(callId);
     await _showCallNotification(
       id: id,
       callerName: callerName,
       callId: callId,
       isVideo: isVideo,
-      silent: silent,
+      playSound: playSound,
+      vibrate: vibrate,
       smallIcon: 'ic_notification',
     );
   }
 
-  Future<void> _showCallNotification({required int id, required String callerName, required String callId, required bool isVideo, required bool silent, required String smallIcon}) async {
+  Future<void> _showCallNotification({required int id, required String callerName, required String callId, required bool isVideo, required bool playSound, required bool vibrate, required String smallIcon}) async {
+    final callChannel = await _configuredChannel(
+      family: 'calls',
+      name: 'MemoChat - المكالمات',
+      importance: Importance.max,
+      playSound: playSound,
+      vibrate: vibrate,
+      soundResource: 'call_ringtone',
+    );
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        callChannelId, 'MemoChat - المكالمات', channelDescription: 'إشعارات المكالمات الواردة',
-        importance: Importance.max, priority: Priority.max, playSound: !silent,
-        sound: silent ? null : const RawResourceAndroidNotificationSound('call_ringtone'),
+        callChannel, 'MemoChat - المكالمات', channelDescription: 'إشعارات المكالمات الواردة',
+        importance: Importance.max, priority: Priority.max, playSound: playSound,
+        sound: playSound ? const RawResourceAndroidNotificationSound('call_ringtone') : null,
+        enableVibration: vibrate,
         category: AndroidNotificationCategory.call, visibility: NotificationVisibility.public,
         fullScreenIntent: true, ongoing: true, autoCancel: false, onlyAlertOnce: true,
         showWhen: false, ticker: 'مكالمة واردة من $callerName',
@@ -655,10 +730,10 @@ class NotificationService {
           ),
         ],
       ),
-      iOS: const DarwinNotificationDetails(
+      iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: playSound,
       ),
     );
     final payload = jsonEncode(<String, dynamic>{
