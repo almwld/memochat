@@ -6,12 +6,14 @@ on:
     paths:
       - 'functions/**'
       - 'livekit-server/**'
+      - 'tunnel-gateway/**'
       - '.github/workflows/backend-validation.yml'
   pull_request:
     branches: [main]
     paths:
       - 'functions/**'
       - 'livekit-server/**'
+      - 'tunnel-gateway/**'
       - '.github/workflows/backend-validation.yml'
   workflow_dispatch:
 
@@ -39,3 +41,6 @@ jobs:
 
       - name: Check LiveKit and call-notification server syntax
         run: node --check livekit-server/server.js
+
+      - name: Check authenticated offline tunnel gateway syntax
+        run: node --check tunnel-gateway/server.js
