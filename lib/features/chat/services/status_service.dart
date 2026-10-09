@@ -81,23 +81,25 @@ class StatusService {
     final activeStories = existingModel != null && existingModel.isValid ? existingModel.stories : <StoryItem>[];
     final allStories = [...activeStories, ...stories];
 
-    // The uploaded avatar is stored in Firestore by AvatarService; FirebaseAuth.photoURL
-    // can remain stale or empty. Prefer the canonical profile document when publishing.
-    String? resolvedUserImage = userImage?.trim();
-    if (resolvedUserImage?.isEmpty != false) {
-      try {
-        final profile = await _firestore.collection('users').doc(user.uid).get();
-        final data = profile.data() ?? const <String, dynamic>{};
-        final stored = data['photoUrl']?.toString().trim();
-        final legacy = data['photoURL']?.toString().trim();
-        resolvedUserImage = stored?.isNotEmpty == true
-            ? stored
-            : legacy?.isNotEmpty == true
-                ? legacy
-                : user.photoURL;
-      } catch (_) {
-        resolvedUserImage = user.photoURL;
-      }
+    // Firestore is the canonical avatar source. The caller may pass a stale
+    // FirebaseAuth.photoURL, so always prefer the latest profile document.
+    String? resolvedUserImage;
+    try {
+      final profile = await _firestore.collection('users').doc(user.uid).get();
+      final data = profile.data() ?? const <String, dynamic>{};
+      final stored = data['photoUrl']?.toString().trim();
+      final legacy = data['photoURL']?.toString().trim();
+      resolvedUserImage = stored?.isNotEmpty == true
+          ? stored
+          : legacy?.isNotEmpty == true
+              ? legacy
+              : userImage?.trim().isNotEmpty == true
+                  ? userImage!.trim()
+                  : user.photoURL;
+    } catch (_) {
+      resolvedUserImage = userImage?.trim().isNotEmpty == true
+          ? userImage!.trim()
+          : user.photoURL;
     }
 
     await ref.set({
