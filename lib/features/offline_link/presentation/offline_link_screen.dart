@@ -30,6 +30,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
   ServerSocket? _server;
   Socket? _socket;
   StreamSubscription<String>? _socketSubscription;
+  Timer? _handshakeTimer;
   List<String> _localAddresses = [];
   List<int>? _sessionKey;
   bool _hostMode = true;
@@ -172,7 +173,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
   }
 
   void _attachSocket(Socket socket) {
-    if (_hostMode && _connected) {
+    if (_hostMode && _socket != null) {
       socket.destroy();
       return;
     }
@@ -185,8 +186,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     _socket = socket;
     setState(() {
       _starting = false;
-      _connected = true;
-      _status = 'اتصال محلي مباشر نشط';
+      _connected = false;
+      _status = 'تم فتح القناة؛ جارٍ التحقق من رمز الجلسة…';
     });
     _socketSubscription = utf8.decoder
         .bind(socket)
@@ -197,6 +198,18 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       onDone: _handleDisconnect,
       cancelOnError: true,
     );
+    _handshakeTimer?.cancel();
+    _handshakeTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted && !_connected) {
+        _handleDisconnect('لم يتم التحقق من رمز الجلسة. تحقق من الرمز ثم أعد الاتصال.');
+      }
+    });
+    unawaited(_writeEncryptedPayload({
+      'type': 'hello',
+      'id': base64UrlEncode(List<int>.generate(16, (_) => _random.nextInt(256))),
+      'time': DateTime.now().millisecondsSinceEpoch,
+      'text': '',
+    }, socket));
   }
 
   Future<void> _handleIncomingLine(String line) async {
@@ -211,6 +224,25 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
         secretKey: SecretKey(_sessionKey!),
       );
       final payload = jsonDecode(utf8.decode(clearBytes)) as Map<String, dynamic>;
+      final type = payload['type'] as String? ?? 'message';
+      if (type == 'hello') {
+        final socket = _socket;
+        if (socket != null) {
+          await _writeEncryptedPayload({
+            'type': 'ack',
+            'id': payload['id'] as String? ?? '',
+            'time': DateTime.now().millisecondsSinceEpoch,
+            'text': '',
+          }, socket);
+        }
+        _markConnected();
+        return;
+      }
+      if (type == 'ack') {
+        _markConnected();
+        return;
+      }
+      if (type != 'message') return;
       final id = payload['id'] as String?;
       final text = payload['text'] as String?;
       final timestamp = payload['time'] as int?;
@@ -229,6 +261,31 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       // Wrong session codes and malformed packets are ignored without crashing
       // the app or affecting regular MemoChat conversations.
     }
+  }
+
+  void _markConnected() {
+    if (!mounted || _connected) return;
+    _handshakeTimer?.cancel();
+    setState(() {
+      _connected = true;
+      _status = 'اتصال محلي مباشر موثّق برمز الجلسة';
+    });
+  }
+
+  Future<void> _writeEncryptedPayload(Map<String, Object?> payload, Socket socket) async {
+    final key = _sessionKey;
+    if (key == null) throw StateError('Session key is not available');
+    final box = await _cipher.encrypt(
+      utf8.encode(jsonEncode(payload)),
+      secretKey: SecretKey(key),
+    );
+    final envelope = jsonEncode({
+      'n': base64UrlEncode(box.nonce),
+      'c': base64UrlEncode(box.cipherText),
+      'm': base64UrlEncode(box.mac.bytes),
+    });
+    if (envelope.length > 12000) throw const FormatException('Encrypted frame too large');
+    socket.write('\$envelope\\n');
   }
 
   Future<void> _sendMessage() async {
@@ -281,7 +338,8 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     }
   }
 
-  void _handleDisconnect() {
+  void _handleDisconnect([String? reason]) {
+    _handshakeTimer?.cancel();
     if (!mounted) return;
     _socketSubscription?.cancel();
     _socketSubscription = null;
@@ -290,7 +348,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     setState(() {
       _connected = false;
       _starting = false;
-      _status = 'انقطع الاتصال المحلي؛ أعد الاتصال لإرسال رسائل جديدة.';
+      _status = reason ?? 'انقطع الاتصال المحلي؛ أعد الاتصال لإرسال رسائل جديدة.';
     });
   }
 
@@ -304,6 +362,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
   }
 
   Future<void> _stop() async {
+    _handshakeTimer?.cancel();
     final subscription = _socketSubscription;
     _socketSubscription = null;
     await subscription?.cancel();
@@ -329,6 +388,7 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
 
   @override
   void dispose() {
+    _handshakeTimer?.cancel();
     _socketSubscription?.cancel();
     _socket?.destroy();
     _server?.close();
