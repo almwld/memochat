@@ -131,7 +131,10 @@ class CallSoundCoordinator {
 
       _activeCallId = normalized;
       _incomingMuted = false;
-      if (playSound && await NotificationPreferences().callSounds) {
+      final preferences = NotificationPreferences();
+      if (playSound &&
+          await preferences.callNotifications &&
+          await preferences.callSounds) {
         await _sounds.playCallRingtone().catchError((_) {});
       } else {
         await _sounds.stopCallAudio();
@@ -353,7 +356,8 @@ class CallSoundCoordinator {
   }
 
   Future<void> _playIncomingRingtone() async {
-    if (await NotificationPreferences().callSounds) {
+    final preferences = NotificationPreferences();
+    if (await preferences.callNotifications && await preferences.callSounds) {
       await _sounds.playCallRingtone().catchError((_) {});
     } else {
       await _sounds.stopCallAudio();
