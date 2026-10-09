@@ -67,6 +67,16 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+        <service
+            android:name=".LocalPeerLinkService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="user_initiated_local_peer_messaging" />
+        </service>
         <meta-data
           android:name="flutterEmbedding"
           android:value="2" />
