@@ -46,7 +46,7 @@ class CallForegroundService : Service() {
         }
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(applicationInfo.icon)
+            .setSmallIcon(R.drawable.ic_memochat_notification)
             .setContentTitle(callerName)
             .setContentText("المكالمة جارية")
             .setCategory(NotificationCompat.CATEGORY_CALL)
