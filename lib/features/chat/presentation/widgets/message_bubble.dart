@@ -312,7 +312,7 @@ class _MessageBubbleState extends State<MessageBubble> {
             Row(
               children: [
                 Icon(Icons.sports_esports_rounded,
-                    color: widget.isMe ? Colors.white : AppColors.primary),
+                    color: dark ? Colors.white : const Color(0xFF075E54)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -330,7 +330,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               widget.isMe ? 'أرسلت تحديًا مباشرًا مشفرًا' : 'وصلك تحدٍ مباشر مشفر عبر Signal',
               style: TextStyle(
                 fontSize: 11,
-                color: widget.isMe ? Colors.white70 : (dark ? Colors.white70 : Colors.black54),
+                color: dark ? Colors.white70 : const Color(0xFF667781),
               ),
             ),
             if (gameId.isNotEmpty) ...[
@@ -356,7 +356,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 9,
-                    color: widget.isMe ? Colors.white54 : (dark ? Colors.white54 : Colors.black45),
+                    color: dark ? Colors.white54 : const Color(0xFF667781),
                   ),
                 ),
               ),
@@ -407,7 +407,7 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   Widget _editedMarker(bool dark) => Padding(
     padding: const EdgeInsets.only(bottom: 3),
-    child: Text('معدلة', style: TextStyle(fontSize: 9, color: widget.isMe ? Colors.white60 : (dark ? Colors.white54 : Colors.grey))),
+    child: Text('معدلة', style: TextStyle(fontSize: 9, color: dark ? Colors.white54 : const Color(0xFF667781))),
   );
 
   Widget _pinnedMarker(bool dark) => Padding(
@@ -415,9 +415,9 @@ class _MessageBubbleState extends State<MessageBubble> {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.push_pin_rounded, size: 13, color: widget.isMe ? Colors.white70 : AppColors.primary),
+        Icon(Icons.push_pin_rounded, size: 13, color: dark ? Colors.white70 : const Color(0xFF075E54)),
         const SizedBox(width: 4),
-        Text('مثبتة', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: widget.isMe ? Colors.white70 : (dark ? Colors.white70 : const Color(0xFF49615E)))),
+        Text('مثبتة', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: dark ? Colors.white70 : const Color(0xFF667781))),
       ],
     ),
   );
@@ -453,7 +453,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: widget.isMe ? Colors.white : AppColors.primary,
+                color: dark ? Colors.white : const Color(0xFF075E54),
               ),
             ),
             const SizedBox(height: 2),
@@ -1096,12 +1096,8 @@ class _MessageBubbleState extends State<MessageBubble> {
     final neighborhood = meta['locationNeighborhood']?.toString().trim() ?? '';
     final city = meta['locationCity']?.toString().trim() ?? '';
     final url = m['locationUrl']?.toString().trim() ?? '';
-    final tc = widget.isMe
-        ? Colors.white
-        : (dark ? Colors.white : const Color(0xFF20312F));
-    final secondary = widget.isMe
-        ? Colors.white70
-        : (dark ? Colors.white70 : const Color(0xFF647875));
+    final tc = dark ? Colors.white : const Color(0xFF111B21);
+    final secondary = dark ? Colors.white70 : const Color(0xFF667781);
 
     final details = <String>[];
     for (final value in [street, neighborhood, city]) {
@@ -1192,7 +1188,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       child: Icon(
                         Icons.location_on_rounded,
                         size: 18,
-                        color: widget.isMe ? Colors.white : AppColors.primary,
+                        color: dark ? Colors.white : const Color(0xFF075E54),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1244,13 +1240,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                       Icon(
                         Icons.open_in_new_rounded,
                         size: 13,
-                        color: widget.isMe ? Colors.white70 : AppColors.primary,
+                        color: dark ? Colors.white70 : const Color(0xFF075E54),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'فتح الخريطة',
                         style: TextStyle(
-                          color: widget.isMe ? Colors.white : AppColors.primary,
+                          color: dark ? Colors.white : const Color(0xFF075E54),
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                         ),
