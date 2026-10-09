@@ -4,6 +4,7 @@ import '../data/games_catalog.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
 import 'package:memochat/features/games/models/game.dart';
 import '../services/game_service.dart';
+import 'game_room_screen.dart';
 import 'game_factory.dart';
 import 'widgets/game_grid.dart';
 import 'widgets/game_art.dart';
