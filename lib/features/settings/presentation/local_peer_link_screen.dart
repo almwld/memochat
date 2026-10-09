@@ -51,10 +51,22 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
     try {
       final status = await _channel.invokeMapMethod<String, dynamic>('status');
       final addresses = await _channel.invokeListMethod<dynamic>('addresses') ?? const [];
+      final history = await _channel.invokeListMethod<dynamic>('history') ?? const [];
       if (!mounted || status == null) return;
       setState(() {
         _state = status['state'] as String? ?? 'stopped';
         _addresses = addresses.map((value) => value.toString()).where((value) => value.isNotEmpty).toList();
+        _messages
+          ..clear()
+          ..addAll(history.whereType<Map>().map((raw) {
+            final item = Map<String, dynamic>.from(raw);
+            return _LocalMessage(
+              id: item['id']?.toString() ?? '',
+              text: item['text']?.toString() ?? '',
+              incoming: item['incoming'] == true,
+              delivered: item['delivered'] == true,
+            );
+          }));
       });
     } on PlatformException catch (e) {
       if (mounted) setState(() => _hint = e.message ?? 'تعذر قراءة حالة القناة.');
@@ -66,6 +78,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
     try {
       final status = await _channel.invokeMapMethod<String, dynamic>('status');
       final events = await _channel.invokeListMethod<dynamic>('poll') ?? const [];
+      final history = await _channel.invokeListMethod<dynamic>('history') ?? const [];
       if (!mounted) return;
       var changed = false;
       setState(() {
@@ -83,19 +96,21 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
           if (type == 'state' || type == 'error') {
             _hint = body;
             changed = true;
-          } else if (type == 'received' || type == 'sent') {
-            if (!_messages.any((m) => m.id == id && m.incoming == (type == 'received'))) {
-              _messages.add(_LocalMessage(id: id, text: body, incoming: type == 'received'));
-              changed = true;
-            }
-          } else if (type == 'delivered') {
-            final index = _messages.indexWhere((m) => m.id == id && !m.incoming);
-            if (index >= 0) {
-              _messages[index] = _messages[index].copyWith(delivered: true);
-              changed = true;
-            }
+          } else if (type == 'received' || type == 'sent' || type == 'delivered') {
+            changed = true;
           }
         }
+        _messages
+          ..clear()
+          ..addAll(history.whereType<Map>().map((raw) {
+            final item = Map<String, dynamic>.from(raw);
+            return _LocalMessage(
+              id: item['id']?.toString() ?? '',
+              text: item['text']?.toString() ?? '',
+              incoming: item['incoming'] == true,
+              delivered: item['delivered'] == true,
+            );
+          }));
       });
       if (changed && _scroll.hasClients) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -154,7 +169,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
 
   Future<void> _send() async {
     final text = _message.text.trim();
-    if (text.isEmpty || !_connected) return;
+    if (text.isEmpty) return;
     _message.clear();
     await _run('send', {'text': text});
   }
@@ -307,8 +322,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
                       },
                     ),
             ),
-            if (_connected)
-              Padding(
+            Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 child: Row(
                   children: [
@@ -319,8 +333,8 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
                         maxLines: 4,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
-                        decoration: const InputDecoration(
-                          hintText: 'رسالة عبر الشبكة المحلية...',
+                        decoration: InputDecoration(
+                          hintText: _connected ? 'رسالة عبر الشبكة المحلية...' : 'اكتب رسالة لحفظها وإرسالها لاحقًا...',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
