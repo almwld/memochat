@@ -133,7 +133,7 @@ class NotificationInbox {
     if (values.isEmpty) return;
     final updated = values.map((item) => item.copyWith(read: true)).toList();
     await (await _prefs).setStringList(
-      _key,
+      _scopedInboxKey,
       updated.map((value) => jsonEncode(value.toJson())).toList(),
     );
     await _publishUnreadCount();
