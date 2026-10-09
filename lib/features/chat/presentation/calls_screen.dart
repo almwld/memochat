@@ -55,7 +55,7 @@ class _CallsScreenState extends State<CallsScreen> {
                     return const Center(child: CircularProgressIndicator(color: AppColors.primary));
                   }
                   if (snapshot.hasError) {
-                    debugPrint('call history error: \${snapshot.error}');
+                    debugPrint('call history error: ${snapshot.error}');
                     if (_lastCalls.isNotEmpty) return _buildCallsList(context, _lastCalls, currentUid, isDark);
                     return _empty('تعذر تحميل سجل المكالمات حالياً\nتحقق من الاتصال وحاول مرة أخرى', isDark);
                   }
