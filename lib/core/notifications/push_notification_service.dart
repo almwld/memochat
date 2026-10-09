@@ -127,6 +127,10 @@ class PushNotificationService {
             : await preferences.otherVibration;
     final playSound = notification.sound && soundEnabled;
     final vibrate = notification.vibration && vibrationEnabled;
+    final previewEnabled = !isMessage || await preferences.messagePreview;
+    final displayBody = isMessage && !previewEnabled
+        ? 'لديك رسالة جديدة في MemoChat'
+        : notification.body;
 
     if (isCall && notification.callId?.trim().isNotEmpty == true) {
       // A disabled external-alert preference must not prevent the actual
@@ -149,7 +153,7 @@ class PushNotificationService {
       await _localNotifications.showTypedNotification(
         type: notification.type.wireName,
         title: notification.title,
-        body: notification.body,
+        body: displayBody,
         data: {
           ...notification.toJson(),
           ...message.data,
@@ -296,6 +300,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             : await preferences.otherVibration;
     final playSound = notification.sound && soundEnabled;
     final vibrate = notification.vibration && vibrationEnabled;
+    final previewEnabled = !isMessage || await preferences.messagePreview;
+    final displayBody = isMessage && !previewEnabled
+        ? 'لديك رسالة جديدة في MemoChat'
+        : notification.body;
     final local = NotificationService();
     await local.initialize();
     if (isCall && notification.callId?.trim().isNotEmpty == true) {
@@ -311,7 +319,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       await local.showTypedNotification(
         type: notification.type.wireName,
         title: notification.title,
-        body: notification.body,
+        body: displayBody,
         data: {
           ...notification.toJson(),
           ...message.data,
