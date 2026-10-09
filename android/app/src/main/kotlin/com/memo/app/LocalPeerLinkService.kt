@@ -229,11 +229,12 @@ class LocalPeerLinkService : Service() {
         }
         executor.execute {
             try {
-                writeJson(JSONObject().put("type", "message").put("id", id)
-                    .put("text", body).put("sentAt", System.currentTimeMillis()))
                 pendingAcks[id] = System.currentTimeMillis()
                 emit("sent", body, id)
+                writeJson(JSONObject().put("type", "message").put("id", id)
+                    .put("text", body).put("sentAt", System.currentTimeMillis()))
             } catch (e: Exception) {
+                pendingAcks.remove(id)
                 emit("error", "فشل إرسال الرسالة: ${e.localizedMessage ?: "خطأ اتصال"}", id)
             }
         }
