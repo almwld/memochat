@@ -95,8 +95,13 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       return false;
     }
     final parsedIp = InternetAddress.tryParse(remoteIp);
+    final localIp = InternetAddress.tryParse(_localAddress.split('/').first);
     if (parsedIp == null || parsedIp.type != InternetAddressType.IPv4) {
       _show('أدخل عنوان IPv4 الافتراضي للجهاز الآخر، مثل 10.254.0.3.');
+      return false;
+    }
+    if (localIp != null && localIp.address == parsedIp.address) {
+      _show('يجب أن يكون لكل جهاز عنوان TUN مختلف.');
       return false;
     }
     if (key.trim().length < 24) {
