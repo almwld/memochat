@@ -21,6 +21,7 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
   final _message = TextEditingController();
   final _scroll = ScrollController();
   final List<_LocalMessage> _messages = [];
+  List<String> _addresses = const [];
   Timer? _poller;
   String _state = 'stopped';
   String _hint = 'هذه قناة محلية مستقلة؛ لا تغيّر مسار المحادثات المعتاد.';
@@ -49,9 +50,11 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
   Future<void> _refresh() async {
     try {
       final status = await _channel.invokeMapMethod<String, dynamic>('status');
+      final addresses = await _channel.invokeListMethod<dynamic>('addresses') ?? const [];
       if (!mounted || status == null) return;
       setState(() {
         _state = status['state'] as String? ?? 'stopped';
+        _addresses = addresses.map((value) => value.toString()).where((value) => value.isNotEmpty).toList();
       });
     } on PlatformException catch (e) {
       if (mounted) setState(() => _hint = e.message ?? 'تعذر قراءة حالة القناة.');
@@ -197,6 +200,15 @@ class _LocalPeerLinkScreenState extends State<LocalPeerLinkScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(_hint, style: theme.textTheme.bodySmall),
+                      if (_listening) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _addresses.isEmpty
+                              ? 'عنوان الهاتف المحلي غير متاح؛ تحقق من اتصال Wi-Fi.'
+                              : 'عنوان هذا الهاتف: ${_addresses.join('، ')}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       const Text(
                         'يجب أن يكون الهاتفان على الشبكة المحلية نفسها أو على نقطة اتصال Wi-Fi، حتى لو لم تتوفر خدمة الإنترنت. افتح هذه الشاشة على الهاتفين واستخدم رمز الاقتران نفسه.',
