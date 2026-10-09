@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class VpnTunnelScreen extends StatefulWidget {
   const VpnTunnelScreen({super.key});
@@ -11,7 +12,11 @@ class VpnTunnelScreen extends StatefulWidget {
 class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingObserver {
   static const _channel = MethodChannel('com.memo.app/vpn_tunnel');
   final _host = TextEditingController();
+  final _peerId = TextEditingController();
+  final _sharedSecret = TextEditingController();
   final _fingerprint = TextEditingController();
+  static const _secureStorage = FlutterSecureStorage();
+  bool _waitingForPermission = false;
   final _address = TextEditingController(text: '10.254.0.2/32');
   final _route = TextEditingController(text: '10.254.0.0/24');
   bool _running = false;
@@ -26,7 +31,13 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refreshStatus();
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshStatus());
+      if (_waitingForPermission) {
+        _waitingForPermission = false;
+        unawaited(_waitForTunnelState(showFailure: true));
+      }
+    }
   }
 
   Future<void> _refreshStatus() async {
@@ -40,6 +51,8 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _host.dispose();
+    _peerId.dispose();
+    _sharedSecret.dispose();
     _fingerprint.dispose();
     _address.dispose();
     _route.dispose();
@@ -49,6 +62,8 @@ class _VpnTunnelScreenState extends State<VpnTunnelScreen> with WidgetsBindingOb
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
     _host.text = p.getString('vpn.tunnel.host') ?? '';
+    _peerId.text = p.getString('vpn.tunnel.peer_id') ?? '';
+    _sharedSecret.text = await _secureStorage.read(key: 'vpn.tunnel.shared_secret') ?? '';
     _fingerprint.text = p.getString('vpn.tunnel.fingerprint') ?? '';
     _address.text = p.getString('vpn.tunnel.address') ?? '10.254.0.2/32';
     _route.text = p.getString('vpn.tunnel.route') ?? '10.254.0.0/24';
