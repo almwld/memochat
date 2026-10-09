@@ -209,7 +209,9 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
       'id': base64UrlEncode(List<int>.generate(16, (_) => _random.nextInt(256))),
       'time': DateTime.now().millisecondsSinceEpoch,
       'text': '',
-    }, socket));
+    }, socket).catchError((Object _) {
+      _handleDisconnect('تعذر التحقق من رمز الجلسة.');
+    }));
   }
 
   Future<void> _handleIncomingLine(String line) async {
@@ -303,24 +305,12 @@ class _OfflineLinkScreenState extends State<OfflineLinkScreen> {
     ).replaceAll('=', '');
     final now = DateTime.now();
     try {
-      final box = await _cipher.encrypt(
-        utf8.encode(jsonEncode({
-          'id': id,
-          'time': now.millisecondsSinceEpoch,
-          'text': text,
-        })),
-        secretKey: SecretKey(key),
-      );
-      final envelope = jsonEncode({
-        'n': base64UrlEncode(box.nonce),
-        'c': base64UrlEncode(box.cipherText),
-        'm': base64UrlEncode(box.mac.bytes),
-      });
-      if (envelope.length > 12000) {
-        _showMessage('تعذر إرسال الرسالة بسبب حجمها.');
-        return;
-      }
-      socket.write('$envelope\n');
+      await _writeEncryptedPayload({
+        'type': 'message',
+        'id': id,
+        'time': now.millisecondsSinceEpoch,
+        'text': text,
+      }, socket);
       _seenIds.add(id);
       if (!mounted) return;
       setState(() {
