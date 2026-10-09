@@ -198,14 +198,41 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
           )),
         ]),
         const SizedBox(height: 1),
-        Row(children: [
-          _miniButton(Icons.replay_10_rounded, () => _seekBy(-10), 'رجوع 10 ثوان'),
-          _miniButton(Icons.forward_10_rounded, () => _seekBy(10), 'تقديم 10 ثوان'),
-          _miniButton(Icons.speed_rounded, _cycleSpeed, 'سرعة ${_speed}x', label: '${_speed}x'),
-          _miniButton(_volume == 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded, _toggleVolume, _volume == 0 ? 'تشغيل الصوت' : 'كتم الصوت'),
-          if (!widget.isLocal) _miniButton(Icons.download_outlined, _download, 'تحميل'),
-          const Spacer(),
-        ]),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: PopupMenuButton<String>(
+            tooltip: 'خيارات التسجيل الصوتي',
+            icon: Icon(Icons.more_horiz_rounded, color: _muted, size: 20),
+            padding: EdgeInsets.zero,
+            onSelected: (action) {
+              switch (action) {
+                case 'back':
+                  _seekBy(-10);
+                  break;
+                case 'forward':
+                  _seekBy(10);
+                  break;
+                case 'speed':
+                  _cycleSpeed();
+                  break;
+                case 'volume':
+                  _toggleVolume();
+                  break;
+                case 'download':
+                  _download();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'back', child: Text('رجوع 10 ثوان')),
+              const PopupMenuItem(value: 'forward', child: Text('تقديم 10 ثوان')),
+              PopupMenuItem(value: 'speed', child: Text('سرعة التشغيل: ${_speed}x')),
+              PopupMenuItem(value: 'volume', child: Text(_volume == 0 ? 'تشغيل الصوت' : 'كتم الصوت')),
+              if (!widget.isLocal)
+                const PopupMenuItem(value: 'download', child: Text('تحميل التسجيل')),
+            ],
+          ),
+        ),
       ]),
     );
   }
