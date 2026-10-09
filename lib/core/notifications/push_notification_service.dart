@@ -276,7 +276,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       : isMessage
           ? await preferences.messageNotifications
           : await preferences.otherNotifications;
-  if (enabled) {
+  if (enabled && message.notification == null) {
     final soundEnabled = isCall
         ? await preferences.callSounds
         : isMessage
