@@ -251,7 +251,7 @@ class OfflineLinkService extends ChangeNotifier {
 
       socket = await Socket.connect(remoteIp, _port,
           timeout: const Duration(seconds: 8));
-      socket.write('\${jsonEncode(envelope)}\n');
+      socket.write('${jsonEncode(envelope)}\n');
       await socket.flush();
       final line = await socket
           .transform(utf8.decoder)
@@ -321,12 +321,12 @@ class OfflineLinkService extends ChangeNotifier {
           status: 'received',
         ));
       }
-      socket.write('\${jsonEncode(<String, dynamic>{'accepted': true, 'id': id})}\n');
+      socket.write('${jsonEncode(<String, dynamic>{'accepted': true, 'id': id})}\n');
       await socket.flush();
     } catch (error) {
       debugPrint('Offline Link receive rejected: $error');
       try {
-        socket.write('\${jsonEncode(<String, dynamic>{'accepted': false, 'message': 'invalid_message'})}\n');
+        socket.write('${jsonEncode(<String, dynamic>{'accepted': false, 'message': 'invalid_message'})}\n');
         await socket.flush();
       } catch (_) {}
     } finally {
