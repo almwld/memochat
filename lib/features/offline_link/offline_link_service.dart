@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OfflineLinkMessage {
@@ -65,6 +66,8 @@ class OfflineLinkService extends ChangeNotifier {
   static const int defaultPort = 1440;
 
   final AesGcm _cipher = AesGcm.with256bits();
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static const String _localKeyName = 'offline_link.local_history_key';
   final Random _random = Random.secure();
   final Set<Socket> _clients = <Socket>{};
 
@@ -90,17 +93,33 @@ class OfflineLinkService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     _preferences = await SharedPreferences.getInstance();
-    final raw = _preferences!.getStringList(_historyKey) ?? <String>[];
+    final stored = _preferences!.getString(_historyKey);
     final restored = <OfflineLinkMessage>[];
-    for (final item in raw) {
+    if (stored != null && stored.isNotEmpty) {
       try {
-        final value = jsonDecode(item);
-        if (value is Map) {
-          restored.add(OfflineLinkMessage.fromJson(
-            Map<String, dynamic>.from(value),
-          ));
+        final envelope = Map<String, dynamic>.from(jsonDecode(stored) as Map);
+        final key = await _localHistoryKey();
+        final clear = await _cipher.decrypt(
+          SecretBox(
+            base64Decode(envelope['ciphertext']?.toString() ?? ''),
+            nonce: base64Decode(envelope['nonce']?.toString() ?? ''),
+            mac: Mac(base64Decode(envelope['mac']?.toString() ?? '')),
+          ),
+          secretKey: key,
+        );
+        final decoded = jsonDecode(utf8.decode(clear));
+        if (decoded is List) {
+          for (final value in decoded) {
+            if (value is Map) {
+              restored.add(OfflineLinkMessage.fromJson(
+                Map<String, dynamic>.from(value),
+              ));
+            }
+          }
         }
-      } catch (_) {}
+      } catch (error) {
+        debugPrint('Offline Link local history could not be decrypted: $error');
+      }
     }
     _messages = restored.take(_historyLimit).toList();
     _initialized = true;
@@ -357,11 +376,35 @@ class OfflineLinkService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<SecretKey> _localHistoryKey() async {
+    var encoded = await _secureStorage.read(key: _localKeyName);
+    if (encoded != null && encoded.isNotEmpty) {
+      try {
+        final bytes = base64Decode(encoded);
+        if (bytes.length == 32) return SecretKey(bytes);
+      } catch (_) {}
+    }
+    final bytes = List<int>.generate(32, (_) => _random.nextInt(256));
+    encoded = base64Encode(bytes);
+    await _secureStorage.write(key: _localKeyName, value: encoded);
+    return SecretKey(bytes);
+  }
+
   Future<void> _persist() async {
     final prefs = _preferences ??= await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _historyKey,
-      _messages.map((message) => jsonEncode(message.toJson())).toList(),
+    final clear = utf8.encode(jsonEncode(
+      _messages.map((message) => message.toJson()).toList(),
+    ));
+    final nonce = _cipher.newNonce();
+    final encrypted = await _cipher.encrypt(
+      clear,
+      secretKey: await _localHistoryKey(),
+      nonce: nonce,
     );
+    await prefs.setString(_historyKey, jsonEncode(<String, dynamic>{
+      'nonce': base64Encode(encrypted.nonce),
+      'ciphertext': base64Encode(encrypted.cipherText),
+      'mac': base64Encode(encrypted.mac.bytes),
+    }));
   }
 }
