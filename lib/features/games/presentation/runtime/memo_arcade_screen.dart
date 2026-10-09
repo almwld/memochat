@@ -16,6 +16,7 @@ class MemoArcadeScreen extends StatefulWidget {
 }
 
 class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBindingObserver {
+  final GlobalKey _gameViewportKey = GlobalKey();
   late final MemoArcadeGame game;
   @override void initState() {
     super.initState();
@@ -48,11 +49,16 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
     body: Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: (e) {
-        final box = context.findRenderObject() as RenderBox;
-        final p = box.globalToLocal(e.position);
+        final renderObject =
+            _gameViewportKey.currentContext?.findRenderObject();
+        if (renderObject is! RenderBox) return;
+        final p = renderObject.globalToLocal(e.position);
         game.tap(Vector2(p.dx, p.dy));
       },
-      child: GameWidget(game: game),
+      child: SizedBox.expand(
+        key: _gameViewportKey,
+        child: GameWidget(game: game),
+      ),
     ),
   );
 }
