@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:record/record.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/services/chat_media_transfer_service.dart';
@@ -381,22 +382,47 @@ class _ChatInputBarState extends State<ChatInputBar> {
           return;
         }
 
+        // Persist the target chat before opening Android's camera activity.
+        // If Android recreates/kills the Flutter activity while the camera is
+        // open, MemoChatApp can recover ImagePicker's lost result on next launch.
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.setString(
+          'memochat.pending_camera_chat_id',
+          widget.chatId,
+        );
+
+        // Do not put a timeout around the picker: timing out does not cancel
+        // the native camera activity and can orphan its eventual result.
         final x = await _picker.pickImage(
           source: ImageSource.camera,
           imageQuality: 90,
-        ).timeout(const Duration(seconds: 30));
-        if (x == null || !mounted) return;
+        );
+        if (x == null || !mounted) {
+          await preferences.remove('memochat.pending_camera_chat_id');
+          return;
+        }
 
         final edited = await _editImageFile(File(x.path));
         if (!mounted) return;
+
+        // _sending guards the picker UI, but _sendMedia also owns that lock.
+        // Release it synchronously before handing the captured image over.
+        setState(() => _sending = false);
         await _sendMedia(
           edited,
           type: 'image',
           folder: 'images',
           preview: '📷 صورة',
         );
+        await preferences.remove('memochat.pending_camera_chat_id');
       } catch (e) {
         debugPrint('camera picker: $e');
+        try {
+          final preferences = await SharedPreferences.getInstance();
+          await preferences.remove('memochat.pending_camera_chat_id');
+        } catch (cleanupError) {
+          debugPrint('camera recovery marker cleanup: $cleanupError');
+        }
         if (mounted) {
           ToastService.showError('تعذر فتح الكاميرا. أعد المحاولة.');
         }
