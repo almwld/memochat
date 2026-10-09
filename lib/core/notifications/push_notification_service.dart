@@ -29,8 +29,14 @@ class PushNotificationService {
   final NotificationInbox _inbox = NotificationInbox();
   final NotificationHistoryService _history = NotificationHistoryService();
   final RingtoneService _ringtone = RingtoneService();
+  StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  StreamSubscription<RemoteMessage>? _openedSubscription;
+  Future<void>? _initialization;
 
-  Future<void> initialize() async {
+  Future<void> initialize() => _initialization ??= _initialize();
+
+  Future<void> _initialize() async {
+    try {
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
     try {
@@ -50,11 +56,62 @@ class PushNotificationService {
     } catch (error) {
       debugPrint('FCM token setup skipped: $error');
     }
-    FirebaseMessaging.onMessage.listen(_handleMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleOpened);
+    _foregroundSubscription ??= FirebaseMessaging.onMessage.listen(
+      (message) => unawaited(_handleMessageSafely(message)),
+      onError: (Object error, StackTrace stack) {
+        debugPrint('FCM foreground message stream failed: $error');
+        debugPrintStack(stackTrace: stack);
+      },
+    );
+    _openedSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen(
+      (message) => unawaited(_handleOpenedSafely(message)),
+      onError: (Object error, StackTrace stack) {
+        debugPrint('FCM notification-open stream failed: $error');
+        debugPrintStack(stackTrace: stack);
+      },
+    );
     final initial = await _messaging.getInitialMessage();
-    if (initial != null) await _handleOpened(initial);
+    if (initial != null) await _handleOpenedSafely(initial);
+    } catch (_) {
+      await _cancelMessageSubscriptions();
+      _initialization = null;
+      rethrow;
+    }
   }
+
+  Future<void> _handleMessageSafely(RemoteMessage message) async {
+    try {
+      await _handleMessage(message);
+    } catch (error, stack) {
+      debugPrint('FCM foreground notification handling failed: $error');
+      debugPrintStack(stackTrace: stack);
+    }
+  }
+
+  Future<void> _handleOpenedSafely(RemoteMessage message) async {
+    try {
+      await _handleOpened(message);
+    } catch (error, stack) {
+      debugPrint('FCM notification routing failed: $error');
+      debugPrintStack(stackTrace: stack);
+    }
+  }
+
+  Future<void> _cancelMessageSubscriptions() async {
+    final foreground = _foregroundSubscription;
+    final opened = _openedSubscription;
+    _foregroundSubscription = null;
+    _openedSubscription = null;
+    await foreground?.cancel();
+    await opened?.cancel();
+  }
+
+  Future<void> dispose() async {
+    await _cancelMessageSubscriptions();
+    _localNotifications.setNotificationTapHandler(null);
+    _initialization = null;
+  }
+
   Future<String?> getToken() async {
     final token = await _messaging.getToken();
     if (token != null && token.trim().isNotEmpty) {
