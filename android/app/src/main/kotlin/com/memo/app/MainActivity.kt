@@ -15,6 +15,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val fullScreenChannel = "com.memo.app/full_screen_intent"
     private val quickActionsChannel = "com.memo.app/quick_actions"
     private val vpnTunnelChannel = "com.memo.app/vpn_tunnel"
+    private val localLinkChannel = "com.memo.app/local_link"
     private val callForegroundServiceChannel = "com.memochat.app/call_foreground_service"
     private var pendingQuickAction: String? = null
     private var pendingVpnStart: Intent? = null
@@ -58,6 +59,78 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(true)
                     }
                     else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, localLinkChannel)
+            .setMethodCallHandler { call, result ->
+                try {
+                    when (call.method) {
+                        "listen" -> {
+                            val code = call.argument<String>("pairingCode").orEmpty()
+                            val port = call.argument<Int>("port") ?: 39841
+                            val intent = Intent(this, LocalPeerLinkService::class.java).apply {
+                                action = LocalPeerLinkService.ACTION_LISTEN
+                                putExtra(LocalPeerLinkService.EXTRA_PAIRING_CODE, code)
+                                putExtra(LocalPeerLinkService.EXTRA_PORT, port)
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+                            result.success(true)
+                        }
+                        "connect" -> {
+                            val host = call.argument<String>("host").orEmpty()
+                            val code = call.argument<String>("pairingCode").orEmpty()
+                            val port = call.argument<Int>("port") ?: 39841
+                            val intent = Intent(this, LocalPeerLinkService::class.java).apply {
+                                action = LocalPeerLinkService.ACTION_CONNECT
+                                putExtra(LocalPeerLinkService.EXTRA_HOST, host)
+                                putExtra(LocalPeerLinkService.EXTRA_PAIRING_CODE, code)
+                                putExtra(LocalPeerLinkService.EXTRA_PORT, port)
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+                            result.success(true)
+                        }
+                        "send" -> {
+                            val text = call.argument<String>("text").orEmpty()
+                            val intent = Intent(this, LocalPeerLinkService::class.java).apply {
+                                action = LocalPeerLinkService.ACTION_SEND
+                                putExtra(LocalPeerLinkService.EXTRA_TEXT, text)
+                                putExtra(LocalPeerLinkService.EXTRA_MESSAGE_ID, java.util.UUID.randomUUID().toString())
+                            }
+                            startService(intent)
+                            result.success(true)
+                        }
+                        "stop" -> {
+                            startService(Intent(this, LocalPeerLinkService::class.java).apply {
+                                action = LocalPeerLinkService.ACTION_STOP
+                            })
+                            result.success(true)
+                        }
+                        "status" -> result.success(
+                            mapOf("active" to LocalPeerLinkService.active, "state" to LocalPeerLinkService.state)
+                        )
+                        "poll" -> result.success(LocalPeerLinkService.pollEvents())
+                        "addresses" -> {
+                            val addresses = mutableListOf<String>()
+                            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+                            while (interfaces != null && interfaces.hasMoreElements()) {
+                                val network = interfaces.nextElement()
+                                if (!network.isUp || network.isLoopback) continue
+                                val values = network.inetAddresses
+                                while (values.hasMoreElements()) {
+                                    val address = values.nextElement()
+                                    if (address is java.net.Inet4Address && !address.isLoopbackAddress &&
+                                        !address.isLinkLocalAddress) {
+                                        addresses.add(address.hostAddress ?: "")
+                                    }
+                                }
+                            }
+                            result.success(addresses.distinct())
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (e: Exception) {
+                    result.error("LOCAL_LINK_ERROR", e.localizedMessage ?: "Local Link operation failed", null)
                 }
             }
 
