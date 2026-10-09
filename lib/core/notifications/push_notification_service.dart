@@ -14,6 +14,7 @@ import '../services/notification_history_service.dart';
 import '../../features/chat/services/notification_service.dart';
 import '../../features/chat/services/call_service.dart';
 import 'ringtone_service.dart';
+import 'notification_preferences.dart';
 
 class PushNotificationService {
   PushNotificationService({FirebaseMessaging? messaging, required NotificationService localNotifications})
@@ -64,18 +65,16 @@ class PushNotificationService {
     {...message.data, if (message.notification?.title != null) 'title': message.notification!.title, if (message.notification?.body != null) 'body': message.notification!.body},
     fallbackId: message.messageId,
   );
-  Future<void> _handleMessage(RemoteMessage message) async {
-    final notification = _parse(message);
-    if (notification.senderId != null && notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
-    if (!await _inbox.addNotification(notification)) return;
-    await _localNotifications.showTypedNotification(
-      type: notification.type.wireName,
-      title: notification.title,
-      body: notification.body,
-      data: notification.toJson(),
-      payload: notification.encode(),
-      playSound: notification.sound,
-    );
+  bool _isMessageType(NotificationType type) => const {
+        NotificationType.textMessage,
+        NotificationType.imageMessage,
+        NotificationType.videoMessage,
+        NotificationType.fileMessage,
+        NotificationType.audioMessage,
+        NotificationType.reply,
+      }.contains(type);
+
+  Future<void> _recordHistory(AppNotification notification) async {
     try {
       await _history.add(
         notification.type.wireName,
@@ -88,6 +87,66 @@ class PushNotificationService {
     } catch (error) {
       debugPrint('notification history unavailable: $error');
     }
+  }
+
+  Future<void> _handleMessage(RemoteMessage message) async {
+    final notification = _parse(message);
+    if (notification.senderId != null &&
+        notification.senderId == FirebaseAuth.instance.currentUser?.uid) {
+      return;
+    }
+    if (!await _inbox.addNotification(notification)) return;
+
+    final preferences = NotificationPreferences();
+    final isCall = notification.isCall;
+    final isMessage = _isMessageType(notification.type);
+    final enabled = isCall
+        ? await preferences.callNotifications
+        : isMessage
+            ? await preferences.messageNotifications
+            : await preferences.otherNotifications;
+    if (enabled) {
+      final soundEnabled = isCall
+          ? await preferences.callSounds
+          : isMessage
+              ? await preferences.messageSounds
+              : await preferences.otherSounds;
+      final vibrationEnabled = isCall
+          ? await preferences.callVibration
+          : isMessage
+              ? await preferences.messageVibration
+              : await preferences.otherVibration;
+      final playSound = notification.sound && soundEnabled;
+      final vibrate = notification.vibration && vibrationEnabled;
+      if (isCall && notification.callId?.trim().isNotEmpty == true) {
+        await _localNotifications.showIncomingCallNotification(
+          callerName: message.data['callerName']?.toString() ?? notification.title,
+          callId: notification.callId!,
+          isVideo: message.data['isVideo']?.toString().toLowerCase() == 'true' ||
+              message.data['callType']?.toString().toLowerCase() == 'video',
+          // The in-app ringtone owns foreground call audio; keep the OS
+          // notification silent to avoid playing two ringtones at once.
+          playSound: false,
+          vibrate: vibrate,
+          presentInApp: true,
+          inAppSound: playSound,
+        );
+      } else {
+        await _localNotifications.showTypedNotification(
+          type: notification.type.wireName,
+          title: notification.title,
+          body: notification.body,
+          data: {
+            ...notification.toJson(),
+            ...message.data,
+          },
+          payload: notification.encode(),
+          playSound: playSound,
+          vibrate: vibrate,
+        );
+      }
+    }
+    await _recordHistory(notification);
   }
   Future<void> _handleOpened(RemoteMessage message) async {
     final notification = _parse(message);
@@ -147,17 +206,60 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (notification.senderId == FirebaseAuth.instance.currentUser?.uid) return;
   final inbox = NotificationInbox();
   if (!await inbox.addNotification(notification)) return;
-  if (message.notification == null) {
+
+  final preferences = NotificationPreferences();
+  final isCall = notification.isCall;
+  final isMessage = const {
+    NotificationType.textMessage,
+    NotificationType.imageMessage,
+    NotificationType.videoMessage,
+    NotificationType.fileMessage,
+    NotificationType.audioMessage,
+    NotificationType.reply,
+  }.contains(notification.type);
+  final enabled = isCall
+      ? await preferences.callNotifications
+      : isMessage
+          ? await preferences.messageNotifications
+          : await preferences.otherNotifications;
+  if (enabled) {
+    final soundEnabled = isCall
+        ? await preferences.callSounds
+        : isMessage
+            ? await preferences.messageSounds
+            : await preferences.otherSounds;
+    final vibrationEnabled = isCall
+        ? await preferences.callVibration
+        : isMessage
+            ? await preferences.messageVibration
+            : await preferences.otherVibration;
+    final playSound = notification.sound && soundEnabled;
+    final vibrate = notification.vibration && vibrationEnabled;
     final local = NotificationService();
     await local.initialize();
-    await local.showTypedNotification(
-      type: notification.type.wireName,
-      title: notification.title,
-      body: notification.body,
-      data: notification.toJson(),
-      payload: notification.encode(),
-      playSound: notification.sound,
-    );
+    if (isCall && notification.callId?.trim().isNotEmpty == true) {
+      await local.showIncomingCallNotification(
+        callerName: message.data['callerName']?.toString() ?? notification.title,
+        callId: notification.callId!,
+        isVideo: message.data['isVideo']?.toString().toLowerCase() == 'true' ||
+            message.data['callType']?.toString().toLowerCase() == 'video',
+        playSound: playSound,
+        vibrate: vibrate,
+      );
+    } else {
+      await local.showTypedNotification(
+        type: notification.type.wireName,
+        title: notification.title,
+        body: notification.body,
+        data: {
+          ...notification.toJson(),
+          ...message.data,
+        },
+        payload: notification.encode(),
+        playSound: playSound,
+        vibrate: vibrate,
+      );
+    }
   }
   try {
     await NotificationHistoryService().add(
