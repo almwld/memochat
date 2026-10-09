@@ -80,15 +80,15 @@ class CallService {
       throw Exception('تعذر الحصول على Firebase ID token لإشعار المكالمة');
     }
     final response = await http.post(
-      Uri.parse('\$_callNotificationEndpoint/call-notification'),
+      Uri.parse('$_callNotificationEndpoint/call-notification'),
       headers: <String, String>{
-        'Authorization': 'Bearer \$token',
+        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
       body: jsonEncode(<String, dynamic>{'callId': callId}),
     ).timeout(const Duration(seconds: 12));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('فشل إرسال إشعار المكالمة: HTTP \${response.statusCode}');
+      throw Exception('فشل إرسال إشعار المكالمة: HTTP ${response.statusCode}');
     }
   }
   Future<CallModel?> initiateCall({required String receiverId, required String receiverName, String? receiverPhotoUrl, required CallType type, required String chatId, String? idempotencyKey}) async {
