@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -75,9 +76,22 @@ class CallService {
   Future<void> _notifyIncomingCall({required String callId}) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول لإرسال إشعار المكالمة');
-    final token = await user.getIdToken(true);
+    final tokenResult = await user.getIdTokenResult(true);
+    final token = tokenResult.token;
     if (token == null || token.isEmpty) {
       throw Exception('تعذر الحصول على Firebase ID token لإشعار المكالمة');
+    }
+    if (kDebugMode) {
+      final projectId = FirebaseAuth.instance.app.options.projectId ?? '';
+      final claims = tokenResult.claims;
+      debugPrint(
+        'FIREBASE_AUTH_DIAGNOSTICS context=call-notification '
+        'project=$projectId tokenLength=${token.length} '
+        'aud=${claims['aud']} '
+        'issuerMatches=${claims['iss'] == 'https://securetoken.google.com/$projectId'} '
+        'issuedAt=${tokenResult.issuedAtTime?.toIso8601String()} '
+        'expiresAt=${tokenResult.expirationTime?.toIso8601String()}',
+      );
     }
     final response = await http.post(
       Uri.parse('$_callNotificationEndpoint/call-notification'),
@@ -88,7 +102,24 @@ class CallService {
       body: jsonEncode(<String, dynamic>{'callId': callId}),
     ).timeout(const Duration(seconds: 12));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('فشل إرسال إشعار المكالمة: HTTP ${response.statusCode}');
+      var diagnosticCode = '';
+      var serverMessage = '';
+      try {
+        final payload = jsonDecode(response.body);
+        if (payload is Map) {
+          diagnosticCode = payload['code']?.toString() ?? '';
+          serverMessage = payload['message']?.toString() ?? '';
+        }
+      } catch (_) {
+        // Keep the original HTTP status if a proxy returns a non-JSON body.
+      }
+      final diagnostic = diagnosticCode.isNotEmpty
+          ? ' [$diagnosticCode]'
+          : '';
+      final detail = serverMessage.isNotEmpty ? ': $serverMessage' : '';
+      throw Exception(
+        'فشل إرسال إشعار المكالمة: HTTP ${response.statusCode}$diagnostic$detail',
+      );
     }
   }
   Future<CallModel?> initiateCall({required String receiverId, required String receiverName, String? receiverPhotoUrl, required CallType type, required String chatId, String? idempotencyKey}) async {
