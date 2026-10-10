@@ -26,6 +26,20 @@ class LiveKitService {
   bool get isCameraEnabled => _isCameraEnabled;
   bool get isMicrophoneEnabled => _isMicrophoneEnabled;
 
+  void _logFirebaseTokenDiagnostics(String context, IdTokenResult result) {
+    if (!kDebugMode) return;
+    final token = result.token ?? '';
+    final projectId = FirebaseAuth.instance.app.options.projectId ?? '';
+    final claims = result.claims;
+    debugPrint(
+      'FIREBASE_AUTH_DIAGNOSTICS context=$context project=$projectId '
+      'tokenLength=${token.length} aud=${claims['aud']} '
+      'issuerMatches=${claims['iss'] == 'https://securetoken.google.com/$projectId'} '
+      'issuedAt=${result.issuedAtTime?.toIso8601String()} '
+      'expiresAt=${result.expirationTime?.toIso8601String()}',
+    );
+  }
+
   Future<Map<String, dynamic>> _requestLiveKitToken({
     required String roomName,
     required String participantName,
@@ -33,10 +47,12 @@ class LiveKitService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول قبل إجراء المكالمة');
 
-    final idToken = await user.getIdToken(true);
+    final tokenResult = await user.getIdTokenResult(true);
+    final idToken = tokenResult.token;
     if (idToken == null || idToken.isEmpty) {
       throw Exception('تعذر الحصول على رمز Firebase');
     }
+    _logFirebaseTokenDiagnostics('livekit-token', tokenResult);
 
     final canonicalRoom = LiveKitConfig.normalizeRoomName(roomName);
     if (!RegExp(r'^call_[A-Za-z0-9_-]+$').hasMatch(canonicalRoom)) {
@@ -162,10 +178,12 @@ class LiveKitService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول قبل دخول غرفة الصوت');
 
-    final idToken = await user.getIdToken(true);
+    final tokenResult = await user.getIdTokenResult(true);
+    final idToken = tokenResult.token;
     if (idToken == null || idToken.isEmpty) {
       throw Exception('تعذر الحصول على رمز Firebase');
     }
+    _logFirebaseTokenDiagnostics('livekit-voice-token', tokenResult);
 
     final canonicalRoom = roomName.trim();
     if (!RegExp(r'^memo_voice_[A-Za-z0-9_-]+$').hasMatch(canonicalRoom)) {
