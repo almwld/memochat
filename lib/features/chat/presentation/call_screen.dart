@@ -573,7 +573,8 @@ class _CallScreenState extends State<CallScreen> {
               Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(28), child: VideoTrackRenderer(remote)))
             else
               Positioned.fill(child: waiting(centerMessageFor(status))),
-            Positioned(top: 12, left: 12, right: 12, child: top(status)),
+            if (error == null)
+              Positioned(top: 12, left: 12, right: 12, child: top(status)),
             if (widget.isVideo && local != null)
               PositionedDirectional(top: 82, end: 18, child: preview(local)),
             if (widget.isVideo && joined && remoteTrack == null)
