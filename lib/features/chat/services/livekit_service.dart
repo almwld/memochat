@@ -35,8 +35,8 @@ class LiveKitService {
       'FIREBASE_AUTH_DIAGNOSTICS context=$context project=$projectId '
       'tokenLength=${token.length} aud=${claims['aud']} '
       'issuerMatches=${claims['iss'] == 'https://securetoken.google.com/$projectId'} '
-      'issuedAt=${result.issuedAtTime?.toIso8601String()} '
-      'expiresAt=${result.expirationTime?.toIso8601String()}',
+      'issuedAt=${result.issuedAtTime} '
+      'expiresAt=${result.expirationTime}',
     );
   }
 
