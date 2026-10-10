@@ -19,6 +19,7 @@ import '../features/chat/services/chat_media_transfer_service.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../core/services/fcm_token_service.dart';
 import '../features/chat/services/notification_service.dart';
+import '../features/chat/services/call_sound_coordinator.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import 'memo_splash_screen.dart';
@@ -190,6 +191,10 @@ class _MemoChatAppState extends State<MemoChatApp>
 
     if (!_lifecycleStarted) {
       _lifecycleStarted = true;
+      // Keep Firestore call-state listening alive for incoming calls even when
+      // the push notification is delayed or the app is already foregrounded.
+      // The coordinator is the single owner of the incoming-call screen.
+      CallSoundCoordinator.instance.start();
       unawaited(_syncCoordinator.initialize());
       unawaited(MediaTransferEngine.instance.initialize());
     }
