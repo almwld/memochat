@@ -320,6 +320,10 @@ class _CallScreenState extends State<CallScreen> {
         throw StateError('مكالمة أخرى نشطة');
       }
 
+      // Both sides request runtime media permissions only when joining the
+      // accepted call. The outgoing screen can ring while waiting without
+      // prompting early; incoming notification-answer paths are also covered.
+      await live.ensureMediaPermissions(video: widget.isVideo);
       room = await live.startCall(
         roomName: roomName!,
         callerName: user.displayName?.trim().isNotEmpty == true
