@@ -8,7 +8,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/nextcloud_config.dart';
-import '../../../core/config/livekit_config.dart';
 
 class NextcloudService {
   static final NextcloudService _instance = NextcloudService._internal();
@@ -115,13 +114,17 @@ class NextcloudService {
       .where((part) => part.isNotEmpty && part != '.')
       .join('/');
 
-  // Suga owns the MemoChat/users/<uid> root; paths sent to it must be relative.
-  // Strip the legacy MemoChat prefix if a queued job still contains it.
-  String _platformPath(String path) {
+  // Match Sehatak's direct WebDAV layout while keeping MemoChat isolated per user.
+  // Each user's uploads are stored below MemoChat/users/<uid>/.
+  String _platformPath(String path, String uid) {
     final clean = _cleanLogicalPath(path);
-    if (clean == 'MemoChat') return '';
-    if (clean.startsWith('MemoChat/')) return clean.substring('MemoChat/'.length);
-    return clean;
+    final relative = clean == 'MemoChat'
+        ? ''
+        : clean.startsWith('MemoChat/')
+            ? clean.substring('MemoChat/'.length)
+            : clean;
+    final safeUid = _cleanPart(uid);
+    return 'MemoChat/users/$safeUid${relative.isEmpty ? '' : '/$relative'}';
   }
 
   String _davUrl(String remotePath) {
@@ -176,65 +179,112 @@ class NextcloudService {
     CancelToken? cancelToken,
   }) async {
     try {
-      if (!await file.exists()) return const NextcloudUploadResult(success: false, error: 'الملف المحلي غير موجود');
-      final name = _cleanPart(fileName ?? file.path.split(Platform.pathSeparator).last);
-      if (name.isEmpty) return const NextcloudUploadResult(success: false, error: 'اسم الملف غير صالح');
-      final logicalDirectory = _platformPath(path);
-      final fileLength = await file.length();
+      _ensureConfigured();
+      if (!await file.exists()) {
+        return const NextcloudUploadResult(success: false, error: 'الملف المحلي غير موجود');
+      }
+
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return const NextcloudUploadResult(success: false, error: 'يجب تسجيل الدخول قبل رفع الوسائط');
-      final token = await user.getIdToken(true);
-      if (token == null || token.isEmpty) return const NextcloudUploadResult(success: false, error: 'تعذر الحصول على جلسة Firebase لرفع الوسائط');
-      final uri = Uri.parse('${LiveKitConfig.tokenServerUrl}/media/upload').replace(
-        queryParameters: <String, String>{
-          'path': logicalDirectory,
-          'fileName': name,
-          'mimeType': mimeType?.trim().isNotEmpty == true ? mimeType!.trim() : 'application/octet-stream',
-          'createShare': createShare ? 'true' : 'false',
-          if (chatId?.trim().isNotEmpty == true) 'chatId': chatId!.trim(),
-        },
-      );
-      final response = await _dio.post<dynamic>(
-        uri.toString(),
+      if (user == null) {
+        return const NextcloudUploadResult(success: false, error: 'يجب تسجيل الدخول قبل رفع الوسائط');
+      }
+
+      final name = _cleanPart(fileName ?? file.path.split(Platform.pathSeparator).last);
+      if (name.isEmpty) {
+        return const NextcloudUploadResult(success: false, error: 'اسم الملف غير صالح');
+      }
+
+      // Same upload protocol as Sehatak: MKCOL each directory, then PUT the
+      // file directly to Nextcloud WebDAV, followed by an OCS public share.
+      final logicalDirectory = _platformPath(path, user.uid);
+      final remotePath = '$logicalDirectory/$name';
+      final davUrl = _davUrl(remotePath);
+      final fileLength = await file.length();
+
+      debugPrint('📤 PUT: $davUrl');
+      debugPrint('📤 file size: $fileLength');
+      await _ensureDirectories(logicalDirectory);
+
+      final response = await _dio.put<void>(
+        davUrl,
         data: file.openRead(),
-        options: Options(headers: <String, String>{'Authorization': 'Bearer $token', 'Content-Type': 'application/octet-stream', 'Content-Length': fileLength.toString()}, responseType: ResponseType.json, validateStatus: (status) => status != null),
+        options: Options(
+          headers: {
+            'Authorization': 'Basic ${_authToken()}',
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': fileLength.toString(),
+          },
+          contentType: 'application/octet-stream',
+          validateStatus: (status) => status != null,
+        ),
         onSendProgress: onProgress,
         cancelToken: cancelToken,
       );
       final status = response.statusCode ?? 0;
-      final body = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : const <String, dynamic>{};
-      if (status < 200 || status >= 300 || body['success'] != true) return NextcloudUploadResult(success: false, error: body['message']?.toString() ?? 'فشل رفع الوسائط عبر خادم الوسائط');
-      final rawFile = body['file'];
-      final uploaded = rawFile is Map ? Map<String, dynamic>.from(rawFile) : const <String, dynamic>{};
-      final remotePath = uploaded['remotePath']?.toString();
-      final url = uploaded['url']?.toString();
-      if (remotePath == null || remotePath.isEmpty) return const NextcloudUploadResult(success: false, error: 'خادم الوسائط لم يعُد بمسار الملف');
-      return NextcloudUploadResult(success: true, url: url?.isNotEmpty == true ? url : null, path: remotePath, fileName: uploaded['fileName']?.toString() ?? name, error: url?.isNotEmpty == true ? null : 'تم رفع الملف، لكن رابط الوصول لم يجهز بعد', shareReady: url?.isNotEmpty == true);
+      debugPrint('📤 PUT status: $status');
+      if (status != 201 && status != 204) {
+        return NextcloudUploadResult(
+          success: false,
+          path: remotePath,
+          fileName: name,
+          error: 'فشل رفع الملف إلى Nextcloud: HTTP $status',
+        );
+      }
+
+      if (!createShare) {
+        return NextcloudUploadResult(success: true, path: remotePath, fileName: name);
+      }
+
+      final publicUrl = await createPublicShare(remotePath);
+      if (publicUrl == null || publicUrl.isEmpty) {
+        return NextcloudUploadResult(
+          success: true,
+          path: remotePath,
+          fileName: name,
+          error: 'تم رفع الملف بنجاح، لكن رابط الوصول لم يجهز بعد',
+          shareReady: false,
+        );
+      }
+
+      return NextcloudUploadResult(
+        success: true,
+        url: publicUrl,
+        path: remotePath,
+        fileName: name,
+        shareReady: true,
+      );
     } catch (e, st) {
-      debugPrint('❌ media backend upload failed: $e');
+      debugPrint('❌ uploadFile failed: $e');
       debugPrint('❌ stack: $st');
       return NextcloudUploadResult(success: false, error: e.toString());
     }
   }
+
   Future<String?> createPublicShare(String remotePath) async {
-    final normalized = remotePath.trim().replaceFirst(RegExp(r'^/+'), '');
-    if (normalized.isEmpty) return null;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-    final token = await user.getIdToken(true);
-    if (token == null || token.isEmpty) return null;
+    _ensureConfigured();
     try {
-      final response = await _dio.post<dynamic>('${LiveKitConfig.tokenServerUrl}/media/share', data: <String, dynamic>{'remotePath': normalized}, options: Options(headers: <String, String>{'Authorization': 'Bearer $token'}, responseType: ResponseType.json, validateStatus: (status) => status != null));
-      if ((response.statusCode ?? 0) < 200 || (response.statusCode ?? 0) >= 300) return null;
-      final body = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : const <String, dynamic>{};
-      final url = body['url']?.toString();
-      return url?.isNotEmpty == true ? url : null;
+      final response = await http.post(
+        Uri.parse('${_normalizedBase()}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json'),
+        headers: _headers(),
+        body: {'path': '/${_cleanLogicalPath(remotePath)}', 'shareType': '3'},
+      );
+      debugPrint('🔗 Share status: ${response.statusCode}');
+      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final ocs = body['ocs'] as Map<String, dynamic>?;
+      final data = ocs?['data'] as Map<String, dynamic>?;
+      final shareUrl = data?['url']?.toString();
+      if (shareUrl == null || shareUrl.isEmpty) return null;
+
+      return '${shareUrl.replaceFirst(RegExp(r'/$'), '')}/download';
     } catch (e, st) {
-      debugPrint('❌ media backend share failed: $e');
+      debugPrint('❌ createPublicShare failed: $e');
       debugPrint('❌ stack: $st');
       return null;
     }
   }
+
   /// Verifies the same redirect behavior used by media players.
   /// The server returns 303 -> public.php/dav -> 200 for a normal GET.
   /// A Range request returns 500 on this server, so verification must not
