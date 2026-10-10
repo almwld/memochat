@@ -78,8 +78,12 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       return;
     }
 
-    // Another UI owner already answered the call.
-    if (call.isAnswered && call.status != CallStatus.connected) {
+    // Another device/UI owner already answered the call. While this screen's
+    // own Accept action is in progress, Firestore immediately emits
+    // isAnswered=true; closing here would pop this route while _accept is
+    // pushing CallScreen, racing navigation and preventing the receiver from
+    // joining LiveKit. Let _accept finish its permission + navigation flow.
+    if (call.isAnswered && !_busy && call.status != CallStatus.connected) {
       unawaited(_closeWithoutAction());
     }
   }
