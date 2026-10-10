@@ -67,6 +67,16 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
   }
 
   @override
+  void didUpdateWidget(covariant AdvancedAudioPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.audioUrl != widget.audioUrl || oldWidget.isLocal != widget.isLocal) {
+      _loading = true;
+      _error = false;
+      _prepare();
+    }
+  }
+
+  @override
   void dispose() {
     if (identical(_activePlayer, _player)) _activePlayer = null;
     _player.dispose();
