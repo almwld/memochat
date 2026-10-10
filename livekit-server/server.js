@@ -120,7 +120,10 @@ async function verifyFirebaseUser(req) {
   }
   try {
     return await admin.auth().verifyIdToken(auth.substring(7));
-  } catch (_) {
+  } catch (cause) {
+    // Keep credentials/token contents out of logs; the Firebase error code is
+    // enough to distinguish expired/invalid tokens from a project mismatch.
+    console.error('Firebase ID token verification failed:', cause?.code || cause?.name || 'unknown');
     const error = new Error('Invalid Firebase ID token');
     error.statusCode = 401;
     throw error;
