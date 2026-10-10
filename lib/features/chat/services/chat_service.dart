@@ -243,7 +243,30 @@ class ChatService {
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
     final participants=List<String>.from(chat.data()?['participants']??const []);
     final receiverIds=participants.where((p)=>p!=id).toList();
-    final type=metadata?['kind']=='contact'?'contact':metadata?['kind']=='game_invite'?'game_invite':imageUrl!=null?'image':videoUrl!=null?'video':audioUrl!=null?'audio':fileUrl!=null?'file':locationUrl!=null?'location':'text';
+    // Empty optional URL fields must not classify a message as media. Some
+    // older clients/outbox rows carry an empty audioUrl while the actual
+    // attachment is in fileUrl (or vice versa); null-only checks create blank
+    // bubbles on both ends.
+    final hasImage = imageUrl?.trim().isNotEmpty == true;
+    final hasVideo = videoUrl?.trim().isNotEmpty == true;
+    final hasAudio = audioUrl?.trim().isNotEmpty == true;
+    final hasFile = fileUrl?.trim().isNotEmpty == true;
+    final hasLocation = locationUrl?.trim().isNotEmpty == true;
+    final type = metadata?['kind'] == 'contact'
+        ? 'contact'
+        : metadata?['kind'] == 'game_invite'
+            ? 'game_invite'
+            : hasImage
+                ? 'image'
+                : hasVideo
+                    ? 'video'
+                    : hasAudio
+                        ? 'audio'
+                        : hasFile
+                            ? 'file'
+                            : hasLocation
+                                ? 'location'
+                                : 'text';
     final ref=(messageId?.isNotEmpty==true)?_chatRef(chatId).collection('messages').doc(messageId):_chatRef(chatId).collection('messages').doc();
     if(messageId?.isNotEmpty==true){final existing=await ref.get();if(existing.exists)return ref.id;}
     Map<String,dynamic>? replyPreview;
