@@ -83,7 +83,7 @@ class CallService {
     }
     if (kDebugMode) {
       final projectId = FirebaseAuth.instance.app.options.projectId ?? '';
-      final claims = tokenResult.claims;
+      final claims = tokenResult.claims ?? const <String, dynamic>{};
       debugPrint(
         'FIREBASE_AUTH_DIAGNOSTICS context=call-notification '
         'project=$projectId tokenLength=${token.length} '
