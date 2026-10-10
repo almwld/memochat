@@ -180,7 +180,7 @@ class NextcloudService {
       final fileLength = await file.length();
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return const NextcloudUploadResult(success: false, error: 'يجب تسجيل الدخول قبل رفع الوسائط');
-      final token = await user.getIdToken();
+      final token = await user.getIdToken(true);
       if (token == null || token.isEmpty) return const NextcloudUploadResult(success: false, error: 'تعذر الحصول على جلسة Firebase لرفع الوسائط');
       final uri = Uri.parse('${LiveKitConfig.tokenServerUrl}/media/upload').replace(
         queryParameters: <String, String>{
