@@ -218,7 +218,7 @@ class NextcloudService {
     if (normalized.isEmpty) return null;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
-    final token = await user.getIdToken();
+    final token = await user.getIdToken(true);
     if (token == null || token.isEmpty) return null;
     try {
       final response = await _dio.post<dynamic>('${LiveKitConfig.tokenServerUrl}/media/share', data: <String, dynamic>{'remotePath': normalized}, options: Options(headers: <String, String>{'Authorization': 'Bearer $token'}, responseType: ResponseType.json, validateStatus: (status) => status != null));
