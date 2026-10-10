@@ -132,26 +132,118 @@ async function createNextcloudShare(remotePath) {
 }
 
 
-async function verifyFirebaseUser(req) {
-  const auth = String(req.headers.authorization || '');
-  if (!auth.startsWith('Bearer ')) {
-    const error = new Error('Authorization bearer token is required');
-    error.statusCode = 401;
-    throw error;
-  }
+function createAuthError(message, diagnosticCode, statusCode = 401) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.diagnosticCode = diagnosticCode;
+  return error;
+}
+
+// Decode claims only for diagnostics. These claims are untrusted until
+// verifyIdToken succeeds; never use this function to authorize a request.
+function decodeUnverifiedTokenClaims(token) {
   try {
-    return await admin.auth().verifyIdToken(auth.substring(7));
-  } catch (cause) {
-    // Keep credentials/token contents out of logs; the Firebase error code is
-    // enough to distinguish expired/invalid tokens from a project mismatch.
-    console.error('Firebase ID token verification failed:', cause?.code || cause?.name || 'unknown');
-    const error = new Error('Invalid Firebase ID token');
-    error.statusCode = 401;
-    throw error;
+    const parts = String(token).split('.');
+    if (parts.length !== 3) return null;
+    const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (!claims || typeof claims !== 'object' || Array.isArray(claims)) return null;
+    return claims;
+  } catch (_) {
+    return null;
   }
 }
 
+function firebaseTokenDiagnosticCode(cause) {
+  const code = String(cause?.code || '');
+  if (code === 'auth/id-token-expired') return 'FIREBASE_TOKEN_EXPIRED';
+  if (code === 'auth/argument-error') return 'FIREBASE_TOKEN_FORMAT_INVALID';
+  if (code === 'auth/invalid-credential') return 'FIREBASE_ADMIN_CREDENTIAL_INVALID';
+  if (code === 'auth/insufficient-permission') return 'FIREBASE_ADMIN_PERMISSION_DENIED';
+  if (code === 'auth/invalid-id-token') return 'FIREBASE_TOKEN_SIGNATURE_OR_FORMAT_INVALID';
+  return 'FIREBASE_TOKEN_VERIFICATION_FAILED';
+}
+
+async function verifyFirebaseUser(req) {
+  const auth = String(req.headers.authorization || '').trim();
+  const match = /^Bearer\\s+(\\S+)$/i.exec(auth);
+  if (!match) {
+    throw createAuthError('Authorization bearer token is required', 'BEARER_TOKEN_MISSING_OR_MALFORMED');
+  }
+
+  const token = match[1];
+  const claims = decodeUnverifiedTokenClaims(token);
+  if (!claims) {
+    console.warn('Firebase ID token rejected:', JSON.stringify({
+      diagnosticCode: 'FIREBASE_TOKEN_FORMAT_INVALID',
+      tokenLength: token.length,
+      projectId: FIREBASE_PROJECT_ID,
+    }));
+    throw createAuthError('Invalid Firebase ID token', 'FIREBASE_TOKEN_FORMAT_INVALID');
+  }
+
+  // These checks provide a precise diagnosis before Admin SDK signature
+  // verification. The claims remain untrusted and are never used as identity.
+  const expectedIssuer = 'https://securetoken.google.com/' + FIREBASE_PROJECT_ID;
+  if (claims.aud !== FIREBASE_PROJECT_ID || claims.iss !== expectedIssuer) {
+    console.warn('Firebase ID token rejected:', JSON.stringify({
+      diagnosticCode: 'FIREBASE_PROJECT_MISMATCH',
+      projectId: FIREBASE_PROJECT_ID,
+      tokenAudience: typeof claims.aud === 'string' ? claims.aud : 'invalid',
+      tokenIssuerMatches: claims.iss === expectedIssuer,
+      tokenLength: token.length,
+    }));
+    throw createAuthError('Firebase ID token belongs to a different project', 'FIREBASE_PROJECT_MISMATCH');
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (typeof claims.exp !== 'number' || claims.exp <= nowSeconds) {
+    throw createAuthError('Firebase ID token has expired', 'FIREBASE_TOKEN_EXPIRED');
+  }
+  if (typeof claims.iat === 'number' && claims.iat > nowSeconds + 60) {
+    throw createAuthError('Firebase ID token was issued in the future', 'FIREBASE_DEVICE_CLOCK_SKEW');
+  }
+
+  try {
+    return await admin.auth().verifyIdToken(token);
+  } catch (cause) {
+    const diagnosticCode = firebaseTokenDiagnosticCode(cause);
+    // Never log or return the token, its signature, or the user's UID.
+    console.error('Firebase ID token verification failed:', JSON.stringify({
+      diagnosticCode,
+      firebaseErrorCode: String(cause?.code || cause?.name || 'unknown'),
+      projectId: FIREBASE_PROJECT_ID,
+      tokenLength: token.length,
+      tokenAudienceMatches: claims.aud === FIREBASE_PROJECT_ID,
+      tokenIssuerMatches: claims.iss === expectedIssuer,
+      tokenExpiration: claims.exp,
+    }));
+    throw createAuthError('Invalid Firebase ID token', diagnosticCode);
+  }
+}
+
+const SERVICE_VERSION = require('./package.json').version;
+const BUILD_SHA = String(
+  process.env.GIT_COMMIT_SHA ||
+  process.env.SOURCE_VERSION ||
+  process.env.COMMIT_SHA ||
+  process.env.SUGA_REVISION ||
+  'unknown'
+).trim();
+
 app.get('/health', (_req, res) => res.json({ success: true, service: 'memochat-livekit-token-server' }));
+
+// Public, secret-free deployment fingerprint for checking whether Suga is
+// running the GitHub revision that contains the latest auth diagnostics.
+app.get('/debug/version', (_req, res) => res.json({
+  success: true,
+  service: 'memochat-livekit-token-server',
+  version: SERVICE_VERSION,
+  buildSha: BUILD_SHA,
+  runtimeRevision: process.env.K_REVISION || process.env.SUGA_REVISION || null,
+  firebaseProjectId: FIREBASE_PROJECT_ID,
+  adminProjectId: admin.app().options.projectId || null,
+  nodeVersion: process.version,
+}));
 
 // Safe configuration diagnostics: expose presence/status only, never secrets or tokens.
 app.get('/debug/config', (_req, res) => {
@@ -164,6 +256,8 @@ app.get('/debug/config', (_req, res) => {
     credentialSource: firebaseCredentialSource,
     credentialProjectId: firebaseCredentialProjectId,
     credentialProjectMatches,
+    adminProjectId: admin.app().options.projectId || null,
+    adminProjectMatches: (admin.app().options.projectId || FIREBASE_PROJECT_ID) === FIREBASE_PROJECT_ID,
     hasServiceAccount: Boolean(
       process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
       process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 ||
@@ -251,6 +345,7 @@ app.post(
       return res.status(status).json({
         success: false,
         message: status >= 500 ? 'فشل رفع الوسائط' : error.message,
+        code: error.diagnosticCode || undefined,
       });
     }
   }
@@ -269,7 +364,7 @@ app.post('/media/share', async (req, res) => {
     return res.json({ success: true, url });
   } catch (error) {
     const status = Number(error.statusCode) || 500;
-    return res.status(status).json({ success: false, message: error.message || 'Share failed' });
+    return res.status(status).json({ success: false, message: error.message || 'Share failed', code: error.diagnosticCode || undefined });
   }
 });
 
@@ -345,7 +440,7 @@ app.post('/token', async (req, res) => {
   } catch (error) {
     const status = Number(error.statusCode) || 500;
     if (status >= 500) console.error('Token error:', error.message || error);
-    return res.status(status).json({ success: false, message: error.message || 'Unable to create LiveKit token' });
+    return res.status(status).json({ success: false, message: error.message || 'Unable to create LiveKit token', code: error.diagnosticCode || undefined });
   }
 });
 
@@ -423,6 +518,7 @@ app.post('/voice-token', async (req, res) => {
     return res.status(status).json({
       success: false,
       message: error.message || 'تعذر إنشاء توكن غرفة الصوت',
+      code: error.diagnosticCode || undefined,
     });
   }
 });
@@ -547,6 +643,7 @@ app.post('/call-notification', async (req, res) => {
     return res.status(status).json({
       success: false,
       message: error.message || 'Unable to send incoming call notification',
+      code: error.diagnosticCode || undefined,
       requestId,
     });
   }
