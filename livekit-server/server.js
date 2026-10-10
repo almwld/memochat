@@ -165,7 +165,7 @@ function firebaseTokenDiagnosticCode(cause) {
 
 async function verifyFirebaseUser(req) {
   const auth = String(req.headers.authorization || '').trim();
-  const match = /^Bearer\\s+(\\S+)$/i.exec(auth);
+  const match = /^Bearer\s+(\S+)$/i.exec(auth);
   if (!match) {
     throw createAuthError('Authorization bearer token is required', 'BEARER_TOKEN_MISSING_OR_MALFORMED');
   }
