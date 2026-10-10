@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:memochat/features/chat/services/chat_service.dart';
@@ -61,22 +60,10 @@ class ChatNavigation {
   static Future<void> openCall(BuildContext context,{required String chatId,required String userName,required String userId,required bool isVideo,String? userImage}) async {
     final normalizedChat=chatId.trim(), normalizedUser=userId.trim();
     if(normalizedChat.isEmpty||normalizedUser.isEmpty){ToastService.showError('بيانات المكالمة غير صالحة');return;}
-    final permissions = <Permission>[
-      Permission.microphone,
-      if (isVideo) Permission.camera,
-    ];
-    final statuses = await permissions.request();
-    final micGranted = statuses[Permission.microphone]?.isGranted == true;
-    final cameraGranted = !isVideo || statuses[Permission.camera]?.isGranted == true;
-    if (!micGranted || !cameraGranted) {
-      ToastService.showError(
-        isVideo
-            ? 'السماح بالكاميرا والميكروفون مطلوب لبدء المكالمة.'
-            : 'السماح بالميكروفون مطلوب لبدء المكالمة.',
-      );
-      return;
-    }
-    if(!context.mounted)return;
+    // Do not request media permissions when opening the outgoing call screen.
+    // The caller waits for the receiver to accept; LiveKit requests permissions
+    // only when the call is actually ready to connect.
+    if (!context.mounted) return;
     await Navigator.of(context,rootNavigator:true).push(MaterialPageRoute<void>(builder:(_)=>CallScreen(
       chatId: normalizedChat, userName: userName, userId: normalizedUser, userImage: userImage,
       isVideo: isVideo, isOutgoing: true,
