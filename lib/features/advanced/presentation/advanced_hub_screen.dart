@@ -193,8 +193,20 @@ class _VoiceRoomsScreenState extends State<VoiceRoomsScreen> {
             return Card(
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.mic_rounded)),
-                title: Text(d['name']?.toString() ?? 'غرفة'),
-                subtitle: Text(d['topic']?.toString().isNotEmpty == true ? d['topic'].toString() : 'نقاش صوتي مباشر'),
+                title: Text(
+                  d['name']?.toString() ?? 'غرفة',
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  d['topic']?.toString().isNotEmpty == true
+                      ? d['topic'].toString()
+                      : 'نقاش صوتي مباشر',
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 trailing: d['ownerId']?.toString() == FirebaseAuth.instance.currentUser?.uid
                     ? PopupMenuButton<String>(
                         onSelected: (value) async {
