@@ -410,7 +410,6 @@ class _CallScreenState extends State<CallScreen> {
           connecting = false;
           error = friendly;
         });
-        ToastService.showError(friendly);
       }
     }
   }
