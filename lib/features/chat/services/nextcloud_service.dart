@@ -115,10 +115,13 @@ class NextcloudService {
       .where((part) => part.isNotEmpty && part != '.')
       .join('/');
 
+  // Suga owns the MemoChat/users/<uid> root; paths sent to it must be relative.
+  // Strip the legacy MemoChat prefix if a queued job still contains it.
   String _platformPath(String path) {
     final clean = _cleanLogicalPath(path);
-    if (clean.isEmpty) return 'MemoChat';
-    return clean == 'MemoChat' || clean.startsWith('MemoChat/') ? clean : 'MemoChat/$clean';
+    if (clean == 'MemoChat') return '';
+    if (clean.startsWith('MemoChat/')) return clean.substring('MemoChat/'.length);
+    return clean;
   }
 
   String _davUrl(String remotePath) {
@@ -232,6 +235,10 @@ class NextcloudService {
       return null;
     }
   }
+  /// Verifies the same redirect behavior used by media players.
+  /// The server returns 303 -> public.php/dav -> 200 for a normal GET.
+  /// A Range request returns 500 on this server, so verification must not
+  /// force a Range header.
   Future<bool> verifyPublicUrl(String url) async {
     final client = http.Client();
     var current = Uri.parse(url);
@@ -244,14 +251,19 @@ class NextcloudService {
         final status = response.statusCode;
         final location = response.headers['location'];
         final contentLength = response.contentLength;
-        debugPrint('🔗 verifyPublicUrl hop=$hop status=$status url=$current location=${location ?? '(none)'}');
-        await response.stream.drain<void>();
+        final contentType = response.headers['content-type'];
+        debugPrint(
+          '🔗 verifyPublicUrl hop=$hop status=$status url=$current '
+          'location=${location ?? '(none)'} contentType=${contentType ?? '(none)'}',
+        );
 
         if (status == 200 || status == 206) {
+          await response.stream.listen(null).cancel();
           return contentLength == null || contentLength > 0;
         }
 
         if (status >= 300 && status < 400 && location != null && location.isNotEmpty) {
+          await response.stream.listen(null).cancel();
           final next = current.resolve(location);
           if (next.host != current.host) {
             debugPrint('❌ verifyPublicUrl rejected cross-host redirect: ${next.host}');
@@ -261,8 +273,10 @@ class NextcloudService {
           continue;
         }
 
+        await response.stream.listen(null).cancel();
         return false;
       }
+
       debugPrint('❌ verifyPublicUrl exceeded redirect limit url=$url');
       return false;
     } catch (e, st) {
