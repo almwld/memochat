@@ -13,6 +13,11 @@ app.use(express.json({ limit: '1mb' }));
 
 const PORT = Number(process.env.PORT || 3000);
 const LIVEKIT_URL = String(process.env.LIVEKIT_URL || 'wss://memo-2jv45qyl.livekit.cloud').trim();
+// Never infer the Firebase project from a service-account file in a deployment.
+// The mobile app authenticates against MemoChat's project, memo-f97b5.
+const FIREBASE_PROJECT_ID = String(
+  process.env.FIREBASE_PROJECT_ID || 'memo-f97b5'
+).trim();
 
 // Firebase Admin credentials are supplied through Railway environment variables.
 if (!admin.apps.length) {
@@ -26,7 +31,7 @@ if (!admin.apps.length) {
   } else {
     credential = admin.credential.applicationDefault();
   }
-  admin.initializeApp({ credential });
+  admin.initializeApp({ credential, projectId: FIREBASE_PROJECT_ID });
 }
 
 const db = admin.firestore();
