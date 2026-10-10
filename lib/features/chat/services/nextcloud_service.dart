@@ -143,27 +143,18 @@ class NextcloudService {
       if (part.isEmpty) continue;
       current = current.isEmpty ? part : '$current/$part';
       debugPrint('📁 MKCOL: $current');
-      var lastStatus = 0;
-      for (var attempt = 1; attempt <= 3; attempt++) {
-        final response = await _dio.request<void>(
-          _davUrl(current),
-          options: Options(
-            method: 'MKCOL',
-            headers: {'Authorization': 'Basic ${_authToken()}'},
-            validateStatus: (status) => status != null,
-          ),
-        );
-        lastStatus = response.statusCode ?? 0;
-        debugPrint('📁 MKCOL response: $lastStatus attempt=$attempt');
-        if (lastStatus == 201 || lastStatus == 405) break;
-        if (![502, 503, 504].contains(lastStatus) || attempt == 3) break;
-        await Future<void>.delayed(Duration(seconds: attempt * 2));
-      }
-      if (lastStatus != 201 && lastStatus != 405) {
-        final detail = lastStatus == 503
-            ? 'خادم Nextcloud غير متاح مؤقتاً (HTTP 503)'
-            : 'فشل إنشاء مجلد الوسائط في Nextcloud: HTTP $lastStatus';
-        throw StateError(detail);
+      final response = await _dio.request<void>(
+        _davUrl(current),
+        options: Options(
+          method: 'MKCOL',
+          headers: {'Authorization': 'Basic ${_authToken()}'},
+          validateStatus: (status) => status != null,
+        ),
+      );
+      final status = response.statusCode ?? 0;
+      debugPrint('📁 MKCOL response: $status');
+      if (status != 201 && status != 405) {
+        throw StateError('فشل إنشاء مجلد الوسائط في Nextcloud: HTTP $status');
       }
     }
   }
