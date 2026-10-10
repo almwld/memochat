@@ -19,16 +19,32 @@ const FIREBASE_PROJECT_ID = String(
   process.env.FIREBASE_PROJECT_ID || 'memo-f97b5'
 ).trim();
 
-// Firebase Admin credentials are supplied through Railway environment variables.
+// Firebase Admin credentials are supplied through Suga environment variables
+// (or a local service-account file / application default credentials).
+let firebaseCredentialSource = 'existing_admin_app';
+let firebaseCredentialProjectId = null;
 if (!admin.apps.length) {
   const fs = require('fs');
   const path = require('path');
   let credential;
+  let serviceAccount = null;
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON));
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    firebaseCredentialSource = 'env_json';
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64) {
+    serviceAccount = JSON.parse(
+      Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64, 'base64').toString('utf8')
+    );
+    firebaseCredentialSource = 'env_json_b64';
   } else if (fs.existsSync(path.join(__dirname, 'firebase-service-account.json'))) {
-    credential = admin.credential.cert(require('./firebase-service-account.json'));
+    serviceAccount = require('./firebase-service-account.json');
+    firebaseCredentialSource = 'file';
+  }
+  if (serviceAccount) {
+    firebaseCredentialProjectId = String(serviceAccount.project_id || '').trim() || null;
+    credential = admin.credential.cert(serviceAccount);
   } else {
+    firebaseCredentialSource = 'application_default';
     credential = admin.credential.applicationDefault();
   }
   admin.initializeApp({ credential, projectId: FIREBASE_PROJECT_ID });
@@ -136,6 +152,31 @@ async function verifyFirebaseUser(req) {
 }
 
 app.get('/health', (_req, res) => res.json({ success: true, service: 'memochat-livekit-token-server' }));
+
+// Safe configuration diagnostics: expose presence/status only, never secrets or tokens.
+app.get('/debug/config', (_req, res) => {
+  const credentialProjectMatches = firebaseCredentialProjectId
+    ? firebaseCredentialProjectId === FIREBASE_PROJECT_ID
+    : null;
+  return res.json({
+    success: true,
+    projectId: FIREBASE_PROJECT_ID,
+    credentialSource: firebaseCredentialSource,
+    credentialProjectId: firebaseCredentialProjectId,
+    credentialProjectMatches,
+    hasServiceAccount: Boolean(
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 ||
+      firebaseCredentialSource === 'file'
+    ),
+    livekitUrl: LIVEKIT_URL ? 'set' : 'missing',
+    livekitKey: process.env.LIVEKIT_API_KEY ? 'set' : 'missing',
+    livekitSecret: process.env.LIVEKIT_API_SECRET ? 'set' : 'missing',
+    nextcloudConfigured: Boolean(NEXTCLOUD_URL && NEXTCLOUD_USERNAME && NEXTCLOUD_PASSWORD),
+    nodeEnv: process.env.NODE_ENV || 'not-set',
+    port: PORT,
+  });
+});
 app.post(
   '/media/upload',
   express.raw({ type: 'application/octet-stream', limit: MAX_MEDIA_BYTES }),
