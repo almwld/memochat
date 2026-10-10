@@ -75,7 +75,7 @@ class CallService {
   Future<void> _notifyIncomingCall({required String callId}) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول لإرسال إشعار المكالمة');
-    final token = await user.getIdToken();
+    final token = await user.getIdToken(true);
     if (token == null || token.isEmpty) {
       throw Exception('تعذر الحصول على Firebase ID token لإشعار المكالمة');
     }

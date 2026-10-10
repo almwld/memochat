@@ -243,26 +243,189 @@ class ChatService {
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
     final participants=List<String>.from(chat.data()?['participants']??const []);
     final receiverIds=participants.where((p)=>p!=id).toList();
-    final type=metadata?['kind']=='contact'?'contact':metadata?['kind']=='game_invite'?'game_invite':imageUrl!=null?'image':videoUrl!=null?'video':audioUrl!=null?'audio':fileUrl!=null?'file':locationUrl!=null?'location':'text';
-    final ref=(messageId?.isNotEmpty==true)?_chatRef(chatId).collection('messages').doc(messageId):_chatRef(chatId).collection('messages').doc();
-    if(messageId?.isNotEmpty==true){final existing=await ref.get();if(existing.exists)return ref.id;}
+    // Empty optional URL fields must not classify a message as media. Some
+    // older clients/outbox rows carry an empty audioUrl while the actual
+    // attachment is in fileUrl (or vice versa); null-only checks create blank
+    // bubbles on both ends.
+    final hasImage = imageUrl?.trim().isNotEmpty == true;
+    final hasVideo = videoUrl?.trim().isNotEmpty == true;
+    final hasAudio = audioUrl?.trim().isNotEmpty == true;
+    final hasFile = fileUrl?.trim().isNotEmpty == true;
+    final hasLocation = locationUrl?.trim().isNotEmpty == true;
+    final type = metadata?['kind'] == 'contact'
+        ? 'contact'
+        : metadata?['kind'] == 'game_invite'
+            ? 'game_invite'
+            : hasImage
+                ? 'image'
+                : hasVideo
+                    ? 'video'
+                    : hasAudio
+                        ? 'audio'
+                        : hasFile
+                            ? 'file'
+                            : hasLocation
+                                ? 'location'
+                                : 'text';
+    final cleanMessageId = messageId?.trim() ?? '';
+    final cleanIdempotencyKey = idempotencyKey?.trim() ?? '';
+    final messagesRef = _chatRef(chatId).collection('messages');
+    final deterministicId = cleanIdempotencyKey.isEmpty
+        ? ''
+        : 'idem_${base64Url.encode(utf8.encode(cleanIdempotencyKey)).replaceAll('=', '')}';
+    final ref = cleanMessageId.isNotEmpty
+        ? messagesRef.doc(cleanMessageId)
+        : deterministicId.isNotEmpty
+            ? messagesRef.doc(deterministicId)
+            : messagesRef.doc();
+    if (cleanMessageId.isNotEmpty || deterministicId.isNotEmpty) {
+      final existing = await ref.get();
+      if (existing.exists) return ref.id;
+    }
     Map<String,dynamic>? replyPreview;
     if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final d=await _decryptMessageData(id,rr.data()??{});replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':d['text']?.toString()??'مرفق','type':d['type']?.toString()??'text'};}}
-    final batch=_firestore.batch();
-    if(useEncryption){
-      final payload=<String,dynamic>{'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'replyToId':replyToId,'replyPreview':replyPreview};
-      final encryptedRecipients=<String,dynamic>{};
-      for(final recipient in <String>{...receiverIds,id}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);encryptedRecipients[recipient]=base64Encode(e);}
-      batch.set(ref,{'chatId':chatId,'senderId':id,'type':'encrypted','e2eeVersion':1,'e2eePayloads':encryptedRecipients,'security':_security.messageSecurity(chatId),'timestamp':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':false,'status':MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
+    Map<String, dynamic> messageData;
+    if (useEncryption) {
+      final payload = <String, dynamic>{
+        'senderName': user.displayName ?? 'مستخدم',
+        'senderPhotoUrl': user.photoURL,
+        'text': text,
+        'type': type,
+        'imageUrl': imageUrl,
+        'videoUrl': videoUrl,
+        'audioUrl': audioUrl,
+        'fileUrl': fileUrl,
+        'locationUrl': locationUrl,
+        'locationLat': locationLat,
+        'locationLng': locationLng,
+        'locationAddress': locationAddress,
+        'metadata': metadata,
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'fileMimeType': fileMimeType,
+        'audioDuration': audioDuration,
+        'replyToId': replyToId,
+        'replyPreview': replyPreview,
+      };
+      final encryptedRecipients = <String, dynamic>{};
+      for (final recipient in <String>{...receiverIds, id}) {
+        final encrypted = await SignalSessionManager.instance.encryptFor(
+          recipient,
+          utf8.encode(jsonEncode(payload)),
+          chatId: chatId,
+        );
+        encryptedRecipients[recipient] = base64Encode(encrypted);
+      }
+      messageData = {
+        'chatId': chatId,
+        'senderId': id,
+        'type': 'encrypted',
+        'e2eeVersion': 1,
+        'e2eePayloads': encryptedRecipients,
+        'security': _security.messageSecurity(chatId),
+        'timestamp': FieldValue.serverTimestamp(),
+        'clientTimestamp': Timestamp.now(),
+        'isRead': false,
+        'isDelivered': false,
+        'status': MessageStatus.sent.name,
+        'deliveredAt': null,
+        'readAt': null,
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'replyToId': replyToId,
+        'reactions': <String, dynamic>{},
+        if (cleanIdempotencyKey.isNotEmpty)
+          'idempotencyKey': cleanIdempotencyKey,
+      };
     } else {
-      final delivered=false;
-      batch.set(ref,{'chatId':chatId,'senderId':id,'senderName':user.displayName??'مستخدم','senderPhotoUrl':user.photoURL,'text':text,'type':type,'imageUrl':imageUrl,'videoUrl':videoUrl,'audioUrl':audioUrl,'fileUrl':fileUrl,'locationUrl':locationUrl,'locationLat':locationLat,'locationLng':locationLng,'locationAddress':locationAddress,'metadata':metadata,'fileName':fileName,'fileSize':fileSize,'fileMimeType':fileMimeType,'audioDuration':audioDuration,'timestamp':FieldValue.serverTimestamp(),'createdAt':FieldValue.serverTimestamp(),'clientTimestamp':Timestamp.now(),'isRead':false,'isDelivered':delivered,'status':delivered?MessageStatus.delivered.name:MessageStatus.sent.name,'deliveredAt':null,'readAt':null,'isDeleted':false,'isEdited':false,'isPinned':false,'replyToId':replyToId,'replyPreview':replyPreview,'reactions':<String,dynamic>{},if(idempotencyKey?.isNotEmpty==true)'idempotencyKey':idempotencyKey});
+      const delivered = false;
+      messageData = {
+        'chatId': chatId,
+        'senderId': id,
+        'senderName': user.displayName ?? 'مستخدم',
+        'senderPhotoUrl': user.photoURL,
+        'text': text,
+        'type': type,
+        'imageUrl': imageUrl,
+        'videoUrl': videoUrl,
+        'audioUrl': audioUrl,
+        'fileUrl': fileUrl,
+        'locationUrl': locationUrl,
+        'locationLat': locationLat,
+        'locationLng': locationLng,
+        'locationAddress': locationAddress,
+        'metadata': metadata,
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'fileMimeType': fileMimeType,
+        'audioDuration': audioDuration,
+        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'clientTimestamp': Timestamp.now(),
+        'isRead': false,
+        'isDelivered': delivered,
+        'status': delivered
+            ? MessageStatus.delivered.name
+            : MessageStatus.sent.name,
+        'deliveredAt': null,
+        'readAt': null,
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'replyToId': replyToId,
+        'replyPreview': replyPreview,
+        'reactions': <String, dynamic>{},
+        if (cleanIdempotencyKey.isNotEmpty)
+          'idempotencyKey': cleanIdempotencyKey,
+      };
     }
-    final preview=useEncryption?(type=='text'?'رسالة مشفرة':type=='image'?'صورة مشفرة':type=='video'?'فيديو مشفر':type=='audio'?'رسالة صوتية مشفرة':type=='file'?'ملف مشفر':'مرفق مشفر'):(text.trim().isNotEmpty?text.trim():type=='image'?'📷 صورة':type=='video'?'🎬 فيديو':type=='audio'?'🎤 رسالة صوتية':type=='file'?'📎 ملف':'مرفق');
-    final update=<String,dynamic>{'lastMessage':preview,'lastMessageTime':FieldValue.serverTimestamp(),'lastMessageSenderId':useEncryption?_security.summarySenderId(chatId,id):id,'updatedAt':FieldValue.serverTimestamp()};
-    for(final p in participants){if(p!=id)update['unreadCount.$p']=FieldValue.increment(1);}
-    batch.update(_chatRef(chatId),update);
-    await batch.commit();
+    final preview = useEncryption
+        ? (type == 'text'
+            ? 'رسالة مشفرة'
+            : type == 'image'
+                ? 'صورة مشفرة'
+                : type == 'video'
+                    ? 'فيديو مشفر'
+                    : type == 'audio'
+                        ? 'رسالة صوتية مشفرة'
+                        : type == 'file'
+                            ? 'ملف مشفر'
+                            : 'مرفق مشفر')
+        : (text.trim().isNotEmpty
+            ? text.trim()
+            : type == 'image'
+                ? '📷 صورة'
+                : type == 'video'
+                    ? '🎬 فيديو'
+                    : type == 'audio'
+                        ? '🎤 رسالة صوتية'
+                        : type == 'file'
+                            ? '📎 ملف'
+                            : 'مرفق');
+    final update = <String, dynamic>{
+      'lastMessage': preview,
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSenderId':
+          useEncryption ? _security.summarySenderId(chatId, id) : id,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    for (final participant in participants) {
+      if (participant != id) {
+        update['unreadCount.$participant'] = FieldValue.increment(1);
+      }
+    }
+
+    // Deterministic IDs plus a transaction make repeated/concurrent sends
+    // idempotent: only the transaction that creates the message updates unread
+    // counts and the chat preview.
+    await _firestore.runTransaction((transaction) async {
+      final existing = await transaction.get(ref);
+      if (existing.exists) return;
+      transaction.set(ref, messageData);
+      transaction.update(_chatRef(chatId), update);
+    });
+
     return ref.id;
   }
 

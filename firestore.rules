@@ -611,7 +611,7 @@ service cloud.firestore {
       allow create: if signedIn() &&
         request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.name is string &&
-        request.resource.data.name.size() >= 2 &&
+        request.resource.data.name.size() >= 1 &&
         request.resource.data.name.size() <= 80 &&
         request.resource.data.roomName is string &&
         request.resource.data.active == true;

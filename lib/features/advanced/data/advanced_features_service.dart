@@ -37,7 +37,7 @@ class AdvancedFeaturesService {
   Future<String> createVoiceRoom({required String name, String topic = ''}) async {
     final cleanName = name.trim();
     final cleanTopic = topic.trim();
-    if (cleanName.length < 2 || cleanName.length > 80) throw ArgumentError('اسم الغرفة غير صالح');
+    if (cleanName.isEmpty || cleanName.length > 80) throw ArgumentError('اسم الغرفة غير صالح');
     if (cleanTopic.length > 160) throw ArgumentError('وصف الغرفة طويل');
     final roomRef = _rooms.doc();
     await roomRef.set({
