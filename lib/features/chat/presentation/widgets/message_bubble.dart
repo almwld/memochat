@@ -119,6 +119,14 @@ class MessageBubble extends StatefulWidget {
 class _MessageBubbleState extends State<MessageBubble> {
   bool _isLocal(String path) => widget.message['isLocal'] == true || widget.message['isUploading'] == true || path.startsWith('file://') || (path.isNotEmpty && !path.startsWith('http') && File(path).existsSync());
 
+  String _firstNonEmpty(Map<String, dynamic> message, List<String> keys) {
+    for (final key in keys) {
+      final value = message[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
 
 
   Future<void> _sendToAnotherChat(File file) async {
@@ -207,11 +215,11 @@ class _MessageBubbleState extends State<MessageBubble> {
     final m = widget.message;
     switch (type) {
       case 'image':
-        return _withStatus(_buildImage(m['imageUrl']?.toString() ?? m['fileUrl']?.toString() ?? m['text']?.toString() ?? ''));
+        return _withStatus(_buildImage(_firstNonEmpty(m, ['imageUrl', 'fileUrl', 'text'])));
       case 'video':
-        return _withStatus(_buildVideo(m['videoUrl']?.toString() ?? m['fileUrl']?.toString() ?? m['text']?.toString() ?? ''));
+        return _withStatus(_buildVideo(_firstNonEmpty(m, ['videoUrl', 'fileUrl', 'text'])));
       case 'audio':
-        final url = m['audioUrl']?.toString() ?? m['fileUrl']?.toString() ?? m['text']?.toString() ?? '';
+        final url = _firstNonEmpty(m, ['audioUrl', 'fileUrl', 'text']);
         // Keep the original opaque audio-message bubble appearance from 5777e10.
         // Delivery/read state remains an icon beside the bubble.
         return Row(
@@ -778,7 +786,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildFile(Map<String, dynamic> m, bool dark) {
-    final url = m['fileUrl']?.toString() ?? m['text']?.toString() ?? '';
+    final url = _firstNonEmpty(m, ['fileUrl', 'text']);
     final name = (m['fileName']?.toString().trim().isNotEmpty == true)
         ? m['fileName'].toString()
         : 'ملف';
