@@ -514,12 +514,13 @@ class MediaTransferEngine {
   }
 
   String _remoteDirectory(Map<String, dynamic> job) {
-    final uid = job['uid'].toString();
+    // The authenticated Suga endpoint already scopes every file to
+    // MemoChat/users/<verified Firebase UID>; do not duplicate UID in the path.
     final type = job['type'].toString();
     final destination = job['destination'].toString();
-    if (destination == 'chat' || destination == 'voice') return 'chat/${uid}/${job['chat_id']}/${type}/${job['id']}';
-    if (destination == 'status') return 'status/${uid}/${type}/${job['id']}';
-    return 'social/${uid}/${job['collection_name']}/${type}/${job['id']}';
+    if (destination == 'chat' || destination == 'voice') return 'chat/${job['chat_id']}/${type}/${job['id']}';
+    if (destination == 'status') return 'status/${type}/${job['id']}';
+    return 'social/${job['collection_name']}/${type}/${job['id']}';
   }
 
   Future<MediaUploadResult> _upload({
