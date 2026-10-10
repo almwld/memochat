@@ -162,7 +162,7 @@ class LiveKitService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('يجب تسجيل الدخول قبل دخول غرفة الصوت');
 
-    final idToken = await user.getIdToken();
+    final idToken = await user.getIdToken(true);
     if (idToken == null || idToken.isEmpty) {
       throw Exception('تعذر الحصول على رمز Firebase');
     }
