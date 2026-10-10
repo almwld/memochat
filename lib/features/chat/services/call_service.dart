@@ -89,8 +89,8 @@ class CallService {
         'project=$projectId tokenLength=${token.length} '
         'aud=${claims['aud']} '
         'issuerMatches=${claims['iss'] == 'https://securetoken.google.com/$projectId'} '
-        'issuedAt=${tokenResult.issuedAtTime?.toIso8601String()} '
-        'expiresAt=${tokenResult.expirationTime?.toIso8601String()}',
+        'issuedAt=${tokenResult.issuedAtTime} '
+        'expiresAt=${tokenResult.expirationTime}',
       );
     }
     final response = await http.post(
