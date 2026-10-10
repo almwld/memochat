@@ -30,7 +30,7 @@ class LiveKitService {
     if (!kDebugMode) return;
     final token = result.token ?? '';
     final projectId = FirebaseAuth.instance.app.options.projectId ?? '';
-    final claims = result.claims;
+    final claims = result.claims ?? const <String, dynamic>{};
     debugPrint(
       'FIREBASE_AUTH_DIAGNOSTICS context=$context project=$projectId '
       'tokenLength=${token.length} aud=${claims['aud']} '
