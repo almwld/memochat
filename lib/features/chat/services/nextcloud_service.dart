@@ -240,7 +240,6 @@ class NextcloudService {
         final request = http.Request('GET', current)
           ..followRedirects = false
           ..maxRedirects = 0;
-        request.headers['Range'] = 'bytes=0-0';
         final response = await client.send(request).timeout(const Duration(seconds: 20));
         final status = response.statusCode;
         final location = response.headers['location'];
