@@ -184,6 +184,45 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   String _wallpaper = 'default';
   double _fontSize = 14.0;
   final _chatPrefs = ChatPreferencesService();
+  final Map<int, Offset> _zoomPointers = <int, Offset>{};
+  double? _zoomStartDistance;
+  double _zoomStartFontSize = 14.0;
+  Timer? _fontSizeSaveTimer;
+
+  void _handleZoomPointerDown(PointerDownEvent event) {
+    _zoomPointers[event.pointer] = event.position;
+    if (_zoomPointers.length == 2) {
+      final points = _zoomPointers.values.toList(growable: false);
+      _zoomStartDistance = (points[0] - points[1]).distance;
+      _zoomStartFontSize = _fontSize;
+    }
+  }
+
+  void _handleZoomPointerMove(PointerMoveEvent event) {
+    if (!_zoomPointers.containsKey(event.pointer)) return;
+    _zoomPointers[event.pointer] = event.position;
+    if (_zoomPointers.length != 2) return;
+
+    final startDistance = _zoomStartDistance;
+    if (startDistance == null || startDistance <= 0) return;
+    final points = _zoomPointers.values.toList(growable: false);
+    final distance = (points[0] - points[1]).distance;
+    final nextSize = (_zoomStartFontSize * distance / startDistance)
+        .clamp(10.0, 24.0)
+        .toDouble();
+    if ((nextSize - _fontSize).abs() < 0.12 || !mounted) return;
+
+    setState(() => _fontSize = nextSize);
+    _fontSizeSaveTimer?.cancel();
+    _fontSizeSaveTimer = Timer(const Duration(milliseconds: 250), () {
+      unawaited(_chatPrefs.setFontSize(_chatId, _fontSize));
+    });
+  }
+
+  void _handleZoomPointerEnd(PointerEvent event) {
+    _zoomPointers.remove(event.pointer);
+    if (_zoomPointers.length < 2) _zoomStartDistance = null;
+  }
   MessageModel? _replyingTo;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
       _firestore.collection('chats').doc(_chatId).collection('messages');
@@ -1240,6 +1279,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   @override
   void dispose() {
+    _fontSizeSaveTimer?.cancel();
+    if (_zoomPointers.isNotEmpty) _zoomPointers.clear();
     WidgetsBinding.instance.removeObserver(this);
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
@@ -1496,7 +1537,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                         color: dark ? Colors.white70 : const Color(0xFF49615E),
                         fontWeight: FontWeight.w600)))
           else
-            ListView.builder(
+            Listener(
+              onPointerDown: _handleZoomPointerDown,
+              onPointerMove: _handleZoomPointerMove,
+              onPointerUp: _handleZoomPointerEnd,
+              onPointerCancel: _handleZoomPointerEnd,
+              child: ListView.builder(
                 reverse: true,
                 padding: const EdgeInsets.all(8),
                 itemCount: all.length,
@@ -1598,6 +1644,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                     ],
                   );
                 }),
+            ),
           if (_showNewMessages)
             Positioned(
               right: 14,
