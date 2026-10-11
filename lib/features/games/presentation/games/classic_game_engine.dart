@@ -4,12 +4,20 @@ import 'package:flutter/material.dart';
 import '../../services/game_leaderboard_service.dart';
 import '../../services/game_achievement_service.dart';
 
+class ClassicGameQuestion {
+  final String prompt;
+  final List<String> options;
+  final int correctIndex;
+  const ClassicGameQuestion({required this.prompt, required this.options, required this.correctIndex});
+}
+
 class ClassicGameConfig {
   final String title;
   final String instruction;
   final List<String> options;
   final int correctIndex;
-  const ClassicGameConfig({required this.title, required this.instruction, required this.options, required this.correctIndex});
+  final List<ClassicGameQuestion> questions;
+  const ClassicGameConfig({required this.title, required this.instruction, required this.options, required this.correctIndex, this.questions = const []});
 }
 
 class ClassicGameEngine extends StatefulWidget {
@@ -33,7 +41,15 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
   @override
   void initState() { super.initState(); _shuffle(); }
 
-  void _shuffle() { _options = List<String>.from(widget.config.options)..shuffle(_random); }
+  ClassicGameQuestion? get _question => widget.config.questions.isEmpty
+      ? null
+      : widget.config.questions[(_round - 1) % widget.config.questions.length];
+
+  List<String> get _sourceOptions => _question?.options ?? widget.config.options;
+  int get _correctIndex => _question?.correctIndex ?? widget.config.correctIndex;
+  String get _prompt => _question?.prompt ?? widget.config.instruction;
+
+  void _shuffle() { _options = List<String>.from(_sourceOptions)..shuffle(_random); }
 
   void _start() {
     setState(() => _started = true);
@@ -60,7 +76,7 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
 
   void _answer(String value) {
     if (!_started || _paused || _finished) return;
-    final correct = value == widget.config.options[widget.config.correctIndex];
+    final correct = value == _sourceOptions[_correctIndex];
     setState(() {
       _selected = value;
       _correct = correct;
@@ -76,7 +92,7 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
     Future.delayed(const Duration(milliseconds: 360), () {
       if (!mounted || _finished) return;
       if (_seconds == 0) { _finish(); return; }
-      setState(() { _round++; _shuffle(); });
+      setState(() { _round++; _answered = false; _selected = null; _correct = null; _shuffle(); });
     });
   }
 
@@ -126,11 +142,11 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Text(widget.config.instruction, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                Text(_prompt, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 24),
                 ..._options.map((o) {
                   final selected = _selected == o;
-                  final isAnswer = _answered && o == widget.config.options[widget.config.correctIndex];
+                  final isAnswer = _answered && o == _sourceOptions[_correctIndex];
                   final isWrong = selected && _correct == false;
                   final border = isAnswer ? Theme.of(context).colorScheme.primary
                       : isWrong ? Theme.of(context).colorScheme.error
