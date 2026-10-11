@@ -108,13 +108,14 @@ class MessageBubble extends StatefulWidget {
   final VoidCallback? onEdit;
   final bool isFirstInChat;
   final VoidCallback? onReplyPreviewTap;
+  final VoidCallback? onViewOnce;
   final VoidCallback? onForward;
   final VoidCallback? onStar;
   final VoidCallback? onSelect;
   final void Function(String type)? onCallAgain;
   final double fontSize;
 
-  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.isFirstInChat = false, this.onReplyPreviewTap, this.onForward, this.onStar, this.onSelect, this.onCallAgain, this.fontSize = 14});
+  const MessageBubble({super.key, required this.message, required this.isMe, this.onReply, this.onDelete, this.onReaction, this.onPin, this.onDeleteForMe, this.onEdit, this.isFirstInChat = false, this.onReplyPreviewTap, this.onViewOnce, this.onForward, this.onStar, this.onSelect, this.onCallAgain, this.fontSize = 14});
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -380,6 +381,44 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildText(Map<String, dynamic> m, bool dark) {
+    if (!widget.isMe && m['viewOnce'] == true) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textDirection: TextDirection.rtl,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 4, bottom: 7),
+            child: _status(m),
+          ),
+          _shell(
+            InkWell(
+              onTap: widget.onViewOnce,
+              borderRadius: BorderRadius.circular(13),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.looks_one_rounded, size: 22),
+                    const SizedBox(width: 9),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('رسالة لمرة واحدة', style: TextStyle(color: dark ? Colors.white : const Color(0xFF111B21), fontSize: widget.fontSize, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Text('اضغط للعرض مرة واحدة', style: TextStyle(color: dark ? Colors.white60 : const Color(0xFF667781), fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            dark,
+          ),
+        ],
+      );
+    }
     final bubble = _shell(Padding(
       padding: const EdgeInsets.fromLTRB(13, 9, 10, 7),
       child: Column(
