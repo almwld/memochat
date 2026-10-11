@@ -323,6 +323,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     // frozen whenever an earlier send was slow, especially after rapid sends.
     final clientTimestamp = Timestamp.now();
     final messageId = 'msg_${clientTimestamp.microsecondsSinceEpoch}';
+    final replyToId = widget.replyToId;
     setState(() => _sending = true);
     try {
       widget.onSendMessage(text, clientTimestamp);
@@ -342,6 +343,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       text,
       clientTimestamp: clientTimestamp,
       messageId: messageId,
+      replyToId: replyToId,
     ));
   }
 
@@ -349,12 +351,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
     String text, {
     required Timestamp clientTimestamp,
     required String messageId,
+    String? replyToId,
   }) async {
     try {
       await ReliableMessageService.sendText(
         chatId: widget.chatId,
         text: text,
-        replyToId: widget.replyToId,
+        replyToId: replyToId,
         clientTimestamp: clientTimestamp,
         messageId: messageId,
       );
