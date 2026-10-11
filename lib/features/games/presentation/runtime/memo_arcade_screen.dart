@@ -1537,7 +1537,22 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapPicturePuzzle(Vector2 point) {
-    if (_pictureSolved) return;
+    if (_pictureSolved) {
+      if (point.y < 100) {
+        _pictureTiles
+          ..clear()
+          ..addAll(GameBoardRules.scramblePicture(
+            seed: '${gameId ?? type.name}:$_specialRound'.hashCode,
+          ));
+        _pictureSolved = false;
+        _specialRound++;
+        _syncBoardState({
+          'pictureTiles': _pictureTiles,
+          'pictureSolved': false,
+        });
+      }
+      return;
+    }
     _ensurePicturePuzzle();
     final rect = _squareBoardRect();
     if (!rect.contains(Offset(point.x, point.y))) return;
