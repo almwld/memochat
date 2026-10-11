@@ -39,7 +39,7 @@ class _AddStatusScreenState extends State<AddStatusScreen> {
   }
 
   Future<void> _pickImage() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 88);
+    final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 2560, maxHeight: 2560, imageQuality: 85);
     if (file == null || !mounted) return;
     setState(() {
       _selectedMedia = file;
