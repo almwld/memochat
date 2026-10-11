@@ -438,6 +438,10 @@ class MemoArcadeGame extends FlameGame {
 
   int _specialRound = 0;
   int _specialSecret = 0;
+  int _reactionGoal = 0;
+  int _higherLowerCurrent = 0;
+  int _higherLowerNext = 0;
+  int _higherLowerCorrect = 0;
   int _codeDigit = -1;
   int _codeAttempts = 0;
   int _mathAddend = 0;
@@ -471,16 +475,71 @@ class MemoArcadeGame extends FlameGame {
     i.paint(canvas, Offset(size.x / 2 - i.width / 2, 52));
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
-      case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
+      case ArcadeMode.choice:
+        if (type == GameType.emojiReaction) {
+          _renderOptions(canvas, 'اضغط الرمز المطلوب: ${content.options[_reactionGoal % content.options.length]}', content.options);
+        } else if (type == GameType.higherLower) {
+          if (_higherLowerCurrent == 0) {
+            _higherLowerCurrent = 1 + random.nextInt(99);
+            _higherLowerNext = 1 + random.nextInt(99);
+            _higherLowerCorrect = _higherLowerNext > _higherLowerCurrent
+                ? 0
+                : _higherLowerNext < _higherLowerCurrent ? 1 : 2;
+          }
+          _renderOptions(canvas, 'من $_higherLowerCurrent إلى $_higherLowerNext: هل ارتفع الرقم؟', content.options);
+        } else {
+          _renderOptions(canvas, 'اختر خيارك', content.options);
+        }
+        break;
       case ArcadeMode.math:
-        if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; _mathAddend = b; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
-        final q = '$_specialSecret + $_mathAddend = ؟';
-        _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList()); break;
+        if (_mathOptions.isEmpty) {
+          if (type == GameType.numberGuess) {
+            _specialSecret = 1 + random.nextInt(20);
+            _mathOptions = <int>{
+              _specialSecret,
+              (_specialSecret + 1).clamp(1, 20),
+              (_specialSecret + 4).clamp(1, 20),
+              (_specialSecret - 3).clamp(1, 20),
+            }.toList()..shuffle(random);
+            _mathCorrect = _mathOptions.indexOf(_specialSecret);
+          } else {
+            final a = 10 + random.nextInt(40);
+            final b = 2 + random.nextInt(9);
+            _specialSecret = a;
+            _mathAddend = b;
+            final correct = a + b;
+            _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random);
+            _mathCorrect = _mathOptions.indexOf(correct);
+          }
+        }
+        final q = type == GameType.numberGuess
+            ? 'خمن الرقم السري بين 1 و20'
+            : '$_specialSecret + $_mathAddend = ؟';
+        _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList());
+        break;
       case ArcadeMode.word:
-        final source = content.prompts.isEmpty ? 'كتاب' : content.prompts[_specialRound % content.prompts.length];
-        if (_wordOptions.isEmpty) { _wordOptions = [source, 'هاتف', 'شجرة', 'مدينة']..shuffle(random); _wordCorrect = _wordOptions.indexOf(source); }
-        final chars = source.runes.toList()..shuffle(random);
-        _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
+        const chainPrevious = <String>['كتاب', 'باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف'];
+        const chainNext = <String>['باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف', 'فاكهة'];
+        final n = _specialRound % (type == GameType.wordChain ? chainPrevious.length : math.max(1, content.prompts.length));
+        final source = type == GameType.wordChain
+            ? chainPrevious[n]
+            : (content.prompts.isEmpty ? 'كتاب' : content.prompts[n]);
+        final answer = type == GameType.wordChain ? chainNext[n] : source;
+        if (_wordOptions.isEmpty) {
+          final distractors = type == GameType.wordChain
+              ? <String>['شمس', 'قلم', 'مدينة']
+              : <String>['هاتف', 'شجرة', 'مدينة'];
+          _wordOptions = <String>{answer, ...distractors}.toList()..shuffle(random);
+          _wordCorrect = _wordOptions.indexOf(answer);
+        }
+        if (type == GameType.wordChain) {
+          final last = source.characters.isEmpty ? '' : source.characters.last;
+          _renderOptions(canvas, 'بعد «$source» اختر كلمة تبدأ بحرف «$last»', _wordOptions);
+        } else {
+          final chars = source.runes.toList()..shuffle(random);
+          _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions);
+        }
+        break;
       case ArcadeMode.code: if (_codeDigit < 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
       case ArcadeMode.lights:
         for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100.0 + (n ~/ 3) * 68.0; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
@@ -522,6 +581,23 @@ class MemoArcadeGame extends FlameGame {
     // short choice lists, where blank space must never count as an answer.
     final visibleCount = math.min(4, options.length);
     if (n >= visibleCount) return;
+    if (type == GameType.emojiReaction) {
+      score = math.max(0, score + (n == _reactionGoal ? 3 : -1));
+      _reactionGoal = random.nextInt(math.max(1, content.options.length));
+      _specialRound++;
+      onScore(score);
+      _syncScore();
+      return;
+    }
+    if (type == GameType.higherLower) {
+      score = math.max(0, score + (n == _higherLowerCorrect ? 2 : -1));
+      _higherLowerCurrent = 0;
+      _higherLowerNext = 0;
+      _specialRound++;
+      onScore(score);
+      _syncScore();
+      return;
+    }
     final hasAnswer = content.correctAnswers.isNotEmpty &&
         promptIndex < content.correctAnswers.length;
     final correct = hasAnswer ? content.correctAnswers[promptIndex] : -1;
