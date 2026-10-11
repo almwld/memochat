@@ -6,6 +6,8 @@ import '../../../core/widgets/premium_ui.dart';
 import '../../../features/chat/presentation/chat_navigation.dart';
 import '../../../features/chat/services/call_service.dart';
 import '../../../features/advanced/presentation/advanced_hub_screen.dart';
+import '../../../features/advanced/data/advanced_features_service.dart';
+import '../../../core/services/friend_request_service.dart';
 import '../../../features/communities/presentation/communities_screen.dart';
 import '../../../features/communities/data/community_service.dart';
 import '../../../features/contacts/presentation/contacts_screen.dart';
@@ -28,7 +30,90 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final _inbox = NotificationInbox();
   final _history = NotificationHistoryService();
 
-  Future<void> _openNotification(Map<String, dynamic> data) async {
+  Map<String, dynamic> _payload(Map<String, dynamic> data) {
+    final nested = data['data'];
+    return <String, dynamic>{
+      if (nested is Map) ...Map<String, dynamic>.from(nested),
+      ...data,
+    };
+  }
+
+  String _notificationType(Map<String, dynamic> data) =>
+      _payload(data)['type']?.toString() ?? data['type']?.toString() ?? '';
+
+  Future<void> _respondToInvitation(Map<String, dynamic> raw, {required bool accept}) async {
+    final data = _payload(raw);
+    final type = _notificationType(data);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    try {
+      if (type == 'friend_request') {
+        final requestId = data['requestId']?.toString() ?? '';
+        if (requestId.isEmpty) throw StateError('معرّف طلب الصداقة غير موجود');
+        if (accept) {
+          await FriendRequestService().accept(requestId);
+        } else {
+          await FriendRequestService().reject(requestId);
+        }
+      } else if (type == 'voice_room_invite') {
+        final inviteId = data['inviteId']?.toString() ?? '';
+        final ref = FirebaseFirestore.instance.collection('voiceRoomInvites').doc(inviteId);
+        final invite = await ref.get();
+        if (inviteId.isEmpty || !invite.exists || invite.data()?['recipientId']?.toString() != uid || invite.data()?['state'] != 'pending') {
+          throw StateError('الدعوة غير متاحة أو سبق الرد عليها');
+        }
+        await ref.update({'state': accept ? 'accepted' : 'rejected', 'updatedAt': FieldValue.serverTimestamp()});
+        if (accept) {
+          final roomId = invite.data()?['roomId']?.toString() ?? '';
+          if (roomId.isEmpty) throw StateError('معرّف الغرفة غير موجود');
+          final service = AdvancedFeaturesService();
+          await service.joinVoiceRoom(roomId);
+          final room = await FirebaseFirestore.instance.collection('voiceRooms').doc(roomId).get();
+          final roomData = room.data() ?? const <String, dynamic>{};
+          final roomName = roomData['roomName']?.toString() ?? '';
+          if (!room.exists || roomName.isEmpty) throw StateError('الغرفة لم تعد متاحة');
+          if (mounted) {
+            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => VoiceRoomScreen(roomId: roomId, roomName: roomName, title: roomData['name']?.toString() ?? 'غرفة صوتية')));
+          }
+        }
+      } else if (type == 'community_invite') {
+        final inviteId = data['inviteId']?.toString() ?? '';
+        final ref = FirebaseFirestore.instance.collection('communityInvites').doc(inviteId);
+        final invite = await ref.get();
+        if (inviteId.isEmpty || !invite.exists || invite.data()?['recipientId']?.toString() != uid || invite.data()?['state'] != 'pending') {
+          throw StateError('الدعوة غير متاحة أو سبق الرد عليها');
+        }
+        await ref.update({'state': accept ? 'accepted' : 'rejected', 'updatedAt': FieldValue.serverTimestamp()});
+        if (accept) {
+          final communityId = invite.data()?['communityId']?.toString() ?? '';
+          if (communityId.isEmpty) throw StateError('معرّف المجتمع غير موجود');
+          final service = CommunityService();
+          await service.joinCommunity(communityId);
+          final community = await FirebaseFirestore.instance.collection('communities').doc(communityId).get();
+          if (!community.exists) throw StateError('المجتمع لم يعد متاحاً');
+          if (mounted) {
+            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => CommunityDetailScreen(communityId: communityId, name: community.data()?['name']?.toString() ?? 'مجتمع', service: service)));
+          }
+        }
+      } else {
+        return;
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(accept ? 'تم قبول الدعوة.' : 'تم رفض الدعوة.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر ${accept ? 'قبول' : 'رفض'} الطلب: ${error.toString().replaceFirst('Bad state: ', '')}')));
+    }
+  }
+
+  Widget? _invitationActions(Map<String, dynamic> data) {
+    final type = _notificationType(data);
+    if (!const {'friend_request', 'voice_room_invite', 'community_invite'}.contains(type)) return null;
+    return Wrap(mainAxisSize: MainAxisSize.min, spacing: 0, children: [
+      IconButton(tooltip: 'قبول', visualDensity: VisualDensity.compact, icon: const Icon(Icons.check_circle_rounded), onPressed: () => _respondToInvitation(data, accept: true)),
+      IconButton(tooltip: 'رفض', visualDensity: VisualDensity.compact, icon: const Icon(Icons.cancel_outlined), onPressed: () => _respondToInvitation(data, accept: false)),
+    ]);
+  }
+
+  Future<void> _openNotification(Map<String, dynamic> rawData) async {
+    final data = _payload(rawData);
     final route = data['route']?.toString() ?? '';
     final callId = data['callId']?.toString() ?? '';
     final chatId = data['chatId']?.toString() ?? '';
@@ -192,6 +277,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                         ),
                       ),
                       subtitle: Text(data['body']?.toString() ?? ''),
+                      trailing: _invitationActions(data),
                       onTap: () async {
                         await _history.markRead(doc.id);
                         await _openNotification(data);
