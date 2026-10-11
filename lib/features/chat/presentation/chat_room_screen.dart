@@ -601,7 +601,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         }
       }
       final liveIds = liveMessages.map((m) => m.id).toSet();
-      final messages = <MessageModel>[...liveMessages, ..._olderMessages.where((m) => !liveIds.contains(m.id))];
+      final messages = <MessageModel>[...liveMessages, ..._olderMessages.where((m) => !liveIds.contains(m.id) && !_hiddenForCurrentUser(m.toFirestore()))];
       messages.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
       final remoteIds = messages.map((m) => m.id).toSet();
       final remoteMediaKeys = messages
@@ -1089,12 +1089,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       final existing = _messages.map((m) => m.id).toSet();
       final merged = <MessageModel>[..._messages];
       for (final m in page.messages) {
-        if (!existing.contains(m.id)) merged.add(m);
+        if (!existing.contains(m.id) && !_hiddenForCurrentUser(m.toFirestore())) merged.add(m);
       }
       merged.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
       setState(() {
         final knownOlder = _olderMessages.map((m) => m.id).toSet();
-        _olderMessages.addAll(page.messages.where((m) => !knownOlder.contains(m.id)));
+        _olderMessages.addAll(page.messages.where((m) => !knownOlder.contains(m.id) && !_hiddenForCurrentUser(m.toFirestore())));
         _messages = merged;
         _oldestMessageDocument = page.lastDocument ?? _oldestMessageDocument;
         _hasMoreMessages = page.hasMore;
@@ -1156,6 +1156,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         return;
       }
       if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((item) => item.id == message.id);
+        _olderMessages.removeWhere((item) => item.id == message.id);
+      });
       await showDialog<void>(
         context: context,
         barrierDismissible: true,
@@ -1734,6 +1738,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         ChatInputBar(
             chatId: _chatId,
             replyToId: _replyingTo?.id,
+            onClearReply: _clearReply,
             onSendMessage: (text, clientTimestamp) {
               unawaited(_setTyping(false));
               final replyingTo = _replyingTo;
