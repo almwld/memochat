@@ -565,10 +565,10 @@ let messageListenerUnsubscribe = null;
 
 function messageNotificationText(message) {
   const type = String(message.type || 'text').toLowerCase();
+  if (message.isDeleted === true || ['deleted', 'system', 'reaction', 'call', 'gameinvite', 'game_invite'].includes(type)) return null;
   if (type === 'encrypted' || message.e2eeVersion != null || message.e2eePayloads) {
     return { type: 'text_message', body: 'لديك رسالة مشفرة جديدة في MemoChat' };
   }
-  if (message.isDeleted === true || ['deleted', 'system', 'reaction', 'call', 'gameinvite', 'game_invite'].includes(type)) return null;
   switch (type) {
     case 'image': return { type: 'image_message', body: '📷 أرسل صورة' };
     case 'video': return { type: 'video_message', body: '🎬 أرسل فيديو' };
