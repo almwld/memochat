@@ -65,9 +65,13 @@ class _ShakeScreenState extends State<ShakeScreen>
         _otherUserId = match.otherUserId;
         _loadUser(match.otherUserId);
       },
-      onError: (_) {
+      onError: (error) {
+        _animation.stop();
         if (mounted) {
-          setState(() => _status = 'تعذر تشغيل التعارف بالرجّ');
+          setState(() {
+            _searching = false;
+            _status = 'تعذر تشغيل التعارف بالرجّ: ${error.toString()}';
+          });
         }
       },
     );
@@ -78,13 +82,33 @@ class _ShakeScreenState extends State<ShakeScreen>
     try {
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      if (!mounted || !doc.exists) return;
+      if (!mounted) return;
+      if (!doc.exists) {
+        setState(() {
+          _matched = false;
+          _searching = false;
+          _status = 'تم العثور على إشارة، لكن ملف المستخدم غير متاح. حاول مرة أخرى.';
+        });
+        _animation.stop();
+        return;
+      }
       setState(() {
         _user = doc.data();
+        _searching = false;
         _status = 'تم العثور على شخص يشاركك الرجّة';
       });
+      // Keep the matched profile on screen so the user can review it and
+      // explicitly choose to open the conversation.
       _animation.stop();
-      await _openMatchedChat();
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _matched = false;
+          _searching = false;
+          _status = 'تعذر تحميل نتيجة التعارف: ${error.toString()}';
+        });
+        _animation.stop();
+      }
     } finally {
       _loadingUser = false;
     }
