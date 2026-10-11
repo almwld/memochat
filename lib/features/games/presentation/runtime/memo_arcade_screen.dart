@@ -509,10 +509,26 @@ class MemoArcadeGame extends FlameGame {
 
   void _tapChoice(Vector2 point) {
     final n = ((point.y - 150) / 62).floor();
-    if (n < 0 || n > 3) return;
-    final promptIndex = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
-    final correct = content.correctAnswers.isNotEmpty && promptIndex < content.correctAnswers.length ? content.correctAnswers[promptIndex] : 0;
-    score = math.max(0, score + (n == correct ? 2 : -1));
+    if (n < 0) return;
+    final promptIndex =
+        content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
+    final options = content.mode == ArcadeMode.quiz &&
+            content.choicesByPrompt.isNotEmpty &&
+            promptIndex < content.choicesByPrompt.length
+        ? content.choicesByPrompt[promptIndex]
+        : content.options;
+    // Ignore taps in unused rows. This matters for true/false questions and
+    // short choice lists, where blank space must never count as an answer.
+    final visibleCount = math.min(4, options.length);
+    if (n >= visibleCount) return;
+    final hasAnswer = content.correctAnswers.isNotEmpty &&
+        promptIndex < content.correctAnswers.length;
+    final correct = hasAnswer ? content.correctAnswers[promptIndex] : -1;
+    if (hasAnswer) {
+      score = math.max(0, score + (n == correct ? 2 : -1));
+    } else {
+      score += 1;
+    }
     _specialRound++;
     onScore(score);
     _syncScore();
