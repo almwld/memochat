@@ -109,6 +109,8 @@ async function sendToUser(uid,payload){
       ? preferences[enabledKey]
       : typeof legacyEnabled==='boolean' ? legacyEnabled : true;
     if(!enabled)return;
+    const tokens=await getFcmTokens(uid);
+    if(!tokens.length)return;
     const previewEnabled=preferences.notification_message_preview!==false;
     const soundEnabled=messageTypes.has(type)
       ? preferences.notification_message_sounds!==false
