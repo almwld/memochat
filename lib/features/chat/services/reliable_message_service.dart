@@ -40,6 +40,7 @@ class ReliableMessageService {
     String? replyToId,
     Timestamp? clientTimestamp,
     String? messageId,
+    bool viewOnce = false,
   }) async {
     _ensureRetryMonitor();
     final user = _auth.currentUser;
@@ -63,7 +64,9 @@ class ReliableMessageService {
     try {
       final id = await ChatService().sendMessage(
         chatId: chatId, text: value, messageId: stableMessageId,
-        replyToId: effectiveReplyId, idempotencyKey: 'text_$stableMessageId',
+        replyToId: effectiveReplyId,
+        metadata: viewOnce ? <String, dynamic>{'viewOnce': true} : null,
+        idempotencyKey: 'text_$stableMessageId',
       );
       if (effectiveReplyId != null && effectiveReplyId.isNotEmpty) {
         ChatReplyContext.instance.clear(chatId);
@@ -71,10 +74,13 @@ class ReliableMessageService {
       unawaited(flushPending());
       return id;
     } on FirebaseException catch (e) {
-      if (!_isTransientFirestoreError(e.code)) rethrow;
+      // View-once messages must not enter the generic offline queue because its
+      // current schema intentionally does not persist message metadata.
+      if (viewOnce || !_isTransientFirestoreError(e.code)) rethrow;
       await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
       return stableMessageId;
     } on StateError catch (e) {
+      if (viewOnce) rethrow;
       final message = e.message.toString();
       if (message.contains('حزمة Signal للمستلم غير متاحة')) {
         await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
@@ -82,6 +88,7 @@ class ReliableMessageService {
       }
       rethrow;
     } on SocketException {
+      if (viewOnce) rethrow;
       await _pendingQueue.enqueue(PendingMessage(id: stableMessageId, conversationId: chatId, text: value, createdAt: effectiveTimestamp.toDate()));
       return stableMessageId;
     }
