@@ -1692,16 +1692,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
               child: Material(
                 color: AppColors.primary,
                 elevation: 5,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(18),
                 child: InkWell(
                   onTap: _scrollToLatest,
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(18),
                   child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    padding: EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.keyboard_double_arrow_down_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 5),
-                      Text('رسائل جديدة', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                      Icon(Icons.keyboard_double_arrow_down_rounded, color: Colors.white, size: 15),
+                      SizedBox(width: 3),
+                      Text('رسائل جديدة', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
                     ]),
                   ),
                 ),
