@@ -61,6 +61,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   bool _startingRecording = false;
   bool _paused = false;
   bool _sending = false;
+  bool _viewOnceEnabled = false;
   bool _attachments = false;
   bool _gamesOpening = false;
   bool _loadingRecent = false;
@@ -324,6 +325,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final clientTimestamp = Timestamp.now();
     final messageId = 'msg_${clientTimestamp.microsecondsSinceEpoch}';
     final replyToId = widget.replyToId;
+    final viewOnce = _viewOnceEnabled;
     setState(() => _sending = true);
     try {
       widget.onSendMessage(text, clientTimestamp);
@@ -333,7 +335,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
       ToastService.showError('تعذر تجهيز الرسالة للإرسال.');
       return;
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) setState(() {
+        _sending = false;
+        _viewOnceEnabled = false;
+      });
     }
 
     // Each message has a stable id and its own delivery future. Do not block
@@ -344,6 +349,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       clientTimestamp: clientTimestamp,
       messageId: messageId,
       replyToId: replyToId,
+      viewOnce: viewOnce,
     ));
   }
 
@@ -352,6 +358,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     required Timestamp clientTimestamp,
     required String messageId,
     String? replyToId,
+    bool viewOnce = false,
   }) async {
     try {
       await ReliableMessageService.sendText(
@@ -360,6 +367,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
         replyToId: replyToId,
         clientTimestamp: clientTimestamp,
         messageId: messageId,
+        viewOnce: viewOnce,
       );
     } catch (e) {
       debugPrint('chat text send failed ($messageId): $e');
@@ -838,6 +846,17 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 contentPadding: const EdgeInsets.symmetric(vertical: 11),
                               ),
                             ),
+                          ),
+                          IconButton(
+                            tooltip: _viewOnceEnabled ? 'إلغاء المشاهدة لمرة واحدة' : 'إرسال للمشاهدة مرة واحدة',
+                            onPressed: _sending || !_hasText
+                                ? null
+                                : () => setState(() => _viewOnceEnabled = !_viewOnceEnabled),
+                            icon: Icon(
+                              _viewOnceEnabled ? Icons.visibility_off_rounded : Icons.looks_one_rounded,
+                              color: _viewOnceEnabled ? const Color(0xFF00A884) : iconColor,
+                            ),
+                            splashRadius: 21,
                           ),
                           IconButton(
                             tooltip: 'الألعاب',
