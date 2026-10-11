@@ -79,6 +79,39 @@ class CallService {
     if (token == null || token.isEmpty) {
       throw Exception('تعذر الحصول على Firebase ID token لإشعار المكالمة');
     }
+
+    // Inspect only non-secret JWT claims locally. Never log or transmit the
+    // token anywhere except the authenticated Suga endpoint.
+    final tokenParts = token.split('.');
+    if (tokenParts.length != 3) {
+      throw Exception('صيغة Firebase ID token غير صالحة');
+    }
+    Map<String, dynamic> claims;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(tokenParts[1])),
+      );
+      claims = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+    } catch (_) {
+      throw Exception('تعذر قراءة بيانات Firebase ID token');
+    }
+    final expectedProjectId = _auth.app.options.projectId;
+    final tokenAudience = claims['aud']?.toString();
+    final tokenIssuer = claims['iss']?.toString();
+    debugPrint(
+      'CALL AUTH DIAGNOSTIC: appProject=$expectedProjectId '
+      'tokenAudience=$tokenAudience '
+      'issuerProject=${tokenIssuer != null && tokenIssuer.startsWith('https://securetoken.google.com/') ? tokenIssuer.substring('https://securetoken.google.com/'.length) : 'unknown'}',
+    );
+    if (expectedProjectId.isNotEmpty &&
+        tokenAudience != null &&
+        tokenAudience != expectedProjectId) {
+      throw StateError(
+        'مشروع Firebase للتطبيق لا يطابق مشروع رمز المصادقة؛ '
+        'المتوقع $expectedProjectId والموجود $tokenAudience',
+      );
+    }
+
     final response = await http.post(
       Uri.parse('$_callNotificationEndpoint/call-notification'),
       headers: <String, String>{
@@ -88,7 +121,17 @@ class CallService {
       body: jsonEncode(<String, dynamic>{'callId': callId}),
     ).timeout(const Duration(seconds: 12));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('فشل إرسال إشعار المكالمة: HTTP ${response.statusCode}');
+      String? serverCode;
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map) serverCode = body['code']?.toString();
+      } catch (_) {
+        // Do not expose arbitrary server response bodies to the UI.
+      }
+      final suffix = serverCode == null ? '' : ' ($serverCode)';
+      throw Exception(
+        'فشل إرسال إشعار المكالمة: HTTP ${response.statusCode}$suffix',
+      );
     }
   }
   Future<CallModel?> initiateCall({required String receiverId, required String receiverName, String? receiverPhotoUrl, required CallType type, required String chatId, String? idempotencyKey}) async {
@@ -181,7 +224,7 @@ class CallService {
     final saved = await _retry(() => ref.get());
     if (!saved.exists) throw Exception('تعذر حفظ المكالمة');
     final call = CallModel.fromFirestore(id,saved.data()!);
-    // Firestore is the source of truth; Railway is the explicit FCM wake bridge.
+    // Firestore is the source of truth; Suga is the explicit FCM wake bridge.
     // Notify only after the call document is durably persisted.
     try {
       await _notifyIncomingCall(callId: id);
