@@ -8,6 +8,7 @@ import '../../services/game_service.dart';
 import '../../models/game.dart';
 import '../../models/game_session.dart';
 import 'arcade_content.dart';
+import 'game_board_rules.dart';
 
 class MemoArcadeScreen extends StatefulWidget {
   const MemoArcadeScreen({super.key, required this.type, this.chatId = '', this.gameId});
@@ -42,6 +43,12 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
             _remoteScore = remote ?? 0;
             _sessionStatus = session.status.name;
           });
+          game.applyRemoteState(
+            session.state,
+            currentTurn: session.currentTurn,
+            players: session.players,
+            status: session.status.name,
+          );
           if (round is num) game.applyRemoteRound(round.toInt());
         },
         onError: (_) {
@@ -151,6 +158,33 @@ class MemoArcadeGame extends FlameGame {
   int combo = 0;
   Vector2? _playerPosition;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
+
+  static const List<int> _sudokuPuzzle = <int>[
+    1, 0, 0, 4,
+    0, 4, 1, 0,
+    0, 1, 4, 0,
+    4, 0, 0, 1,
+  ];
+  final List<int> _xoBoard = List<int>.filled(9, 0);
+  final List<int> _fourBoard = List<int>.filled(42, 0);
+  final List<bool> _dotsHorizontal = List<bool>.filled(12, false);
+  final List<bool> _dotsVertical = List<bool>.filled(12, false);
+  final List<int> _dotsBoxOwners = List<int>.filled(9, 0);
+  final List<int> _sudokuValues = List<int>.from(_sudokuPuzzle);
+  final List<int> _pictureTiles = <int>[];
+  List<String> _sessionPlayers = <String>[];
+  String? _currentTurnUid;
+  String? _localUid;
+  String? _sessionStatus;
+  int _xoTurn = 1;
+  int _xoWinner = 0;
+  int _fourTurn = 1;
+  int _fourWinner = 0;
+  int _dotsTurn = 1;
+  bool _dotsFinished = false;
+  int _sudokuTurn = 1;
+  bool _sudokuSolved = false;
+  bool _pictureSolved = false;
 
   bool get supportsDragMovement =>
       type == GameType.mazeRunner || type == GameType.galaxyCatch;
@@ -536,6 +570,9 @@ class MemoArcadeGame extends FlameGame {
       case GameType.treasureHunt:
         _tapExplorer(point);
         return;
+      case GameType.xo:
+        _tapXo(point);
+        return;
       case GameType.quizBattle:
       case GameType.trivia:
       case GameType.trueFalse:
@@ -745,6 +782,105 @@ class MemoArcadeGame extends FlameGame {
   int _pairFirst = -1;
   int _raceProgress = 0;
 
+  void applyRemoteState(
+    Map<String, dynamic> state, {
+    required String? currentTurn,
+    required List<String> players,
+    required String status,
+  }) {
+    _sessionPlayers = List<String>.from(players);
+    _currentTurnUid = currentTurn;
+    _sessionStatus = status;
+    _localUid = FirebaseAuth.instance.currentUser?.uid;
+
+    _copyIntList(_xoBoard, state['xoBoard']);
+    _copyIntList(_fourBoard, state['fourBoard']);
+    _copyBoolList(_dotsHorizontal, state['dotsHorizontal']);
+    _copyBoolList(_dotsVertical, state['dotsVertical']);
+    _copyIntList(_dotsBoxOwners, state['dotsBoxOwners']);
+    _copyIntList(_sudokuValues, state['sudokuValues']);
+
+    final picture = state['pictureTiles'];
+    if (picture is List && picture.length == 16) {
+      _pictureTiles
+        ..clear()
+        ..addAll(picture.map((value) => value is num ? value.toInt() : 0));
+    }
+
+    _xoWinner = (state['xoWinner'] as num?)?.toInt() ?? _xoWinner;
+    _fourWinner = (state['fourWinner'] as num?)?.toInt() ?? _fourWinner;
+    _dotsFinished = state['dotsFinished'] == true;
+    _sudokuSolved = state['sudokuSolved'] == true;
+    _pictureSolved = state['pictureSolved'] == true;
+  }
+
+  void _copyIntList(List<int> target, Object? raw) {
+    if (raw is! List || raw.length != target.length) return;
+    for (var i = 0; i < target.length; i++) {
+      target[i] = raw[i] is num ? (raw[i] as num).toInt() : 0;
+    }
+  }
+
+  void _copyBoolList(List<bool> target, Object? raw) {
+    if (raw is! List || raw.length != target.length) return;
+    for (var i = 0; i < target.length; i++) {
+      target[i] = raw[i] == true;
+    }
+  }
+
+  bool get _isMultiplayerSession =>
+      chatId.trim().isNotEmpty && gameId?.trim().isNotEmpty == true;
+
+  bool get _canPlayTurn {
+    if (!_isMultiplayerSession) return true;
+    return _sessionStatus == GameStatus.playing.name &&
+        _localUid != null &&
+        _currentTurnUid == _localUid;
+  }
+
+  int _localMarker(int soloTurn) {
+    if (!_isMultiplayerSession) return soloTurn;
+    if (_localUid == null) return 0;
+    final index = _sessionPlayers.indexOf(_localUid!);
+    return index < 0 || index > 1 ? 0 : index + 1;
+  }
+
+  String? _nextTurnUid() {
+    if (!_isMultiplayerSession || _sessionPlayers.length < 2 || _localUid == null) {
+      return null;
+    }
+    for (final player in _sessionPlayers) {
+      if (player != _localUid) return player;
+    }
+    return _localUid;
+  }
+
+  Future<void> _syncBoardState(
+    Map<String, dynamic> boardState, {
+    String? currentTurn,
+  }) async {
+    final id = gameId?.trim();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || id.isEmpty || uid == null || chatId.trim().isEmpty) return;
+    if (currentTurn != null) _currentTurnUid = currentTurn;
+    try {
+      await GameService.instance.updatePlayerState(
+        chatId: chatId,
+        gameId: id,
+        uid: uid,
+        state: <String, dynamic>{
+          ...boardState,
+          'gameType': type.name,
+          'round': _specialRound,
+        },
+        score: score,
+        currentTurn: currentTurn,
+      );
+    } catch (_) {
+      // The board remains playable locally if the realtime session is offline.
+    }
+  }
+
   void applyRemoteRound(int round) {
     if (round < 0 || round == _specialRound) return;
     _specialRound = round;
@@ -766,6 +902,10 @@ class MemoArcadeGame extends FlameGame {
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice:
+        if (type == GameType.xo) {
+          _renderXo(canvas, paint);
+          break;
+        }
         final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
         final prompt = content.prompts.isEmpty ? 'اختر أحد الخيارات' : content.prompts[n];
         final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length
@@ -897,7 +1037,292 @@ class MemoArcadeGame extends FlameGame {
     _syncScore();
   }
   void _tapLights(Vector2 point) { if (point.y < 100) return; final col = ((point.x - 8) / ((size.x - 24) / 3)).floor(); final row = ((point.y - 100) / 68).floor(); if (row < 0 || row > 2 || col < 0 || col > 2) return; final n = row * 3 + col; for (final j in [n, n - 1, n + 1, n - 3, n + 3]) { if (j >= 0 && j < 9 && (j ~/ 3 == row || j % 3 == col)) _lights[j] = !_lights[j]; } if (_lights.every((v) => !v)) { score += 5; for (var k = 0; k < 9; k++) _lights[k] = true; onScore(score); _syncScore(); } }
+  Rect _squareBoardRect() {
+    final side = math.max(1.0, math.min(size.x - 40, size.y - 220));
+    return Rect.fromLTWH(
+      (size.x - side) / 2,
+      math.max(100.0, (size.y - side) / 2),
+      side,
+      side,
+    );
+  }
+
+  Rect _fourBoardRect() {
+    final availableHeight = math.max(80.0, size.y - 180);
+    final width = math.max(1.0, math.min(size.x - 32, availableHeight * 7 / 6));
+    final height = width * 6 / 7;
+    return Rect.fromLTWH((size.x - width) / 2, math.max(100.0, (size.y - height) / 2), width, height);
+  }
+
+  void _drawBoardLabel(Canvas canvas, String text, double y) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    painter.paint(canvas, Offset((size.x - painter.width) / 2, y));
+  }
+
+  void _renderXo(Canvas canvas, Paint paint) {
+    final rect = _squareBoardRect();
+    final cell = rect.width / 3;
+    final status = _xoWinner == 3
+        ? 'تعادل — اضغط أعلى الشاشة لجولة جديدة'
+        : _xoWinner != 0
+            ? 'فاز اللاعب $_xoWinner — اضغط أعلى الشاشة لجولة جديدة'
+            : _isMultiplayerSession
+                ? (_canPlayTurn ? 'دورك الآن' : 'بانتظار حركة الخصم')
+                : 'دور اللاعب $_xoTurn';
+    _drawBoardLabel(canvas, status, rect.top - 24);
+    for (var index = 0; index < 9; index++) {
+      final row = index ~/ 3;
+      final column = index % 3;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      paint
+        ..style = PaintingStyle.fill
+        ..color = const Color(0xFF123438);
+      canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(12)), paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0xFF39D5C5);
+      canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(12)), paint);
+      final marker = _xoBoard[index];
+      if (marker == 1) {
+        final center = tile.center;
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(4.0, cell * .045)
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF43D9C5);
+        canvas.drawLine(
+          Offset(center.dx - cell * .22, center.dy - cell * .22),
+          Offset(center.dx + cell * .22, center.dy + cell * .22),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(center.dx + cell * .22, center.dy - cell * .22),
+          Offset(center.dx - cell * .22, center.dy + cell * .22),
+          paint,
+        );
+      } else if (marker == 2) {
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(4.0, cell * .045)
+          ..color = const Color(0xFFFFC857);
+        canvas.drawCircle(tile.center, cell * .23, paint);
+      }
+    }
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _renderFourInRow(Canvas canvas, Paint paint) {
+    final rect = _fourBoardRect();
+    final cell = rect.width / 7;
+    _drawBoardLabel(
+      canvas,
+      _fourWinner == 3
+          ? 'تعادل — اضغط أعلى الشاشة لجولة جديدة'
+          : _fourWinner != 0
+              ? 'فاز اللاعب $_fourWinner — اضغط أعلى الشاشة لجولة جديدة'
+              : _isMultiplayerSession
+                  ? (_canPlayTurn ? 'اختر عمودًا في دورك' : 'بانتظار الخصم')
+                  : 'دور اللاعب $_fourTurn — اختر عمودًا',
+      rect.top - 24,
+    );
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFF12445B);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)), paint);
+    for (var row = 0; row < 6; row++) {
+      for (var column = 0; column < 7; column++) {
+        final marker = _fourBoard[row * 7 + column];
+        final center = Offset(rect.left + (column + .5) * cell, rect.top + (row + .5) * cell);
+        paint.color = marker == 1
+            ? const Color(0xFF40D8C4)
+            : marker == 2
+                ? const Color(0xFFFFC857)
+                : const Color(0xFF08232B);
+        canvas.drawCircle(center, cell * .38, paint);
+        if (marker != 0) {
+          paint
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = Colors.white.withOpacity(.65);
+          canvas.drawCircle(center, cell * .38, paint);
+          paint.style = PaintingStyle.fill;
+        }
+      }
+    }
+  }
+
+  void _renderDotsAndBoxes(Canvas canvas, Paint paint) {
+    final rect = _squareBoardRect();
+    final cell = rect.width / 3;
+    _drawBoardLabel(
+      canvas,
+      _dotsFinished
+          ? 'اكتملت المربعات'
+          : _isMultiplayerSession
+              ? (_canPlayTurn ? 'ارسم خطًا في دورك' : 'بانتظار الخصم')
+              : 'دور اللاعب $_dotsTurn — صِل بين نقطتين',
+      rect.top - 24,
+    );
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 3; column++) {
+        final owner = _dotsBoxOwners[row * 3 + column];
+        if (owner == 0) continue;
+        paint
+          ..style = PaintingStyle.fill
+          ..color = owner == 1 ? const Color(0x5539D5C5) : const Color(0x55FFC857);
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + column * cell + 5, rect.top + row * cell + 5, cell - 10, cell - 10),
+          paint,
+        );
+        _drawCenteredText(
+          canvas,
+          owner == 1 ? '1' : '2',
+          Offset(rect.left + (column + .5) * cell, rect.top + (row + .5) * cell),
+          const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+        );
+      }
+    }
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 3; column++) {
+        if (!_dotsHorizontal[row * 3 + column]) continue;
+        paint.color = const Color(0xFF39D5C5);
+        canvas.drawLine(
+          Offset(rect.left + column * cell, rect.top + row * cell),
+          Offset(rect.left + (column + 1) * cell, rect.top + row * cell),
+          paint,
+        );
+      }
+    }
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 4; column++) {
+        if (!_dotsVertical[row * 4 + column]) continue;
+        paint.color = const Color(0xFFFFC857);
+        canvas.drawLine(
+          Offset(rect.left + column * cell, rect.top + row * cell),
+          Offset(rect.left + column * cell, rect.top + (row + 1) * cell),
+          paint,
+        );
+      }
+    }
+    paint
+      ..style = PaintingStyle.fill
+      ..color = Colors.white;
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 4; column++) {
+        canvas.drawCircle(Offset(rect.left + column * cell, rect.top + row * cell), 5, paint);
+      }
+    }
+  }
+
+  void _renderPicturePuzzle(Canvas canvas, Paint paint) {
+    _ensurePicturePuzzle();
+    final rect = _squareBoardRect();
+    final cell = rect.width / 4;
+    _drawBoardLabel(canvas, _pictureSolved ? 'أحسنت! اكتملت الصورة' : 'رتّب الأرقام من 1 إلى 15', rect.top - 24);
+    for (var index = 0; index < 16; index++) {
+      final row = index ~/ 4;
+      final column = index % 4;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      final value = _pictureTiles[index];
+      paint
+        ..style = PaintingStyle.fill
+        ..color = value == 0 ? const Color(0xFF071719) : palette[(value - 1) % palette.length];
+      canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(10)), paint);
+      if (value != 0) {
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = Colors.white.withOpacity(.7);
+        canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(10)), paint);
+        _drawCenteredText(
+          canvas,
+          value.toString(),
+          tile.center,
+          const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900),
+        );
+      }
+    }
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _renderSudoku(Canvas canvas, Paint paint) {
+    final rect = _squareBoardRect();
+    final cell = rect.width / 4;
+    _drawBoardLabel(canvas, _sudokuSolved ? 'تم حل السودوكو!' : 'املأ الخانات بالأرقام من 1 إلى 4', rect.top - 24);
+    for (var index = 0; index < 16; index++) {
+      final row = index ~/ 4;
+      final column = index % 4;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      final fixed = _sudokuPuzzle[index] != 0;
+      paint
+        ..style = PaintingStyle.fill
+        ..color = fixed ? const Color(0xFF245C59) : const Color(0xFF123438);
+      canvas.drawRect(tile, paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = row % 2 == 0 && column % 2 == 0 ? 2.5 : 1
+        ..color = const Color(0xFF70BDB4);
+      canvas.drawRect(tile, paint);
+      final value = _sudokuValues[index];
+      if (value != 0) {
+        _drawCenteredText(
+          canvas,
+          value.toString(),
+          tile.center,
+          TextStyle(
+            color: fixed ? Colors.white : const Color(0xFFB3F55A),
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        );
+      }
+    }
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _drawCenteredText(Canvas canvas, String text, Offset center, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, Offset(center.dx - painter.width / 2, center.dy - painter.height / 2));
+  }
+
+  void _ensurePicturePuzzle() {
+    if (_pictureTiles.isNotEmpty) return;
+    _pictureTiles.addAll(
+      GameBoardRules.scramblePicture(seed: (gameId ?? type.name).hashCode),
+    );
+  }
+
   void _renderPairs(Canvas canvas, Paint paint) {
+    switch (type) {
+      case GameType.fourInRow:
+        _renderFourInRow(canvas, paint);
+        return;
+      case GameType.dotsAndBoxes:
+        _renderDotsAndBoxes(canvas, paint);
+        return;
+      case GameType.picturePuzzle:
+        _renderPicturePuzzle(canvas, paint);
+        return;
+      case GameType.sudokuDuel:
+        _renderSudoku(canvas, paint);
+        return;
+      default:
+        break;
+    }
     if (_pairOrder.isEmpty) _pairOrder.addAll(List<int>.generate(16, (i) => i ~/ 2)..shuffle(random));
     final w = (size.x - 36) / 4;
     for (var n = 0; n < 16; n++) {
@@ -913,7 +1338,303 @@ class MemoArcadeGame extends FlameGame {
     }
   }
 
+  void _tapXo(Vector2 point) {
+    if (_xoWinner != 0) {
+      if (point.y < 100 && _canPlayTurn) {
+        _xoBoard.fillRange(0, _xoBoard.length, 0);
+        _xoWinner = 0;
+        _xoTurn = 1;
+        _specialRound++;
+        _syncBoardState({'xoBoard': _xoBoard, 'xoWinner': 0});
+        onScore(score);
+      }
+      return;
+    }
+    if (!_canPlayTurn) return;
+    final rect = _squareBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 3;
+    final column = ((point.x - rect.left) / cell).floor();
+    final row = ((point.y - rect.top) / cell).floor();
+    if (row < 0 || row >= 3 || column < 0 || column >= 3) return;
+    final index = row * 3 + column;
+    if (_xoBoard[index] != 0) return;
+    final marker = _localMarker(_xoTurn);
+    if (marker == 0) return;
+    _xoBoard[index] = marker;
+    _xoWinner = GameBoardRules.findWinner(
+      _xoBoard,
+      rows: 3,
+      columns: 3,
+      runLength: 3,
+    );
+    if (_xoWinner == 0 && _xoBoard.every((value) => value != 0)) {
+      _xoWinner = 3;
+    }
+    if (_xoWinner == marker) score += 3;
+    if (_xoWinner == 0 && !_isMultiplayerSession) _xoTurn = 3 - _xoTurn;
+    _specialRound++;
+    onScore(score);
+    final nextTurn = _xoWinner == 0 ? _nextTurnUid() : null;
+    _syncBoardState(
+      {'xoBoard': _xoBoard, 'xoWinner': _xoWinner},
+      currentTurn: nextTurn,
+    );
+  }
+
+  void _tapFourInRow(Vector2 point) {
+    if (_fourWinner != 0) {
+      if (point.y < 100 && _canPlayTurn) {
+        _fourBoard.fillRange(0, _fourBoard.length, 0);
+        _fourWinner = 0;
+        _fourTurn = 1;
+        _specialRound++;
+        _syncBoardState({'fourBoard': _fourBoard, 'fourWinner': 0});
+      }
+      return;
+    }
+    if (!_canPlayTurn) return;
+    final rect = _fourBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 7;
+    final column = ((point.x - rect.left) / cell).floor();
+    if (column < 0 || column >= 7) return;
+    var target = -1;
+    for (var row = 5; row >= 0; row--) {
+      final index = row * 7 + column;
+      if (_fourBoard[index] == 0) {
+        target = index;
+        break;
+      }
+    }
+    if (target < 0) return;
+    final marker = _localMarker(_fourTurn);
+    if (marker == 0) return;
+    _fourBoard[target] = marker;
+    _fourWinner = GameBoardRules.findWinner(
+      _fourBoard,
+      rows: 6,
+      columns: 7,
+      runLength: 4,
+    );
+    if (_fourWinner == 0 && _fourBoard.every((value) => value != 0)) {
+      _fourWinner = 3;
+    }
+    if (_fourWinner == marker) score += 3;
+    if (_fourWinner == 0 && !_isMultiplayerSession) _fourTurn = 3 - _fourTurn;
+    _specialRound++;
+    onScore(score);
+    _syncBoardState(
+      {'fourBoard': _fourBoard, 'fourWinner': _fourWinner},
+      currentTurn: _fourWinner == 0 ? _nextTurnUid() : null,
+    );
+  }
+
+  bool _claimDotBox(int row, int column, int marker) {
+    final index = row * 3 + column;
+    if (_dotsBoxOwners[index] != 0) return false;
+    if (!GameBoardRules.dotsBoxComplete(
+      row: row,
+      column: column,
+      horizontal: _dotsHorizontal,
+      vertical: _dotsVertical,
+    )) {
+      return false;
+    }
+    _dotsBoxOwners[index] = marker;
+    return true;
+  }
+
+  void _tapDotsAndBoxes(Vector2 point) {
+    if (_dotsFinished) {
+      if (point.y < 100 && _canPlayTurn) {
+        _dotsHorizontal.fillRange(0, _dotsHorizontal.length, false);
+        _dotsVertical.fillRange(0, _dotsVertical.length, false);
+        _dotsBoxOwners.fillRange(0, _dotsBoxOwners.length, 0);
+        _dotsFinished = false;
+        _dotsTurn = 1;
+        _specialRound++;
+        _syncBoardState({
+          'dotsHorizontal': _dotsHorizontal,
+          'dotsVertical': _dotsVertical,
+          'dotsBoxOwners': _dotsBoxOwners,
+          'dotsFinished': false,
+        }, currentTurn: _localUid);
+      }
+      return;
+    }
+    if (!_canPlayTurn) return;
+    final rect = _squareBoardRect();
+    if (!rect.inflate(18).contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 3;
+    var bestDistance = double.infinity;
+    var horizontalIndex = -1;
+    var verticalIndex = -1;
+
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 3; column++) {
+        final index = row * 3 + column;
+        if (_dotsHorizontal[index]) continue;
+        final center = Offset(rect.left + (column + .5) * cell, rect.top + row * cell);
+        final distance = (center - Offset(point.x, point.y)).distance;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          horizontalIndex = index;
+          verticalIndex = -1;
+        }
+      }
+    }
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 4; column++) {
+        final index = row * 4 + column;
+        if (_dotsVertical[index]) continue;
+        final center = Offset(rect.left + column * cell, rect.top + (row + .5) * cell);
+        final distance = (center - Offset(point.x, point.y)).distance;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          horizontalIndex = -1;
+          verticalIndex = index;
+        }
+      }
+    }
+    if (bestDistance > cell * .23) return;
+    final marker = _localMarker(_dotsTurn);
+    if (marker == 0) return;
+    var capturedCount = 0;
+    if (horizontalIndex >= 0) {
+      _dotsHorizontal[horizontalIndex] = true;
+      final row = horizontalIndex ~/ 3;
+      final column = horizontalIndex % 3;
+      if (row > 0 && _claimDotBox(row - 1, column, marker)) capturedCount++;
+      if (row < 3 && _claimDotBox(row, column, marker)) capturedCount++;
+    } else if (verticalIndex >= 0) {
+      _dotsVertical[verticalIndex] = true;
+      final row = verticalIndex ~/ 4;
+      final column = verticalIndex % 4;
+      if (column > 0 && _claimDotBox(row, column - 1, marker)) capturedCount++;
+      if (column < 3 && _claimDotBox(row, column, marker)) capturedCount++;
+    } else {
+      return;
+    }
+
+    final captured = capturedCount > 0;
+    if (captured) score += capturedCount;
+    _dotsFinished = _dotsBoxOwners.every((owner) => owner != 0);
+    if (!captured && !_dotsFinished && !_isMultiplayerSession) {
+      _dotsTurn = 3 - _dotsTurn;
+    }
+    _specialRound++;
+    onScore(score);
+    _syncBoardState(
+      {
+        'dotsHorizontal': _dotsHorizontal,
+        'dotsVertical': _dotsVertical,
+        'dotsBoxOwners': _dotsBoxOwners,
+        'dotsFinished': _dotsFinished,
+      },
+      currentTurn: captured ? _localUid : (_dotsFinished ? null : _nextTurnUid()),
+    );
+  }
+
+  void _tapPicturePuzzle(Vector2 point) {
+    if (_pictureSolved) {
+      if (point.y < 100) {
+        _pictureTiles
+          ..clear()
+          ..addAll(GameBoardRules.scramblePicture(
+            seed: '${gameId ?? type.name}:$_specialRound'.hashCode,
+          ));
+        _pictureSolved = false;
+        _specialRound++;
+        _syncBoardState({
+          'pictureTiles': _pictureTiles,
+          'pictureSolved': false,
+        });
+      }
+      return;
+    }
+    _ensurePicturePuzzle();
+    final rect = _squareBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 4;
+    final column = ((point.x - rect.left) / cell).floor();
+    final row = ((point.y - rect.top) / cell).floor();
+    if (row < 0 || row >= 4 || column < 0 || column >= 4) return;
+    final index = row * 4 + column;
+    final blank = _pictureTiles.indexOf(0);
+    if (blank < 0) return;
+    final blankRow = blank ~/ 4;
+    final blankColumn = blank % 4;
+    if ((row - blankRow).abs() + (column - blankColumn).abs() != 1) return;
+    _pictureTiles[blank] = _pictureTiles[index];
+    _pictureTiles[index] = 0;
+    _pictureSolved = GameBoardRules.isSolvedPicture(_pictureTiles);
+    if (_pictureSolved) score += 10;
+    _specialRound++;
+    onScore(score);
+    _syncBoardState({
+      'pictureTiles': _pictureTiles,
+      'pictureSolved': _pictureSolved,
+    });
+  }
+
+  void _tapSudoku(Vector2 point) {
+    if (_sudokuSolved || !_canPlayTurn) return;
+    final rect = _squareBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 4;
+    final column = ((point.x - rect.left) / cell).floor();
+    final row = ((point.y - rect.top) / cell).floor();
+    if (row < 0 || row >= 4 || column < 0 || column >= 4) return;
+    final index = row * 4 + column;
+    if (_sudokuPuzzle[index] != 0) return;
+    final oldValue = _sudokuValues[index];
+    var foundValidValue = false;
+    for (var attempt = 0; attempt < 4; attempt++) {
+      _sudokuValues[index] = (_sudokuValues[index] + 1) % 5;
+      if (GameBoardRules.isValidSudoku4x4(
+        _sudokuValues,
+        requireComplete: false,
+      )) {
+        foundValidValue = true;
+        break;
+      }
+    }
+    if (!foundValidValue) {
+      _sudokuValues[index] = oldValue;
+      score = math.max(0, score - 1);
+      onScore(score);
+      _syncBoardState({'sudokuValues': _sudokuValues}, currentTurn: _localUid);
+      return;
+    }
+    _sudokuSolved = GameBoardRules.isValidSudoku4x4(_sudokuValues);
+    if (_sudokuSolved) score += 10;
+    if (!_isMultiplayerSession && !_sudokuSolved) _sudokuTurn = 3 - _sudokuTurn;
+    _specialRound++;
+    onScore(score);
+    _syncBoardState(
+      {'sudokuValues': _sudokuValues, 'sudokuSolved': _sudokuSolved},
+      currentTurn: _sudokuSolved ? null : _nextTurnUid(),
+    );
+  }
+
   void _tapPairs(Vector2 point) {
+    switch (type) {
+      case GameType.fourInRow:
+        _tapFourInRow(point);
+        return;
+      case GameType.dotsAndBoxes:
+        _tapDotsAndBoxes(point);
+        return;
+      case GameType.picturePuzzle:
+        _tapPicturePuzzle(point);
+        return;
+      case GameType.sudokuDuel:
+        _tapSudoku(point);
+        return;
+      default:
+        break;
+    }
     if (point.y < 100) return;
     if (_pairOrder.isEmpty) _pairOrder.addAll(List<int>.generate(16, (i) => i ~/ 2)..shuffle(random));
     final cellWidth = (size.x - 36) / 4;
