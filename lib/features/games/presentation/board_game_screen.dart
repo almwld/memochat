@@ -4,9 +4,9 @@ import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/game.dart';
-import '../../models/game_session.dart';
-import '../../services/game_service.dart';
+import '../models/game.dart';
+import '../models/game_session.dart';
+import '../services/game_service.dart';
 
 /// Purpose-built board mechanics for games that must not fall back to the
 /// generic arcade target-tapping runtime.
