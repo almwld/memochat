@@ -8,10 +8,33 @@ const PORT = Number(process.env.PORT || process.env.NOTIFICATION_PORT || 3001);
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_MINUTE = 100;
 const limits = new Map();
-const TYPES = ['new_message','appointment','medication','lab_result','payment','order','promotional','system','health','social'];
-const CHANNELS = {new_message:'sehatak_messages_v2',appointment:'sehatak_appointments_v1',medication:'sehatak_medications_v1',lab_result:'sehatak_labs_v1',payment:'sehatak_payments_v1',order:'sehatak_orders_v1',promotional:'sehatak_promotions_v1',system:'sehatak_system_v1',health:'sehatak_health_v1',social:'sehatak_social_v1'};
-const HIGH = new Set(['new_message','appointment','payment','order','lab_result']);
-const TTL = {new_message:3600000,appointment:86400000,medication:43200000,lab_result:604800000,payment:86400000,order:86400000,promotional:86400000,system:604800000,health:21600000,social:86400000};
+const TYPES = [
+  'new_message','text_message','image_message','video_message','file_message','audio_message','reply',
+  'call','incoming_call','incoming_video_call','missed_call','call_status',
+  'friend_request','voice_room_invite','community_invite','group_invite',
+  'appointment','medication','lab_result','payment','order','promotional','system','health','social','general'
+];
+const CHANNELS = {
+  new_message:'memochat_messages_v1',text_message:'memochat_messages_v1',image_message:'memochat_messages_v1',
+  video_message:'memochat_messages_v1',file_message:'memochat_messages_v1',audio_message:'memochat_messages_v1',reply:'memochat_messages_v1',
+  call:'memochat_calls_v1',incoming_call:'memochat_calls_v1',incoming_video_call:'memochat_calls_v1',missed_call:'memochat_calls_v1',call_status:'memochat_calls_v1',
+  friend_request:'memochat_system_v1',voice_room_invite:'memochat_system_v1',community_invite:'memochat_system_v1',group_invite:'memochat_system_v1',
+  appointment:'memochat_system_v1',medication:'memochat_system_v1',lab_result:'memochat_system_v1',payment:'memochat_system_v1',order:'memochat_system_v1',
+  promotional:'memochat_promotions_v1',system:'memochat_system_v1',health:'memochat_system_v1',social:'memochat_social_v1',general:'memochat_system_v1'
+};
+const HIGH = new Set([
+  'new_message','text_message','image_message','video_message','file_message','audio_message','reply',
+  'call','incoming_call','incoming_video_call','missed_call','call_status',
+  'friend_request','voice_room_invite','community_invite','group_invite',
+  'appointment','payment','order','lab_result'
+]);
+const TTL = {
+  new_message:3600000,text_message:3600000,image_message:3600000,video_message:3600000,file_message:3600000,audio_message:3600000,reply:3600000,
+  call:120000,incoming_call:120000,incoming_video_call:120000,missed_call:86400000,call_status:86400000,
+  friend_request:86400000,voice_room_invite:86400000,community_invite:86400000,group_invite:86400000,
+  appointment:86400000,medication:43200000,lab_result:604800000,payment:86400000,order:86400000,
+  promotional:86400000,system:604800000,health:21600000,social:86400000,general:86400000
+};
 let firebaseConfigured = false;
 if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
   try { admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) }); firebaseConfigured = true; }
@@ -52,7 +75,7 @@ async function sendOne(input) {
   catch (e) { if(['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(e.code)) await db().collection('users').doc(String(receiverId)).set({fcmToken:null,lastTokenUpdate:null},{merge:true}); throw Object.assign(new Error(e.message||'FCM send failed'),{code:e.code||'FCM_SEND_FAILED'}); }
 }
 async function logNotification(senderId,input,result,requestId) { try { await db().collection('notifications_log').add({senderId,receiverId:input?.receiverId||null,type:input?.type||null,subType:input?.subType||null,title:input?.title||null,body:input?.body||null,data:input?.data||{},result,requestId,createdAt:admin.firestore.FieldValue.serverTimestamp()}); } catch(e) { console.warn('Notification log failed:',e.message); } }
-app.get('/health', (_req,res) => res.json({status:'ok',service:'sehatak-notification-server',firebaseAuth:firebaseConfigured?'configured':'not_configured',uptime:process.uptime()}));
+app.get('/health', (_req,res) => res.json({status:'ok',service:'memochat-notification-server',firebaseAuth:firebaseConfigured?'configured':'not_configured',uptime:process.uptime()}));
 app.get('/notification/health', (_req,res) => res.json({status:'ok',service:'sehatak-notification-server',firebaseAuth:firebaseConfigured?'configured':'not_configured',uptime:process.uptime(),supportedTypes:TYPES}));
 app.post('/notification', async (req,res) => { const id=`notify-${Date.now()}-${Math.random().toString(36).slice(2,8)}`; try { const user=await verifyUser(req); const rl=checkLimit(user.uid); if(!rl.allowed)return res.status(429).json({success:false,code:'RATE_LIMIT',retryAfter:rl.retryAfter,requestId:id}); const result=await sendOne(req.body||{}); await logNotification(user.uid,req.body||{},result,id); return res.json({...result,requestId:id,rateLimitRemaining:rl.remaining}); } catch(e) { const status=e.statusCode||({MISSING_FIELDS:400,INVALID_TYPE:400,RECEIVER_NOT_FOUND:404}[e.code]||500); return res.status(status).json({success:false,code:e.code||'UNKNOWN',error:e.message,requestId:id}); } });
 app.post('/notification/batch', async (req,res) => { const id=`batch-${Date.now()}-${Math.random().toString(36).slice(2,8)}`; try { const user=await verifyUser(req); const rl=checkLimit(user.uid,20); if(!rl.allowed)return res.status(429).json({success:false,code:'RATE_LIMIT',retryAfter:rl.retryAfter,requestId:id}); const n=req.body?.notifications; if(!Array.isArray(n)||!n.length)return res.status(400).json({success:false,code:'INVALID_DATA',requestId:id}); if(n.length>100)return res.status(400).json({success:false,code:'BATCH_TOO_LARGE',requestId:id}); const results=await Promise.allSettled(n.map(sendOne)); const succeeded=[],failed=[]; results.forEach((r,i)=>r.status==='fulfilled'?succeeded.push({index:i,...r.value}):failed.push({index:i,receiverId:n[i]?.receiverId,error:r.reason?.message,code:r.reason?.code})); for(let i=0;i<n.length;i++) await logNotification(user.uid,n[i],results[i].status==='fulfilled'?results[i].value:{success:false,error:results[i].reason?.message},id); return res.json({success:failed.length===0,requestId:id,total:n.length,succeeded:succeeded.length,failed:failed.length,results:{succeeded,failed}}); } catch(e) { return res.status(e.statusCode||500).json({success:false,code:e.code||'UNKNOWN',error:e.message,requestId:id}); } });
