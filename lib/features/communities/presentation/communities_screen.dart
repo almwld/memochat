@@ -159,13 +159,16 @@ class CommunityDetailScreen extends StatelessWidget {
     );
     if (result == true) {
       try {
+        // Channel creation rules require membership; opening a public community
+        // does not automatically create its member document.
+        await service.joinCommunity(communityId);
         await service.createChannel(
           communityId: communityId,
           name: nameController.text,
           description: descriptionController.text,
         );
-      } catch (_) {
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إنشاء القناة.')));
+      } catch (error) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إنشاء القناة: ${error.toString().replaceFirst('Bad state: ', '')}')));
       }
     }
     nameController.dispose();
