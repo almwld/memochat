@@ -891,8 +891,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
             child: Row(
               children: [
                 IconButton(
+                  tooltip: 'حذف التسجيل وإرساله إلى المهملات',
                   onPressed: _sending ? null : _deleteRecording,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_forever_outlined, color: Colors.red),
                 ),
                 IconButton(
                   onPressed: _sending || !_recording ? null : _togglePause,
