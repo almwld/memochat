@@ -105,9 +105,11 @@ async function sendToUser(uid,payload){
     // Support the canonical cross-device preference keys and legacy type-key
     // documents written by the standalone notification server.
     const legacyEnabled=preferences[type];
-    const enabled=typeof preferences[enabledKey]==='boolean'
-      ? preferences[enabledKey]
-      : typeof legacyEnabled==='boolean' ? legacyEnabled : true;
+    const enabled=legacyEnabled===false
+      ? false
+      : typeof preferences[enabledKey]==='boolean'
+        ? preferences[enabledKey]
+        : typeof legacyEnabled==='boolean' ? legacyEnabled : true;
     if(!enabled)return;
     const tokens=await getFcmTokens(uid);
     if(!tokens.length)return;
