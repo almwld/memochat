@@ -520,6 +520,9 @@ class MemoArcadeGame extends FlameGame {
 
   String get _instruction {
     switch (type) {
+      case GameType.shapeMatch:
+        const names = ['المكعب', 'الهرم', 'الكرة'];
+        return 'الشكل المطلوب: ${names[_shapeGoal % names.length]} — اضغط المجسم المطابق';
       case GameType.mazeRunner:
         return 'اسحب للتحرك واجمع الجواهر وتجنب الحواف';
       case GameType.galaxyCatch:
@@ -539,6 +542,9 @@ class MemoArcadeGame extends FlameGame {
       case GameType.colorMatch:
       case GameType.colorRush:
         _tapColor(point);
+        return;
+      case GameType.shapeMatch:
+        _tapShapeMatch(point);
         return;
       case GameType.patternTap:
       case GameType.sequenceRecall:
@@ -605,6 +611,7 @@ class MemoArcadeGame extends FlameGame {
   double _memoryHideClock = 0;
   int _sequenceStep = 0;
   int _colorGoal = 0;
+  int _shapeGoal = 0;
 
   void _tapMemory(Vector2 point) {
     if (_memoryOrder.isEmpty) {
@@ -680,6 +687,31 @@ class MemoArcadeGame extends FlameGame {
       score = math.max(0, score - 1);
     }
     targets.removeAt(index);
+    onScore(score);
+    _syncScore();
+  }
+
+  void _tapShapeMatch(Vector2 point) {
+    Target? hit;
+    for (final target in targets.reversed) {
+      if (point.distanceTo(target.position) <= target.radius * 1.25) {
+        hit = target;
+        break;
+      }
+    }
+    if (hit == null) return;
+
+    final expectedShape = _shapeGoal % 3;
+    targets.remove(hit);
+    if (hit.kind == expectedShape) {
+      score += 3;
+      _shapeGoal++;
+      combo++;
+      _spawnBurst(hit.position, hit.kind);
+    } else {
+      score = math.max(0, score - 1);
+      combo = 0;
+    }
     onScore(score);
     _syncScore();
   }
