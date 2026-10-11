@@ -510,9 +510,18 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
     final uid = _uid();
     await _authorizedChat(chatId);
     final ref = _chatRef(chatId).collection('messages').doc(messageId);
+    // The viewer-owned private marker prevents another participant from
+    // resetting deletedFor and making the consumed message openable again.
+    // Existing rules already restrict this private document to its owner.
+    final consumedRef = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('private')
+        .doc('viewOnce_${chatId}_${messageId}');
     return _firestore.runTransaction<bool>((transaction) async {
       final snapshot = await transaction.get(ref);
-      if (!snapshot.exists) return false;
+      final consumedSnapshot = await transaction.get(consumedRef);
+      if (!snapshot.exists || consumedSnapshot.exists) return false;
       final data = snapshot.data() ?? <String, dynamic>{};
       final metadata = data['metadata'];
       final viewOnce = data['viewOnce'] == true ||
@@ -521,6 +530,12 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
       final deletedFor = data['deletedFor'];
       if (deletedFor is Map && deletedFor[uid] == true) return false;
       transaction.update(ref, {'deletedFor.$uid': true});
+      transaction.set(consumedRef, {
+        'chatId': chatId,
+        'messageId': messageId,
+        'consumed': true,
+        'consumedAt': FieldValue.serverTimestamp(),
+      });
       return true;
     });
   }
