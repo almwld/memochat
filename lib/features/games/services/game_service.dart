@@ -50,8 +50,10 @@ class GameService {
         'status': updatedPlayers.length >= 2
             ? GameStatus.playing.name
             : GameStatus.waiting.name,
-        if (updatedPlayers.length >= 2)
+        if (updatedPlayers.length >= 2) ...{
           'startedAt': FieldValue.serverTimestamp(),
+          'currentTurn': updatedPlayers.first,
+        },
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
