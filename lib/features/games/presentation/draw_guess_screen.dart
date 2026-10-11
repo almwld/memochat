@@ -163,7 +163,7 @@ class _DrawGuessScreenState extends State<DrawGuessScreen> {
       distractors[(start + 2) % distractors.length],
       distractors[(start + 4) % distractors.length],
     ];
-    final shift = _round % choices.length;
+    final shift = (_round + 1) % choices.length;
     return List<String>.generate(choices.length, (i) => choices[(i + shift) % choices.length]);
   }
 
