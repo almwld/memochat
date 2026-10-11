@@ -317,6 +317,43 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
       }
     });
     await _publish(nextTurn: _finished ? null : _turnUid, finish: _finished);
+    if (!_multiplayer && widget.type == GameType.xo && !_finished && _localMark == 2) {
+      Future<void>.delayed(const Duration(milliseconds: 280), _playXoAi);
+    }
+  }
+
+  Future<void> _playXoAi() async {
+    if (!mounted || _finished || _multiplayer || widget.type != GameType.xo || _localMark != 2) return;
+    final move = _findWinningMove(2) ?? _findWinningMove(1) ??
+        (_board[4] == 0 ? 4 : null) ??
+        (List<int>.generate(9, (i) => i).where((i) => _board[i] == 0).toList()..shuffle(_random)).firstOrNull;
+    if (move == null) return;
+    setState(() {
+      _board[move] = 2;
+      _moves++;
+      final winner = _winnerInLineBoard(_board, 3, 3, 3);
+      if (winner == 2) {
+        _finished = true;
+        _message = 'فاز الخصم هذه الجولة. حاول مجددًا!';
+      } else if (_board.every((v) => v != 0)) {
+        _finished = true;
+        _message = 'تعادل!';
+      } else {
+        _localMark = 1;
+        _message = 'دورك الآن';
+      }
+    });
+  }
+
+  int? _findWinningMove(int mark) {
+    for (var i = 0; i < _board.length; i++) {
+      if (_board[i] != 0) continue;
+      _board[i] = mark;
+      final wins = _winnerInLineBoard(_board, 3, 3, 3) == mark;
+      _board[i] = 0;
+      if (wins) return i;
+    }
+    return null;
   }
 
   int _winnerInLineBoard(List<int> values, int columns, int rows, int target) {
