@@ -189,6 +189,9 @@ class MemoArcadeGame extends FlameGame {
   bool _mazeWon = false;
   int _galaxyLives = 3;
   bool _galaxyGameOver = false;
+  bool _reactionReady = false;
+  double _reactionReadyAt = 1.5;
+  double _reactionStartTime = 0;
 
   bool get supportsDragMovement =>
       type == GameType.mazeRunner || type == GameType.galaxyCatch;
@@ -287,7 +290,11 @@ class MemoArcadeGame extends FlameGame {
       }
     }
     if (type != GameType.mazeRunner && targets.isEmpty && size.x > 0) {
-      final initialCount = type == GameType.stackTower || type == GameType.balanceBeam ? 1 : 7;
+      final initialCount = type == GameType.reactionRace
+          ? 0
+          : type == GameType.stackTower || type == GameType.balanceBeam
+              ? 1
+              : 7;
       for (var i = 0; i < initialCount; i++) {
         spawnTarget();
       }
@@ -296,8 +303,19 @@ class MemoArcadeGame extends FlameGame {
 
   void spawnTarget() {
     if (type == GameType.mazeRunner || _galaxyGameOver ||
+        (type == GameType.reactionRace && !_reactionReady) ||
         targets.length >= 11 || size.x < 30 || size.y < 120) return;
     final phase = random.nextDouble() * math.pi * 2;
+    if (type == GameType.reactionRace) {
+      targets.add(Target(
+        position: Vector2(size.x / 2, size.y * .54),
+        radius: 28,
+        velocity: Vector2.zero(),
+        kind: 2,
+        phase: phase,
+      ));
+      return;
+    }
     if (type == GameType.stackTower) {
       targets.add(Target(
         position: Vector2(size.x / 2, size.y - 100),
@@ -339,6 +357,11 @@ class MemoArcadeGame extends FlameGame {
     if (type == GameType.mazeRunner) {
       return;
     }
+    if (type == GameType.reactionRace && !_reactionReady && elapsed >= _reactionReadyAt) {
+      _reactionReady = true;
+      _reactionStartTime = elapsed;
+      spawnTarget();
+    }
     if (_galaxyGameOver) {
       for (final particle in particles) {
         particle.age += dt;
@@ -349,7 +372,7 @@ class MemoArcadeGame extends FlameGame {
     }
     if (spawnClock > .7) {
       spawnClock = 0;
-      final singleTargetMode = type == GameType.stackTower || type == GameType.balanceBeam;
+      final singleTargetMode = type == GameType.stackTower || type == GameType.balanceBeam || type == GameType.reactionRace;
       if (!singleTargetMode || targets.isEmpty) spawnTarget();
     }
     for (final t in targets) {
@@ -422,6 +445,9 @@ class MemoArcadeGame extends FlameGame {
     paint.style=PaintingStyle.fill;
     if (type == GameType.stackTower) _renderStackTower(canvas, paint);
     if (type == GameType.balanceBeam) _renderBalanceBeam(canvas, paint);
+    if (type == GameType.reactionRace) {
+      _drawBoardLabel(canvas, targets.isEmpty ? 'انتظر الإشارة...' : 'اضغط الآن!', 73);
+    }
     if (type == GameType.colorMatch || type == GameType.colorRush) {
       _renderColorGoal(canvas, paint);
     }
@@ -1077,6 +1103,30 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapTiming(Vector2 point) {
+    if (type == GameType.reactionRace) {
+      if (targets.isEmpty) {
+        score = math.max(0, score - 2);
+        _reactionReady = false;
+        _reactionReadyAt = elapsed + 1.2 + random.nextDouble() * 1.4;
+        onScore(score);
+        _syncScore();
+        return;
+      }
+      final target = targets.first;
+      if (point.distanceTo(target.position) <= target.radius * 1.15) {
+        final reactionTime = elapsed - _reactionStartTime;
+        score += reactionTime < .25 ? 5 : reactionTime < .5 ? 4 : reactionTime < .9 ? 3 : 1;
+        targets.remove(target);
+        _reactionReady = false;
+        _reactionReadyAt = elapsed + 1.2 + random.nextDouble() * 1.4;
+        onScore(score);
+        _syncScore();
+      } else {
+        score = math.max(0, score - 1);
+        onScore(score);
+      }
+      return;
+    }
     if (targets.isEmpty) return;
     final target = targets.first;
     final distance = point.distanceTo(target.position);
