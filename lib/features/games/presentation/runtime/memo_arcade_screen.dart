@@ -411,6 +411,14 @@ class MemoArcadeGame extends FlameGame {
     for (double x=0;x<size.x;x+=32) canvas.drawLine(Offset(x,78),Offset(x,size.y),paint);
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
     paint.style=PaintingStyle.fill;
+    if (type == GameType.stackTower) _renderStackTower(canvas, paint);
+    if (type == GameType.balanceBeam) _renderBalanceBeam(canvas, paint);
+    if (type == GameType.colorMatch || type == GameType.colorRush) {
+      _renderColorGoal(canvas, paint);
+    }
+    if (type == GameType.shapeMatch || type == GameType.patternTap) {
+      _renderShapeGoal(canvas, paint);
+    }
     for (final t in targets) {
       _drawTargetModel(canvas, paint, t);
     }
@@ -469,6 +477,112 @@ class MemoArcadeGame extends FlameGame {
       70,
     );
     _drawBoardLabel(canvas, '$score نقطة', size.y - 32);
+  }
+
+  void _renderColorGoal(Canvas canvas, Paint paint) {
+    final label = TextPainter(
+      text: const TextSpan(
+        text: 'اللون المطلوب',
+        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    final swatch = Rect.fromLTWH(
+      (size.x + label.width + 14) / 2,
+      69,
+      25,
+      22,
+    );
+    label.paint(canvas, Offset((size.x - label.width - 14 - 25) / 2, 73));
+    paint
+      ..style = PaintingStyle.fill
+      ..color = palette[_colorGoal % palette.length];
+    canvas.drawRRect(RRect.fromRectAndRadius(swatch, const Radius.circular(6)), paint);
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = Colors.white;
+    canvas.drawRRect(RRect.fromRectAndRadius(swatch, const Radius.circular(6)), paint);
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _renderShapeGoal(Canvas canvas, Paint paint) {
+    if (targets.isEmpty) return;
+    final ordered = targets.toList()
+      ..sort((a, b) => a.phase.compareTo(b.phase));
+    _drawBoardLabel(canvas, 'الشكل التالي المطلوب', 67);
+    final target = ordered.first;
+    _drawTargetModel(
+      canvas,
+      paint,
+      Target(
+        position: Vector2(size.x / 2, 96),
+        radius: 11,
+        velocity: Vector2.zero(),
+        kind: target.kind,
+        phase: 0,
+      ),
+    );
+  }
+
+  void _renderStackTower(Canvas canvas, Paint paint) {
+    final centerX = size.x / 2;
+    final baseY = size.y - 68.0;
+    final count = math.min(8, score ~/ 3);
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFF17383B);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(centerX, baseY + 13), width: 100, height: 20),
+        const Radius.circular(7),
+      ),
+      paint,
+    );
+    for (var level = 0; level < count; level++) {
+      _drawMesh(
+        canvas,
+        Offset(centerX, baseY - level * 21.0),
+        16,
+        elapsed * .12 + level * .08,
+        _cubeVertices,
+        _cubeFaces,
+        palette[level % palette.length],
+        tilt: .48,
+      );
+    }
+    _drawBoardLabel(canvas, 'ارتفاع البرج: $count / 8', 73);
+  }
+
+  void _renderBalanceBeam(Canvas canvas, Paint paint) {
+    final centerX = size.x / 2;
+    final centerY = size.y * .62;
+    final angle = math.sin(elapsed * 1.15) * .12;
+    final halfWidth = size.x * .39;
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFF17383B);
+    final support = Path()
+      ..moveTo(centerX - 24, centerY + 62)
+      ..lineTo(centerX + 24, centerY + 62)
+      ..lineTo(centerX, centerY + 8)
+      ..close();
+    canvas.drawPath(support, paint);
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 9
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF39D5C5);
+    canvas.drawLine(
+      Offset(centerX - halfWidth, centerY + math.sin(angle) * halfWidth),
+      Offset(centerX + halfWidth, centerY - math.sin(angle) * halfWidth),
+      paint,
+    );
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFFFFC857);
+    canvas.drawCircle(Offset(centerX, centerY), 7, paint);
+    _drawBoardLabel(canvas, 'اضغط على المكعب عندما يقترب من المنتصف', 73);
   }
 
   void _drawPlayer(Canvas canvas) {
@@ -940,7 +1054,7 @@ class MemoArcadeGame extends FlameGame {
   void _tapSequence(Vector2 point) {
     if (targets.isEmpty) return;
     final ordered = targets.toList()..sort((a,b) => a.phase.compareTo(b.phase));
-    final target = ordered[_sequenceStep % ordered.length];
+    final target = ordered.first;
     if (point.distanceTo(target.position) <= target.radius * 1.25) {
       score += 2;
       _sequenceStep++;
