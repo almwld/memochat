@@ -135,6 +135,7 @@ class MemoArcadeGame extends FlameGame {
   final List<Target> targets = <Target>[];
   final List<Particle> particles = <Particle>[];
   int score = 0;
+  int _lastDice = 1;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
 
   ArcadeContent get content => ArcadeContentBank.forType(type);
@@ -189,6 +190,7 @@ class MemoArcadeGame extends FlameGame {
 
   @override void render(Canvas canvas) {
     super.render(canvas);
+    if (type == GameType.diceRoll) { _renderDice(canvas); return; }
     if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
@@ -223,8 +225,59 @@ class MemoArcadeGame extends FlameGame {
     return content.instruction;
   }
 
+  void _renderDice(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final title = TextPainter(
+      text: TextSpan(text: content.title, style: const TextStyle(
+        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    title.paint(canvas, Offset(size.x / 2 - title.width / 2, 24));
+    final instruction = TextPainter(
+      text: const TextSpan(text: 'المس النرد لرميه واجمع النقاط',
+        style: TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    instruction.paint(canvas, Offset(size.x / 2 - instruction.width / 2, 58));
+    final side = math.min(190.0, math.min(size.x - 48, size.y * .42));
+    final rect = Rect.fromCenter(center: Offset(size.x / 2, size.y * .48), width: side, height: side);
+    paint.color = const Color(0xFFF5FBFA);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(28)), paint);
+    final spots = <Offset>[
+      Offset(rect.left + side * .25, rect.top + side * .25),
+      Offset(rect.left + side * .75, rect.top + side * .25),
+      Offset(rect.left + side * .25, rect.top + side * .50),
+      Offset(rect.left + side * .50, rect.top + side * .50),
+      Offset(rect.left + side * .75, rect.top + side * .50),
+      Offset(rect.left + side * .25, rect.top + side * .75),
+      Offset(rect.left + side * .75, rect.top + side * .75),
+    ];
+    final visible = switch (_lastDice) {
+      1 => <int>[3],
+      2 => <int>[0, 6],
+      3 => <int>[0, 3, 6],
+      4 => <int>[0, 1, 5, 6],
+      5 => <int>[0, 1, 3, 5, 6],
+      _ => <int>[0, 1, 2, 4, 5, 6],
+    };
+    paint.color = const Color(0xFF0D8274);
+    for (final index in visible) {
+      canvas.drawCircle(spots[index], side * .055, paint);
+    }
+    final scorePainter = TextPainter(
+      text: TextSpan(text: '$_lastDice  •  $score نقطة',
+        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scorePainter.paint(canvas, Offset(size.x / 2 - scorePainter.width / 2, rect.bottom + 28));
+  }
+
   void tap(Vector2 point) {
     switch (type) {
+      case GameType.diceRoll:
+        _tapDice();
+        return;
       case GameType.memoryMatch:
       case GameType.cardFlip:
       case GameType.emojiMemory:
@@ -297,6 +350,13 @@ class MemoArcadeGame extends FlameGame {
   int _memoryFirst = -1;
   int _sequenceStep = 0;
   int _colorGoal = 0;
+
+  void _tapDice() {
+    _lastDice = 1 + random.nextInt(6);
+    score += _lastDice + (_lastDice == 6 ? 2 : 0);
+    onScore(score);
+    _syncScore();
+  }
 
   void _tapMemory(Vector2 point) {
     if (_memoryOrder.isEmpty) {
