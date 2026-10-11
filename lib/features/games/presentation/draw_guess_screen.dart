@@ -178,6 +178,7 @@ class _DrawGuessScreenState extends State<DrawGuessScreen> {
         ? _uid!
         : (_drawerUid == _players.first ? _players.last : _players.first);
     setState(() {
+      _saving = true;
       _score += 3;
       _message = 'إجابة صحيحة! +3 نقاط';
       _solved = true;
@@ -199,7 +200,14 @@ class _DrawGuessScreenState extends State<DrawGuessScreen> {
         },
       );
     } catch (_) {
-      if (mounted) setState(() => _message = 'الإجابة صحيحة، لكن تعذر حفظ النتيجة.');
+      if (mounted) {
+        setState(() {
+          _solved = false;
+          _message = 'الإجابة صحيحة، لكن تعذر حفظ النتيجة.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
