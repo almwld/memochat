@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/game_service.dart';
 import '../../models/game.dart';
+import '../../models/game_session.dart';
 import 'arcade_content.dart';
 
 class MemoArcadeScreen extends StatefulWidget {
@@ -18,10 +20,34 @@ class MemoArcadeScreen extends StatefulWidget {
 class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBindingObserver {
   final GlobalKey _gameViewportKey = GlobalKey();
   late final MemoArcadeGame game;
+  StreamSubscription<GameSession?>? _sessionSubscription;
+  int _remoteScore = 0;
+  String? _sessionStatus;
   @override void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     game = MemoArcadeGame(type: widget.type, chatId: widget.chatId, gameId: widget.gameId, onScore: (_) { if (mounted) setState(() {}); });
+    final chatId = widget.chatId.trim();
+    final gameId = widget.gameId?.trim();
+    if (chatId.isNotEmpty && gameId != null && gameId.isNotEmpty) {
+      _sessionSubscription = GameService.instance.watchGame(chatId, gameId).listen(
+        (session) {
+          if (!mounted || session == null) return;
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          final opponent = session.players.where((id) => id != uid).firstOrNull;
+          final remote = opponent == null ? null : session.scores[opponent];
+          final round = session.state['round'];
+          setState(() {
+            _remoteScore = remote ?? 0;
+            _sessionStatus = session.status.name;
+          });
+          if (round is num) game.applyRemoteRound(round.toInt());
+        },
+        onError: (_) {
+          if (mounted) setState(() => _sessionStatus = 'offline');
+        },
+      );
+    }
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -37,6 +63,7 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sessionSubscription?.cancel();
     game.pauseEngine();
     super.dispose();
   }
@@ -391,6 +418,16 @@ class MemoArcadeGame extends FlameGame {
   int _pairFirst = -1;
   int _raceProgress = 0;
 
+  void applyRemoteRound(int round) {
+    if (round < 0 || round == _specialRound) return;
+    _specialRound = round;
+    _mathOptions = const [];
+    _wordOptions = const [];
+    _specialSecret = 0;
+    _mathAddend = 0;
+    _codeDigit = -1;
+  }
+
   void _renderSpecial(Canvas canvas) {
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
@@ -543,7 +580,7 @@ class MemoArcadeGame extends FlameGame {
         chatId: chatId,
         gameId: id,
         uid: uid,
-        state: {'score': score, 'action': 'arcade_hit', 'gameType': type.name},
+        state: {'score': score, 'action': 'arcade_hit', 'gameType': type.name, 'round': _specialRound},
         score: score,
       );
     } catch (_) {}
