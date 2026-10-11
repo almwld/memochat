@@ -317,22 +317,52 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Future<void> _sendText() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending || _recording || _hasRecording) return;
-    setState(() => _sending = true);
+
+    // Lock only the synchronous input hand-off, not the network round trip.
+    // Keeping _sending=true until Firestore finishes made the composer appear
+    // frozen whenever an earlier send was slow, especially after rapid sends.
     final clientTimestamp = Timestamp.now();
+    final messageId = 'msg_${clientTimestamp.microsecondsSinceEpoch}';
+    setState(() => _sending = true);
     try {
       widget.onSendMessage(text, clientTimestamp);
       _controller.clear();
+    } catch (e) {
+      debugPrint('chat optimistic text hand-off: $e');
+      ToastService.showError('تعذر تجهيز الرسالة للإرسال.');
+      return;
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+
+    // Each message has a stable id and its own delivery future. Do not block
+    // the composer on network latency; ReliableMessageService still handles
+    // idempotency and transient-offline queueing.
+    unawaited(_deliverText(
+      text,
+      clientTimestamp: clientTimestamp,
+      messageId: messageId,
+    ));
+  }
+
+  Future<void> _deliverText(
+    String text, {
+    required Timestamp clientTimestamp,
+    required String messageId,
+  }) async {
+    try {
       await ReliableMessageService.sendText(
         chatId: widget.chatId,
         text: text,
         replyToId: widget.replyToId,
         clientTimestamp: clientTimestamp,
+        messageId: messageId,
       );
     } catch (e) {
-      debugPrint('chat text send: $e');
-      ToastService.showError('تعذر إرسال الرسالة. تحقق من الاتصال.');
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      debugPrint('chat text send failed ($messageId): $e');
+      if (mounted) {
+        ToastService.showError('تعذر إرسال الرسالة. تحقق من الاتصال.');
+      }
     }
   }
 
