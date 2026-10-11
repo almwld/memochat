@@ -610,9 +610,11 @@ class MemoArcadeGame extends FlameGame {
     if (_memoryOrder.isEmpty) {
       _memoryOrder.addAll(List<int>.generate(12, (i) => i ~/ 2)..shuffle(random));
     }
-    final cellSize = math.max(1, size.x / 4);
-    final col = (point.x / cellSize).floor();
-    final row = ((point.y - 100) / 62.0).floor();
+    // Match the rendered 4-column grid (8px inset, 62px row pitch) so
+    // taps land on the card the player actually sees.
+    final cellWidth = math.max(1, (size.x - 36) / 4);
+    final col = ((point.x - 8) / cellWidth).floor();
+    final row = ((point.y - 105) / 62.0).floor();
     if (col < 0 || col >= 4 || row < 0 || row >= 3) return;
     final cell = row * 4 + col;
     if (_memoryHideClock > 0 || _memoryFound.contains(cell) || _memoryVisible.contains(cell)) return;
