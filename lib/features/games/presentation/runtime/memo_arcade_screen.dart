@@ -214,7 +214,14 @@ class MemoArcadeGame extends FlameGame {
       final r=t.radius*(1+math.sin(t.age*5+t.phase)*.08);
       paint.color=palette[t.kind%palette.length];
       final c=Offset(t.position.x,t.position.y);
-      if (type == GameType.shapeMatch || type == GameType.patternTap) {
+      if (type == GameType.shapeMatch && t.kind == 0) {
+        canvas.drawCircle(c, r, paint);
+      } else if (type == GameType.shapeMatch && t.kind == 1) {
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: c, width: r * 1.7, height: r * 1.7), const Radius.circular(5)), paint);
+      } else if (type == GameType.shapeMatch && t.kind == 2) {
+        final path = Path()..moveTo(c.dx, c.dy-r)..lineTo(c.dx+r, c.dy+r)..lineTo(c.dx-r, c.dy+r)..close();
+        canvas.drawPath(path, paint);
+      } else if (type == GameType.patternTap) {
         final path=Path();
         for(var i=0;i<10;i++){final a=-math.pi/2+i*math.pi/5;final rr=i.isEven?r:r*.45;final q=Offset(c.dx+math.cos(a)*rr,c.dy+math.sin(a)*rr);if(i==0)path.moveTo(q.dx,q.dy);else path.lineTo(q.dx,q.dy);}
         canvas.drawPath(path..close(),paint);
@@ -233,6 +240,9 @@ class MemoArcadeGame extends FlameGame {
   }
 
   String get _instruction {
+    if (type == GameType.shapeMatch) {
+      return 'اضغط الشكل: ${const ['دائرة', 'مربع', 'مثلث'][_shapeGoal]}';
+    }
     return content.instruction;
   }
 
@@ -452,6 +462,9 @@ class MemoArcadeGame extends FlameGame {
       case GameType.colorRush:
         _tapColor(point);
         return;
+      case GameType.shapeMatch:
+        _tapShapeMatch(point);
+        return;
       case GameType.patternTap:
       case GameType.sequenceRecall:
       case GameType.rhythmTap:
@@ -670,6 +683,23 @@ class MemoArcadeGame extends FlameGame {
     _syncScore();
   }
 
+  void _tapShapeMatch(Vector2 point) {
+    final index = targets.indexWhere(
+      (target) => point.distanceTo(target.position) <= target.radius * 1.25,
+    );
+    if (index < 0) return;
+    final target = targets.removeAt(index);
+    if (target.kind == _shapeGoal) {
+      score += 2;
+      _specialRound++;
+      _shapeGoal = _specialRound % 3;
+    } else {
+      score = math.max(0, score - 1);
+    }
+    onScore(score);
+    _syncScore();
+  }
+
   void _tapSequence(Vector2 point) {
     if (targets.isEmpty) return;
     final ordered = targets.toList()..sort((a,b) => a.phase.compareTo(b.phase));
@@ -749,6 +779,8 @@ class MemoArcadeGame extends FlameGame {
   final List<double> _towerWidths = <double>[];
   bool _towerEnded = false;
   double _balanceOffset = 0;
+  int _fastChoiceTarget = 0;
+  int _shapeGoal = 0;
   int _codeDigit = -1;
   int _codeAttempts = 0;
   int _mathAddend = 0;
@@ -773,6 +805,8 @@ class MemoArcadeGame extends FlameGame {
     _reactionGoal = _specialRound % math.max(1, content.options.length).toInt();
     _higherLowerCurrent = 0;
     _higherLowerNext = 0;
+    _fastChoiceTarget = _specialRound * 3 % math.max(1, content.options.length).toInt();
+    _shapeGoal = _specialRound % 3;
     _wordGuessTarget = '';
     _wordGuessFound.clear();
     _wordGuessOptions = <String>[];
@@ -790,7 +824,9 @@ class MemoArcadeGame extends FlameGame {
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice:
-        if (type == GameType.emojiReaction) {
+        if (type == GameType.fastChoice) {
+          _renderOptions(canvas, 'اختر الرقم المطلوب: ${content.options[_fastChoiceTarget % content.options.length]}', content.options);
+        } else if (type == GameType.emojiReaction) {
           _renderOptions(canvas, 'اضغط الرمز المطلوب: ${content.options[_reactionGoal % content.options.length]}', content.options);
         } else if (type == GameType.higherLower) {
           if (_higherLowerCurrent == 0) {
@@ -916,6 +952,14 @@ class MemoArcadeGame extends FlameGame {
     // short choice lists, where blank space must never count as an answer.
     final visibleCount = math.min(4, options.length);
     if (n >= visibleCount) return;
+    if (type == GameType.fastChoice) {
+      score = math.max(0, score + (n == _fastChoiceTarget ? 2 : -1));
+      _specialRound++;
+      _fastChoiceTarget = _specialRound * 3 % math.max(1, content.options.length).toInt();
+      onScore(score);
+      _syncScore();
+      return;
+    }
     if (type == GameType.emojiReaction) {
       score = math.max(0, score + (n == _reactionGoal ? 3 : -1));
       _specialRound++;
