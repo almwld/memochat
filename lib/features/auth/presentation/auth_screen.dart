@@ -41,6 +41,23 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String _publicId(String uid) => 'memo_${uid.substring(0, 8).toLowerCase()}';
 
+  bool _looksLikeDeviceTrustError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('chain validation failed') ||
+        message.contains('certpath') ||
+        message.contains('certificate') ||
+        message.contains('handshake') ||
+        message.contains('ssl') ||
+        message.contains('trust anchor');
+  }
+
+  String _connectionTroubleshootingMessage({bool google = false}) {
+    final steps = google
+        ? 'تحقق من التاريخ والوقت التلقائيين، واتصال الإنترنت، وتحديث Android وGoogle Play Services إن كانت متوفرة. يمكنك استخدام البريد وكلمة المرور إذا لم تتوفر خدمات Google.'
+        : 'تحقق من التاريخ والوقت التلقائيين، واتصال الإنترنت، ثم ثبّت تحديثات نظام Android وشهادات الأمان المتاحة وأعد المحاولة.';
+    return 'تعذر إنشاء اتصال آمن بخدمة الحساب. $steps';
+  }
+
   Future<bool> _ensureFirebase() async {
     if (Firebase.apps.isNotEmpty) {
       widget.onFirebaseReady?.call();
@@ -154,7 +171,7 @@ class _AuthScreenState extends State<AuthScreen> {
           'account-exists-with-different-credential' =>
             'هذا البريد مرتبط بطريقة تسجيل دخول أخرى. سجّل الدخول بها أولاً.',
           'network-request-failed' =>
-            'تحقق من اتصال الإنترنت ثم حاول مرة أخرى.',
+            _connectionTroubleshootingMessage(google: true),
           'operation-not-allowed' =>
             'تسجيل الدخول عبر Google غير مفعّل لهذا المشروع.',
           'google-id-token-missing' =>
@@ -162,9 +179,11 @@ class _AuthScreenState extends State<AuthScreen> {
           _ => e.message ?? 'تعذر تسجيل الدخول بحساب Google.',
         };
       });
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        setState(() => _error = 'تعذر تسجيل الدخول بحساب Google. حاول مرة أخرى.');
+        setState(() => _error = _looksLikeDeviceTrustError(error)
+            ? _connectionTroubleshootingMessage(google: true)
+            : 'تعذر تسجيل الدخول بحساب Google. تحقق من توفر Google Play Services وإعداد OAuth، أو استخدم البريد وكلمة المرور.');
       }
     } finally {
       if (mounted) {
@@ -246,13 +265,16 @@ class _AuthScreenState extends State<AuthScreen> {
           'weak-password' => 'كلمة المرور ضعيفة.',
           'invalid-email' => 'أدخل بريداً صحيحاً.',
           'too-many-requests' => 'محاولات كثيرة. حاول لاحقاً.',
+          'network-request-failed' => _connectionTroubleshootingMessage(),
           'user-disabled' => 'هذا الحساب معطل.',
           _ => e.message ?? 'تعذر إكمال العملية.',
         };
       });
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        setState(() => _error = 'تعذر حفظ بيانات الحساب. حاول مرة أخرى.');
+        setState(() => _error = _looksLikeDeviceTrustError(error)
+            ? _connectionTroubleshootingMessage()
+            : 'تعذر إكمال العملية. تحقق من الاتصال والتاريخ والوقت ثم حاول مرة أخرى.');
       }
     } finally {
       if (mounted) {
