@@ -1165,7 +1165,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         barrierDismissible: true,
         builder: (dialogContext) => AlertDialog(
           title: const Row(children: [Icon(Icons.lock_clock_rounded), SizedBox(width: 8), Expanded(child: Text('رسالة لمرة واحدة'))]),
-          content: SingleChildScrollView(child: SelectableText(content.isEmpty ? 'لا يوجد محتوى نصي قابل للعرض.' : content)),
+          content: SingleChildScrollView(child: Text(content.isEmpty ? 'لا يوجد محتوى نصي قابل للعرض.' : content)),
           actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إغلاق'))],
         ),
       );
