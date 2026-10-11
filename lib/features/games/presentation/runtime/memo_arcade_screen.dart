@@ -1338,6 +1338,261 @@ class MemoArcadeGame extends FlameGame {
     }
   }
 
+  void _tapXo(Vector2 point) {
+    if (_xoWinner != 0) {
+      if (point.y < 100 && _canPlayTurn) {
+        _xoBoard.fillRange(0, _xoBoard.length, 0);
+        _xoWinner = 0;
+        _xoTurn = 1;
+        _specialRound++;
+        _syncBoardState({'xoBoard': _xoBoard, 'xoWinner': 0});
+        onScore(score);
+      }
+      return;
+    }
+    if (!_canPlayTurn) return;
+    final rect = _squareBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 3;
+    final column = ((point.x - rect.left) / cell).floor();
+    final row = ((point.y - rect.top) / cell).floor();
+    if (row < 0 || row >= 3 || column < 0 || column >= 3) return;
+    final index = row * 3 + column;
+    if (_xoBoard[index] != 0) return;
+    final marker = _localMarker(_xoTurn);
+    if (marker == 0) return;
+    _xoBoard[index] = marker;
+    _xoWinner = GameBoardRules.findWinner(
+      _xoBoard,
+      rows: 3,
+      columns: 3,
+      runLength: 3,
+    );
+    if (_xoWinner == 0 && _xoBoard.every((value) => value != 0)) {
+      _xoWinner = 3;
+    }
+    if (_xoWinner == marker) score += 3;
+    if (_xoWinner == 0 && !_isMultiplayerSession) _xoTurn = 3 - _xoTurn;
+    _specialRound++;
+    onScore(score);
+    final nextTurn = _xoWinner == 0 ? _nextTurnUid() : null;
+    _syncBoardState(
+      {'xoBoard': _xoBoard, 'xoWinner': _xoWinner},
+      currentTurn: nextTurn,
+    );
+  }
+
+  void _tapFourInRow(Vector2 point) {
+    if (_fourWinner != 0) {
+      if (point.y < 100 && _canPlayTurn) {
+        _fourBoard.fillRange(0, _fourBoard.length, 0);
+        _fourWinner = 0;
+        _fourTurn = 1;
+        _specialRound++;
+        _syncBoardState({'fourBoard': _fourBoard, 'fourWinner': 0});
+      }
+      return;
+    }
+    if (!_canPlayTurn) return;
+    final rect = _fourBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 7;
+    final column = ((point.x - rect.left) / cell).floor();
+    if (column < 0 || column >= 7) return;
+    var target = -1;
+    for (var row = 5; row >= 0; row--) {
+      final index = row * 7 + column;
+      if (_fourBoard[index] == 0) {
+        target = index;
+        break;
+      }
+    }
+    if (target < 0) return;
+    final marker = _localMarker(_fourTurn);
+    if (marker == 0) return;
+    _fourBoard[target] = marker;
+    _fourWinner = GameBoardRules.findWinner(
+      _fourBoard,
+      rows: 6,
+      columns: 7,
+      runLength: 4,
+    );
+    if (_fourWinner == 0 && _fourBoard.every((value) => value != 0)) {
+      _fourWinner = 3;
+    }
+    if (_fourWinner == marker) score += 3;
+    if (_fourWinner == 0 && !_isMultiplayerSession) _fourTurn = 3 - _fourTurn;
+    _specialRound++;
+    onScore(score);
+    _syncBoardState(
+      {'fourBoard': _fourBoard, 'fourWinner': _fourWinner},
+      currentTurn: _fourWinner == 0 ? _nextTurnUid() : null,
+    );
+  }
+
+  bool _claimDotBox(int row, int column, int marker) {
+    final index = row * 3 + column;
+    if (_dotsBoxOwners[index] != 0) return false;
+    if (!GameBoardRules.dotsBoxComplete(
+      row: row,
+      column: column,
+      horizontal: _dotsHorizontal,
+      vertical: _dotsVertical,
+    )) {
+      return false;
+    }
+    _dotsBoxOwners[index] = marker;
+    return true;
+  }
+
+  void _tapDotsAndBoxes(Vector2 point) {
+    if (_dotsFinished) {
+      if (point.y < 100 && _canPlayTurn) {
+        _dotsHorizontal.fillRange(0, _dotsHorizontal.length, false);
+        _dotsVertical.fillRange(0, _dotsVertical.length, false);
+        _dotsBoxOwners.fillRange(0, _dotsBoxOwners.length, 0);
+        _dotsFinished = false;
+        _dotsTurn = 1;
+        _specialRound++;
+        _syncBoardState({
+          'dotsHorizontal': _dotsHorizontal,
+          'dotsVertical': _dotsVertical,
+          'dotsBoxOwners': _dotsBoxOwners,
+          'dotsFinished': false,
+        }, currentTurn: _localUid);
+      }
+      return;
+    }
+    if (!_canPlayTurn) return;
+    final rect = _squareBoardRect();
+    if (!rect.inflate(18).contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 3;
+    var bestDistance = double.infinity;
+    var horizontalIndex = -1;
+    var verticalIndex = -1;
+
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 3; column++) {
+        final index = row * 3 + column;
+        if (_dotsHorizontal[index]) continue;
+        final center = Offset(rect.left + (column + .5) * cell, rect.top + row * cell);
+        final distance = center.distanceTo(Offset(point.x, point.y));
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          horizontalIndex = index;
+          verticalIndex = -1;
+        }
+      }
+    }
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 4; column++) {
+        final index = row * 4 + column;
+        if (_dotsVertical[index]) continue;
+        final center = Offset(rect.left + column * cell, rect.top + (row + .5) * cell);
+        final distance = center.distanceTo(Offset(point.x, point.y));
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          horizontalIndex = -1;
+          verticalIndex = index;
+        }
+      }
+    }
+    if (bestDistance > cell * .23) return;
+    final marker = _localMarker(_dotsTurn);
+    if (marker == 0) return;
+    var captured = false;
+    if (horizontalIndex >= 0) {
+      _dotsHorizontal[horizontalIndex] = true;
+      final row = horizontalIndex ~/ 3;
+      final column = horizontalIndex % 3;
+      if (row > 0 && _claimDotBox(row - 1, column, marker)) captured = true;
+      if (row < 3 && _claimDotBox(row, column, marker)) captured = true;
+    } else if (verticalIndex >= 0) {
+      _dotsVertical[verticalIndex] = true;
+      final row = verticalIndex ~/ 4;
+      final column = verticalIndex % 4;
+      if (column > 0 && _claimDotBox(row, column - 1, marker)) captured = true;
+      if (column < 3 && _claimDotBox(row, column, marker)) captured = true;
+    } else {
+      return;
+    }
+
+    if (captured) score += _dotsBoxOwners.where((owner) => owner == marker).length -
+        _dotsBoxOwners.where((owner) => owner == marker).length + 1;
+    _dotsFinished = _dotsBoxOwners.every((owner) => owner != 0);
+    if (!captured && !_dotsFinished && !_isMultiplayerSession) {
+      _dotsTurn = 3 - _dotsTurn;
+    }
+    _specialRound++;
+    onScore(score);
+    _syncBoardState(
+      {
+        'dotsHorizontal': _dotsHorizontal,
+        'dotsVertical': _dotsVertical,
+        'dotsBoxOwners': _dotsBoxOwners,
+        'dotsFinished': _dotsFinished,
+      },
+      currentTurn: captured ? _localUid : (_dotsFinished ? null : _nextTurnUid()),
+    );
+  }
+
+  void _tapPicturePuzzle(Vector2 point) {
+    if (_pictureSolved) return;
+    _ensurePicturePuzzle();
+    final rect = _squareBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 4;
+    final column = ((point.x - rect.left) / cell).floor();
+    final row = ((point.y - rect.top) / cell).floor();
+    if (row < 0 || row >= 4 || column < 0 || column >= 4) return;
+    final index = row * 4 + column;
+    final blank = _pictureTiles.indexOf(0);
+    if (blank < 0) return;
+    final blankRow = blank ~/ 4;
+    final blankColumn = blank % 4;
+    if ((row - blankRow).abs() + (column - blankColumn).abs() != 1) return;
+    _pictureTiles[blank] = _pictureTiles[index];
+    _pictureTiles[index] = 0;
+    _pictureSolved = GameBoardRules.isSolvedPicture(_pictureTiles);
+    if (_pictureSolved) score += 10;
+    _specialRound++;
+    onScore(score);
+    _syncBoardState({
+      'pictureTiles': _pictureTiles,
+      'pictureSolved': _pictureSolved,
+    });
+  }
+
+  void _tapSudoku(Vector2 point) {
+    if (_sudokuSolved || !_canPlayTurn) return;
+    final rect = _squareBoardRect();
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final cell = rect.width / 4;
+    final column = ((point.x - rect.left) / cell).floor();
+    final row = ((point.y - rect.top) / cell).floor();
+    if (row < 0 || row >= 4 || column < 0 || column >= 4) return;
+    final index = row * 4 + column;
+    if (_sudokuPuzzle[index] != 0) return;
+    final oldValue = _sudokuValues[index];
+    _sudokuValues[index] = (oldValue + 1) % 5;
+    if (!GameBoardRules.isValidSudoku4x4(_sudokuValues, requireComplete: false)) {
+      _sudokuValues[index] = oldValue;
+      score = math.max(0, score - 1);
+      onScore(score);
+      _syncBoardState({'sudokuValues': _sudokuValues}, currentTurn: _localUid);
+      return;
+    }
+    _sudokuSolved = GameBoardRules.isValidSudoku4x4(_sudokuValues);
+    if (_sudokuSolved) score += 10;
+    if (!_isMultiplayerSession && !_sudokuSolved) _sudokuTurn = 3 - _sudokuTurn;
+    _specialRound++;
+    onScore(score);
+    _syncBoardState(
+      {'sudokuValues': _sudokuValues, 'sudokuSolved': _sudokuSolved},
+      currentTurn: _sudokuSolved ? null : _nextTurnUid(),
+    );
+  }
+
   void _tapPairs(Vector2 point) {
     switch (type) {
       case GameType.fourInRow:
