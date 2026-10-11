@@ -36,9 +36,11 @@ class NotificationPreferences {
         },
         SetOptions(merge: true),
       );
+      await prefs.remove('notification_preferences_pending_$key');
     } catch (_) {
-      // Local preferences remain usable if the user is offline or cloud sync
-      // is unavailable; the next initialization attempts reconciliation.
+      // Retain a durable local marker so an offline change wins over stale
+      // cloud values on the next launch and is retried during reconciliation.
+      await prefs.setBool('notification_preferences_pending_$key', true);
     }
   }
 
@@ -79,7 +81,11 @@ class NotificationPreferences {
 
         final missingLocalValues = <String, bool>{};
         for (final key in _keys) {
-          if (effectiveRemote[key] is bool) {
+          final pendingKey = 'notification_preferences_pending_$key';
+          if (prefs.getBool(pendingKey) == true && prefs.containsKey(key)) {
+            // A change made offline is newer than the server snapshot.
+            missingLocalValues[key] = prefs.getBool(key) ?? true;
+          } else if (effectiveRemote[key] is bool) {
             await prefs.setBool(key, effectiveRemote[key] as bool);
           } else if (prefs.containsKey(key)) {
             // Preserve explicit settings from an older local-only install
@@ -95,6 +101,9 @@ class NotificationPreferences {
             },
             SetOptions(merge: true),
           );
+          for (final key in missingLocalValues.keys) {
+            await prefs.remove('notification_preferences_pending_$key');
+          }
         }
         return;
       }
