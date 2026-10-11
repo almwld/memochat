@@ -1216,15 +1216,48 @@ class _ConversationAvatar extends StatelessWidget {
                 width: typing ? 2.2 : unread ? 2 : 1,
               ),
             ),
-            child: CircleAvatar(
-              backgroundColor: scheme.primaryContainer,
-              backgroundImage: image.isEmpty ? null : NetworkImage(image),
-              child: image.isNotEmpty
-                  ? null
-                  : Text(
-                      user.displayName.trim().isEmpty ? '؟' : user.displayName.characters.first,
-                      style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w900, fontSize: 19),
-                    ),
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              // The chat document keeps a cached avatar for fast first paint,
+              // but the user profile is canonical. Listen to it so a profile
+              // photo change refreshes the main chat list without reopening it.
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.id)
+                  .snapshots(),
+              builder: (context, profileSnapshot) {
+                final profile = profileSnapshot.data?.data() ??
+                    const <String, dynamic>{};
+                final canonicalPhoto = profile['photoUrl']?.toString().trim();
+                final legacyPhoto = profile['photoURL']?.toString().trim();
+                final currentImage = canonicalPhoto?.isNotEmpty == true
+                    ? canonicalPhoto!
+                    : legacyPhoto?.isNotEmpty == true
+                        ? legacyPhoto!
+                        : image;
+                return CircleAvatar(
+                  backgroundColor: scheme.primaryContainer,
+                  backgroundImage: currentImage.isEmpty
+                      ? null
+                      : NetworkImage(currentImage),
+                  onBackgroundImageError: currentImage.isEmpty
+                      ? null
+                      : (exception, stackTrace) {
+                          debugPrint('Chat avatar load failed for ${user.id}: $exception');
+                        },
+                  child: currentImage.isNotEmpty
+                      ? null
+                      : Text(
+                          user.displayName.trim().isEmpty
+                              ? '؟'
+                              : user.displayName.characters.first,
+                          style: TextStyle(
+                            color: scheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 19,
+                          ),
+                        ),
+                );
+              },
             ),
           ),
           if (user.isOnline)
