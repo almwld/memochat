@@ -1621,7 +1621,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                         if (replyId != null && replyId.isNotEmpty) unawaited(_jumpToMessage(replyId));
                       },
                       onDelete: model == null || model.id.isEmpty || model.senderId != _auth.currentUser?.uid ? null : () => _confirmDeleteMessage(model),
-                      onEdit: model == null || model.id.isEmpty || model.senderId != _auth.currentUser?.uid ? null : () => _editMessage(model),
+                      onEdit: model == null || model.id.isEmpty || model.viewOnce || model.senderId != _auth.currentUser?.uid ? null : () => _editMessage(model),
                       onDeleteForMe: model == null || model.id.isEmpty
                           ? null
                           : () => _deleteMessageForMe(model),
@@ -1633,7 +1633,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                           : () => _toggleMessageStar(model),
                       onSelect: model == null || model.id.isEmpty ? null : () => _toggleMessageSelection(model.id),
                       fontSize: _fontSize,
-                      onReaction: remote && messageId != null
+                      onReaction: remote && messageId != null && model?.viewOnce != true
                           ? (emoji) => _chat.addReaction(
                               _chatId, messageId, emoji)
                           : null);
