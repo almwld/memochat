@@ -81,7 +81,7 @@ void main() {
         GameType.fastChoice: ['13', '4', 'صنعاء', '60'],
         GameType.trueFalse: ['صحيح', 'خطأ', 'صحيح'],
         GameType.riddleRush: ['المشط', 'الوقت', 'الحفرة', 'الكتاب', 'الصدى'],
-        GameType.guessSong: ['جاز', 'روك', 'كلاسيكي', 'عربي'],
+        GameType.guessSong: ['جاز', 'روك', 'كلاسيكي', 'أغاني عربية'],
         GameType.movieQuiz: ['أكشن', 'كوميديا', 'خيال علمي', 'دراما'],
         GameType.higherLower: ['18', '23', 'متساويان', '31', '9', 'لا'],
         GameType.flagQuiz: ['اليمن', 'اليابان', 'فرنسا', 'البرازيل', 'مصر', 'إيطاليا'],
