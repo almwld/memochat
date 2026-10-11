@@ -181,7 +181,19 @@ class FirebaseChatRepository implements ChatRepository {
     // Older chats may also lack updatedAt, so sorting is done locally below.
     return _chats()
         .where('participants', arrayContains: _uid)
-        .snapshots()
+        // On a cold app start Firestore may first emit an empty local-cache
+        // snapshot before the server query finishes. Do not let that transient
+        // cache state masquerade as a genuinely empty inbox. Including metadata
+        // changes ensures an actually-empty server result is still delivered.
+        .snapshots(includeMetadataChanges: true)
+        .where((snapshot) {
+          final transientEmptyCache =
+              snapshot.metadata.isFromCache && snapshot.docs.isEmpty;
+          if (transientEmptyCache) {
+            debugPrint('Deferring empty cached conversation snapshot until server sync');
+          }
+          return !transientEmptyCache;
+        })
         .map((snapshot) {
           final conversations = snapshot.docs.map((doc) {
               try {
