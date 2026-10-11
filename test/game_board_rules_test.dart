@@ -33,7 +33,7 @@ void main() {
       );
       expect(
         GameBoardRules.findWinner(
-          List<int>.generate(42, (i) => i % 7 == 2 && i ~/ 7 > 1 ? 2 : 0),
+          List<int>.generate(42, (i) => i % 7 == 2 && i ~/ 7 > 2 ? 2 : 0),
           rows: 6,
           columns: 7,
           runLength: 4,
