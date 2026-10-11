@@ -54,11 +54,14 @@ class StatusService {
 
   Future<List<UserStatusModel>> _withViewState(QuerySnapshot<Map<String, dynamic>> snapshot) async {
     final uid = _auth.currentUser?.uid;
-    final items = <UserStatusModel>[];
-    for (final document in snapshot.docs) {
-      final viewed = uid == null ? false : (await document.reference.collection('views').doc(uid).get()).exists;
-      items.add(UserStatusModel.fromDocument(document, isViewed: viewed));
-    }
+    // Resolve all viewer flags concurrently instead of awaiting one Firestore
+    // read per story in series. Large story rows now become visible much sooner.
+    final items = await Future.wait(snapshot.docs.map((document) async {
+      final viewed = uid == null
+          ? false
+          : (await document.reference.collection('views').doc(uid).get()).exists;
+      return UserStatusModel.fromDocument(document, isViewed: viewed);
+    }));
     return items;
   }
 
