@@ -379,7 +379,7 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
   }
 
   Future<void> _tapPair(int index) async {
-    if (_finished || _busy) return;
+    if (_finished || _busy || _message?.contains('ليسا متطابقين') == true) return;
     if (!_myTurn) return _guard();
     if (_matched.contains(index) || _revealed.contains(index)) return;
     setState(() {
@@ -390,7 +390,8 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
         return;
       }
       final first = _firstPair!;
-      if (_pairValues[first] == _pairValues[index]) {
+      final matchedPair = _pairValues[first] == _pairValues[index];
+      if (matchedPair) {
         _matched.addAll([first, index]);
         _score += 2;
         _message = 'زوج متطابق!';
@@ -402,7 +403,7 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
       if (_matched.length == _pairValues.length) {
         _finished = true;
         _message = 'أكملت جميع الأزواج!';
-      } else if (_multiplayer) {
+      } else if (_multiplayer && !matchedPair) {
         _turnUid = _nextPlayer();
       }
     });
@@ -681,16 +682,18 @@ class _DotsPainter extends CustomPainter {
     for (var r = 0; r < 4; r++) {
       for (var c = 0; c < 3; c++) {
         final owner = edges[r * 3 + c];
-        if (owner == 0) continue;
-        line.color = owner == 1 ? const Color(0xFF0D8274) : const Color(0xFFFF5D73);
+        line.color = owner == 0
+            ? const Color(0x403B6265)
+            : owner == 1 ? const Color(0xFF0D8274) : const Color(0xFFFF5D73);
         canvas.drawLine(Offset(pad + c * step, pad + r * step), Offset(pad + (c + 1) * step, pad + r * step), line);
       }
     }
     for (var r = 0; r < 3; r++) {
       for (var c = 0; c < 4; c++) {
         final owner = edges[12 + r * 4 + c];
-        if (owner == 0) continue;
-        line.color = owner == 1 ? const Color(0xFF0D8274) : const Color(0xFFFF5D73);
+        line.color = owner == 0
+            ? const Color(0x403B6265)
+            : owner == 1 ? const Color(0xFF0D8274) : const Color(0xFFFF5D73);
         canvas.drawLine(Offset(pad + c * step, pad + r * step), Offset(pad + c * step, pad + (r + 1) * step), line);
       }
     }
