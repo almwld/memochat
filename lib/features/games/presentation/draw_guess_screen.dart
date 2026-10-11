@@ -163,7 +163,8 @@ class _DrawGuessScreenState extends State<DrawGuessScreen> {
       distractors[(start + 2) % distractors.length],
       distractors[(start + 4) % distractors.length],
     ];
-    return choices;
+    final shift = _round % choices.length;
+    return List<String>.generate(choices.length, (i) => choices[(i + shift) % choices.length]);
   }
 
   Future<void> _guess(String guess) async {
@@ -406,7 +407,7 @@ class _Stroke {
       }
     }
     final color = raw['color'] is num ? (raw['color'] as num).toInt() : 0;
-    return _Stroke(points: points, colorIndex: color.clamp(0, 4));
+    return _Stroke(points: points, colorIndex: color.clamp(0, 4).toInt());
   }
 }
 
