@@ -220,7 +220,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final m = widget.message;
     switch (type) {
       case 'image':
-        return _withStatus(_buildImage(_firstNonEmpty(m, ['imageUrl', 'fileUrl', 'text'])));
+        return _buildImage(_firstNonEmpty(m, ['imageUrl', 'fileUrl', 'text']));
       case 'video':
         return _withStatus(_buildVideo(_firstNonEmpty(m, ['videoUrl', 'fileUrl', 'text'])));
       case 'audio':
@@ -728,6 +728,25 @@ class _MessageBubbleState extends State<MessageBubble> {
             bottom: 8,
             start: 8,
             child: _uploadChip(m, dark),
+          ),
+        if (m['isUploading'] != true)
+          PositionedDirectional(
+            bottom: 8,
+            end: 8,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: widget.isMe
+                    ? const Color(0xFFD9FDD3).withOpacity(.92)
+                    : (dark
+                        ? const Color(0xFF202C33).withOpacity(.92)
+                        : Colors.white.withOpacity(.92)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                child: _mediaStatus(m),
+              ),
+            ),
           ),
       ],
     );
