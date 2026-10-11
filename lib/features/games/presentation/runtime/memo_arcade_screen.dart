@@ -110,7 +110,20 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
                   _gameViewportKey.currentContext?.findRenderObject();
               if (renderObject is! RenderBox) return;
               final p = renderObject.globalToLocal(e.position);
-              game.tap(Vector2(p.dx, p.dy));
+              final point = Vector2(p.dx, p.dy);
+              if (game.supportsDragMovement) {
+                game.moveTo(point);
+              } else {
+                game.tap(point);
+              }
+            },
+            onPointerMove: (e) {
+              if (!game.supportsDragMovement) return;
+              final renderObject =
+                  _gameViewportKey.currentContext?.findRenderObject();
+              if (renderObject is! RenderBox) return;
+              final p = renderObject.globalToLocal(e.position);
+              game.moveTo(Vector2(p.dx, p.dy));
             },
             child: SizedBox.expand(
               key: _gameViewportKey,
@@ -135,7 +148,21 @@ class MemoArcadeGame extends FlameGame {
   final List<Target> targets = <Target>[];
   final List<Particle> particles = <Particle>[];
   int score = 0;
+  int combo = 0;
+  Vector2? _playerPosition;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
+
+  bool get supportsDragMovement =>
+      type == GameType.mazeRunner || type == GameType.galaxyCatch;
+
+  void moveTo(Vector2 point) {
+    if (!supportsDragMovement || size.x <= 0 || size.y <= 0) return;
+    const margin = 22.0;
+    _playerPosition = Vector2(
+      point.x.clamp(margin, math.max(margin, size.x - margin)).toDouble(),
+      point.y.clamp(84.0, math.max(84.0, size.y - margin)).toDouble(),
+    );
+  }
 
   ArcadeContent get content => ArcadeContentBank.forType(type);
   Color get background => const Color(0xFF071719);
@@ -153,6 +180,9 @@ class MemoArcadeGame extends FlameGame {
 
   @override void onGameResize(Vector2 size) {
     super.onGameResize(size);
+    if (supportsDragMovement && size.x > 0 && size.y > 0) {
+      _playerPosition ??= Vector2(size.x / 2, size.y * .78);
+    }
     if (targets.isEmpty && size.x > 0) {
       for (var i = 0; i < 7; i++) spawnTarget();
     }
@@ -183,6 +213,17 @@ class MemoArcadeGame extends FlameGame {
       }
     }
     targets.removeWhere((t) => t.age > 7);
+    if (supportsDragMovement && _playerPosition != null) {
+      final collected = targets.where((target) =>
+          target.position.distanceTo(_playerPosition!) < target.radius + 20).toList();
+      for (final target in collected) {
+        targets.remove(target);
+        score += target.kind == 2 ? 3 : 1;
+        _spawnBurst(target.position, target.kind);
+        onScore(score);
+        _syncScore();
+      }
+    }
     for (final p in particles) { p.age += dt; p.position += p.velocity*dt; }
     particles.removeWhere((p) => p.age > .7);
   }
@@ -198,29 +239,277 @@ class MemoArcadeGame extends FlameGame {
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
     paint.style=PaintingStyle.fill;
     for (final t in targets) {
-      final r=t.radius*(1+math.sin(t.age*5+t.phase)*.08);
-      paint.color=palette[t.kind%palette.length];
-      final c=Offset(t.position.x,t.position.y);
-      if (type == GameType.shapeMatch || type == GameType.patternTap) {
-        final path=Path();
-        for(var i=0;i<10;i++){final a=-math.pi/2+i*math.pi/5;final rr=i.isEven?r:r*.45;final q=Offset(c.dx+math.cos(a)*rr,c.dy+math.sin(a)*rr);if(i==0)path.moveTo(q.dx,q.dy);else path.lineTo(q.dx,q.dy);}
-        canvas.drawPath(path..close(),paint);
-      } else if (type == GameType.colorRush || type == GameType.colorMatch) {
-        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCircle(center:c,radius:r),const Radius.circular(10)),paint);
-      } else if (type == GameType.mazeRunner || type == GameType.treasureHunt || type == GameType.galaxyCatch) {
-        final path=Path()..moveTo(c.dx,c.dy-r)..lineTo(c.dx+r,c.dy)..lineTo(c.dx,c.dy+r)..lineTo(c.dx-r,c.dy)..close();canvas.drawPath(path,paint);
-      } else { canvas.drawCircle(c,r,paint); }
-      paint.color=Colors.white.withOpacity(.2); canvas.drawCircle(Offset(c.dx-r*.28,c.dy-r*.28),r*.18,paint);
+      _drawTargetModel(canvas, paint, t);
     }
+    _drawPlayer(canvas);
     for(final p in particles){paint.color=palette[p.kind%palette.length].withOpacity(math.max(0,1-p.age/.7));canvas.drawCircle(Offset(p.position.x,p.position.y),p.radius*(1+p.age*2),paint);}
-    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة',style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
+    final comboLabel = combo >= 2 ? '  •  سلسلة $combo!' : '';
+    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة'+comboLabel,style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
     hud.paint(canvas,Offset(size.x/2-hud.width/2,20));
     final help=TextPainter(text:TextSpan(text:_instruction,style:const TextStyle(color:Color(0xB8FFFFFF),fontSize:12,fontWeight:FontWeight.w700)),textDirection:TextDirection.rtl)..layout();
     help.paint(canvas,Offset(size.x/2-help.width/2,49));
   }
 
+  void _drawPlayer(Canvas canvas) {
+    final player = _playerPosition;
+    if (!supportsDragMovement || player == null) return;
+    final center = Offset(player.x, player.y);
+    final radius = 18 + math.sin(elapsed * 8) * 1.5;
+    if (type == GameType.galaxyCatch) {
+      final flame = Path()
+        ..moveTo(center.dx - radius * .42, center.dy + radius * .42)
+        ..lineTo(center.dx, center.dy + radius * 1.45 + random.nextDouble() * 5)
+        ..lineTo(center.dx + radius * .42, center.dy + radius * .42)
+        ..close();
+      final flamePaint = Paint()..color = const Color(0xFFFF9F43).withOpacity(.8);
+      canvas.drawPath(flame, flamePaint);
+      _drawMesh(canvas, center, radius * .85, elapsed * .9,
+          _pyramidVertices, _pyramidFaces, const Color(0xFF56E6FF), tilt: .12);
+    } else {
+      _drawMesh(canvas, center, radius, elapsed * .65,
+          _cubeVertices, _cubeFaces, const Color(0xFF4DE3C1), tilt: .45);
+    }
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = Colors.white.withOpacity(.65);
+    canvas.drawCircle(center, radius * 1.35, ring);
+  }
+
+  void _spawnBurst(Vector2 position, int kind) {
+    for (var i = 0; i < 9; i++) {
+      final angle = math.pi * 2 * i / 9;
+      final speed = 38 + random.nextDouble() * 70;
+      particles.add(Particle(
+        position: Vector2(position.x, position.y),
+        velocity: Vector2(math.cos(angle) * speed, math.sin(angle) * speed),
+        radius: 2.5 + random.nextDouble() * 3.5,
+        kind: kind,
+      ));
+    }
+  }
+
+  // Draw low-poly 3D meshes with perspective projection. These are real
+  // procedural vertices/faces, not emoji or a flat diamond standing in for
+  // every object. Rotation and face lighting are computed every frame.
+  void _drawTargetModel(Canvas canvas, Paint paint, Target target) {
+    final pulse = 1 + math.sin(target.age * 4.8 + target.phase) * .045;
+    final r = target.radius * pulse;
+    final center = Offset(target.position.x, target.position.y);
+    final color = palette[target.kind % palette.length];
+
+    paint
+      ..style = PaintingStyle.fill
+      ..color = Colors.black.withOpacity(.25);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(center.dx, center.dy + r * .72),
+          width: r * 1.65, height: r * .42),
+      paint,
+    );
+
+    if (type == GameType.colorRush || type == GameType.colorMatch) {
+      final rect = Rect.fromCenter(center: center, width: r * 1.7, height: r * 1.7);
+      paint.color = color;
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(r * .28)), paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white.withOpacity(.62);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect.deflate(2), Radius.circular(r * .25)), paint);
+      paint.style = PaintingStyle.fill;
+      return;
+    }
+
+    if (type == GameType.mazeRunner) {
+      final angle = math.sin(target.age * 2.4 + target.phase) * .18;
+      final path = Path()
+        ..moveTo(center.dx + math.sin(angle) * r, center.dy - r)
+        ..lineTo(center.dx + r * .82, center.dy + r * .68)
+        ..lineTo(center.dx, center.dy + r * .34)
+        ..lineTo(center.dx - r * .82, center.dy + r * .68)
+        ..close();
+      paint.color = color;
+      canvas.drawPath(path, paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white.withOpacity(.72);
+      canvas.drawPath(path, paint);
+      paint.style = PaintingStyle.fill;
+      return;
+    }
+
+    if (type == GameType.galaxyCatch) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(target.age * .55 + target.phase);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(2.0, r * .12)
+        ..color = const Color(0xB8B7A8FF);
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero,
+          width: r * 2.35, height: r * .72), paint);
+      canvas.restore();
+      paint.style = PaintingStyle.fill;
+      _drawMesh(canvas, center, r * .78, target.age * .55 + target.phase,
+          _sphereVertices, _sphereFaces, color);
+      return;
+    }
+
+    if (type == GameType.treasureHunt) {
+      _drawMesh(canvas, center, r * .9, target.age * .45 + target.phase,
+          _gemVertices, _gemFaces, const Color(0xFFFFC857), tilt: .38);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = const Color(0xFFFFF0B0);
+      canvas.drawCircle(center, r * .88, paint);
+      paint.style = PaintingStyle.fill;
+      return;
+    }
+
+    if (type == GameType.shapeMatch || type == GameType.patternTap) {
+      final meshes = <List<dynamic>>[
+        [_cubeVertices, _cubeFaces],
+        [_pyramidVertices, _pyramidFaces],
+        [_sphereVertices, _sphereFaces],
+      ];
+      final mesh = meshes[target.kind % meshes.length];
+      _drawMesh(canvas, center, r * .82, target.age * .65 + target.phase,
+          mesh[0] as List<_Point3>, mesh[1] as List<List<int>>, color);
+      return;
+    }
+
+    if (type == GameType.stackTower || type == GameType.balanceBeam) {
+      _drawMesh(canvas, center, r * .78, target.age * .45 + target.phase,
+          _cubeVertices, _cubeFaces, color, tilt: .48);
+      return;
+    }
+
+    // Most action targets are rendered as shaded, rotating low-poly spheres.
+    // Target-hit games get concentric rings to make the hit zone readable.
+    _drawMesh(canvas, center, r * .88, target.age * .38 + target.phase,
+        _sphereVertices, _sphereFaces, color);
+    if (type == GameType.targetHit) {
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.5, r * .07)
+        ..color = Colors.white.withOpacity(.78);
+      canvas.drawCircle(center, r * .56, paint);
+      canvas.drawCircle(center, r * .25, paint);
+      paint.style = PaintingStyle.fill;
+    }
+  }
+
+  void _drawMesh(
+    Canvas canvas,
+    Offset center,
+    double scale,
+    double angle,
+    List<_Point3> vertices,
+    List<List<int>> faces,
+    Color baseColor, {
+    double tilt = .48,
+  }) {
+    final ca = math.cos(angle);
+    final sa = math.sin(angle);
+    final ct = math.cos(tilt);
+    final st = math.sin(tilt);
+    final projected = <Offset>[];
+    final depth = <double>[];
+    for (final v in vertices) {
+      final x = v.x * ca - v.z * sa;
+      final z = v.x * sa + v.z * ca;
+      final y = v.y * ct - z * st;
+      final d = v.y * st + z * ct;
+      projected.add(Offset(center.dx + x * scale, center.dy + y * scale));
+      depth.add(d);
+    }
+    final orderedFaces = faces.toList()
+      ..sort((a, b) {
+        final da = a.fold<double>(0, (sum, i) => sum + depth[i]) / a.length;
+        final db = b.fold<double>(0, (sum, i) => sum + depth[i]) / b.length;
+        return da.compareTo(db);
+      });
+    for (var faceIndex = 0; faceIndex < orderedFaces.length; faceIndex++) {
+      final face = orderedFaces[faceIndex];
+      final path = Path()..moveTo(projected[face.first].dx, projected[face.first].dy);
+      for (final index in face.skip(1)) {
+        path.lineTo(projected[index].dx, projected[index].dy);
+      }
+      path.close();
+      final light = .07 + (faceIndex % 4) * .075;
+      final facePaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Color.lerp(baseColor, Colors.white, light)!
+        ..isAntiAlias = true;
+      canvas.drawPath(path, facePaint);
+      final outline = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withOpacity(.55)
+        ..isAntiAlias = true;
+      canvas.drawPath(path, outline);
+    }
+    final highlight = Paint()..color = Colors.white.withOpacity(.3);
+    canvas.drawCircle(Offset(center.dx - scale * .25, center.dy - scale * .28),
+        scale * .11, highlight);
+  }
+
+  static const List<_Point3> _cubeVertices = <_Point3>[
+    _Point3(-1, -1, -1), _Point3(1, -1, -1),
+    _Point3(1, 1, -1), _Point3(-1, 1, -1),
+    _Point3(-1, -1, 1), _Point3(1, -1, 1),
+    _Point3(1, 1, 1), _Point3(-1, 1, 1),
+  ];
+  static const List<List<int>> _cubeFaces = <List<int>>[
+    [0, 1, 2, 3], [4, 7, 6, 5], [0, 4, 5, 1],
+    [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0],
+  ];
+  static const List<_Point3> _pyramidVertices = <_Point3>[
+    _Point3(0, -1.2, 0), _Point3(1, .55, 1),
+    _Point3(1, .55, -1), _Point3(-1, .55, -1),
+    _Point3(-1, .55, 1),
+  ];
+  static const List<List<int>> _pyramidFaces = <List<int>>[
+    [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1], [1, 4, 3, 2],
+  ];
+  static const List<_Point3> _sphereVertices = <_Point3>[
+    _Point3(0, -1, 0),
+    _Point3(0, -.45, 1), _Point3(.87, -.45, .5),
+    _Point3(.87, -.45, -.5), _Point3(0, -.45, -1),
+    _Point3(-.87, -.45, -.5), _Point3(-.87, -.45, .5),
+    _Point3(0, .45, 1), _Point3(.87, .45, .5),
+    _Point3(.87, .45, -.5), _Point3(0, .45, -1),
+    _Point3(-.87, .45, -.5), _Point3(-.87, .45, .5),
+    _Point3(0, 1, 0),
+  ];
+  static const List<List<int>> _sphereFaces = <List<int>>[
+    [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 6], [0, 6, 1],
+    [1, 7, 8, 2], [2, 8, 9, 3], [3, 9, 10, 4], [4, 10, 11, 5],
+    [5, 11, 12, 6], [6, 12, 7, 1],
+    [7, 13, 8], [8, 13, 9], [9, 13, 10], [10, 13, 11],
+    [11, 13, 12], [12, 13, 7],
+  ];
+  static const List<_Point3> _gemVertices = <_Point3>[
+    _Point3(0, -1.2, 0), _Point3(1, -.15, 0), _Point3(.5, 0, .87),
+    _Point3(-.5, 0, .87), _Point3(-1, -.15, 0),
+    _Point3(-.5, 0, -.87), _Point3(.5, 0, -.87), _Point3(0, 1.15, 0),
+  ];
+  static const List<List<int>> _gemFaces = <List<int>>[
+    [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 6], [0, 6, 1],
+    [7, 2, 1], [7, 3, 2], [7, 4, 3], [7, 5, 4], [7, 6, 5], [7, 1, 6],
+  ];
+
   String get _instruction {
-    return content.instruction;
+    switch (type) {
+      case GameType.mazeRunner:
+        return 'اسحب للتحرك واجمع الجواهر وتجنب الحواف';
+      case GameType.galaxyCatch:
+        return 'اسحب المركبة لجمع النجوم وتجنب النيازك';
+      default:
+        return content.instruction;
+    }
   }
 
   void tap(Vector2 point) {
@@ -412,6 +701,7 @@ class MemoArcadeGame extends FlameGame {
     if (point.distanceTo(target.position) <= target.radius * 1.4) {
       score += target.kind == 2 ? 3 : 1;
       targets.remove(target);
+      _spawnBurst(target.position, target.kind);
       onScore(score);
       _syncScore();
     }
@@ -424,14 +714,18 @@ class MemoArcadeGame extends FlameGame {
     }
     if (hit == null) {
       score = math.max(0, score - 1);
+      combo = 0;
       comboClock = 0;
       onScore(score);
       return;
     }
     targets.remove(hit);
-    final gain = 1 + (hit.kind == 2 ? 2 : 0) + (comboClock < .55 ? 1 : 0);
+    combo = comboClock < .65 ? combo + 1 : 1;
+    final comboBonus = combo >= 2 ? math.min(4, combo ~/ 2).toInt() : 0;
+    final gain = 1 + (hit.kind == 2 ? 2 : 0) + comboBonus;
     score += gain;
     comboClock = 0;
+    _spawnBurst(hit.position, hit.kind);
     onScore(score);
     _syncScore();
   }
@@ -471,14 +765,39 @@ class MemoArcadeGame extends FlameGame {
     i.paint(canvas, Offset(size.x / 2 - i.width / 2, 52));
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
-      case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
+      case ArcadeMode.choice:
+        final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
+        final prompt = content.prompts.isEmpty ? 'اختر أحد الخيارات' : content.prompts[n];
+        final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length
+            ? content.choicesByPrompt[n]
+            : content.options;
+        _renderOptions(canvas, prompt, opts);
+        break;
       case ArcadeMode.math:
         if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; _mathAddend = b; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
         final q = '$_specialSecret + $_mathAddend = ؟';
         _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList()); break;
       case ArcadeMode.word:
         final source = content.prompts.isEmpty ? 'كتاب' : content.prompts[_specialRound % content.prompts.length];
-        if (_wordOptions.isEmpty) { _wordOptions = [source, 'هاتف', 'شجرة', 'مدينة']..shuffle(random); _wordCorrect = _wordOptions.indexOf(source); }
+        if (_wordOptions.isEmpty) {
+          final distractors = source == 'كتاب'
+              ? <String>['قلم', 'باب', 'نهر']
+              : source == 'مدرسة'
+                  ? <String>['حديقة', 'سيارة', 'نافذة']
+                  : source == 'هاتف'
+                      ? <String>['مفتاح', 'مصباح', 'حقيبة']
+                      : source == 'شجرة'
+                          ? <String>['زهرة', 'جبل', 'طريق']
+                          : source == 'قمر'
+                              ? <String>['شمس', 'نجم', 'بحر']
+                              : source == 'مفتاح'
+                                  ? <String>['قلم', 'باب', 'كتاب']
+                                  : source == 'حديقة'
+                                      ? <String>['مدرسة', 'نافذة', 'سيارة']
+                                      : <String>['قلم', 'نهر', 'جبل'];
+          _wordOptions = <String>[source, ...distractors]..shuffle(random);
+          _wordCorrect = _wordOptions.indexOf(source);
+        }
         final chars = source.runes.toList()..shuffle(random);
         _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
       case ArcadeMode.code: if (_codeDigit < 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
@@ -513,8 +832,7 @@ class MemoArcadeGame extends FlameGame {
     if (n < 0) return;
     final promptIndex =
         content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
-    final options = content.mode == ArcadeMode.quiz &&
-            content.choicesByPrompt.isNotEmpty &&
+    final options = content.choicesByPrompt.isNotEmpty &&
             promptIndex < content.choicesByPrompt.length
         ? content.choicesByPrompt[promptIndex]
         : content.options;
@@ -641,3 +959,11 @@ class MemoArcadeGame extends FlameGame {
 }
 class Target { Target({required this.position,required this.radius,required this.velocity,required this.kind,required this.phase}); Vector2 position,velocity; final double radius,phase; final int kind; double age=0; }
 class Particle { Particle({required this.position,required this.velocity,required this.radius,required this.kind}); Vector2 position,velocity; final double radius; final int kind; double age=0; }
+
+
+class _Point3 {
+  const _Point3(this.x, this.y, this.z);
+  final double x;
+  final double y;
+  final double z;
+}
