@@ -90,29 +90,50 @@ async function getFcmTokens(uid){
 
 async function sendToUser(uid,payload){
   if(!uid)return;
-  const tokens=await getFcmTokens(uid);
-  if(!tokens.length)return;
   try{
     const type=String(payload.data?.type || 'system').trim().toLowerCase();
+    const userSnapshot=await db.collection('users').doc(uid).get();
+    const preferences=userSnapshot.data()?.notificationPreferences || {};
     const messageTypes=new Set(['new_message','text_message','image_message','video_message','file_message','audio_message','reply']);
-    const callTypes=new Set(['call','incoming_call','incoming_video_call']);
-    // Messages may wait briefly for a device to reconnect; call invitations
-    // expire quickly, while social/room/community invites remain deliverable
-    // for a day, matching the category-aware delivery policy.
-    const ttlMs=callTypes.has(type)?2*60*1000:messageTypes.has(type)?60*60*1000:24*60*60*1000;
+    const callTypes=new Set(['call','incoming_call','incoming_video_call','missed_call','call_status']);
+    const incomingCallTypes=new Set(['call','incoming_call','incoming_video_call']);
+    const enabledKey=messageTypes.has(type)
+      ? 'notification_message_enabled'
+      : callTypes.has(type)
+        ? 'notification_call_enabled'
+        : 'notification_other_enabled';
+    // Support the canonical cross-device preference keys and legacy type-key
+    // documents written by the standalone notification server.
+    const legacyEnabled=preferences[type];
+    const enabled=typeof preferences[enabledKey]==='boolean'
+      ? preferences[enabledKey]
+      : typeof legacyEnabled==='boolean' ? legacyEnabled : true;
+    if(!enabled)return;
+    const previewEnabled=preferences.notification_message_preview!==false;
+    const soundEnabled=messageTypes.has(type)
+      ? preferences.notification_message_sounds!==false
+      : callTypes.has(type)
+        ? preferences.notification_call_sounds!==false
+        : preferences.notification_other_sounds!==false;
+    // Message invites expire quickly; missed-call history and social invites
+    // stay deliverable longer. Keep TTL consistent with the notification API.
+    const ttlMs=incomingCallTypes.has(type)?2*60*1000:messageTypes.has(type)?60*60*1000:24*60*60*1000;
     const highPriority=messageTypes.has(type)||callTypes.has(type)||['friend_request','voice_room_invite','community_invite','group_invite'].includes(type);
     const threadId=String(payload.data?.chatId || payload.data?.callId || payload.data?.roomId || type || 'memochat');
+    const alertTitle=messageTypes.has(type)&&!previewEnabled?'MemoChat':String(payload.data?.title || 'MemoChat');
+    const alertBody=messageTypes.has(type)&&!previewEnabled?'لديك رسالة جديدة في MemoChat':String(payload.data?.body || 'لديك إشعار جديد');
+    const aps={alert:{title:alertTitle,body:alertBody},badge:1,'content-available':1,'thread-id':threadId};
+    if(soundEnabled)aps.sound='default';
     const message={
       tokens,
       data:Object.fromEntries(Object.entries(payload.data||{}).map(([k,v])=>[k,String(v??'')])),
       // Android remains data-only so MemoChat renders one preference-aware
       // notification with the correct actions and stable ID.
       android:{priority:highPriority?'high':'normal',ttl:ttlMs},
-      // APNs needs an alert payload for a real lock-screen/status notification
-      // when iOS is backgrounded or terminated.
+      // APNs alert delivery follows the same cloud-synced preference contract.
       apns:{
-        headers:{'apns-priority':'10','apns-push-type':'alert','apns-expiration':String(Math.floor(Date.now()/1000)+Math.ceil(ttlMs/1000))},
-        payload:{aps:{alert:{title:String(payload.data?.title || 'MemoChat'),body:String(payload.data?.body || 'لديك إشعار جديد')},badge:1,'content-available':1,'thread-id':threadId}},
+        headers:{'apns-priority':highPriority?'10':'5','apns-push-type':'alert','apns-expiration':String(Math.floor(Date.now()/1000)+Math.ceil(ttlMs/1000))},
+        payload:{aps},
       },
     };
     const response=await admin.messaging().sendEachForMulticast(message);
