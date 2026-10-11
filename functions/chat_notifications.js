@@ -83,9 +83,19 @@ exports.decrementNotificationUnreadCounter=onDocumentUpdated('notifications/{not
 });
 
 async function getFcmTokens(uid){
-  const snap=await db.collection('users').doc(uid).collection('private').doc('tokens').get();
-  const data=snap.data()||{};
-  return Array.isArray(data.tokens)?data.tokens.map(v=>String(v||'').trim()).filter(Boolean):[];
+  const userRef=db.collection('users').doc(uid);
+  const [tokenSnapshot,userSnapshot]=await Promise.all([
+    userRef.collection('private').doc('tokens').get(),
+    userRef.get(),
+  ]);
+  const tokenData=tokenSnapshot.data()||{};
+  const legacyToken=String(userSnapshot.data()?.fcmToken||'').trim();
+  // Keep compatibility with installs that have not migrated their FCM token
+  // into the canonical private registry, without sending duplicate tokens.
+  return [...new Set([
+    ...(Array.isArray(tokenData.tokens)?tokenData.tokens:[]),
+    ...(legacyToken?[legacyToken]:[]),
+  ].map(value=>String(value||'').trim()).filter(Boolean))];
 }
 
 async function sendToUser(uid,payload){
@@ -143,7 +153,11 @@ async function sendToUser(uid,payload){
     const response=await admin.messaging().sendEachForMulticast(message);
     const invalidTokens=response.responses.map((result,index)=>!result.success && ['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(result.error?.code)?tokens[index]:'').filter(Boolean);
     if(invalidTokens.length){
-      await db.collection('users').doc(uid).collection('private').doc('tokens').update({tokens:admin.firestore.FieldValue.arrayRemove(...invalidTokens),updatedAt:admin.firestore.FieldValue.serverTimestamp()});
+      await db.collection('users').doc(uid).collection('private').doc('tokens').set({tokens:admin.firestore.FieldValue.arrayRemove(...invalidTokens),updatedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
+      const legacyToken=String((await db.collection('users').doc(uid).get()).data()?.fcmToken||'').trim();
+      if(legacyToken&&invalidTokens.includes(legacyToken)){
+        await db.collection('users').doc(uid).set({fcmToken:null,lastTokenUpdate:null},{merge:true});
+      }
     }
     if(response.failureCount){ console.warn(`FCM multicast failures for ${uid}: ${response.failureCount}`); }
   }catch(e){
