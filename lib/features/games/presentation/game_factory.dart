@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import '../models/game.dart';
 import 'runtime/memo_arcade_screen.dart';
 import 'board_game_screen.dart';
+import 'draw_guess_screen.dart';
 import 'games/bubble_pop_game.dart';
 import 'games/dice_roll_game.dart';
 import 'games/dots_and_boxes_game.dart';
@@ -41,6 +42,9 @@ class DedicatedGameFactory {
     };
     final hasMultiplayerSession =
         chatId.trim().isNotEmpty && (gameId?.trim().isNotEmpty ?? false);
+    if (hasMultiplayerSession && type == GameType.drawGuess) {
+      return DrawGuessScreen(chatId: chatId, gameId: gameId!.trim());
+    }
     // Keep existing solo games with their AI/large-board implementations.
     // XO and Connect Pairs need this board implementation even in solo mode.
     if ((hasMultiplayerSession && boardGameTypes.contains(type)) ||
