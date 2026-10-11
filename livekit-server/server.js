@@ -649,7 +649,9 @@ function startMessageListener() {
   if (messageListenerStarted) return;
   messageListenerStarted = true;
   let firstSnapshot = true;
-  messageListenerUnsubscribe = db.collectionGroup('messages').onSnapshot(snapshot => {
+  messageListenerUnsubscribe = db.collectionGroup('messages')
+    .where('clientTimestamp', '>=', admin.firestore.Timestamp.fromMillis(Date.now() - 2 * 60 * 1000))
+    .onSnapshot(snapshot => {
     if (firstSnapshot) {
       firstSnapshot = false;
       console.log('FCM message listener ready; existing messages ignored (' + snapshot.size + ' records).');
