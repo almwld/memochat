@@ -41,7 +41,7 @@ class _MemoBubblePainter extends CustomPainter {
         ? (dark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3))
         : (dark ? const Color(0xFF202C33) : const Color(0xFFFFFFFF));
     final paint = Paint()..style = PaintingStyle.fill..color = color;
-    final r = emphasized ? 17.0 : 12.0;
+    final r = emphasized ? 16.0 : 13.0;
     const tail = 7.0;
     final path = ui.Path();
 
@@ -77,11 +77,15 @@ class _MemoBubblePainter extends CustomPainter {
     }
 
     canvas.drawPath(path, paint);
-    if (!isMe && !dark) {
+    if (!isMe) {
+      // WhatsApp-like neutral incoming bubble: a subtle edge keeps the white
+      // and charcoal surfaces distinct from the chat wallpaper in both themes.
       final border = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = .45
-        ..color = const Color(0xFFE7EDEF);
+        ..strokeWidth = .55
+        ..color = dark
+            ? const Color(0xFF2A3942)
+            : const Color(0xFFE7EDEF);
       canvas.drawPath(path, border);
     }
   }
