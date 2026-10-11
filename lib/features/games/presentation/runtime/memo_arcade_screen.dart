@@ -201,6 +201,23 @@ class MemoArcadeGame extends FlameGame {
 
   @override void update(double dt) {
     super.update(dt); elapsed += dt; spawnClock += dt; comboClock += dt;
+    if (_memoryHideClock > 0) {
+      _memoryHideClock -= dt;
+      if (_memoryHideClock <= 0) {
+        _memoryVisible.removeAll([_memoryFirst, _memorySecond]);
+        _memoryFirst = -1;
+        _memorySecond = -1;
+        _memoryHideClock = 0;
+      }
+    }
+    if (_pairHideClock > 0) {
+      _pairHideClock -= dt;
+      if (_pairHideClock <= 0) {
+        _pairFirst = -1;
+        _pairSecond = -1;
+        _pairHideClock = 0;
+      }
+    }
     if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
     for (final t in targets) {
       t.age += dt; t.position += t.velocity * dt;
@@ -584,6 +601,8 @@ class MemoArcadeGame extends FlameGame {
   final Set<int> _memoryFound = <int>{};
   final Set<int> _memoryVisible = <int>{};
   int _memoryFirst = -1;
+  int _memorySecond = -1;
+  double _memoryHideClock = 0;
   int _sequenceStep = 0;
   int _colorGoal = 0;
 
@@ -596,23 +615,25 @@ class MemoArcadeGame extends FlameGame {
     final row = ((point.y - 100) / 62.0).floor();
     if (col < 0 || col >= 4 || row < 0 || row >= 3) return;
     final cell = row * 4 + col;
-    if (_memoryFound.contains(cell) || _memoryVisible.contains(cell)) return;
+    if (_memoryHideClock > 0 || _memoryFound.contains(cell) || _memoryVisible.contains(cell)) return;
     if (_memoryFirst < 0) {
       _memoryFirst = cell;
       _memoryVisible.add(cell);
       return;
     }
+    _memorySecond = cell;
     _memoryVisible.add(cell);
     if (_memoryOrder[cell] == _memoryOrder[_memoryFirst]) {
       score += 2;
       _memoryFound.addAll([_memoryFirst, cell]);
+      _memoryVisible.removeAll([_memoryFirst, cell]);
       _memoryFirst = -1;
+      _memorySecond = -1;
       onScore(score);
       _syncScore();
     } else {
-      _memoryVisible.removeAll([_memoryFirst, cell]);
-      _memoryFirst = -1;
       score = math.max(0, score - 1);
+      _memoryHideClock = .65;
       onScore(score);
       _syncScore();
     }
@@ -743,6 +764,8 @@ class MemoArcadeGame extends FlameGame {
   final List<int> _pairOrder = <int>[];
   final Set<int> _pairMatched = <int>{};
   int _pairFirst = -1;
+  int _pairSecond = -1;
+  double _pairHideClock = 0;
   int _raceProgress = 0;
 
   void applyRemoteRound(int round) {
@@ -903,7 +926,7 @@ class MemoArcadeGame extends FlameGame {
     for (var n = 0; n < 16; n++) {
       final x = 8 + (n % 4) * w;
       final y = 105.0 + (n ~/ 4) * 60.0;
-      final visible = _pairMatched.contains(n) || n == _pairFirst;
+      final visible = _pairMatched.contains(n) || n == _pairFirst || n == _pairSecond;
       paint.color = visible ? palette[_pairOrder[n] % palette.length] : const Color(0xFF17383B);
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w - 5, 52), const Radius.circular(10)), paint);
       if (visible) {
@@ -921,18 +944,21 @@ class MemoArcadeGame extends FlameGame {
     final row = ((point.y - 105) / 60).floor();
     if (col < 0 || col >= 4 || row < 0 || row >= 4) return;
     final cell = row * 4 + col;
-    if (_pairMatched.contains(cell) || cell == _pairFirst) return;
+    if (_pairHideClock > 0 || _pairMatched.contains(cell) || cell == _pairFirst) return;
     if (_pairFirst < 0) {
       _pairFirst = cell;
       return;
     }
+    _pairSecond = cell;
     if (_pairOrder[_pairFirst] == _pairOrder[cell]) {
       _pairMatched.addAll([_pairFirst, cell]);
       score += 2;
+      _pairFirst = -1;
+      _pairSecond = -1;
     } else {
       score = math.max(0, score - 1);
+      _pairHideClock = .65;
     }
-    _pairFirst = -1;
     onScore(score);
     _syncScore();
   }
