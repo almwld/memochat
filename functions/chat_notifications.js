@@ -93,19 +93,26 @@ async function sendToUser(uid,payload){
   const tokens=await getFcmTokens(uid);
   if(!tokens.length)return;
   try{
+    const type=String(payload.data?.type || 'system').trim().toLowerCase();
+    const messageTypes=new Set(['new_message','text_message','image_message','video_message','file_message','audio_message','reply']);
+    const callTypes=new Set(['call','incoming_call','incoming_video_call']);
+    // Messages may wait briefly for a device to reconnect; call invitations
+    // expire quickly, while social/room/community invites remain deliverable
+    // for a day, matching the category-aware delivery policy.
+    const ttlMs=callTypes.has(type)?2*60*1000:messageTypes.has(type)?60*60*1000:24*60*60*1000;
+    const highPriority=messageTypes.has(type)||callTypes.has(type)||['friend_request','voice_room_invite','community_invite','group_invite'].includes(type);
+    const threadId=String(payload.data?.chatId || payload.data?.callId || payload.data?.roomId || type || 'memochat');
     const message={
       tokens,
       data:Object.fromEntries(Object.entries(payload.data||{}).map(([k,v])=>[k,String(v??'')])),
-      // Data-only FCM is required so the app can apply the user's notification
-      // preferences and render the correct message/call/system notification,
-      // including actions, rather than Android auto-rendering a generic alert.
-      android:{
-        priority:'high',
-        ttl:60*60*1000,
-      },
+      // Android remains data-only so MemoChat renders one preference-aware
+      // notification with the correct actions and stable ID.
+      android:{priority:highPriority?'high':'normal',ttl:ttlMs},
+      // APNs needs an alert payload for a real lock-screen/status notification
+      // when iOS is backgrounded or terminated.
       apns:{
-        headers:{'apns-priority':'10','apns-push-type':'alert'},
-        payload:{aps:{alert:{title:String(payload.data?.title || 'MemoChat'),body:String(payload.data?.body || 'لديك إشعار جديد')},badge:1,'content-available':1,'thread-id':String(payload.data?.chatId || payload.data?.callId || payload.data?.roomId || payload.data?.type || 'memochat')}},
+        headers:{'apns-priority':'10','apns-push-type':'alert','apns-expiration':String(Math.floor(Date.now()/1000)+Math.ceil(ttlMs/1000))},
+        payload:{aps:{alert:{title:String(payload.data?.title || 'MemoChat'),body:String(payload.data?.body || 'لديك إشعار جديد')},badge:1,'content-available':1,'thread-id':threadId}},
       },
     };
     const response=await admin.messaging().sendEachForMulticast(message);
