@@ -51,6 +51,14 @@ void main() {
       );
     });
 
+    test('maze movement stays on the connected corridor', () {
+      expect(GameBoardRules.canMoveMaze(56, 57), isTrue);
+      expect(GameBoardRules.canMoveMaze(59, 51), isTrue);
+      expect(GameBoardRules.canMoveMaze(56, 59), isFalse);
+      expect(GameBoardRules.canMoveMaze(56, 48), isFalse);
+      expect(GameBoardRules.canMoveMaze(0, 1), isFalse);
+    });
+
     test('validates complete 4x4 Sudoku rows, columns, and blocks', () {
       const solved = <int>[
         1, 2, 3, 4,
