@@ -191,6 +191,7 @@ class MemoArcadeGame extends FlameGame {
   @override void render(Canvas canvas) {
     super.render(canvas);
     if (type == GameType.diceRoll) { _renderDice(canvas); return; }
+    if (type == GameType.reactionRace) { _renderReactionRace(canvas); return; }
     if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
@@ -223,6 +224,25 @@ class MemoArcadeGame extends FlameGame {
 
   String get _instruction {
     return content.instruction;
+  }
+
+  void _renderReactionRace(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final ready = elapsed >= _reactionReadyAt;
+    paint.color = ready ? const Color(0xFF20C997) : const Color(0xFFFFC857);
+    canvas.drawCircle(Offset(size.x / 2, size.y * .46), math.min(88.0, size.x * .22), paint);
+    final label = ready ? 'اضغط الآن!' : 'انتظر الإشارة';
+    final text = TextPainter(
+      text: TextSpan(text: label, style: const TextStyle(color: Color(0xFF071719), fontSize: 22, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    text.paint(canvas, Offset(size.x / 2 - text.width / 2, size.y * .46 - text.height / 2));
+    final scoreText = TextPainter(
+      text: TextSpan(text: '$score نقطة', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, size.y * .72));
   }
 
   void _renderDice(Canvas canvas) {
@@ -277,6 +297,9 @@ class MemoArcadeGame extends FlameGame {
     switch (type) {
       case GameType.diceRoll:
         _tapDice();
+        return;
+      case GameType.reactionRace:
+        _tapReactionRace();
         return;
       case GameType.memoryMatch:
       case GameType.cardFlip:
@@ -350,6 +373,76 @@ class MemoArcadeGame extends FlameGame {
   int _memoryFirst = -1;
   int _sequenceStep = 0;
   int _colorGoal = 0;
+
+  void _tapReactionRace() {
+    if (elapsed < _reactionReadyAt) {
+      score = math.max(0, score - 2);
+    } else {
+      final reactionSeconds = elapsed - _reactionReadyAt;
+      score += math.max(1, (30 - reactionSeconds * 10).round());
+    }
+    _reactionReadyAt = elapsed + 2 + random.nextDouble() * 2;
+    onScore(score);
+    _syncScore();
+  }
+
+  void _prepareWordGuess() {
+    if (_wordGuessTarget.isEmpty) {
+      _wordGuessTarget = content.prompts.isEmpty
+          ? 'قمر'
+          : content.prompts[_specialRound % content.prompts.length];
+      _wordGuessFound.clear();
+      _wordGuessLives = 6;
+      _wordGuessOptions = <String>[];
+    }
+    if (_wordGuessOptions.isNotEmpty) return;
+    final remaining = _wordGuessTarget.runes
+        .map(String.fromCharCode)
+        .where((letter) => !_wordGuessFound.contains(letter))
+        .toSet()
+        .toList()..shuffle(random);
+    final options = remaining.take(3).toList();
+    const distractors = <String>['س', 'ب', 'ت', 'ج', 'د', 'ر', 'م', 'ن', 'ل', 'ف', 'ك'];
+    for (final letter in distractors..shuffle(random)) {
+      if (options.length >= 4) break;
+      if (!_wordGuessTarget.contains(letter) && !options.contains(letter)) options.add(letter);
+    }
+    _wordGuessOptions = options..shuffle(random);
+  }
+
+  void _tapWordGuess(int index) {
+    if (index < 0 || index >= _wordGuessOptions.length) return;
+    final letter = _wordGuessOptions[index];
+    if (_wordGuessTarget.runes.map(String.fromCharCode).contains(letter)) {
+      _wordGuessFound.add(letter);
+      score++;
+    } else {
+      _wordGuessLives--;
+      score = math.max(0, score - 1);
+    }
+    final complete = _wordGuessTarget.runes
+        .map(String.fromCharCode)
+        .every(_wordGuessFound.contains);
+    if (complete) {
+      score += 5;
+      _specialRound++;
+      _wordGuessTarget = '';
+      _wordGuessFound.clear();
+      _wordGuessOptions = <String>[];
+      _wordGuessLives = 6;
+    } else if (_wordGuessLives <= 0) {
+      _specialRound++;
+      _wordGuessTarget = '';
+      _wordGuessFound.clear();
+      _wordGuessOptions = <String>[];
+      _wordGuessLives = 6;
+    } else {
+      _wordGuessOptions = <String>[];
+      _prepareWordGuess();
+    }
+    onScore(score);
+    _syncScore();
+  }
 
   void _tapDice() {
     _lastDice = 1 + random.nextInt(6);
@@ -502,6 +595,11 @@ class MemoArcadeGame extends FlameGame {
   int _higherLowerCurrent = 0;
   int _higherLowerNext = 0;
   int _higherLowerCorrect = 0;
+  String _wordGuessTarget = '';
+  final Set<String> _wordGuessFound = <String>{};
+  List<String> _wordGuessOptions = <String>[];
+  int _wordGuessLives = 6;
+  double _reactionReadyAt = 2.5;
   int _codeDigit = -1;
   int _codeAttempts = 0;
   int _mathAddend = 0;
@@ -526,6 +624,10 @@ class MemoArcadeGame extends FlameGame {
     _reactionGoal = _specialRound % math.max(1, content.options.length).toInt();
     _higherLowerCurrent = 0;
     _higherLowerNext = 0;
+    _wordGuessTarget = '';
+    _wordGuessFound.clear();
+    _wordGuessOptions = <String>[];
+    _wordGuessLives = 6;
   }
 
   void _renderSpecial(Canvas canvas) {
@@ -581,6 +683,15 @@ class MemoArcadeGame extends FlameGame {
         _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList());
         break;
       case ArcadeMode.word:
+        if (type == GameType.wordGuess) {
+          _prepareWordGuess();
+          final masked = _wordGuessTarget.runes.map((rune) {
+            final letter = String.fromCharCode(rune);
+            return _wordGuessFound.contains(letter) ? letter : '＿';
+          }).join(' ');
+          _renderOptions(canvas, 'خمن الكلمة: $masked  •  المحاولات: $_wordGuessLives', _wordGuessOptions);
+          break;
+        }
         const chainPrevious = <String>['كتاب', 'باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف'];
         const chainNext = <String>['باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف', 'فاكهة'];
         final promptCount = type == GameType.wordChain ? chainPrevious.length : math.max(1, content.prompts.length).toInt();
@@ -700,6 +811,10 @@ class MemoArcadeGame extends FlameGame {
 
   void _tapWord(Vector2 point) {
     final n = ((point.y - 150) / 62).floor();
+    if (type == GameType.wordGuess) {
+      _tapWordGuess(n);
+      return;
+    }
     if (n < 0 || n >= _wordOptions.length) return;
     score = math.max(0, score + (n == _wordCorrect ? 3 : -1));
     _specialRound++;
