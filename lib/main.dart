@@ -12,6 +12,12 @@ import 'app/app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Keep decoded gallery/profile thumbnails warm across fast navigation.
+  // Media uploads themselves remain streamed from disk by MediaTransferEngine.
+  final imageCache = PaintingBinding.instance.imageCache;
+  imageCache.maximumSize = 1500;
+  imageCache.maximumSizeBytes = 160 * 1024 * 1024;
+
   await SystemChrome.setPreferredOrientations(
     const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
