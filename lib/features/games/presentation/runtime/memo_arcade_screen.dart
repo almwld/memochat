@@ -110,7 +110,20 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
                   _gameViewportKey.currentContext?.findRenderObject();
               if (renderObject is! RenderBox) return;
               final p = renderObject.globalToLocal(e.position);
-              game.tap(Vector2(p.dx, p.dy));
+              final point = Vector2(p.dx, p.dy);
+              if (game.supportsDragMovement) {
+                game.moveTo(point);
+              } else {
+                game.tap(point);
+              }
+            },
+            onPointerMove: (e) {
+              if (!game.supportsDragMovement) return;
+              final renderObject =
+                  _gameViewportKey.currentContext?.findRenderObject();
+              if (renderObject is! RenderBox) return;
+              final p = renderObject.globalToLocal(e.position);
+              game.moveTo(Vector2(p.dx, p.dy));
             },
             child: SizedBox.expand(
               key: _gameViewportKey,
@@ -153,6 +166,9 @@ class MemoArcadeGame extends FlameGame {
 
   @override void onGameResize(Vector2 size) {
     super.onGameResize(size);
+    if (supportsDragMovement && size.x > 0 && size.y > 0) {
+      _playerPosition ??= Vector2(size.x / 2, size.y * .78);
+    }
     if (targets.isEmpty && size.x > 0) {
       for (var i = 0; i < 7; i++) spawnTarget();
     }
@@ -183,6 +199,17 @@ class MemoArcadeGame extends FlameGame {
       }
     }
     targets.removeWhere((t) => t.age > 7);
+    if (supportsDragMovement && _playerPosition != null) {
+      final collected = targets.where((target) =>
+          target.position.distanceTo(_playerPosition!) < target.radius + 20).toList();
+      for (final target in collected) {
+        targets.remove(target);
+        score += target.kind == 2 ? 3 : 1;
+        _spawnBurst(target.position, target.kind);
+        onScore(score);
+        _syncScore();
+      }
+    }
     for (final p in particles) { p.age += dt; p.position += p.velocity*dt; }
     particles.removeWhere((p) => p.age > .7);
   }
@@ -200,11 +227,52 @@ class MemoArcadeGame extends FlameGame {
     for (final t in targets) {
       _drawTargetModel(canvas, paint, t);
     }
+    _drawPlayer(canvas);
     for(final p in particles){paint.color=palette[p.kind%palette.length].withOpacity(math.max(0,1-p.age/.7));canvas.drawCircle(Offset(p.position.x,p.position.y),p.radius*(1+p.age*2),paint);}
-    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة',style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
+    final comboLabel = combo >= 2 ? '  •  سلسلة $combo!' : '';
+    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة'+comboLabel,style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
     hud.paint(canvas,Offset(size.x/2-hud.width/2,20));
     final help=TextPainter(text:TextSpan(text:_instruction,style:const TextStyle(color:Color(0xB8FFFFFF),fontSize:12,fontWeight:FontWeight.w700)),textDirection:TextDirection.rtl)..layout();
     help.paint(canvas,Offset(size.x/2-help.width/2,49));
+  }
+
+  void _drawPlayer(Canvas canvas) {
+    final player = _playerPosition;
+    if (!supportsDragMovement || player == null) return;
+    final center = Offset(player.x, player.y);
+    final radius = 18 + math.sin(elapsed * 8) * 1.5;
+    if (type == GameType.galaxyCatch) {
+      final flame = Path()
+        ..moveTo(center.dx - radius * .42, center.dy + radius * .42)
+        ..lineTo(center.dx, center.dy + radius * 1.45 + random.nextDouble() * 5)
+        ..lineTo(center.dx + radius * .42, center.dy + radius * .42)
+        ..close();
+      final flamePaint = Paint()..color = const Color(0xFFFF9F43).withOpacity(.8);
+      canvas.drawPath(flame, flamePaint);
+      _drawMesh(canvas, center, radius * .85, elapsed * .9,
+          _pyramidVertices, _pyramidFaces, const Color(0xFF56E6FF), tilt: .12);
+    } else {
+      _drawMesh(canvas, center, radius, elapsed * .65,
+          _cubeVertices, _cubeFaces, const Color(0xFF4DE3C1), tilt: .45);
+    }
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = Colors.white.withOpacity(.65);
+    canvas.drawCircle(center, radius * 1.35, ring);
+  }
+
+  void _spawnBurst(Vector2 position, int kind) {
+    for (var i = 0; i < 9; i++) {
+      final angle = math.pi * 2 * i / 9;
+      final speed = 38 + random.nextDouble() * 70;
+      particles.add(Particle(
+        position: Vector2(position.x, position.y),
+        velocity: Vector2(math.cos(angle) * speed, math.sin(angle) * speed),
+        radius: 2.5 + random.nextDouble() * 3.5,
+        kind: kind,
+      ));
+    }
   }
 
   // Draw low-poly 3D meshes with perspective projection. These are real
@@ -263,7 +331,7 @@ class MemoArcadeGame extends FlameGame {
       canvas.rotate(target.age * .55 + target.phase);
       paint
         ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(2, r * .12)
+        ..strokeWidth = math.max(2.0, r * .12)
         ..color = const Color(0xB8B7A8FF);
       canvas.drawOval(Rect.fromCenter(center: Offset.zero,
           width: r * 2.35, height: r * .72), paint);
@@ -357,20 +425,17 @@ class MemoArcadeGame extends FlameGame {
       }
       path.close();
       final light = .07 + (faceIndex % 4) * .075;
-      paintMesh:
-      {
-        final facePaint = Paint()
-          ..style = PaintingStyle.fill
-          ..color = Color.lerp(baseColor, Colors.white, light)!
-          ..isAntiAlias = true;
-        canvas.drawPath(path, facePaint);
-        final outline = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = Colors.white.withOpacity(.55)
-          ..isAntiAlias = true;
-        canvas.drawPath(path, outline);
-      }
+      final facePaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Color.lerp(baseColor, Colors.white, light)!
+        ..isAntiAlias = true;
+      canvas.drawPath(path, facePaint);
+      final outline = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withOpacity(.55)
+        ..isAntiAlias = true;
+      canvas.drawPath(path, outline);
     }
     final highlight = Paint()..color = Colors.white.withOpacity(.3);
     canvas.drawCircle(Offset(center.dx - scale * .25, center.dy - scale * .28),
@@ -615,6 +680,7 @@ class MemoArcadeGame extends FlameGame {
     if (point.distanceTo(target.position) <= target.radius * 1.4) {
       score += target.kind == 2 ? 3 : 1;
       targets.remove(target);
+      _spawnBurst(target.position, target.kind);
       onScore(score);
       _syncScore();
     }
@@ -627,14 +693,18 @@ class MemoArcadeGame extends FlameGame {
     }
     if (hit == null) {
       score = math.max(0, score - 1);
+      combo = 0;
       comboClock = 0;
       onScore(score);
       return;
     }
     targets.remove(hit);
-    final gain = 1 + (hit.kind == 2 ? 2 : 0) + (comboClock < .55 ? 1 : 0);
+    combo = comboClock < .65 ? combo + 1 : 1;
+    bestCombo = math.max(bestCombo, combo);
+    final gain = 1 + (hit.kind == 2 ? 2 : 0) + (combo >= 2 ? math.min(4, combo ~/ 2) : 0);
     score += gain;
     comboClock = 0;
+    _spawnBurst(hit.position, hit.kind);
     onScore(score);
     _syncScore();
   }
