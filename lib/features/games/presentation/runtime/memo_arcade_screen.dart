@@ -707,7 +707,6 @@ class MemoArcadeGame extends FlameGame {
     }
     targets.remove(hit);
     combo = comboClock < .65 ? combo + 1 : 1;
-    bestCombo = math.max(bestCombo, combo);
     final gain = 1 + (hit.kind == 2 ? 2 : 0) + (combo >= 2 ? math.min(4, combo ~/ 2) : 0);
     score += gain;
     comboClock = 0;
