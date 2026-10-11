@@ -159,6 +159,33 @@ class MemoArcadeGame extends FlameGame {
   Vector2? _playerPosition;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
 
+  static const List<int> _sudokuPuzzle = <int>[
+    1, 0, 0, 4,
+    0, 4, 1, 0,
+    0, 1, 4, 0,
+    4, 0, 0, 1,
+  ];
+  final List<int> _xoBoard = List<int>.filled(9, 0);
+  final List<int> _fourBoard = List<int>.filled(42, 0);
+  final List<bool> _dotsHorizontal = List<bool>.filled(12, false);
+  final List<bool> _dotsVertical = List<bool>.filled(12, false);
+  final List<int> _dotsBoxOwners = List<int>.filled(9, 0);
+  final List<int> _sudokuValues = List<int>.from(_sudokuPuzzle);
+  final List<int> _pictureTiles = <int>[];
+  List<String> _sessionPlayers = <String>[];
+  String? _currentTurnUid;
+  String? _localUid;
+  String? _sessionStatus;
+  int _xoTurn = 1;
+  int _xoWinner = 0;
+  int _fourTurn = 1;
+  int _fourWinner = 0;
+  int _dotsTurn = 1;
+  bool _dotsFinished = false;
+  int _sudokuTurn = 1;
+  bool _sudokuSolved = false;
+  bool _pictureSolved = false;
+
   bool get supportsDragMovement =>
       type == GameType.mazeRunner || type == GameType.galaxyCatch;
 
@@ -754,6 +781,105 @@ class MemoArcadeGame extends FlameGame {
   final Set<int> _pairMatched = <int>{};
   int _pairFirst = -1;
   int _raceProgress = 0;
+
+  void applyRemoteState(
+    Map<String, dynamic> state, {
+    required String? currentTurn,
+    required List<String> players,
+    required String status,
+  }) {
+    _sessionPlayers = List<String>.from(players);
+    _currentTurnUid = currentTurn;
+    _sessionStatus = status;
+    _localUid = FirebaseAuth.instance.currentUser?.uid;
+
+    _copyIntList(_xoBoard, state['xoBoard']);
+    _copyIntList(_fourBoard, state['fourBoard']);
+    _copyBoolList(_dotsHorizontal, state['dotsHorizontal']);
+    _copyBoolList(_dotsVertical, state['dotsVertical']);
+    _copyIntList(_dotsBoxOwners, state['dotsBoxOwners']);
+    _copyIntList(_sudokuValues, state['sudokuValues']);
+
+    final picture = state['pictureTiles'];
+    if (picture is List && picture.length == 16) {
+      _pictureTiles
+        ..clear()
+        ..addAll(picture.map((value) => value is num ? value.toInt() : 0));
+    }
+
+    _xoWinner = (state['xoWinner'] as num?)?.toInt() ?? _xoWinner;
+    _fourWinner = (state['fourWinner'] as num?)?.toInt() ?? _fourWinner;
+    _dotsFinished = state['dotsFinished'] == true;
+    _sudokuSolved = state['sudokuSolved'] == true;
+    _pictureSolved = state['pictureSolved'] == true;
+  }
+
+  void _copyIntList(List<int> target, Object? raw) {
+    if (raw is! List || raw.length != target.length) return;
+    for (var i = 0; i < target.length; i++) {
+      target[i] = raw[i] is num ? (raw[i] as num).toInt() : 0;
+    }
+  }
+
+  void _copyBoolList(List<bool> target, Object? raw) {
+    if (raw is! List || raw.length != target.length) return;
+    for (var i = 0; i < target.length; i++) {
+      target[i] = raw[i] == true;
+    }
+  }
+
+  bool get _isMultiplayerSession =>
+      chatId.trim().isNotEmpty && gameId?.trim().isNotEmpty == true;
+
+  bool get _canPlayTurn {
+    if (!_isMultiplayerSession) return true;
+    return _sessionStatus == GameStatus.playing.name &&
+        _localUid != null &&
+        _currentTurnUid == _localUid;
+  }
+
+  int _localMarker(int soloTurn) {
+    if (!_isMultiplayerSession) return soloTurn;
+    if (_localUid == null) return 0;
+    final index = _sessionPlayers.indexOf(_localUid!);
+    return index < 0 || index > 1 ? 0 : index + 1;
+  }
+
+  String? _nextTurnUid() {
+    if (!_isMultiplayerSession || _sessionPlayers.length < 2 || _localUid == null) {
+      return null;
+    }
+    for (final player in _sessionPlayers) {
+      if (player != _localUid) return player;
+    }
+    return _localUid;
+  }
+
+  Future<void> _syncBoardState(
+    Map<String, dynamic> boardState, {
+    String? currentTurn,
+  }) async {
+    final id = gameId?.trim();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || id.isEmpty || uid == null || chatId.trim().isEmpty) return;
+    if (currentTurn != null) _currentTurnUid = currentTurn;
+    try {
+      await GameService.instance.updatePlayerState(
+        chatId: chatId,
+        gameId: id,
+        uid: uid,
+        state: <String, dynamic>{
+          ...boardState,
+          'gameType': type.name,
+          'round': _specialRound,
+        },
+        score: score,
+        currentTurn: currentTurn,
+      );
+    } catch (_) {
+      // The board remains playable locally if the realtime session is offline.
+    }
+  }
 
   void applyRemoteRound(int round) {
     if (round < 0 || round == _specialRound) return;
