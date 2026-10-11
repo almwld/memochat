@@ -1476,7 +1476,7 @@ class MemoArcadeGame extends FlameGame {
         final index = row * 3 + column;
         if (_dotsHorizontal[index]) continue;
         final center = Offset(rect.left + (column + .5) * cell, rect.top + row * cell);
-        final distance = center.distanceTo(Offset(point.x, point.y));
+        final distance = (center - Offset(point.x, point.y)).distance;
         if (distance < bestDistance) {
           bestDistance = distance;
           horizontalIndex = index;
@@ -1489,7 +1489,7 @@ class MemoArcadeGame extends FlameGame {
         final index = row * 4 + column;
         if (_dotsVertical[index]) continue;
         final center = Offset(rect.left + column * cell, rect.top + (row + .5) * cell);
-        final distance = center.distanceTo(Offset(point.x, point.y));
+        final distance = (center - Offset(point.x, point.y)).distance;
         if (distance < bestDistance) {
           bestDistance = distance;
           horizontalIndex = -1;
