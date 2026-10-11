@@ -1351,7 +1351,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       .toList(),
                 ),
               ),
-            if ((widget.message['text']?.toString().trim() ?? '').isNotEmpty)
+            if (widget.message['viewOnce'] != true && (widget.message['text']?.toString().trim() ?? '').isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.copy),
                 title: const Text('نسخ الرسالة'),
