@@ -39,7 +39,6 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
   int _score = 0;
   int _remoteScore = 0;
   int _moves = 0;
-  int _turnIndex = 0;
   int _localMark = 1;
   int _round = 0;
   bool _finished = false;
@@ -118,7 +117,10 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
       final next = candidates[_random.nextInt(candidates.length)];
       _swap(_board, blank, next);
     }
-    if (_isPuzzleSolved) _swap(_board, 0, 1);
+    if (_isPuzzleSolved) {
+      final blank = _board.indexOf(0);
+      _swap(_board, blank, blank % 3 > 0 ? blank - 1 : blank + 1);
+    }
   }
 
   bool get _isPuzzleSolved =>
@@ -244,6 +246,18 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
   Future<void> _playCell(int index) async {
     if (_finished || _busy) return;
     if (!_myTurn) return _guard();
+    if (widget.type == GameType.sudokuDuel) {
+      if (_board[index] == 0) await _chooseSudokuValue(index);
+      return;
+    }
+    if (widget.type == GameType.xo && _board[index] != 0) return;
+    if (widget.type == GameType.fourInRow &&
+        List<int>.generate(6, (r) => r).every((r) => _board[r * 7 + index % 7] != 0)) return;
+    if (widget.type == GameType.picturePuzzle) {
+      final blank = _board.indexOf(0);
+      if ((index ~/ 3 - blank ~/ 3).abs() +
+              (index % 3 - blank % 3).abs() != 1) return;
+    }
     setState(() {
       _message = null;
       _moves++;
@@ -281,7 +295,6 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
           break;
         case GameType.picturePuzzle:
           final blank = _board.indexOf(0);
-          if ((index ~/ 3 - blank ~/ 3).abs() + (index % 3 - blank % 3).abs() != 1) return;
           _swap(_board, index, blank);
           if (_isPuzzleSolved) {
             _finished = true;
@@ -289,10 +302,6 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
             _message = 'أحسنت! أكملت الصورة في $_moves حركة.';
           }
           break;
-        case GameType.sudokuDuel:
-          if (_board[index] != 0) return;
-          _chooseSudokuValue(index);
-          return;
         case GameType.connectPairs:
           _tapPair(index);
           return;
