@@ -4,7 +4,7 @@
 
 ## الاستضافة والنشر
 
-- منصة الاستضافة المعتمدة: **Suga**، وليست Railway.
+- منصة الاستضافة المعتمدة: **Suga**.
 - خدمة Suga: `memochat-livekit-server`.
 - رابط الخدمة: `https://c3mhwp72itmc-production-ar6e2elm.us-central1.suga.run`.
 - فرع النشر التلقائي: `main`.
