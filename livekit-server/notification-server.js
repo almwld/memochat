@@ -81,9 +81,11 @@ async function sendOne(input) {
       ? 'notification_call_enabled'
       : 'notification_other_enabled';
   const legacyEnabled = preferences[type];
-  const enabled = typeof preferences[enabledKey] === 'boolean'
-    ? preferences[enabledKey]
-    : typeof legacyEnabled === 'boolean' ? legacyEnabled : true;
+  const enabled = legacyEnabled === false
+    ? false
+    : typeof preferences[enabledKey] === 'boolean'
+      ? preferences[enabledKey]
+      : typeof legacyEnabled === 'boolean' ? legacyEnabled : true;
   if (!skipPreferences && !enabled) return { success:true, skipped:'user_disabled', receiverId };
   if (!skipPreferences && !skipDnd && dndActive(preferences) && type !== 'new_message') return { success:true, skipped:'dnd_active', receiverId };
   const high = HIGH.has(type);
