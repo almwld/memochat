@@ -40,6 +40,7 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
   int _remoteScore = 0;
   int _moves = 0;
   int _turnIndex = 0;
+  int _localMark = 1;
   int _round = 0;
   bool _finished = false;
   String? _winnerUid;
@@ -76,6 +77,7 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
     switch (widget.type) {
       case GameType.xo:
         _board = List<int>.filled(9, 0);
+        _localMark = 1;
         break;
       case GameType.fourInRow:
         _board = List<int>.filled(42, 0);
@@ -197,9 +199,15 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
         currentTurn: nextTurn,
       );
       if (finish) {
+        final finalScores = <String, int>{};
+        if (_uid != null) finalScores[_uid!] = _score;
+        for (final player in _players) {
+          if (player != _uid) finalScores[player] = _remoteScore;
+        }
         await GameService.instance.endGame(
           chatId: widget.chatId,
           gameId: widget.gameId!.trim(),
+          scores: finalScores,
         );
       }
     } catch (e) {
@@ -221,7 +229,7 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
   }
 
   int _markForPlayer() {
-    if (!_multiplayer || _players.length < 2) return 1;
+    if (!_multiplayer || _players.length < 2) return _localMark;
     return _uid == _players.first ? 1 : 2;
   }
 
@@ -291,7 +299,13 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
         default:
           return;
       }
-      if (!_finished && _multiplayer) _turnUid = _nextPlayer();
+      if (!_finished) {
+        if (_multiplayer) {
+          _turnUid = _nextPlayer();
+        } else {
+          _localMark = _localMark == 1 ? 2 : 1;
+        }
+      }
     });
     await _publish(nextTurn: _finished ? null : _turnUid, finish: _finished);
   }
@@ -355,33 +369,35 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
     await _publish(nextTurn: _finished ? null : _turnUid, finish: _finished);
   }
 
-  void _tapPair(int index) {
+  Future<void> _tapPair(int index) async {
+    if (_finished || _busy) return;
+    if (!_myTurn) return _guard();
     if (_matched.contains(index) || _revealed.contains(index)) return;
-    _revealed.add(index);
-    if (_firstPair == null) {
-      _firstPair = index;
-      _publish(nextTurn: _turnUid);
-      return;
-    }
-    final first = _firstPair!;
-    if (_pairValues[first] == _pairValues[index]) {
-      _matched.addAll([first, index]);
-      _score += 2;
-      _message = 'زوج متطابق!';
-    } else {
-      // Keep both cards visible until the next tap; the player can see the
-      // mismatch instead of having the result disappear instantly.
-      _message = 'ليسا متطابقين؛ اضغط متابعة لإخفائهما.';
-    }
-    _firstPair = null;
-    _round++;
-    if (_matched.length == _pairValues.length) {
-      _finished = true;
-      _message = 'أكملت جميع الأزواج!';
-    } else if (_multiplayer) {
-      _turnUid = _nextPlayer();
-    }
-    _publish(nextTurn: _finished ? null : _turnUid, finish: _finished);
+    setState(() {
+      _revealed.add(index);
+      if (_firstPair == null) {
+        _firstPair = index;
+        _message = null;
+        return;
+      }
+      final first = _firstPair!;
+      if (_pairValues[first] == _pairValues[index]) {
+        _matched.addAll([first, index]);
+        _score += 2;
+        _message = 'زوج متطابق!';
+      } else {
+        _message = 'ليسا متطابقين؛ اضغط متابعة لإخفائهما.';
+      }
+      _firstPair = null;
+      _round++;
+      if (_matched.length == _pairValues.length) {
+        _finished = true;
+        _message = 'أكملت جميع الأزواج!';
+      } else if (_multiplayer) {
+        _turnUid = _nextPlayer();
+      }
+    });
+    await _publish(nextTurn: _finished ? null : _turnUid, finish: _finished);
   }
 
   Future<void> _continuePairs() async {
@@ -406,10 +422,12 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
     final dx = (x - col * step).abs();
     final dy = (y - row * step).abs();
     var edgeIndex = -1;
-    if (dx < dy && col < 3) {
-      edgeIndex = row * 3 + col; // horizontal edge
-    } else if (row < 3) {
-      edgeIndex = 12 + row * 4 + col; // vertical edge
+    if (dy <= dx) {
+      final segmentCol = (x / step).floor().clamp(0, 2);
+      edgeIndex = row * 3 + segmentCol; // horizontal edge
+    } else {
+      final segmentRow = (y / step).floor().clamp(0, 2);
+      edgeIndex = 12 + segmentRow * 4 + col; // vertical edge
     }
     if (edgeIndex < 0 || edgeIndex >= _edges.length || _edges[edgeIndex] != 0) return;
     var earned = 0;
@@ -500,6 +518,8 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
                             _message = null;
                             _turnUid = _players.isNotEmpty ? _players.first : null;
                             _resetLocalBoard();
+                            _localMark = 1;
+                            if (_multiplayer) _publish(nextTurn: _turnUid);
                           }),
                   icon: Icon(_finished ? Icons.refresh_rounded : Icons.visibility_off_rounded),
                   label: Text(_finished ? 'العب مجددًا' : 'متابعة'),
@@ -674,6 +694,5 @@ class _DotsPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DotsPainter oldDelegate) =>
-      oldDelegate.edges != edges || oldDelegate.boxes != boxes;
+  bool shouldRepaint(covariant _DotsPainter oldDelegate) => true;
 }
