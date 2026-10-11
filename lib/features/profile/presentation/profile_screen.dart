@@ -51,28 +51,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
             children: [
-              _HeroProfile(name: name, publicId: publicId, bio: bio, photoUrl: photo, frame: frame, onEdit: _isMe ? _editProfile : null, onChangePhoto: _isMe ? _changePhoto : null, uploadingPhoto: _uploadingAvatar),
-              if (cover.isNotEmpty || _isMe)
-                Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: SizedBox(
-                    height: 150,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        cover.isNotEmpty ? Image.network(cover, fit: BoxFit.cover) : DecoratedBox(decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer)),
-                        if (_isMe) PositionedDirectional(
-                          end: 12, bottom: 12,
-                          child: FilledButton.tonalIcon(
-                            onPressed: _uploadingCover ? null : _changeCover,
-                            icon: _uploadingCover ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.photo_camera_back_outlined),
-                            label: const Text('تغيير الغلاف'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              _HeroProfile(
+                name: name,
+                publicId: publicId,
+                bio: bio,
+                photoUrl: photo,
+                coverUrl: cover,
+                frame: frame,
+                onEdit: _isMe ? _editProfile : null,
+                onChangePhoto: _isMe ? _changePhoto : null,
+                onChangeCover: _isMe ? _changeCover : null,
+                uploadingPhoto: _uploadingAvatar,
+                uploadingCover: _uploadingCover,
+              ),
               const SizedBox(height: 12),
               if (_isMe)
                 Card(
@@ -254,81 +245,152 @@ class _HeroProfile extends StatelessWidget {
     required this.publicId,
     required this.bio,
     required this.photoUrl,
+    required this.coverUrl,
     required this.frame,
     this.onEdit,
     this.onChangePhoto,
+    this.onChangeCover,
     this.uploadingPhoto = false,
+    this.uploadingCover = false,
   });
+
   final String name;
   final String publicId;
   final String bio;
   final String? photoUrl;
+  final String coverUrl;
   final String frame;
   final VoidCallback? onEdit;
   final VoidCallback? onChangePhoto;
+  final VoidCallback? onChangeCover;
   final bool uploadingPhoto;
+  final bool uploadingCover;
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    final frameColor = switch (frame) { 'emerald' => const Color(0xFF059669), 'violet' => const Color(0xFF7C3AED), 'orange' => const Color(0xFFEA580C), _ => primary };
+    final frameColor = switch (frame) {
+      'emerald' => const Color(0xFF059669),
+      'violet' => const Color(0xFF7C3AED),
+      'orange' => const Color(0xFFEA580C),
+      _ => primary,
+    };
+
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: primary, width: 3)),
-        ),
-        child: Column(
-          children: [
-            Stack(
-              alignment: Alignment.bottomRight,
+      margin: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Social-network style cover: the avatar overlaps the bottom edge.
+          SizedBox(
+            height: 174,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: frameColor, width: 4)),
-                  child: CircleAvatar(
-                  radius: 42,
-                  backgroundColor: primary.withOpacity(.12),
-                  backgroundImage: photoUrl?.isNotEmpty == true ? NetworkImage(photoUrl!) : null,
-                  child: photoUrl?.isNotEmpty == true ? null : Icon(Icons.person_rounded, size: 44, color: primary),
-                  ),
-                ),
-                if (onChangePhoto != null)
-                  Material(
-                    color: primary,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: uploadingPhoto ? null : onChangePhoto,
-                      child: Padding(
-                        padding: const EdgeInsets.all(9),
-                        child: uploadingPhoto
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.camera_alt_rounded, size: 18, color: Colors.white),
+                if (coverUrl.isNotEmpty)
+                  Image.network(
+                    coverUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => ColoredBox(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      child: const Center(child: Icon(Icons.image_not_supported_outlined, size: 34)),
+                    ),
+                  )
+                else
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: AlignmentDirectional.topStart,
+                        end: AlignmentDirectional.bottomEnd,
+                        colors: [
+                          primary.withOpacity(.82),
+                          Theme.of(context).colorScheme.primaryContainer,
+                        ],
                       ),
+                    ),
+                  ),
+                if (onChangeCover != null)
+                  PositionedDirectional(
+                    end: 12,
+                    bottom: 12,
+                    child: FilledButton.tonalIcon(
+                      onPressed: uploadingCover ? null : onChangeCover,
+                      icon: uploadingCover
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.photo_camera_back_outlined),
+                      label: const Text('تغيير الغلاف'),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 3),
-            Text('@' + publicId, style: TextStyle(color: primary, fontWeight: FontWeight.w800)),
-            if (bio.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Text(bio, textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
-            ],
-            if (onEdit != null) ...[
-              const SizedBox(height: 14),
-              OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('تعديل الملف')),
-            ],
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              children: [
+                Transform.translate(
+                  offset: const Offset(0, -43),
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: frameColor, width: 4),
+                        ),
+                        child: CircleAvatar(
+                          radius: 43,
+                          backgroundColor: primary.withOpacity(.12),
+                          backgroundImage: photoUrl?.isNotEmpty == true ? NetworkImage(photoUrl!) : null,
+                          child: photoUrl?.isNotEmpty == true
+                              ? null
+                              : Icon(Icons.person_rounded, size: 44, color: primary),
+                        ),
+                      ),
+                      if (onChangePhoto != null)
+                        Material(
+                          color: primary,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: uploadingPhoto ? null : onChangePhoto,
+                            child: Padding(
+                              padding: const EdgeInsets.all(9),
+                              child: uploadingPhoto
+                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  : const Icon(Icons.camera_alt_rounded, size: 18, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Compensate for the avatar overlap so profile details stay in flow.
+                Transform.translate(
+                  offset: const Offset(0, -32),
+                  child: Column(
+                    children: [
+                      Text(name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 3),
+                      Text('@$publicId', style: TextStyle(color: primary, fontWeight: FontWeight.w800)),
+                      if (bio.isNotEmpty) ...[
+                        const SizedBox(height: 9),
+                        Text(bio, textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
+                      ],
+                      if (onEdit != null) ...[
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('تعديل الملف')),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
