@@ -237,10 +237,32 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   Widget _gameBody() {
     // All catalog games now use the real-time arcade runtime.
     // Multiplayer context is passed through so score updates remain durable.
-    return DedicatedGameFactory.build(
-      widget.type,
-      chatId: widget.chatId,
-      gameId: widget.gameId,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: Padding(
+            // Reserve a stable strip for the in-game chat so it never covers
+            // game controls and remains reachable while the game is running.
+            padding: const EdgeInsets.only(bottom: 72),
+            child: DedicatedGameFactory.build(
+              widget.type,
+              chatId: widget.chatId,
+              gameId: widget.gameId,
+            ),
+          ),
+        ),
+        if (widget.chatId.trim().isNotEmpty)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 8,
+            child: SafeArea(
+              top: false,
+              child: _QuickGameChatBar(chatId: widget.chatId),
+            ),
+          ),
+      ],
     );
   }
 
