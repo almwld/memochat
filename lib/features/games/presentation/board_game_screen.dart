@@ -324,9 +324,11 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
 
   Future<void> _playXoAi() async {
     if (!mounted || _finished || _multiplayer || widget.type != GameType.xo || _localMark != 2) return;
+    final available = List<int>.generate(9, (i) => i)
+        .where((i) => _board[i] == 0).toList();
     final move = _findWinningMove(2) ?? _findWinningMove(1) ??
         (_board[4] == 0 ? 4 : null) ??
-        (List<int>.generate(9, (i) => i).where((i) => _board[i] == 0).toList()..shuffle(_random)).firstOrNull;
+        (available.isEmpty ? null : available[_random.nextInt(available.length)]);
     if (move == null) return;
     setState(() {
       _board[move] = 2;
