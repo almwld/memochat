@@ -134,6 +134,25 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
     return '${total ~/ 60}:${(total % 60).toString().padLeft(2, '0')}';
   }
 
+  Widget _compactControl({
+    required IconData icon,
+    required String tooltip,
+    required Future<void> Function() onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkResponse(
+        radius: 15,
+        onTap: () => onPressed(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+          child: Icon(icon, size: 16, color: _muted),
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     if (_error) {
@@ -205,41 +224,50 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
             },
           )),
         ]),
-        const SizedBox(height: 1),
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: PopupMenuButton<String>(
-            tooltip: 'خيارات التسجيل الصوتي',
-            icon: Icon(Icons.more_horiz_rounded, color: _muted, size: 20),
-            padding: EdgeInsets.zero,
-            onSelected: (action) {
-              switch (action) {
-                case 'back':
-                  _seekBy(-10);
-                  break;
-                case 'forward':
-                  _seekBy(10);
-                  break;
-                case 'speed':
-                  _cycleSpeed();
-                  break;
-                case 'volume':
-                  _toggleVolume();
-                  break;
-                case 'download':
-                  _download();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'back', child: Text('رجوع 10 ثوان')),
-              const PopupMenuItem(value: 'forward', child: Text('تقديم 10 ثوان')),
-              PopupMenuItem(value: 'speed', child: Text('سرعة التشغيل: ${_speed}x')),
-              PopupMenuItem(value: 'volume', child: Text(_volume == 0 ? 'تشغيل الصوت' : 'كتم الصوت')),
-              if (!widget.isLocal)
-                const PopupMenuItem(value: 'download', child: Text('تحميل التسجيل')),
-            ],
-          ),
+        const SizedBox(height: 2),
+        // Direct, compact controls replace the oversized three-dot menu.
+        // Small fixed tap targets keep the voice bubble close to normal size.
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _compactControl(
+              icon: Icons.replay_10_rounded,
+              tooltip: 'رجوع 10 ثوان',
+              onPressed: () => _seekBy(-10),
+            ),
+            _compactControl(
+              icon: Icons.forward_10_rounded,
+              tooltip: 'تقديم 10 ثوان',
+              onPressed: () => _seekBy(10),
+            ),
+            InkWell(
+              onTap: _cycleSpeed,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  '${_speed}x',
+                  style: TextStyle(
+                    color: _foreground,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            _compactControl(
+              icon: _volume == 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+              tooltip: _volume == 0 ? 'تشغيل الصوت' : 'كتم الصوت',
+              onPressed: _toggleVolume,
+            ),
+            if (!widget.isLocal)
+              _compactControl(
+                icon: Icons.download_rounded,
+                tooltip: 'تحميل التسجيل',
+                onPressed: _download,
+              ),
+          ],
         ),
       ]),
     );
