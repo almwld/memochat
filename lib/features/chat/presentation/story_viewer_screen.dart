@@ -82,7 +82,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _progressController
       ..duration = _currentStory.duration
       ..forward();
-    _statusService.markViewed(widget.status);
+    // _markViewedWhenReady is invoked only after visible content is ready;
+    // do not issue a second, unawaited write when the timer starts.
   }
 
   void _onStoryReady(int index) {
