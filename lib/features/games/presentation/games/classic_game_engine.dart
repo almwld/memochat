@@ -92,7 +92,7 @@ class _ClassicGameEngineState extends State<ClassicGameEngine> {
     Future.delayed(const Duration(milliseconds: 360), () {
       if (!mounted || _finished) return;
       if (_seconds == 0) { _finish(); return; }
-      setState(() { _round++; _shuffle(); });
+      setState(() { _round++; _answered = false; _selected = null; _correct = null; _shuffle(); });
     });
   }
 
