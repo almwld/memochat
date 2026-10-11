@@ -765,14 +765,39 @@ class MemoArcadeGame extends FlameGame {
     i.paint(canvas, Offset(size.x / 2 - i.width / 2, 52));
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
-      case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
+      case ArcadeMode.choice:
+        final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
+        final prompt = content.prompts.isEmpty ? 'اختر أحد الخيارات' : content.prompts[n];
+        final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length
+            ? content.choicesByPrompt[n]
+            : content.options;
+        _renderOptions(canvas, prompt, opts);
+        break;
       case ArcadeMode.math:
         if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; _mathAddend = b; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
         final q = '$_specialSecret + $_mathAddend = ؟';
         _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList()); break;
       case ArcadeMode.word:
         final source = content.prompts.isEmpty ? 'كتاب' : content.prompts[_specialRound % content.prompts.length];
-        if (_wordOptions.isEmpty) { _wordOptions = [source, 'هاتف', 'شجرة', 'مدينة']..shuffle(random); _wordCorrect = _wordOptions.indexOf(source); }
+        if (_wordOptions.isEmpty) {
+          final distractors = source == 'كتاب'
+              ? <String>['قلم', 'باب', 'نهر']
+              : source == 'مدرسة'
+                  ? <String>['حديقة', 'سيارة', 'نافذة']
+                  : source == 'هاتف'
+                      ? <String>['مفتاح', 'مصباح', 'حقيبة']
+                      : source == 'شجرة'
+                          ? <String>['زهرة', 'جبل', 'طريق']
+                          : source == 'قمر'
+                              ? <String>['شمس', 'نجم', 'بحر']
+                              : source == 'مفتاح'
+                                  ? <String>['قلم', 'باب', 'كتاب']
+                                  : source == 'حديقة'
+                                      ? <String>['مدرسة', 'نافذة', 'سيارة']
+                                      : <String>['قلم', 'نهر', 'جبل'];
+          _wordOptions = <String>[source, ...distractors]..shuffle(random);
+          _wordCorrect = _wordOptions.indexOf(source);
+        }
         final chars = source.runes.toList()..shuffle(random);
         _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
       case ArcadeMode.code: if (_codeDigit < 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
@@ -807,8 +832,7 @@ class MemoArcadeGame extends FlameGame {
     if (n < 0) return;
     final promptIndex =
         content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
-    final options = content.mode == ArcadeMode.quiz &&
-            content.choicesByPrompt.isNotEmpty &&
+    final options = content.choicesByPrompt.isNotEmpty &&
             promptIndex < content.choicesByPrompt.length
         ? content.choicesByPrompt[promptIndex]
         : content.options;
