@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/models/status_model.dart';
 import 'package:memochat/features/chat/services/status_service.dart';
+import 'package:memochat/features/chat/services/chat_service.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   const StoryViewerScreen({
@@ -30,6 +31,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   late int _currentIndex;
   bool _isPaused = false;
   bool _sendingReply = false;
+  bool _sendingReaction = false;
+  String? _lastSentStatusReply;
   final Set<int> _readyStories = <int>{};
   bool _progressStarted = false;
   bool _viewMarked = false;
@@ -82,7 +85,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _progressController
       ..duration = _currentStory.duration
       ..forward();
-    _statusService.markViewed(widget.status);
+    // _markViewedWhenReady is invoked only after visible content is ready;
+    // do not issue a second, unawaited write when the timer starts.
   }
 
   void _onStoryReady(int index) {
@@ -131,12 +135,56 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     }
   }
 
+  Future<void> _sendStatusMessageToChat(
+    String body, {
+    required String kind,
+  }) async {
+    final current = FirebaseAuth.instance.currentUser;
+    if (current == null) throw StateError('يجب تسجيل الدخول لإرسال الرد');
+    if (widget.status.userId == current.uid) return;
+
+    final chat = ChatService();
+    final chatId = await chat.createChat(
+      userId: widget.status.userId,
+      userName: widget.status.userName,
+      currentUserName: current.displayName?.trim().isNotEmpty == true
+          ? current.displayName!.trim()
+          : 'مستخدم MemoChat',
+      userImage: widget.status.userImage,
+      currentUserImage: current.photoURL,
+    );
+    // Use the normal ChatService path so the reaction/reply appears as a real
+    // chat bubble and retains the conversation's existing E2EE policy.
+    await chat.sendMessage(
+      chatId: chatId,
+      text: body,
+      metadata: {
+        'statusId': widget.status.id,
+        'statusStoryIndex': _currentIndex,
+        'statusReplyType': kind,
+      },
+    );
+  }
+
   Future<void> _react(String emoji) async {
-    await _statusService.addReaction(status: widget.status, emoji: emoji);
-    if (mounted) {
+    if (_sendingReaction) return;
+    setState(() => _sendingReaction = true);
+    try {
+      await _statusService.addReaction(status: widget.status, emoji: emoji);
+      await _sendStatusMessageToChat(emoji, kind: 'emoji');
+      if (!mounted) return;
+      setState(() => _lastSentStatusReply = emoji);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم إرسال $emoji'), duration: const Duration(milliseconds: 700)),
+        SnackBar(content: Text('تم إرسال $emoji إلى المحادثة'), duration: const Duration(milliseconds: 900)),
       );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر إرسال التفاعل: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sendingReaction = false);
     }
   }
 
@@ -146,12 +194,20 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     if (text.isEmpty) return;
     setState(() => _sendingReply = true);
     try {
+      await _sendStatusMessageToChat(text, kind: 'text');
       await _statusService.addReply(status: widget.status, text: text);
       _replyController.clear();
       if (mounted) {
+        setState(() => _lastSentStatusReply = text);
         FocusScope.of(context).unfocus();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إرسال الرد'), duration: Duration(milliseconds: 700)),
+          const SnackBar(content: Text('تم إرسال الرد إلى المحادثة'), duration: Duration(milliseconds: 900)),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر إرسال الرد: $error')),
         );
       }
     } finally {
@@ -326,6 +382,25 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       bottom: MediaQuery.paddingOf(context).bottom + 14,
       child: Column(
         children: [
+          if (_lastSentStatusReply?.isNotEmpty == true)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.18),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(.24)),
+                ),
+                child: Text(
+                  'تم الإرسال: $_lastSentStatusReply',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
           Row(
             children: [
               Expanded(

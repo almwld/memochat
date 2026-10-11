@@ -238,7 +238,10 @@ class ChatService {
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration}) async {
     final id=_uid(); final user=_auth.currentUser!; final chat=await _authorizedChat(chatId);
     await _security.ensureReady();
-    final useEncryption=_security.isEncryptionEnabledForChat(chatId);
+    final viewOnce = metadata?['viewOnce'] == true;
+    // View-once payloads must never fall back to plaintext, even when the chat's
+    // ordinary encryption preference is disabled.
+    final useEncryption = viewOnce || _security.isEncryptionEnabledForChat(chatId);
     if(useEncryption) await SignalSessionManager.instance.ensureReady();
     if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
     final participants=List<String>.from(chat.data()?['participants']??const []);
@@ -283,7 +286,7 @@ class ChatService {
       if (existing.exists) return ref.id;
     }
     Map<String,dynamic>? replyPreview;
-    if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final d=await _decryptMessageData(id,rr.data()??{});replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':d['text']?.toString()??'مرفق','type':d['type']?.toString()??'text'};}}
+    if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final source=rr.data()??<String,dynamic>{};final d=await _decryptMessageData(id,source);final oneTime=source['viewOnce']==true||(source['metadata'] is Map&&(source['metadata'] as Map)['viewOnce']==true);replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':oneTime?'رسالة لمرة واحدة':d['text']?.toString()??'مرفق','type':oneTime?'view_once':d['type']?.toString()??'text'};}}
     Map<String, dynamic> messageData;
     if (useEncryption) {
       final payload = <String, dynamic>{
@@ -300,6 +303,7 @@ class ChatService {
         'locationLng': locationLng,
         'locationAddress': locationAddress,
         'metadata': metadata,
+        'viewOnce': viewOnce,
         'fileName': fileName,
         'fileSize': fileSize,
         'fileMimeType': fileMimeType,
@@ -323,6 +327,7 @@ class ChatService {
         'e2eeVersion': 1,
         'e2eePayloads': encryptedRecipients,
         'security': _security.messageSecurity(chatId),
+        'viewOnce': viewOnce,
         'timestamp': FieldValue.serverTimestamp(),
         'clientTimestamp': Timestamp.now(),
         'isRead': false,
@@ -356,6 +361,7 @@ class ChatService {
         'locationLng': locationLng,
         'locationAddress': locationAddress,
         'metadata': metadata,
+        'viewOnce': viewOnce,
         'fileName': fileName,
         'fileSize': fileSize,
         'fileMimeType': fileMimeType,
@@ -431,7 +437,7 @@ class ChatService {
 
     Future<String> forwardMessage({required String sourceChatId,required String messageId,required String destinationChatId}) async {
     final sourceUserId=_uid();await _authorizedChat(sourceChatId);await _authorizedChat(destinationChatId);final source=await _chatRef(sourceChatId).collection('messages').doc(messageId).get();if(!source.exists)throw Exception('الرسالة غير موجودة');
-    final data=source.data()??{};if(data['isDeleted']==true)throw Exception('لا يمكن إعادة توجيه رسالة محذوفة');final destination=await _authorizedChat(destinationChatId);final participants=List<String>.from(destination.data()?['participants']??const []);if(!participants.contains(sourceUserId))throw Exception('لا تملك صلاحية الإرسال');
+    final data=source.data()??{};if(data['isDeleted']==true)throw Exception('لا يمكن إعادة توجيه رسالة محذوفة');if(data['viewOnce']==true||(data['metadata'] is Map&&(data['metadata'] as Map)['viewOnce']==true))throw Exception('لا يمكن إعادة توجيه رسالة مخصصة للمشاهدة مرة واحدة');final destination=await _authorizedChat(destinationChatId);final participants=List<String>.from(destination.data()?['participants']??const []);if(!participants.contains(sourceUserId))throw Exception('لا تملك صلاحية الإرسال');
     final metadata=<String,dynamic>{};final rawMetadata=data['metadata'];if(rawMetadata is Map)metadata.addAll(rawMetadata.map((k,v)=>MapEntry(k.toString(),v)));metadata['forwarded']=true;metadata['forwardedFromChatId']=sourceChatId;metadata['forwardedFromMessageId']=messageId;metadata['originalSenderId']=data['senderId']?.toString();metadata['originalSenderName']=data['senderName']?.toString();
     return sendMessage(chatId:destinationChatId,text:data['text']?.toString()??'',imageUrl:data['imageUrl']?.toString(),videoUrl:data['videoUrl']?.toString(),audioUrl:data['audioUrl']?.toString(),fileUrl:data['fileUrl']?.toString(),locationUrl:data['locationUrl']?.toString(),locationLat:(data['locationLat'] as num?)?.toDouble(),locationLng:(data['locationLng'] as num?)?.toDouble(),locationAddress:data['locationAddress']?.toString(),metadata:metadata,fileName:data['fileName']?.toString(),fileSize:data['fileSize']?.toString(),fileMimeType:data['fileMimeType']?.toString(),audioDuration:data['audioDuration']?.toString(),idempotencyKey:'forward_'+sourceChatId+'_'+messageId+'_'+DateTime.now().microsecondsSinceEpoch.toString());
   }
@@ -478,16 +484,16 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
     return controller.stream;
   }
   Future<MessagePaginationResult> getMoreMessages({required String chatId,required int limit,DocumentSnapshot? startAfter})async{await _authorizedChat(chatId);Query<Map<String,dynamic>> q=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit);if(startAfter!=null)q=q.startAfterDocument(startAfter);final s=await q.get();return MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit);}
-  Future<List<MessageModel>> searchMessages({required String chatId,required String query,int limit=200})async{await _authorizedChat(chatId);final needle=query.trim().toLowerCase();if(needle.isEmpty)return const [];final safeLimit=limit.clamp(20,500).toInt();final snapshot=await _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(safeLimit).get();final messages=await _decryptMessageDocs(snapshot.docs);return messages.where((m){final values=[m.text??'',m.senderName,m.fileName??'',m.fileMimeType??''];return values.any((v)=>v.toLowerCase().contains(needle));}).toList();}
+  Future<List<MessageModel>> searchMessages({required String chatId,required String query,int limit=200})async{final uid=_uid();await _authorizedChat(chatId);final needle=query.trim().toLowerCase();if(needle.isEmpty)return const [];final safeLimit=limit.clamp(20,500).toInt();final snapshot=await _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(safeLimit).get();final visibleDocs=snapshot.docs.where((d){final data=d.data();final deleted=data['deletedFor'];final metadata=data['metadata'];final viewOnce=data['viewOnce']==true||(metadata is Map&&metadata['viewOnce']==true);return (deleted is! Map||deleted[uid]!=true)&&!viewOnce;}).toList();final messages=await _decryptMessageDocs(visibleDocs);return messages.where((m){final values=[m.text??'',m.senderName,m.fileName??'',m.fileMimeType??''];return values.any((v)=>v.toLowerCase().contains(needle));}).toList();}
   Future<void> markAsUnread(String chatId) async { final id=_uid(); await _authorizedChat(chatId); await _chatRef(chatId).update({'unreadCount.$id':FieldValue.increment(1),'updatedAt':FieldValue.serverTimestamp()}); }
   Future<void> archiveChat(String chatId,bool archived)async{await _authorizedChat(chatId);await _chatRef(chatId).update({'isArchived':archived,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> pinChat(String chatId,bool pinned)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).update({'pinnedFor.$id':pinned,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> muteChat(String chatId,bool muted)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).update({'mutedFor.$id':muted,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> deleteChat(String chatId)async{await _authorizedChat(chatId);await _chatRef(chatId).update({'deletedFor.${_uid()}':true,'updatedAt':FieldValue.serverTimestamp()});}
   Future<void> deleteMessage(String chatId,String messageId)async{final id=_uid();final chat=await _authorizedChat(chatId);final ref=_chatRef(chatId).collection('messages').doc(messageId);final d=await ref.get();if(!d.exists||d.data()?['senderId']!=id)throw Exception('لا يمكن حذف الرسالة');if(d.data()?['type']!='encrypted'){await ref.update({'isDeleted':true,'type':'deleted','text':'تم حذف هذه الرسالة','deletedAt':FieldValue.serverTimestamp()});return;}await _security.ensureReady();final payload=await _decryptMessageData(id,d.data()??{});payload['text']='تم حذف هذه الرسالة';payload['type']='deleted';final participants=List<String>.from(chat.data()?['participants']??const []);final envelopes=<String,dynamic>{};for(final recipient in <String>{...participants}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);envelopes[recipient]=base64Encode(e);}await ref.update({'e2eePayloads':envelopes,'type':'encrypted','isDeleted':true,'deletedAt':FieldValue.serverTimestamp(),'security':_security.messageSecurity(chatId)});}
-  Future<void> starMessage(String chatId, String messageId, bool starred) async { final id=_uid(); await _authorizedChat(chatId); final ref=_chatRef(chatId).collection('messages').doc(messageId); final snap=await ref.get(); if(!snap.exists) throw Exception('الرسالة غير موجودة'); await ref.update({'isStarred':starred,'starredAt':starred?FieldValue.serverTimestamp():null,'starredBy':starred?id:null}); }
+  Future<void> starMessage(String chatId, String messageId, bool starred) async { final id=_uid(); await _authorizedChat(chatId); final ref=_chatRef(chatId).collection('messages').doc(messageId); final snap=await ref.get(); if(!snap.exists) throw Exception('الرسالة غير موجودة'); final data=snap.data()??{}; final metadata=data['metadata']; if(data['viewOnce']==true||(metadata is Map&&metadata['viewOnce']==true)) throw Exception('لا يمكن حفظ رسالة للمشاهدة مرة واحدة'); await ref.update({'isStarred':starred,'starredAt':starred?FieldValue.serverTimestamp():null,'starredBy':starred?id:null}); }
   Future<List<MessageModel>> getStarredMessages(String chatId,{int limit=100}) async { await _authorizedChat(chatId); final s=await _chatRef(chatId).collection('messages').where('isStarred',isEqualTo:true).limit(limit).get(); return s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList(); }
-  Future<void> pinMessage(String chatId,String messageId,bool pinned)async{final id=_uid();await _authorizedChat(chatId);final ref=_chatRef(chatId).collection('messages').doc(messageId);final snap=await ref.get();if(!snap.exists)throw Exception('الرسالة غير موجودة');await ref.update({'isPinned':pinned,'pinnedAt':pinned?FieldValue.serverTimestamp():null,'pinnedBy':pinned?id:null});}
+  Future<void> pinMessage(String chatId,String messageId,bool pinned)async{final id=_uid();await _authorizedChat(chatId);final ref=_chatRef(chatId).collection('messages').doc(messageId);final snap=await ref.get();if(!snap.exists)throw Exception('الرسالة غير موجودة');final data=snap.data()??{};final metadata=data['metadata'];if(data['viewOnce']==true||(metadata is Map&&metadata['viewOnce']==true))throw Exception('لا يمكن تثبيت رسالة للمشاهدة مرة واحدة');await ref.update({'isPinned':pinned,'pinnedAt':pinned?FieldValue.serverTimestamp():null,'pinnedBy':pinned?id:null});}
   Future<void> markDelivered(String chatId)async{final id=_uid();await _authorizedChat(chatId);final s=await _chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(100).get();final pending=s.docs.where((d)=>d.data()['senderId']?.toString()!=id&&d.data()['isDelivered']!=true).toList();if(pending.isEmpty)return;final b=_firestore.batch();for (final d in pending) {
       b.update(d.reference, {
         'isDelivered': true,
@@ -496,6 +502,43 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
       });
     }await b.commit();}
   Future<void> deleteMessageForMe(String chatId,String messageId)async{final id=_uid();await _authorizedChat(chatId);await _chatRef(chatId).collection('messages').doc(messageId).update({'deletedFor.$id':true});}
+
+  /// Atomically consumes a recipient's view-once message. The same per-viewer
+  /// deletedFor field is already allowed by deployed Firestore rules; no rule
+  /// changes are required. Returns false if it was already consumed or invalid.
+  Future<bool> consumeViewOnceMessage(String chatId, String messageId) async {
+    final uid = _uid();
+    await _authorizedChat(chatId);
+    final ref = _chatRef(chatId).collection('messages').doc(messageId);
+    // The viewer-owned private marker prevents another participant from
+    // resetting deletedFor and making the consumed message openable again.
+    // Existing rules already restrict this private document to its owner.
+    final consumedRef = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('private')
+        .doc('viewOnce_${chatId}_${messageId}');
+    return _firestore.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final consumedSnapshot = await transaction.get(consumedRef);
+      if (!snapshot.exists || consumedSnapshot.exists) return false;
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final metadata = data['metadata'];
+      final viewOnce = data['viewOnce'] == true ||
+          (metadata is Map && metadata['viewOnce'] == true);
+      if (!viewOnce || data['senderId']?.toString() == uid) return false;
+      final deletedFor = data['deletedFor'];
+      if (deletedFor is Map && deletedFor[uid] == true) return false;
+      transaction.update(ref, {'deletedFor.$uid': true});
+      transaction.set(consumedRef, {
+        'chatId': chatId,
+        'messageId': messageId,
+        'consumed': true,
+        'consumedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+  }
   Future<void> editMessage(String chatId,String messageId,String text)async{final id=_uid();final clean=text.trim();if(clean.isEmpty)throw Exception('نص الرسالة فارغ');final chat=await _authorizedChat(chatId);final ref=_chatRef(chatId).collection('messages').doc(messageId);final snap=await ref.get();if(!snap.exists||snap.data()?['senderId']?.toString()!=id)throw Exception('لا يمكن تعديل هذه الرسالة');if(snap.data()?['isDeleted']==true)throw Exception('لا يمكن تعديل رسالة محذوفة');if(snap.data()?['type']!='encrypted'){await ref.update({'text':clean,'isEdited':true,'editedAt':FieldValue.serverTimestamp()});return;}await _security.ensureReady();final payload=await _decryptMessageData(id,snap.data()??{});payload['text']=clean;final participants=List<String>.from(chat.data()?['participants']??const []);final envelopes=<String,dynamic>{};for(final recipient in <String>{...participants}){final e=await SignalSessionManager.instance.encryptFor(recipient,utf8.encode(jsonEncode(payload)),chatId:chatId);envelopes[recipient]=base64Encode(e);}await ref.update({'e2eePayloads':envelopes,'type':'encrypted','isEdited':true,'editedAt':FieldValue.serverTimestamp(),'security':_security.messageSecurity(chatId)});}
   Future<List<MessageModel>> getPinnedMessages(String chatId,{int limit=50})async{await _authorizedChat(chatId);final s=await _chatRef(chatId).collection('messages').where('isPinned',isEqualTo:true).limit(limit).get();final items=s.docs.map((d)=>MessageModel.fromFirestore(d.id,d.data())).toList();items.sort((a,b)=>(b.timestamp??Timestamp(0,0)).compareTo(a.timestamp??Timestamp(0,0)));return items;}
   Future<void> addReaction(String chatId,String messageId,String reaction)async{final id=_uid();await _authorizedChat(chatId);final value=reaction.trim();if(value.isEmpty)return;final ref=_chatRef(chatId).collection('messages').doc(messageId);final snap=await ref.get();if(!snap.exists)throw Exception('الرسالة غير موجودة');final raw=snap.data()?['reactions'];final reactions=<String,dynamic>{};if(raw is Map)reactions.addAll(raw.map((k,v)=>MapEntry(k.toString(),v.toString())));if(reactions[id]?.toString()==value){reactions.remove(id);}else{reactions[id]=value;}await ref.update({'reactions':reactions});}

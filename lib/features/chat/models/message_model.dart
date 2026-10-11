@@ -12,7 +12,7 @@ class MessageModel extends Equatable {
   final Map<String, dynamic>? replyPreview;
   final MessageType type;
   final Timestamp? timestamp, clientTimestamp, readAt, deliveredAt, editedAt, pinnedAt;
-  final bool isRead, isDelivered, isEdited, isDeleted, isPinned, isStarred;
+  final bool isRead, isDelivered, isEdited, isDeleted, isPinned, isStarred, viewOnce;
   final MessageStatus status;
   final String? replyToId, idempotencyKey;
   final MessageModel? replyTo;
@@ -68,6 +68,7 @@ class MessageModel extends Equatable {
     this.pinnedAt,
     this.isPinned = false,
     this.isStarred = false,
+    this.viewOnce = false,
     this.status = MessageStatus.sent,
   });
 
@@ -107,6 +108,7 @@ class MessageModel extends Equatable {
     );
     final rawReactions = mapOf(data['reactions']);
     final rawDeletedFor = mapOf(data['deletedFor']);
+    final rawMetadata = mapOf(data['metadata']);
 
     return MessageModel(
       id: id,
@@ -144,7 +146,8 @@ class MessageModel extends Equatable {
           ? <String, bool>{}
           : rawDeletedFor.map((key, value) => MapEntry(key, value == true)),
       attachments: mapOf(data['attachments']),
-      metadata: mapOf(data['metadata']),
+      metadata: rawMetadata,
+      viewOnce: data['viewOnce'] == true || rawMetadata?['viewOnce'] == true,
       imageUrl: data['imageUrl']?.toString(),
       audioUrl: data['audioUrl']?.toString(),
       fileUrl: data['fileUrl']?.toString(),
@@ -210,6 +213,7 @@ class MessageModel extends Equatable {
         'pinnedAt': pinnedAt,
         'isPinned': isPinned,
         'isStarred': isStarred,
+        'viewOnce': viewOnce,
       };
 
   bool get isImage => type == MessageType.image;
@@ -231,6 +235,6 @@ class MessageModel extends Equatable {
         replyToId, idempotencyKey, reactions, deletedFor, attachments, metadata,
         imageUrl, audioUrl, fileUrl, videoUrl, locationUrl, locationAddress,
         locationLat, locationLng, audioDuration, fileSize, fileName, fileMimeType,
-        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, isStarred, status,
+        thumbnailUrl, readAt, deliveredAt, editedAt, pinnedAt, isPinned, isStarred, viewOnce, status,
       ];
 }

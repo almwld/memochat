@@ -31,13 +31,20 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
-  void _compose() {
+  Future<void> _compose() async {
     final isReelsTab = tabs.index == 1;
-    showModalBottomSheet<void>(
+    final published = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _Composer(service: service, initialReel: isReelsTab),
+    );
+    if (!mounted || published != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم استلام المحتوى. سيظهر في المنشورات أو الريلز تلقائياً بعد اكتمال الرفع.'),
+        duration: Duration(seconds: 3),
+      ),
     );
   }
 
@@ -512,31 +519,53 @@ class _ComposerState extends State<_Composer> {
   }
 
   Future<void> pickImage() async {
-    final result = await picker.pickImage(source: ImageSource.gallery, imageQuality: 88);
+    final result = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      imageQuality: 85,
+    );
     if (result != null && mounted) setState(() => media = File(result.path));
   }
 
   Future<void> pickVideo() async {
-    final result = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 90));
+    final result = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: 90),
+    );
     if (result != null && mounted) setState(() => media = File(result.path));
   }
 
   Future<void> publish() async {
-    if (media == null && text.text.trim().isEmpty) return;
+    if (busy || (media == null && text.text.trim().isEmpty)) return;
+    if (reel && media == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اختر فيديو للريل أولاً')),
+      );
+      return;
+    }
     setState(() => busy = true);
     try {
       if (reel) {
-        final video = media;
-        if (video == null) throw StateError('اختر فيديو للريل');
-        await widget.service.createReel(video: video, caption: text.text);
+        await widget.service.createReel(video: media!, caption: text.text);
       } else {
         final file = media;
         final isVideo = file != null &&
-            RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)$', caseSensitive: false).hasMatch(file.path);
-        await widget.service.createPost(text: text.text, media: file, video: isVideo);
+            RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)$', caseSensitive: false)
+                .hasMatch(file.path);
+        await widget.service.createPost(
+          text: text.text,
+          media: file,
+          video: isVideo,
+        );
       }
+      if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر النشر: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر النشر: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -545,11 +574,16 @@ class _ComposerState extends State<_Composer> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.viewInsetsOf(context).bottom + 20),
+      padding: EdgeInsets.fromLTRB(
+        16, 10, 16, MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('إنشاء محتوى في Memo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const Text(
+            'إنشاء محتوى في Memo',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 10),
           SegmentedButton<bool>(
             segments: const [
@@ -559,20 +593,42 @@ class _ComposerState extends State<_Composer> {
             selected: {reel},
             onSelectionChanged: (value) => setState(() => reel = value.first),
           ),
-          TextField(controller: text, maxLength: 5000, maxLines: 5, decoration: const InputDecoration(hintText: 'ما الذي تريد مشاركته؟')),
+          TextField(
+            controller: text,
+            maxLength: 5000,
+            maxLines: 5,
+            decoration: const InputDecoration(hintText: 'ما الذي تريد مشاركته؟'),
+          ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: reel ? pickVideo : pickImage,
+            onPressed: busy ? null : (reel ? pickVideo : pickImage),
             icon: Icon(reel ? Icons.video_library_rounded : Icons.photo_library_rounded),
             label: Text(reel ? 'اختيار فيديو' : 'اختيار صورة'),
           ),
           if (!reel)
-            OutlinedButton.icon(onPressed: pickVideo, icon: const Icon(Icons.videocam_outlined), label: const Text('إضافة فيديو')),
+            OutlinedButton.icon(
+              onPressed: busy ? null : pickVideo,
+              icon: const Icon(Icons.videocam_outlined),
+              label: const Text('إضافة فيديو'),
+            ),
           if (media != null)
-            Padding(padding: const EdgeInsets.all(8), child: Text(media!.path.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                media!.path.split(Platform.pathSeparator).last,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           FilledButton.icon(
             onPressed: busy ? null : publish,
-            icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.publish_rounded),
+            icon: busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.publish_rounded),
             label: Text(busy ? 'جارٍ النشر...' : 'نشر'),
           ),
         ],

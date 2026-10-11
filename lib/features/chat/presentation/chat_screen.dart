@@ -39,6 +39,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _searchFocus = FocusNode();
   final _inbox = NotificationInbox();
   late final Stream<List<Conversation>> _conversationsStream;
+  late final Stream<List<UserStatusModel>> _statusesStream;
   late Future<int> _unreadNotifications;
   _ConversationFilter _conversationFilter = _ConversationFilter.all;
   bool _showArchived = false;
@@ -54,6 +55,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     NotificationInbox.unreadCountNotifier.addListener(_onUnreadCountChanged);
     _conversationsStream = widget.repository.watchConversations();
+    // Keep one Firestore subscription alive; rebuilding the inbox must not
+    // recreate the story stream and briefly reset its content to a spinner.
+    _statusesStream = StatusService().streamActiveStatuses();
     _inviteSubscription = InviteHandler.instance.links.listen(_handleInvite);
     _unreadNotifications = _inbox.unreadCount();
     unawaited(_syncUnreadCount());
@@ -217,7 +221,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                     child: StreamBuilder<List<UserStatusModel>>(
-                      stream: StatusService().streamActiveStatuses(),
+                      stream: _statusesStream,
                       builder: (context, snapshot) {
                         final statuses = snapshot.data ?? const <UserStatusModel>[];
                         final uid = FirebaseAuth.instance.currentUser?.uid;

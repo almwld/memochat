@@ -1,57 +1,44 @@
-# Sehatak LiveKit Token Server
+# MemoChat LiveKit & FCM Server
 
-خادم Node.js صغير مستقل لإصدار LiveKit JWT لتطبيق «صحتك».
+خادم Node.js الخاص بـ MemoChat لإصدار توكنات LiveKit وإرسال إشعارات المكالمات والرسائل عبر Firebase Cloud Messaging (FCM).
 
-- Firebase Auth هو مصدر الهوية والتحقق من المستخدم.
-- Firebase/Firestore يبقى الـBackend الرئيسي للتطبيق.
-- الخادم لا يخزن بيانات المستخدمين.
-- `LIVEKIT_API_KEY` و`LIVEKIT_API_SECRET` أسرار ولا توضع في Git.
-- مناسب للنشر على Railway من مجلد المستودع نفسه.
+## الاستضافة والنشر
 
-## تشغيل Railway
+- منصة الاستضافة المعتمدة: **Suga**.
+- خدمة Suga: `memochat-livekit-server`.
+- رابط الخدمة: `https://c3mhwp72itmc-production-ar6e2elm.us-central1.suga.run`.
+- فرع النشر التلقائي: `main`.
+- كود الخادم موجود في هذا المجلد `livekit-server/`. لا يصبح تعديل موجود على فرع Pull Request فعالًا في الخدمة المنشورة حتى يُدمج في `main` ثم تنجح عملية النشر على Suga.
 
-اضبط متغيرات الخدمة في Railway:
+## متغيرات البيئة
 
-- `PORT` — Railway يضبطه تلقائياً، ويمكن تركه بدون قيمة.
-- `FIREBASE_PROJECT_ID` — معرف مشروع Firebase.
-- `FIREBASE_SERVICE_ACCOUNT_JSON` — JSON لحساب خدمة Firebase كمتغير سري في Railway. لا ترفع ملف الحساب إلى Git.
-- `LIVEKIT_API_KEY` — مفتاح LiveKit السري.
-- `LIVEKIT_API_SECRET` — سر LiveKit السري.
-- `LIVEKIT_URL` — رابط WebSocket الخاص بـ LiveKit، ويمكن ترك القيمة الافتراضية المستخدمة في الكود.
+تُدار القيم السرية من إعدادات خدمة Suga، ولا تُحفظ داخل المستودع:
 
-الخدمة تستمع على `0.0.0.0` وتستخدم `PORT` الذي توفره منصة الاستضافة.
+- `PORT` — المنفذ الذي توفره منصة الاستضافة.
+- `FIREBASE_PROJECT_ID` — يجب أن يكون `memo-f97b5`.
+- `FIREBASE_SERVICE_ACCOUNT_JSON` أو `FIREBASE_SERVICE_ACCOUNT_JSON_B64` — بيانات اعتماد Firebase Admin لمشروع MemoChat.
+- `LIVEKIT_URL` و`LIVEKIT_API_KEY` و`LIVEKIT_API_SECRET` — إعدادات LiveKit.
+- `NEXTCLOUD_URL` و`NEXTCLOUD_USERNAME` و`NEXTCLOUD_PASSWORD` — إعدادات نقل الوسائط عبر Nextcloud.
 
-## التشغيل المحلي
+## الإشعارات
+
+يستمع الخادم إلى رسائل Firestore الجديدة ويرسل إشعارات بيانات FCM إلى رموز الأجهزة المسجلة في `users/{uid}/private/tokens`. يتولى التطبيق على Android عرض الإشعار في شريط الحالة والتعامل مع الضغط عليه. كما يوفّر الخادم مسار إشعارات المكالمات الواردة، مع إبقاء Firestore مصدر الحالة الأساسي.
+
+تُعرض الرسائل المشفرة بإشعار عام دون كشف محتواها. وينفذ هذا المسار خادم MemoChat المستضاف على Suga، دون استخدام Cloud Functions.
+
+## فحص الخدمة
+
+- `GET /health` — التحقق من أن الخدمة تعمل.
+- `GET /debug/config` — تشخيص وجود إعدادات الخدمة دون إرجاع الأسرار.
+- `POST /token` — إصدار توكن LiveKit بعد التحقق من Firebase ID token.
+- `POST /call-notification` — طلب إرسال تنبيه مكالمة واردة بعد التحقق من هوية المتصل وصحة المكالمة.
+
+## تشغيل محلي
 
 ```bash
-cd livekit-token-server
+cd livekit-server
 npm install
-export FIREBASE_PROJECT_ID='your-project-id'
-export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
-export LIVEKIT_API_KEY='...'
-export LIVEKIT_API_SECRET='...'
 npm start
 ```
 
-## API
-
-`GET /health` للتحقق من أن الخادم يعمل، ويعرض فقط حالة إعداد Firebase وLiveKit بدون كشف الأسرار.
-
-`POST /token` يتطلب:
-
-`Authorization: Bearer <Firebase ID token>`
-
-وجسم JSON:
-
-```json
-{"roomName":"call_<callId>","participantName":"اسم المستخدم"}
-```
-
-الخادم يتحقق من Firebase ID token ثم يصدر توكن LiveKit بهوية Firebase UID.
-
-## Railway / GitHub
-
-المستودع يحتوي على `index.js` في الجذر لأن بعض إعدادات Railway/Node تشغّل افتراضياً `node index.js`. هذا الملف يفوض التنفيذ إلى `livekit-token-server/server.js`.
-
-GitHub يحفظ الكود، بينما Railway يشغّل الخادم بشكل دائم. لا توجد مفاتيح LiveKit أو Firebase سرية داخل المستودع.
-# redeploy Fri Oct  2 07:59:15 +03 2026
+استخدم متغيرات بيئة محلية آمنة؛ لا تضع مفاتيح LiveKit أو بيانات اعتماد Firebase في Git.

@@ -142,11 +142,20 @@ async function verifyFirebaseUser(req) {
   try {
     return await admin.auth().verifyIdToken(auth.substring(7));
   } catch (cause) {
-    // Keep credentials/token contents out of logs; the Firebase error code is
-    // enough to distinguish expired/invalid tokens from a project mismatch.
-    console.error('Firebase ID token verification failed:', cause?.code || cause?.name || 'unknown');
+    // Never log or return the bearer token. The SDK code/message are safe
+    // diagnostics and distinguish project/audience mismatch, expiry, revocation,
+    // malformed tokens, and certificate/network failures.
+    const firebaseAuthCode = String(cause?.code || cause?.name || 'auth/unknown');
+    const firebaseAuthMessage = String(cause?.message || 'No SDK message').slice(0, 240);
+    console.error('[auth] verifyIdToken failed:', {
+      code: firebaseAuthCode,
+      message: firebaseAuthMessage,
+      expectedProjectId: FIREBASE_PROJECT_ID,
+      credentialProjectId: firebaseCredentialProjectId,
+    });
     const error = new Error('Invalid Firebase ID token');
     error.statusCode = 401;
+    error.firebaseAuthCode = firebaseAuthCode;
     throw error;
   }
 }
@@ -547,16 +556,153 @@ app.post('/call-notification', async (req, res) => {
     return res.status(status).json({
       success: false,
       message: error.message || 'Unable to send incoming call notification',
+      ...(error.firebaseAuthCode ? { code: error.firebaseAuthCode } : {}),
       requestId,
     });
   }
 });
+
+
+// ============================================================
+// Firestore -> FCM message notification bridge (Suga)
+// ============================================================
+// Data-only FCM is rendered by the app's local notification service, including
+// while Android is backgrounded or MemoChat is terminated. Ignore the initial
+// snapshot so deployments never replay old messages as new notifications.
+const dispatchedMessageKeys = new Set();
+let messageListenerStarted = false;
+let messageListenerUnsubscribe = null;
+
+function messageNotificationText(message) {
+  const type = String(message.type || 'text').toLowerCase();
+  if (message.isDeleted === true || ['deleted', 'system', 'reaction', 'call', 'gameinvite', 'game_invite'].includes(type)) return null;
+  if (type === 'encrypted' || message.e2eeVersion != null || message.e2eePayloads) {
+    return { type: 'text_message', body: 'لديك رسالة مشفرة جديدة في MemoChat' };
+  }
+  switch (type) {
+    case 'image': return { type: 'image_message', body: '📷 أرسل صورة' };
+    case 'video': return { type: 'video_message', body: '🎬 أرسل فيديو' };
+    case 'audio': return { type: 'audio_message', body: '🎤 أرسل رسالة صوتية' };
+    case 'file': return { type: 'file_message', body: '📎 أرسل ملف' };
+    case 'location': return { type: 'text_message', body: '📍 أرسل موقعًا' };
+    case 'contact': return { type: 'text_message', body: '👤 أرسل جهة اتصال' };
+    case 'reply': return { type: 'reply', body: String(message.text || '').trim().slice(0, 180) || 'ردّ على رسالة' };
+    case 'text':
+    default: {
+      const text = String(message.text || '').trim();
+      return { type: 'text_message', body: text ? text.slice(0, 180) : 'لديك رسالة جديدة في MemoChat' };
+    }
+  }
+}
+
+async function dispatchChatMessageNotification(chatId, messageId, rawMessage) {
+  const message = rawMessage || {};
+  const senderId = String(message.senderId || '').trim();
+  if (!senderId || message.isDeleted === true) return;
+  const notificationText = messageNotificationText(message);
+  if (!notificationText) return;
+
+  const chatSnapshot = await db.collection('chats').doc(chatId).get();
+  if (!chatSnapshot.exists) return;
+  const chat = chatSnapshot.data() || {};
+  const participants = Array.isArray(chat.participants) ? [...new Set(chat.participants.map(String))] : [];
+  if (!participants.includes(senderId)) return;
+
+  for (const recipientId of participants.filter(uid => uid && uid !== senderId)) {
+    if (chat.deletedFor && chat.deletedFor[recipientId] === true) continue;
+    if (chat.mutedFor && chat.mutedFor[recipientId] === true) continue;
+
+    const tokenSnapshot = await db.collection('users').doc(recipientId).collection('private').doc('tokens').get();
+    const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
+    const tokens = Array.isArray(tokenData.tokens)
+      ? [...new Set(tokenData.tokens.map(value => String(value || '').trim()).filter(Boolean))]
+      : [];
+    if (!tokens.length) continue;
+
+    const senderName = String(message.senderName || 'مستخدم MemoChat').trim().slice(0, 100) || 'مستخدم MemoChat';
+    const payload = {
+      type: notificationText.type,
+      notificationId: chatId + '_' + messageId,
+      chatId, messageId, senderId, senderName,
+      senderPhotoUrl: String(message.senderPhotoUrl || ''),
+      recipientId, userId: recipientId,
+      title: senderName, body: notificationText.body,
+      route: 'chat:' + chatId,
+      timestamp: String(Date.now()),
+      priority: 'high', sound: 'true', vibration: 'true',
+    };
+    const invalidTokens = [];
+    for (let offset = 0; offset < tokens.length; offset += 500) {
+      const batch = tokens.slice(offset, offset + 500);
+      const result = await admin.messaging().sendEachForMulticast({
+        tokens: batch,
+        data: payload,
+        android: { priority: 'high', ttl: 60 * 60 * 1000 },
+      });
+      result.responses.forEach((item, index) => {
+        if (!item.success && [
+          'messaging/registration-token-not-registered',
+          'messaging/invalid-registration-token',
+        ].includes(item.error?.code)) invalidTokens.push(batch[index]);
+      });
+    }
+    if (invalidTokens.length) {
+      await db.collection('users').doc(recipientId).collection('private').doc('tokens').set({
+        tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+}
+
+function startMessageListener() {
+  if (messageListenerStarted) return;
+  messageListenerStarted = true;
+  let firstSnapshot = true;
+  messageListenerUnsubscribe = db.collectionGroup('messages')
+    .where('clientTimestamp', '>=', admin.firestore.Timestamp.fromMillis(Date.now() - 2 * 60 * 1000))
+    .onSnapshot(snapshot => {
+    if (firstSnapshot) {
+      firstSnapshot = false;
+      console.log('FCM message listener ready; existing messages ignored (' + snapshot.size + ' records).');
+      return;
+    }
+    for (const change of snapshot.docChanges()) {
+      if (change.type !== 'added') continue;
+      const messageId = change.doc.id;
+      const chatId = change.doc.ref.parent.parent?.id || String(change.doc.data()?.chatId || '').trim();
+      if (!chatId || !messageId) continue;
+      const dispatchKey = chatId + '/' + messageId;
+      if (dispatchedMessageKeys.has(dispatchKey)) continue;
+      dispatchedMessageKeys.add(dispatchKey);
+      if (dispatchedMessageKeys.size > 10000) {
+        const oldest = dispatchedMessageKeys.values().next().value;
+        if (oldest) dispatchedMessageKeys.delete(oldest);
+      }
+      dispatchChatMessageNotification(chatId, messageId, change.doc.data()).catch(error => {
+        dispatchedMessageKeys.delete(dispatchKey);
+        console.error('FCM message dispatch failed:', error?.code || error?.message || error);
+      });
+    }
+  }, error => {
+    console.error('Firestore message listener failed:', error?.code || error?.message || error);
+    messageListenerStarted = false;
+    messageListenerUnsubscribe = null;
+    setTimeout(startMessageListener, 5000).unref();
+  });
+  console.log('FCM message notification listener started.');
+}
+
+process.on('SIGTERM', () => { try { messageListenerUnsubscribe?.(); } catch (_) {} });
+process.on('SIGINT', () => { try { messageListenerUnsubscribe?.(); } catch (_) {} });
 
 app.use((error, _req, res, _next) => {
   if (error instanceof SyntaxError) return res.status(400).json({ success: false, message: 'Invalid JSON body' });
   console.error('Request error:', error);
   return res.status(500).json({ success: false, message: 'Internal server error' });
 });
+
+startMessageListener();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`MemoChat LiveKit token server running on port ${PORT}`);

@@ -179,11 +179,51 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _pinned = false;
   bool _starredLoading = false;
   final Set<String> _selectedMessageIds = <String>{};
+  final Set<String> _consumingViewOnceIds = <String>{};
   late String _activeChatId;
   String get _chatId => _activeChatId;
   String _wallpaper = 'default';
   double _fontSize = 14.0;
   final _chatPrefs = ChatPreferencesService();
+  final Map<int, Offset> _zoomPointers = <int, Offset>{};
+  double? _zoomStartDistance;
+  double _zoomStartFontSize = 14.0;
+  Timer? _fontSizeSaveTimer;
+
+  void _handleZoomPointerDown(PointerDownEvent event) {
+    _zoomPointers[event.pointer] = event.position;
+    if (_zoomPointers.length == 2) {
+      final points = _zoomPointers.values.toList(growable: false);
+      _zoomStartDistance = (points[0] - points[1]).distance;
+      _zoomStartFontSize = _fontSize;
+    }
+  }
+
+  void _handleZoomPointerMove(PointerMoveEvent event) {
+    if (!_zoomPointers.containsKey(event.pointer)) return;
+    _zoomPointers[event.pointer] = event.position;
+    if (_zoomPointers.length != 2) return;
+
+    final startDistance = _zoomStartDistance;
+    if (startDistance == null || startDistance <= 0) return;
+    final points = _zoomPointers.values.toList(growable: false);
+    final distance = (points[0] - points[1]).distance;
+    final nextSize = (_zoomStartFontSize * distance / startDistance)
+        .clamp(10.0, 24.0)
+        .toDouble();
+    if ((nextSize - _fontSize).abs() < 0.12 || !mounted) return;
+
+    setState(() => _fontSize = nextSize);
+    _fontSizeSaveTimer?.cancel();
+    _fontSizeSaveTimer = Timer(const Duration(milliseconds: 250), () {
+      unawaited(_chatPrefs.setFontSize(_chatId, _fontSize));
+    });
+  }
+
+  void _handleZoomPointerEnd(PointerEvent event) {
+    _zoomPointers.remove(event.pointer);
+    if (_zoomPointers.length < 2) _zoomStartDistance = null;
+  }
   MessageModel? _replyingTo;
   CollectionReference<Map<String, dynamic>> get _messagesRef =>
       _firestore.collection('chats').doc(_chatId).collection('messages');
@@ -561,7 +601,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         }
       }
       final liveIds = liveMessages.map((m) => m.id).toSet();
-      final messages = <MessageModel>[...liveMessages, ..._olderMessages.where((m) => !liveIds.contains(m.id))];
+      final messages = <MessageModel>[...liveMessages, ..._olderMessages.where((m) => !liveIds.contains(m.id) && !_hiddenForCurrentUser(m.toFirestore()))];
       messages.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
       final remoteIds = messages.map((m) => m.id).toSet();
       final remoteMediaKeys = messages
@@ -1049,12 +1089,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       final existing = _messages.map((m) => m.id).toSet();
       final merged = <MessageModel>[..._messages];
       for (final m in page.messages) {
-        if (!existing.contains(m.id)) merged.add(m);
+        if (!existing.contains(m.id) && !_hiddenForCurrentUser(m.toFirestore())) merged.add(m);
       }
       merged.sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
       setState(() {
         final knownOlder = _olderMessages.map((m) => m.id).toSet();
-        _olderMessages.addAll(page.messages.where((m) => !knownOlder.contains(m.id)));
+        _olderMessages.addAll(page.messages.where((m) => !knownOlder.contains(m.id) && !_hiddenForCurrentUser(m.toFirestore())));
         _messages = merged;
         _oldestMessageDocument = page.lastDocument ?? _oldestMessageDocument;
         _hasMoreMessages = page.hasMore;
@@ -1100,6 +1140,42 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   Future<void> _toggleMessagePin(MessageModel message) async { try { await _chat.pinMessage(_chatId, message.id, !message.isPinned); } catch (e) { debugPrint('pin message: $e'); } }
 
   Future<void> _deleteMessageForMe(MessageModel message) async { try { await _chat.deleteMessageForMe(_chatId, message.id); } catch (e) { debugPrint('delete message for me: $e'); } }
+
+  Future<void> _openViewOnceMessage(MessageModel message) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || message.senderId == uid || !message.viewOnce ||
+        message.id.isEmpty || _consumingViewOnceIds.contains(message.id)) return;
+    _consumingViewOnceIds.add(message.id);
+    final content = message.text?.trim() ?? '';
+    try {
+      // Claim consumption atomically before revealing the decrypted text. A
+      // second tap/device loses the transaction and cannot reopen it.
+      final consumed = await _chat.consumeViewOnceMessage(_chatId, message.id);
+      if (!consumed) {
+        if (mounted) ToastService.showInfo('تم استهلاك هذه الرسالة أو لم تعد متاحة.');
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((item) => item.id == message.id);
+        _olderMessages.removeWhere((item) => item.id == message.id);
+      });
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          title: const Row(children: [Icon(Icons.lock_clock_rounded), SizedBox(width: 8), Expanded(child: Text('رسالة لمرة واحدة'))]),
+          content: SingleChildScrollView(child: Text(content.isEmpty ? 'لا يوجد محتوى نصي قابل للعرض.' : content)),
+          actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إغلاق'))],
+        ),
+      );
+    } catch (error) {
+      debugPrint('consume view-once message ${message.id}: $error');
+      if (mounted) ToastService.showError('تعذر فتح الرسالة مرة واحدة. تحقق من الاتصال ثم أعد المحاولة.');
+    } finally {
+      _consumingViewOnceIds.remove(message.id);
+    }
+  }
   Future<void> _editMessage(MessageModel message) async {
     final controller=TextEditingController(text: message.text ?? '');
     final result=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
@@ -1240,6 +1316,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   @override
   void dispose() {
+    _fontSizeSaveTimer?.cancel();
+    if (_zoomPointers.isNotEmpty) _zoomPointers.clear();
     WidgetsBinding.instance.removeObserver(this);
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
@@ -1496,7 +1574,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                         color: dark ? Colors.white70 : const Color(0xFF49615E),
                         fontWeight: FontWeight.w600)))
           else
-            ListView.builder(
+            Listener(
+              onPointerDown: _handleZoomPointerDown,
+              onPointerMove: _handleZoomPointerMove,
+              onPointerUp: _handleZoomPointerEnd,
+              onPointerCancel: _handleZoomPointerEnd,
+              child: ListView.builder(
                 reverse: true,
                 padding: const EdgeInsets.all(8),
                 itemCount: all.length,
@@ -1523,31 +1606,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       isFirstInChat: index == all.length - 1,
                       isMe: message['senderId'] == _auth.currentUser?.uid ||
                           message['isLocal'] == true,
-                      onReply: model == null || model.id.isEmpty
+                      onReply: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _startReply(model),
-                      onForward: model == null || model.id.isEmpty
+                      onForward: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _forwardMessage(model),
+                      onViewOnce: model == null || model.id.isEmpty || model.senderId == _auth.currentUser?.uid || !model.viewOnce
+                          ? null
+                          : () => unawaited(_openViewOnceMessage(model)),
                       onReplyPreviewTap: () {
                         final preview = message['replyPreview'];
                         final replyId = message['replyToId']?.toString() ?? (preview is Map ? preview['id']?.toString() : null);
                         if (replyId != null && replyId.isNotEmpty) unawaited(_jumpToMessage(replyId));
                       },
                       onDelete: model == null || model.id.isEmpty || model.senderId != _auth.currentUser?.uid ? null : () => _confirmDeleteMessage(model),
-                      onEdit: model == null || model.id.isEmpty || model.senderId != _auth.currentUser?.uid ? null : () => _editMessage(model),
+                      onEdit: model == null || model.id.isEmpty || model.viewOnce || model.senderId != _auth.currentUser?.uid ? null : () => _editMessage(model),
                       onDeleteForMe: model == null || model.id.isEmpty
                           ? null
                           : () => _deleteMessageForMe(model),
-                      onPin: model == null || model.id.isEmpty
+                      onPin: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _toggleMessagePin(model),
-                      onStar: model == null || model.id.isEmpty
+                      onStar: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _toggleMessageStar(model),
                       onSelect: model == null || model.id.isEmpty ? null : () => _toggleMessageSelection(model.id),
                       fontSize: _fontSize,
-                      onReaction: remote && messageId != null
+                      onReaction: remote && messageId != null && model?.viewOnce != true
                           ? (emoji) => _chat.addReaction(
                               _chatId, messageId, emoji)
                           : null);
@@ -1598,6 +1684,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                     ],
                   );
                 }),
+            ),
           if (_showNewMessages)
             Positioned(
               right: 14,
@@ -1651,6 +1738,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
         ChatInputBar(
             chatId: _chatId,
             replyToId: _replyingTo?.id,
+            onClearReply: _clearReply,
             onSendMessage: (text, clientTimestamp) {
               unawaited(_setTyping(false));
               final replyingTo = _replyingTo;

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AdvancedFeatureCarousel extends StatefulWidget {
   const AdvancedFeatureCarousel({super.key, this.title = 'مساحتك الخاصة', this.onClose});
@@ -34,17 +35,51 @@ class _AdvancedFeatureCarouselState extends State<AdvancedFeatureCarousel> {
   late final PageController _controller;
   Timer? _timer;
   int _index = 0;
+  static const _dismissedKey = 'memo_advanced_feature_carousel_dismissed_v1';
   bool _closed = false;
+  bool _dismissalLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _controller = PageController(viewportFraction: .88);
+    unawaited(_restoreDismissal());
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted || _closed || !_controller.hasClients) return;
       final next = (_index + 1) % _items.length;
       _controller.animateToPage(next, duration: const Duration(milliseconds: 500), curve: Curves.easeOutCubic);
     });
+  }
+
+  Future<void> _restoreDismissal() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final dismissed = preferences.getBool(_dismissedKey) ?? false;
+      if (!mounted || _closed) return;
+      setState(() {
+        _closed = dismissed;
+        _dismissalLoaded = true;
+      });
+    } catch (error) {
+      debugPrint('MemoChat: failed to restore feature carousel state: $error');
+      if (mounted && !_closed) setState(() => _dismissalLoaded = true);
+    }
+  }
+
+  Future<void> _closeCarousel() async {
+    if (!_closed && mounted) {
+      setState(() {
+        _closed = true;
+        _dismissalLoaded = true;
+      });
+      widget.onClose?.call();
+    }
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(_dismissedKey, true);
+    } catch (error) {
+      debugPrint('MemoChat: failed to persist feature carousel dismissal: $error');
+    }
   }
 
   @override
@@ -56,7 +91,7 @@ class _AdvancedFeatureCarouselState extends State<AdvancedFeatureCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    if (_closed) return const SizedBox.shrink();
+    if (!_dismissalLoaded || _closed) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
@@ -68,7 +103,7 @@ class _AdvancedFeatureCarouselState extends State<AdvancedFeatureCarousel> {
               IconButton(
                 tooltip: 'إغلاق',
                 visualDensity: VisualDensity.compact,
-                onPressed: () { setState(() => _closed = true); widget.onClose?.call(); },
+                onPressed: () => unawaited(_closeCarousel()),
                 icon: const Icon(Icons.close_rounded),
               ),
             ],

@@ -28,6 +28,7 @@ class ChatInputBar extends StatefulWidget {
   /// and the actual Firestore write.
   final String? replyToId;
   final Function(String, Timestamp) onSendMessage;
+  final VoidCallback? onClearReply;
   final Function(String)? onSendImage;
   final Function(Map<String, dynamic>)? onLocalMedia;
   final VoidCallback? onShareLocation;
@@ -38,6 +39,7 @@ class ChatInputBar extends StatefulWidget {
     required this.chatId,
     this.replyToId,
     required this.onSendMessage,
+    this.onClearReply,
     this.onSendImage,
     this.onLocalMedia,
     this.onShareLocation,
@@ -61,6 +63,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   bool _startingRecording = false;
   bool _paused = false;
   bool _sending = false;
+  bool _viewOnceEnabled = false;
   bool _attachments = false;
   bool _gamesOpening = false;
   bool _loadingRecent = false;
@@ -317,22 +320,68 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Future<void> _sendText() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending || _recording || _hasRecording) return;
-    setState(() => _sending = true);
+
+    // Lock only the synchronous input hand-off, not the network round trip.
+    // Keeping _sending=true until Firestore finishes made the composer appear
+    // frozen whenever an earlier send was slow, especially after rapid sends.
     final clientTimestamp = Timestamp.now();
+    final messageId = 'msg_${clientTimestamp.microsecondsSinceEpoch}';
+    final replyToId = widget.replyToId;
+    final viewOnce = _viewOnceEnabled;
+    setState(() => _sending = true);
     try {
-      widget.onSendMessage(text, clientTimestamp);
+      if (viewOnce) {
+        // Do not leave a plaintext optimistic bubble behind if a view-once
+        // send fails. It appears only after the encrypted canonical write.
+        widget.onClearReply?.call();
+      } else {
+        widget.onSendMessage(text, clientTimestamp);
+      }
       _controller.clear();
+    } catch (e) {
+      debugPrint('chat optimistic text hand-off: $e');
+      ToastService.showError('تعذر تجهيز الرسالة للإرسال.');
+      return;
+    } finally {
+      if (mounted) setState(() {
+        _sending = false;
+        _viewOnceEnabled = false;
+      });
+    }
+
+    // Each message has a stable id and its own delivery future. Do not block
+    // the composer on network latency; ReliableMessageService still handles
+    // idempotency and transient-offline queueing.
+    unawaited(_deliverText(
+      text,
+      clientTimestamp: clientTimestamp,
+      messageId: messageId,
+      replyToId: replyToId,
+      viewOnce: viewOnce,
+    ));
+  }
+
+  Future<void> _deliverText(
+    String text, {
+    required Timestamp clientTimestamp,
+    required String messageId,
+    String? replyToId,
+    bool viewOnce = false,
+  }) async {
+    try {
       await ReliableMessageService.sendText(
         chatId: widget.chatId,
         text: text,
-        replyToId: widget.replyToId,
+        replyToId: replyToId,
         clientTimestamp: clientTimestamp,
+        messageId: messageId,
+        viewOnce: viewOnce,
       );
     } catch (e) {
-      debugPrint('chat text send: $e');
-      ToastService.showError('تعذر إرسال الرسالة. تحقق من الاتصال.');
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      debugPrint('chat text send failed ($messageId): $e');
+      if (mounted) {
+        ToastService.showError('تعذر إرسال الرسالة. تحقق من الاتصال.');
+      }
     }
   }
 
@@ -807,6 +856,17 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             ),
                           ),
                           IconButton(
+                            tooltip: _viewOnceEnabled ? 'إلغاء المشاهدة لمرة واحدة' : 'إرسال للمشاهدة مرة واحدة',
+                            onPressed: _sending || !_hasText
+                                ? null
+                                : () => setState(() => _viewOnceEnabled = !_viewOnceEnabled),
+                            icon: Icon(
+                              _viewOnceEnabled ? Icons.visibility_off_rounded : Icons.looks_one_rounded,
+                              color: _viewOnceEnabled ? const Color(0xFF00A884) : iconColor,
+                            ),
+                            splashRadius: 21,
+                          ),
+                          IconButton(
                             tooltip: 'الألعاب',
                             onPressed: (_sending || _gamesOpening) ? null : _openGames,
                             icon: Icon(Icons.sports_esports_outlined, color: iconColor),
@@ -891,8 +951,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
             child: Row(
               children: [
                 IconButton(
+                  tooltip: 'حذف التسجيل وإرساله إلى المهملات',
                   onPressed: _sending ? null : _deleteRecording,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_forever_outlined, color: Colors.red),
                 ),
                 IconButton(
                   onPressed: _sending || !_recording ? null : _togglePause,

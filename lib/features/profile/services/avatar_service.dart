@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../chat/services/nextcloud_service.dart';
 
@@ -125,16 +126,61 @@ class AvatarService {
   }
 
   Future<void> _propagateAvatarToConversations(String uid, String url) async {
-    final snapshot = await _db.collection('chats').where('participants', arrayContains: uid).get();
+    // Update the active status document first so the status row/story header
+    // receives the new avatar immediately through its existing Firestore stream.
+    final statusRef = _db.collection('statuses').doc(uid);
+    final status = await statusRef.get();
+    if (status.exists) {
+      try {
+        await statusRef.update({
+          'userImage': url,
+          'avatarUpdatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (error) {
+        // Avatar upload/profile update has already succeeded. A denied status
+        // mirror must not report the whole avatar change as failed.
+        debugPrint('status avatar refresh failed: $error');
+      }
+    }
+
+    // Keep independent refreshes best-effort so a legacy document/rule mismatch
+    // in one collection does not prevent chat avatars from updating.
+    await Future.wait([
+      _updateOwnedContentPhotos('socialPosts', uid, url, 'authorPhoto')
+          .catchError((Object error) => debugPrint('post avatar refresh failed: $error')),
+      _updateOwnedContentPhotos('socialReels', uid, url, 'authorPhoto')
+          .catchError((Object error) => debugPrint('reel avatar refresh failed: $error')),
+      _updateOwnedContentPhotos('chats', uid, url, null)
+          .catchError((Object error) => debugPrint('chat avatar refresh failed: $error')),
+    ]);
+  }
+
+  Future<void> _updateOwnedContentPhotos(
+    String collection,
+    String uid,
+    String url,
+    String? photoField,
+  ) async {
+    final query = collection == 'chats'
+        ? _db.collection(collection).where('participants', arrayContains: uid)
+        : _db.collection(collection).where('authorId', isEqualTo: uid);
+    final snapshot = await query.get();
     if (snapshot.docs.isEmpty) return;
 
     WriteBatch batch = _db.batch();
     var count = 0;
     for (final doc in snapshot.docs) {
-      batch.update(doc.reference, {
-        'participantDetails.$uid.photoUrl': url,
-        'participantPhotos.$uid': url,
-      });
+      if (collection == 'chats') {
+        batch.update(doc.reference, {
+          'participantDetails.$uid.photoUrl': url,
+          'participantPhotos.$uid': url,
+        });
+      } else {
+        batch.update(doc.reference, {
+          photoField!: url,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
       count++;
       if (count == 450) {
         await batch.commit();
