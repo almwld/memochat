@@ -231,7 +231,7 @@ class MemoArcadeGame extends FlameGame {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
     final ready = elapsed >= _reactionReadyAt;
     paint.color = ready ? const Color(0xFF20C997) : const Color(0xFFFFC857);
-    canvas.drawCircle(Offset(size.x / 2, size.y * .46), math.min(88.0, size.x * .22), paint);
+    canvas.drawCircle(Offset(size.x / 2, size.y * .46), math.min(88.0, size.x * .22).toDouble(), paint);
     final label = ready ? 'اضغط الآن!' : 'انتظر الإشارة';
     final text = TextPainter(
       text: TextSpan(text: label, style: const TextStyle(color: Color(0xFF071719), fontSize: 22, fontWeight: FontWeight.w900)),
