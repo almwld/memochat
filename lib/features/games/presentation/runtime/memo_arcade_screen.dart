@@ -241,7 +241,8 @@ class MemoArcadeGame extends FlameGame {
 
   String get _instruction {
     if (type == GameType.shapeMatch) {
-      return 'اضغط الشكل: ${const ['دائرة', 'مربع', 'مثلث'][_shapeGoal]}';
+      const shapeNames = <String>['دائرة', 'مربع', 'مثلث'];
+      return 'اضغط الشكل: ${shapeNames[_shapeGoal]}';
     }
     return content.instruction;
   }
