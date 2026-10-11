@@ -403,7 +403,8 @@ class MemoArcadeGame extends FlameGame {
         .toList()..shuffle(random);
     final options = remaining.take(3).toList();
     const distractors = <String>['س', 'ب', 'ت', 'ج', 'د', 'ر', 'م', 'ن', 'ل', 'ف', 'ك'];
-    for (final letter in distractors..shuffle(random)) {
+    final distractorPool = <String>[...distractors]..shuffle(random);
+    for (final letter in distractorPool) {
       if (options.length >= 4) break;
       if (!_wordGuessTarget.contains(letter) && !options.contains(letter)) options.add(letter);
     }
