@@ -10,6 +10,10 @@ enum NotificationType {
   system,
   general,
   call,
+  friendRequest,
+  voiceRoomInvite,
+  communityInvite,
+  groupInvite,
 }
 
 enum NotificationPriority { low, normal, high }
@@ -27,6 +31,10 @@ extension NotificationTypeWireName on NotificationType {
         NotificationType.system => 'system',
         NotificationType.general => 'general',
         NotificationType.call => 'call',
+        NotificationType.friendRequest => 'friend_request',
+        NotificationType.voiceRoomInvite => 'voice_room_invite',
+        NotificationType.communityInvite => 'community_invite',
+        NotificationType.groupInvite => 'group_invite',
       };
 
 }
@@ -94,6 +102,7 @@ class AppNotification {
     this.channel = NotificationChannel.system,
     this.sound = true,
     this.vibration = true,
+    this.extraData = const <String, dynamic>{},
   });
 
   final String id;
@@ -110,10 +119,13 @@ class AppNotification {
   final NotificationChannel channel;
   final bool sound;
   final bool vibration;
+  /// Preserve action identifiers (requestId/inviteId/roomId/etc.) across local history.
+  final Map<String, dynamic> extraData;
 
   String get dedupeKey => callId ?? messageId ?? '$type:$id';
 
   Map<String, dynamic> toJson() => {
+        ...extraData,
         'type': type.wireName,
         'notificationId': id,
         'chatId': chatId,
@@ -158,11 +170,19 @@ class AppNotification {
       priority: data['priority']?.toString() == 'high' ? NotificationPriority.high : NotificationPriority.normal,
       channel: type == NotificationType.call || (callId?.isNotEmpty ?? false)
           ? NotificationChannel.calls
-          : type == NotificationType.system || type == NotificationType.general
+          : const {
+              NotificationType.system,
+              NotificationType.general,
+              NotificationType.friendRequest,
+              NotificationType.voiceRoomInvite,
+              NotificationType.communityInvite,
+              NotificationType.groupInvite,
+            }.contains(type)
               ? NotificationChannel.system
               : NotificationChannel.messages,
       sound: data['sound'] != false && data['sound']?.toString().toLowerCase() != 'false',
       vibration: data['vibration'] != false && data['vibration']?.toString().toLowerCase() != 'false',
+      extraData: Map<String, dynamic>.from(data),
     );
   }
 }
