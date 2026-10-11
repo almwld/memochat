@@ -554,7 +554,7 @@ app.post('/call-notification', async (req, res) => {
 
 
 // ============================================================
-// Firestore -> FCM message notification bridge (Railway)
+// Firestore -> FCM message notification bridge (Suga)
 // ============================================================
 // Data-only FCM is rendered by the app's local notification service, including
 // while Android is backgrounded or MemoChat is terminated. Ignore the initial
