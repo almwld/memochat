@@ -112,7 +112,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     if (data['actionCompleted'] == true) return null;
     final type = _notificationType(data);
     if (!const {'friend_request', 'voice_room_invite', 'community_invite'}.contains(type)) return null;
-    return Wrap(mainAxisSize: MainAxisSize.min, spacing: 0, children: [
+    return Wrap(spacing: 0, children: [
       IconButton(tooltip: 'قبول', visualDensity: VisualDensity.compact, icon: const Icon(Icons.check_circle_rounded), onPressed: () => _respondToInvitation(data, accept: true, historyId: historyId)),
       IconButton(tooltip: 'رفض', visualDensity: VisualDensity.compact, icon: const Icon(Icons.cancel_outlined), onPressed: () => _respondToInvitation(data, accept: false, historyId: historyId)),
     ]);
