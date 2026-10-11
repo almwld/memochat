@@ -1312,7 +1312,42 @@ class MemoArcadeGame extends FlameGame {
         _renderMemory(canvas, paint);
         break;
       case ArcadeMode.race:
-        paint.color = const Color(0xFF39D5C5); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, size.y * .52, size.x - 36, 18), const Radius.circular(9)), paint); paint.color = Colors.white; final x = 24 + (_raceProgress / 100) * (size.x - 48); canvas.drawCircle(Offset(x, size.y * .52 + 9), 14, paint); break;
+        final trackY = size.y * .52;
+        final track = Rect.fromLTWH(18, trackY, size.x - 36, 18);
+        paint
+          ..style = PaintingStyle.fill
+          ..color = const Color(0xFF17383B);
+        canvas.drawRRect(RRect.fromRectAndRadius(track, const Radius.circular(9)), paint);
+        for (final gate in [25, 50, 75]) {
+          final gateX = 24 + gate / 100 * (size.x - 48);
+          paint
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = const Color(0xFFFFC857);
+          canvas.drawLine(Offset(gateX, trackY - 18), Offset(gateX, trackY + 36), paint);
+        }
+        final rocketX = 24 + (_raceProgress / 100) * (size.x - 48);
+        canvas.save();
+        canvas.translate(rocketX, trackY + 9);
+        canvas.rotate(math.pi / 2);
+        _drawMesh(
+          canvas,
+          Offset.zero,
+          15,
+          elapsed * .55,
+          _rocketVertices,
+          _rocketFaces,
+          const Color(0xFF56E6FF),
+          tilt: .12,
+        );
+        canvas.restore();
+        paint
+          ..style = PaintingStyle.fill
+          ..color = const Color(0xFF39D5C5);
+        final progressRect = Rect.fromLTWH(18, trackY + 42, (size.x - 36) * _raceProgress / 100, 6);
+        canvas.drawRRect(RRect.fromRectAndRadius(progressRect, const Radius.circular(3)), paint);
+        _drawBoardLabel(canvas, 'تقدم الصاروخ $_raceProgress٪', trackY + 58);
+        break;
       case ArcadeMode.oddOneOut:
         for (var n = 0; n < 12; n++) { final w = (size.x - 36) / 4; final x = 8 + (n % 4) * w; final y = 110 + (n ~/ 4) * 65; paint.color = palette[n % palette.length]; canvas.drawCircle(Offset(x + w / 2, y + 22), n == 7 ? 21 : 16, paint); } break;
       default: break;
