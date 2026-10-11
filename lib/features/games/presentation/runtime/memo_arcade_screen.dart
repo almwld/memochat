@@ -1575,7 +1575,7 @@ class MemoArcadeGame extends FlameGame {
     if (_sudokuPuzzle[index] != 0) return;
     final oldValue = _sudokuValues[index];
     var foundValidValue = false;
-    for (var attempt = 0; attempt < 5; attempt++) {
+    for (var attempt = 0; attempt < 4; attempt++) {
       _sudokuValues[index] = (_sudokuValues[index] + 1) % 5;
       if (GameBoardRules.isValidSudoku4x4(
         _sudokuValues,
