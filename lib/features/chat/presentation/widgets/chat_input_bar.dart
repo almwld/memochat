@@ -425,8 +425,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
       'fileMimeType': mime,
       'audioDuration': audioDuration,
       'isLocal': true,
-      'isSending': true,
-      'isUploading': status == 'uploading' || status == 'queued' || status == 'retry',
+      // Delivery state belongs to this message bubble, never the composer.
+      // A retry/failure must not keep showing the pending clock.
+      'isSending': status != 'retry',
+      'isUploading': status == 'uploading' || status == 'queued',
       'hasError': status == 'retry',
       'uploadStatus': status == 'retry' ? 'failed' : status == 'queued' ? 'pending' : 'uploading',
       'uploadProgress': (job?['progress'] as num?)?.toDouble() ?? 0.0,
@@ -981,11 +983,20 @@ class _ChatInputBarState extends State<ChatInputBar> {
                 ),
                 IconButton(
                   onPressed: _sending ? null : (_recording ? _stopRecording : _sendRecording),
-                  icon: Icon(
-                    _recording ? Icons.stop_circle_outlined : Icons.send_rounded,
-                    color: AppColors.primary,
-                    size: 29,
-                  ),
+                  icon: _sending && !_recording
+                    ? SizedBox(
+                        width: 19,
+                        height: 19,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : Icon(
+                        _recording ? Icons.stop_circle_outlined : Icons.send_rounded,
+                        color: AppColors.primary,
+                        size: 29,
+                      ),
                 ),
               ],
             ),
