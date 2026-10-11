@@ -142,11 +142,20 @@ async function verifyFirebaseUser(req) {
   try {
     return await admin.auth().verifyIdToken(auth.substring(7));
   } catch (cause) {
-    // Keep credentials/token contents out of logs; the Firebase error code is
-    // enough to distinguish expired/invalid tokens from a project mismatch.
-    console.error('Firebase ID token verification failed:', cause?.code || cause?.name || 'unknown');
+    // Never log or return the bearer token. The SDK code/message are safe
+    // diagnostics and distinguish project/audience mismatch, expiry, revocation,
+    // malformed tokens, and certificate/network failures.
+    const firebaseAuthCode = String(cause?.code || cause?.name || 'auth/unknown');
+    const firebaseAuthMessage = String(cause?.message || 'No SDK message').slice(0, 240);
+    console.error('[auth] verifyIdToken failed:', {
+      code: firebaseAuthCode,
+      message: firebaseAuthMessage,
+      expectedProjectId: FIREBASE_PROJECT_ID,
+      credentialProjectId: firebaseCredentialProjectId,
+    });
     const error = new Error('Invalid Firebase ID token');
     error.statusCode = 401;
+    error.firebaseAuthCode = firebaseAuthCode;
     throw error;
   }
 }
@@ -547,6 +556,7 @@ app.post('/call-notification', async (req, res) => {
     return res.status(status).json({
       success: false,
       message: error.message || 'Unable to send incoming call notification',
+      ...(error.firebaseAuthCode ? { code: error.firebaseAuthCode } : {}),
       requestId,
     });
   }
