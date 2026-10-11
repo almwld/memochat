@@ -69,23 +69,55 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
   }
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(game.title), centerTitle: true,
-      actions: [Padding(padding: const EdgeInsetsDirectional.only(end: 14),
-        child: Center(child: Text(game.score.toString(),
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17))))]),
-    body: Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (e) {
-        final renderObject =
-            _gameViewportKey.currentContext?.findRenderObject();
-        if (renderObject is! RenderBox) return;
-        final p = renderObject.globalToLocal(e.position);
-        game.tap(Vector2(p.dx, p.dy));
-      },
-      child: SizedBox.expand(
-        key: _gameViewportKey,
-        child: GameWidget(game: game),
-      ),
+      title: Text(game.title),
+      centerTitle: true,
+      actions: [
+        Padding(
+          padding: const EdgeInsetsDirectional.only(end: 14),
+          child: Center(
+            child: Text('${game.score} • $_remoteScore',
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+          ),
+        ),
+      ],
+    ),
+    body: Column(
+      children: [
+        if (_sessionStatus != null && _sessionStatus != 'playing')
+          MaterialBanner(
+            content: Text(
+              _sessionStatus == 'waiting'
+                  ? 'بانتظار انضمام اللاعب الآخر'
+                  : _sessionStatus == 'ended'
+                      ? 'انتهت جلسة اللعبة'
+                      : _sessionStatus == 'offline'
+                          ? 'انقطع اتصال المزامنة؛ تستمر اللعبة محليًا'
+                          : 'حالة اللعبة: $_sessionStatus',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => setState(() {}),
+                child: const Text('حسنًا'),
+              ),
+            ],
+          ),
+        Expanded(
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (e) {
+              final renderObject =
+                  _gameViewportKey.currentContext?.findRenderObject();
+              if (renderObject is! RenderBox) return;
+              final p = renderObject.globalToLocal(e.position);
+              game.tap(Vector2(p.dx, p.dy));
+            },
+            child: SizedBox.expand(
+              key: _gameViewportKey,
+              child: GameWidget(game: game),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
