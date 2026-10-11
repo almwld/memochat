@@ -78,8 +78,10 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       return;
     }
 
-    // Another UI owner already answered the call.
-    if (call.isAnswered && call.status != CallStatus.connected) {
+    // Accept updates isAnswered before the replacement CallScreen is pushed.
+    // Keep this route alive while its own accept flow is busy; otherwise the
+    // Firestore snapshot races Navigator.pushReplacement and cancels the answer.
+    if (call.isAnswered && !_busy && call.status != CallStatus.connected) {
       unawaited(_closeWithoutAction());
     }
   }
