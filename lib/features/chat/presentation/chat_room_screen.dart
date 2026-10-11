@@ -179,6 +179,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   bool _pinned = false;
   bool _starredLoading = false;
   final Set<String> _selectedMessageIds = <String>{};
+  final Set<String> _consumingViewOnceIds = <String>{};
   late String _activeChatId;
   String get _chatId => _activeChatId;
   String _wallpaper = 'default';
@@ -1139,6 +1140,38 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
   Future<void> _toggleMessagePin(MessageModel message) async { try { await _chat.pinMessage(_chatId, message.id, !message.isPinned); } catch (e) { debugPrint('pin message: $e'); } }
 
   Future<void> _deleteMessageForMe(MessageModel message) async { try { await _chat.deleteMessageForMe(_chatId, message.id); } catch (e) { debugPrint('delete message for me: $e'); } }
+
+  Future<void> _openViewOnceMessage(MessageModel message) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || message.senderId == uid || !message.viewOnce ||
+        message.id.isEmpty || _consumingViewOnceIds.contains(message.id)) return;
+    _consumingViewOnceIds.add(message.id);
+    final content = message.text?.trim() ?? '';
+    try {
+      // Claim consumption atomically before revealing the decrypted text. A
+      // second tap/device loses the transaction and cannot reopen it.
+      final consumed = await _chat.consumeViewOnceMessage(_chatId, message.id);
+      if (!consumed) {
+        if (mounted) ToastService.showInfo('تم استهلاك هذه الرسالة أو لم تعد متاحة.');
+        return;
+      }
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          title: const Row(children: [Icon(Icons.lock_clock_rounded), SizedBox(width: 8), Expanded(child: Text('رسالة لمرة واحدة'))]),
+          content: SingleChildScrollView(child: SelectableText(content.isEmpty ? 'لا يوجد محتوى نصي قابل للعرض.' : content)),
+          actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إغلاق'))],
+        ),
+      );
+    } catch (error) {
+      debugPrint('consume view-once message ${message.id}: $error');
+      if (mounted) ToastService.showError('تعذر فتح الرسالة مرة واحدة. تحقق من الاتصال ثم أعد المحاولة.');
+    } finally {
+      _consumingViewOnceIds.remove(message.id);
+    }
+  }
   Future<void> _editMessage(MessageModel message) async {
     final controller=TextEditingController(text: message.text ?? '');
     final result=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
@@ -1569,12 +1602,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       isFirstInChat: index == all.length - 1,
                       isMe: message['senderId'] == _auth.currentUser?.uid ||
                           message['isLocal'] == true,
-                      onReply: model == null || model.id.isEmpty
+                      onReply: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _startReply(model),
-                      onForward: model == null || model.id.isEmpty
+                      onForward: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _forwardMessage(model),
+                      onViewOnce: model == null || model.id.isEmpty || model.senderId == _auth.currentUser?.uid || !model.viewOnce
+                          ? null
+                          : () => unawaited(_openViewOnceMessage(model)),
                       onReplyPreviewTap: () {
                         final preview = message['replyPreview'];
                         final replyId = message['replyToId']?.toString() ?? (preview is Map ? preview['id']?.toString() : null);
@@ -1585,10 +1621,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                       onDeleteForMe: model == null || model.id.isEmpty
                           ? null
                           : () => _deleteMessageForMe(model),
-                      onPin: model == null || model.id.isEmpty
+                      onPin: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _toggleMessagePin(model),
-                      onStar: model == null || model.id.isEmpty
+                      onStar: model == null || model.id.isEmpty || model.viewOnce
                           ? null
                           : () => _toggleMessageStar(model),
                       onSelect: model == null || model.id.isEmpty ? null : () => _toggleMessageSelection(model.id),
