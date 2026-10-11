@@ -225,38 +225,16 @@ class _MessageBubbleState extends State<MessageBubble> {
         return _withStatus(_buildVideo(_firstNonEmpty(m, ['videoUrl', 'fileUrl', 'text'])));
       case 'audio':
         final url = _firstNonEmpty(m, ['audioUrl', 'fileUrl', 'text']);
-        // Keep the original opaque audio-message bubble appearance from 5777e10.
-        // Delivery/read state remains an icon beside the bubble.
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          textDirection: widget.isMe ? TextDirection.ltr : TextDirection.rtl,
-          children: [
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 7, bottom: 6),
-              child: _mediaStatus(m),
+        // Keep the status indicator inside the audio bubble, never below it.
+        return _withStatus(
+          _shell(
+            AudioWaveformBubble(
+              audioUrl: url,
+              isMe: widget.isMe,
+              isLocal: _isLocal(url),
             ),
-            _shell(
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Stack(
-                    children: [
-                      AudioWaveformBubble(
-                        audioUrl: url,
-                        isMe: widget.isMe,
-                        isLocal: _isLocal(url),
-                      ),
-
-                    ],
-                  ),
-                  // Playback position and duration are already shown by the player.
-                ],
-              ),
-              dark,
-            ),
-          ],
+            dark,
+          ),
         );
       case 'file':
         return _withStatus(_buildFile(m, dark));
@@ -278,17 +256,31 @@ class _MessageBubbleState extends State<MessageBubble> {
   /// Keep the same placement used by text messages: for received messages the
   /// status is rendered before the bubble; for sent messages it stays at the end.
   Widget _withStatus(Widget bubble) {
-    final m = widget.message;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      textDirection: widget.isMe ? TextDirection.ltr : TextDirection.rtl,
+    // Render exactly one delivery/read indicator inside the media bubble.
+    // Keeping it in the bubble prevents the stray checkmark beneath the card
+    // and next to the file metadata.
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.only(end: 7, bottom: 6),
-          child: _mediaStatus(m),
-        ),
         bubble,
+        PositionedDirectional(
+          end: 8,
+          bottom: 8,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: widget.isMe
+                  ? const Color(0xFFD9FDD3).withOpacity(.92)
+                  : (Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF202C33).withOpacity(.92)
+                      : Colors.white.withOpacity(.92)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+              child: _mediaStatus(widget.message),
+            ),
+          ),
+        ),
       ],
     );
   }
