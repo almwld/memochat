@@ -488,7 +488,14 @@ class MemoArcadeGame extends FlameGame {
   ];
 
   String get _instruction {
-    return content.instruction;
+    switch (type) {
+      case GameType.mazeRunner:
+        return 'اسحب للتحرك واجمع الجواهر وتجنب الحواف';
+      case GameType.galaxyCatch:
+        return 'اسحب المركبة لجمع النجوم وتجنب النيازك';
+      default:
+        return content.instruction;
+    }
   }
 
   void tap(Vector2 point) {
