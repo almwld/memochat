@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import '../models/game.dart';
 import 'runtime/memo_arcade_screen.dart';
+import 'board_game_screen.dart';
 import 'games/bubble_pop_game.dart';
 import 'games/dice_roll_game.dart';
 import 'games/dots_and_boxes_game.dart';
@@ -28,6 +29,19 @@ class DedicatedGameFactory {
     String chatId = '',
     String? gameId,
   }) {
+    // Board games need their own rules and board state in both solo and
+    // multiplayer sessions; do not route them through generic arcade taps.
+    if (const {
+      GameType.xo,
+      GameType.fourInRow,
+      GameType.dotsAndBoxes,
+      GameType.sudokuDuel,
+      GameType.picturePuzzle,
+      GameType.connectPairs,
+    }.contains(type)) {
+      return BoardGameScreen(type: type, chatId: chatId, gameId: gameId);
+    }
+
     // The dedicated local games are used only for solo play. Multiplayer
     // sessions stay on MemoArcadeGame so chatId/gameId score synchronization
     // remains authoritative through GameService.
