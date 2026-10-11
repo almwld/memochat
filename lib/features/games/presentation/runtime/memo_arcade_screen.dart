@@ -148,7 +148,21 @@ class MemoArcadeGame extends FlameGame {
   final List<Target> targets = <Target>[];
   final List<Particle> particles = <Particle>[];
   int score = 0;
+  int combo = 0;
+  Vector2? _playerPosition;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
+
+  bool get supportsDragMovement =>
+      type == GameType.mazeRunner || type == GameType.galaxyCatch;
+
+  void moveTo(Vector2 point) {
+    if (!supportsDragMovement || size.x <= 0 || size.y <= 0) return;
+    const margin = 22.0;
+    _playerPosition = Vector2(
+      point.x.clamp(margin, math.max(margin, size.x - margin)).toDouble(),
+      point.y.clamp(84.0, math.max(84.0, size.y - margin)).toDouble(),
+    );
+  }
 
   ArcadeContent get content => ArcadeContentBank.forType(type);
   Color get background => const Color(0xFF071719);
@@ -707,7 +721,8 @@ class MemoArcadeGame extends FlameGame {
     }
     targets.remove(hit);
     combo = comboClock < .65 ? combo + 1 : 1;
-    final gain = 1 + (hit.kind == 2 ? 2 : 0) + (combo >= 2 ? math.min(4, combo ~/ 2) : 0);
+    final comboBonus = combo >= 2 ? math.min(4, combo ~/ 2).toInt() : 0;
+    final gain = 1 + (hit.kind == 2 ? 2 : 0) + comboBonus;
     score += gain;
     comboClock = 0;
     _spawnBurst(hit.position, hit.kind);
