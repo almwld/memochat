@@ -41,7 +41,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   String _notificationType(Map<String, dynamic> data) =>
       _payload(data)['type']?.toString() ?? data['type']?.toString() ?? '';
 
-  Future<void> _respondToInvitation(Map<String, dynamic> raw, {required bool accept}) async {
+  Future<void> _respondToInvitation(Map<String, dynamic> raw, {required bool accept, required String historyId}) async {
     final data = _payload(raw);
     final type = _notificationType(data);
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -97,18 +97,24 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       } else {
         return;
       }
+      if (uid.isNotEmpty && historyId.isNotEmpty) {
+        try {
+          await FirebaseFirestore.instance.collection('users').doc(uid).collection('notificationHistory').doc(historyId).update({'actionCompleted': true, 'read': true, 'readAt': FieldValue.serverTimestamp()});
+        } catch (_) {}
+      }
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(accept ? 'تم قبول الدعوة.' : 'تم رفض الدعوة.')));
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر ${accept ? 'قبول' : 'رفض'} الطلب: ${error.toString().replaceFirst('Bad state: ', '')}')));
     }
   }
 
-  Widget? _invitationActions(Map<String, dynamic> data) {
+  Widget? _invitationActions(Map<String, dynamic> data, String historyId) {
+    if (data['actionCompleted'] == true) return null;
     final type = _notificationType(data);
     if (!const {'friend_request', 'voice_room_invite', 'community_invite'}.contains(type)) return null;
     return Wrap(mainAxisSize: MainAxisSize.min, spacing: 0, children: [
-      IconButton(tooltip: 'قبول', visualDensity: VisualDensity.compact, icon: const Icon(Icons.check_circle_rounded), onPressed: () => _respondToInvitation(data, accept: true)),
-      IconButton(tooltip: 'رفض', visualDensity: VisualDensity.compact, icon: const Icon(Icons.cancel_outlined), onPressed: () => _respondToInvitation(data, accept: false)),
+      IconButton(tooltip: 'قبول', visualDensity: VisualDensity.compact, icon: const Icon(Icons.check_circle_rounded), onPressed: () => _respondToInvitation(data, accept: true, historyId: historyId)),
+      IconButton(tooltip: 'رفض', visualDensity: VisualDensity.compact, icon: const Icon(Icons.cancel_outlined), onPressed: () => _respondToInvitation(data, accept: false, historyId: historyId)),
     ]);
   }
 
@@ -277,7 +283,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                         ),
                       ),
                       subtitle: Text(data['body']?.toString() ?? ''),
-                      trailing: _invitationActions(data),
+                      trailing: _invitationActions(data, doc.id),
                       onTap: () async {
                         await _history.markRead(doc.id);
                         await _openNotification(data);
