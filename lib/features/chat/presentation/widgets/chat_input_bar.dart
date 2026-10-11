@@ -501,9 +501,18 @@ class _ChatInputBarState extends State<ChatInputBar> {
     // first and explicitly resolve camera permission so a stale/denied
     // permission state cannot leave the Flutter route waiting indefinitely.
     if (source == ImageSource.camera) {
+      // Dismiss the attachment tray and keyboard before handing control to
+      // Android's camera activity. The camera action is now launched from the
+      // attachment/actions panel, not from the text composer itself.
       _focus.unfocus(disposition: UnfocusDisposition.scope);
+      FocusScope.of(context).unfocus(disposition: UnfocusDisposition.scope);
       FocusManager.instance.primaryFocus?.unfocus();
-      if (mounted) setState(() => _sending = true);
+      if (mounted) {
+        setState(() {
+          _sending = true;
+          _attachments = false;
+        });
+      }
       try {
         final permission = await Permission.camera.request().timeout(
           const Duration(seconds: 8),
@@ -880,13 +889,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             icon: Icon(Icons.attach_file_rounded, color: iconColor),
                             splashRadius: 21,
                           ),
-                          if (!_hasText)
-                            IconButton(
-                              tooltip: 'الكاميرا',
-                              onPressed: _sending ? null : () => _pickImage(ImageSource.camera),
-                              icon: Icon(Icons.camera_alt_outlined, color: iconColor),
-                              splashRadius: 21,
-                            ),
                         ],
                       ),
                     ),
@@ -1043,7 +1045,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Widget get _mediaItemPlaceholder => Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _mediaItem(Icons.camera_alt, 'كاميرا', () => _pickImage(ImageSource.camera)),
+          _mediaItem(Icons.camera_alt, 'فتح الكاميرا', () => _pickImage(ImageSource.camera)),
           _mediaItem(Icons.photo_library_outlined, 'المعرض', () => _pickImage(ImageSource.gallery)),
           _mediaItem(Icons.video_library, 'فيديو', _pickVideo),
           _mediaItem(Icons.attach_file, 'ملف', _pickFile),
