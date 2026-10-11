@@ -8,6 +8,13 @@ import '../models/game_session.dart';
 import '../services/game_service.dart';
 import 'widgets/game_art.dart';
 
+class _GameQuestion {
+  final String prompt;
+  final List<String> options;
+  final int correctIndex;
+  const _GameQuestion(this.prompt, this.options, this.correctIndex);
+}
+
 class ExtendedGamesBody extends StatefulWidget {
   final GameType type;
   final String title;
@@ -162,13 +169,109 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
   }
 
   Widget _quiz() {
-    const q = <GameType,List<String>>{
-      GameType.trueFalse:['صحيح','خطأ','صحيح','خطأ'],GameType.flagQuiz:['اليمن','اليابان','البرازيل','فرنسا'],
-      GameType.animalQuiz:['فهد','حوت','نسر','فيل'],GameType.foodQuiz:['بيتزا','سوشي','سلطة','نودلز'],
-      GameType.geographyQuiz:['آسيا','أفريقيا','أوروبا','أمريكا الجنوبية'],GameType.scienceQuiz:['الماء','الأكسجين','الحديد','الكربون'],
-      GameType.historyQuiz:['القديمة','الوسطى','الحديثة','المعاصرة'],GameType.languageQuiz:['اسم','فعل','حرف','صفة'],
+    final bank = <GameType, List<_GameQuestion>>{
+      GameType.quizBattle: const [
+        _GameQuestion('ما الكوكب المعروف بلونه الأحمر؟', ['المريخ', 'الزهرة', 'الأرض', 'المشتري'], 0),
+        _GameQuestion('ما عاصمة اليمن؟', ['عدن', 'صنعاء', 'تعز', 'الحديدة'], 1),
+        _GameQuestion('كم ضلعًا للمثلث؟', ['2', '3', '4', '5'], 1),
+        _GameQuestion('ما أكبر محيط على الأرض؟', ['الأطلسي', 'الهندي', 'الهادئ', 'المتجمد الشمالي'], 2),
+        _GameQuestion('ما الغاز الذي يحتاجه الإنسان للتنفس؟', ['الأكسجين', 'الهيليوم', 'الهيدروجين', 'النيتروجين فقط'], 0),
+        _GameQuestion('كم يومًا في الأسبوع؟', ['5', '6', '7', '8'], 2),
+      ],
+      GameType.trivia: const [
+        _GameQuestion('ما أكبر محيط في العالم؟', ['المحيط الأطلسي', 'المحيط الهادئ', 'المحيط الهندي', 'المحيط المتجمد'], 1),
+        _GameQuestion('ما اللغة الأساسية للقرآن الكريم؟', ['العربية', 'الفارسية', 'التركية', 'اللاتينية'], 0),
+        _GameQuestion('كم عدد أضلاع الشكل السداسي؟', ['4', '5', '6', '8'], 2),
+        _GameQuestion('أيّ هذه الحيوانات من الثدييات؟', ['التمساح', 'الدلفين', 'السلحفاة', 'الضفدع'], 1),
+      ],
+      GameType.trueFalse: const [
+        _GameQuestion('الماء النقي يغلي عند نحو 100°م عند ضغط جوي عادي.', ['صحيح', 'خطأ'], 0),
+        _GameQuestion('الشمس كوكب يدور حول الأرض.', ['صحيح', 'خطأ'], 1),
+        _GameQuestion('تقع اليمن في قارة آسيا.', ['صحيح', 'خطأ'], 0),
+        _GameQuestion('يمتلك المثلث أربعة أضلاع.', ['صحيح', 'خطأ'], 1),
+      ],
+      GameType.flagQuiz: const [
+        _GameQuestion('🇾🇪 إلى أي دولة ينتمي هذا العلم؟', ['اليمن', 'مصر', 'العراق', 'السودان'], 0),
+        _GameQuestion('🇯🇵 إلى أي دولة ينتمي هذا العلم؟', ['الصين', 'اليابان', 'كوريا الجنوبية', 'تايلاند'], 1),
+        _GameQuestion('🇫🇷 إلى أي دولة ينتمي هذا العلم؟', ['إيطاليا', 'هولندا', 'فرنسا', 'بلجيكا'], 2),
+        _GameQuestion('🇧🇷 إلى أي دولة ينتمي هذا العلم؟', ['الأرجنتين', 'البرتغال', 'المكسيك', 'البرازيل'], 3),
+      ],
+      GameType.animalQuiz: const [
+        _GameQuestion('ما أسرع حيوان بري معروف؟', ['الفهد', 'الأسد', 'الحصان', 'الذئب'], 0),
+        _GameQuestion('ما أكبر حيوان حيّ معروف؟', ['الفيل الإفريقي', 'الحوت الأزرق', 'الزرافة', 'وحيد القرن'], 1),
+        _GameQuestion('أيّ هذه الحيوانات يستطيع الطيران؟', ['البطريق', 'النعامة', 'النسر', 'الخفاش فقط لا يطير'], 2),
+      ],
+      GameType.foodQuiz: const [
+        _GameQuestion('أيّ طبق يُحضّر عادةً من الأرز واللحم أو الدجاج والبهارات؟', ['السوشي', 'الكبسة', 'البيتزا', 'الباستا'], 1),
+        _GameQuestion('أيّ طعام إيطالي دائري غالبًا ويُخبز مع الجبن؟', ['البيتزا', 'الفلافل', 'السوشي', 'الشوربة'], 0),
+        _GameQuestion('ما المكوّن الأساسي في السوشي التقليدي؟', ['الخبز', 'الأرز', 'البطاطس', 'الذرة'], 1),
+      ],
+      GameType.movieQuiz: const [
+        _GameQuestion('أيّ نوع من الأفلام يركّز عادةً على المطاردات والمواجهات؟', ['أكشن', 'وثائقي', 'رومانسي', 'موسيقي'], 0),
+        _GameQuestion('أيّ نوع من الأفلام يهدف أساسًا إلى إضحاك المشاهد؟', ['رعب', 'كوميديا', 'حربي', 'غموض'], 1),
+        _GameQuestion('أيّ نوع يستخدم غالبًا الفضاء والتقنيات المستقبلية والخيال العلمي؟', ['دراما تاريخية', 'كوميديا', 'خيال علمي', 'سيرة ذاتية'], 2),
+      ],
+      GameType.geographyQuiz: const [
+        _GameQuestion('ما أعلى جبل فوق مستوى سطح البحر؟', ['كي 2', 'إيفرست', 'الألب', 'دنالي'], 1),
+        _GameQuestion('ما أكبر قارات العالم مساحةً؟', ['أفريقيا', 'أوروبا', 'آسيا', 'أمريكا الجنوبية'], 2),
+        _GameQuestion('ما عاصمة مصر؟', ['الإسكندرية', 'القاهرة', 'الأقصر', 'أسوان'], 1),
+      ],
+      GameType.scienceQuiz: const [
+        _GameQuestion('ما الصيغة الكيميائية للماء؟', ['CO₂', 'O₂', 'H₂O', 'NaCl'], 2),
+        _GameQuestion('أيّ جسيم يحمل شحنة كهربائية سالبة؟', ['البروتون', 'الإلكترون', 'النيوترون', 'النواة'], 1),
+        _GameQuestion('ما النجم الأقرب إلى الأرض؟', ['الشمس', 'الشعرى اليمانية', 'الشمس القطبية', 'سيريوس'], 0),
+      ],
+      GameType.historyQuiz: const [
+        _GameQuestion('في أيّ بلد ازدهرت مملكة سبأ القديمة؟', ['اليمن', 'مصر', 'اليونان', 'الهند'], 0),
+        _GameQuestion('في أيّ بلد تقع أهرامات الجيزة؟', ['السودان', 'العراق', 'مصر', 'ليبيا'], 2),
+        _GameQuestion('أيّ حضارة ارتبطت بمدينة بابل؟', ['الرومانية', 'البابلية في بلاد الرافدين', 'الإغريقية', 'المايا'], 1),
+      ],
+      GameType.languageQuiz: const [
+        _GameQuestion('ما جمع كلمة «كتاب»؟', ['كاتب', 'كتابان', 'كتب', 'مكتبة'], 2),
+        _GameQuestion('ما ضد كلمة «كبير»؟', ['صغير', 'طويل', 'بعيد', 'واسع'], 0),
+        _GameQuestion('أيّ كلمة من الآتي فعل؟', ['مدرسة', 'يكتب', 'قلم', 'جميل'], 1),
+      ],
+      GameType.riddleRush: const [
+        _GameQuestion('له أسنان ولا يعضّ، فما هو؟', ['المشط', 'الأسد', 'الكرسي', 'القلم'], 0),
+        _GameQuestion('يسمع بلا أذن ويتكلم بلا لسان، فما هو؟', ['الظل', 'الصدى', 'المفتاح', 'الوقت'], 1),
+        _GameQuestion('كلما أخذتَ منه كبر، فما هو؟', ['الحفرة', 'الكتاب', 'البحر', 'الضوء'], 0),
+      ],
     };
-    return Column(children:[_head(),const SizedBox(height:18),_grid(q[widget.type] ?? const ['A','B','C','D'])]);
+    final questions = bank[widget.type] ?? bank[GameType.quizBattle]!;
+    final question = questions[(round - 1) % questions.length];
+    return Column(children: [
+      _head(),
+      const SizedBox(height: 18),
+      Text(question.prompt, textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 16),
+      GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: question.options.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12,
+          childAspectRatio: 2.15,
+        ),
+        itemBuilder: (_, i) => _tile(
+          Center(child: Text(question.options[i], textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+          () {
+            if (_seconds <= 0) return;
+            if (i == question.correctIndex) {
+              _win(2, 'إجابة صحيحة!');
+            } else {
+              _roundTimer?.cancel();
+              setState(() => feedback = 'الإجابة الصحيحة: ${question.options[question.correctIndex]}');
+              Future.delayed(const Duration(milliseconds: 900), () {
+                if (mounted) setState(_newRound);
+              });
+            }
+          },
+          i,
+        ),
+      ),
+    ]);
   }
 
   Widget _word() {
