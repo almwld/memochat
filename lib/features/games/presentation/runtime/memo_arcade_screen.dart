@@ -34,7 +34,8 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
         (session) {
           if (!mounted || session == null) return;
           final uid = FirebaseAuth.instance.currentUser?.uid;
-          final opponent = session.players.where((id) => id != uid).firstOrNull;
+          final opponents = session.players.where((id) => id != uid).toList();
+          final opponent = opponents.isEmpty ? null : opponents.first;
           final remote = opponent == null ? null : session.scores[opponent];
           final round = session.state['round'];
           setState(() {
