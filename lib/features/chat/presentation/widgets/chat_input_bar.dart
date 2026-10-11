@@ -75,6 +75,92 @@ class _ChatInputBarState extends State<ChatInputBar> {
     _controller.addListener(_onTextChanged);
   }
 
+  Future<void> _openEmojiPicker() async {
+    _focus.unfocus();
+    const groups = <String, List<String>>{
+      'الوجوه والمشاعر': [
+        '😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🫢','🫣','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','😮‍💨','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','🎃'
+      ],
+      'الأيدي والأشخاص': [
+        '👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','👇','☝️','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🧠','🫀','🫁','🦷','🦴','👀','👁️','👅','👄','🫦','👶','🧒','👦','👧','🧑','👨','👩','🧔','👱','🧓','👴','👵','🙍','🙎','🙅','🙆','💁','🙋','🧏','🙇','🤦','🤷'
+      ],
+      'الحب والرموز': [
+        '❤️','🩷','🧡','💛','💚','💙','🩵','💜','🤎','🖤','🩶','🤍','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','💌','💋','💯','💢','💥','💫','💦','💨','🕳️','💬','🗨️','🗯️','💭','💤','✨','🌟','⭐','🔥','⚡','☀️','🌈','☁️','☔','❄️','🌊','🎉','🎊','🎈','🎁','🏆','🥇','🥈','🥉','✔️','✅','❌','❓','❗','⭕','🚫','💤'
+      ],
+      'الحيوانات والطبيعة': [
+        '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛','🦋','🐌','🐞','🐜','🪰','🦟','🪳','🕷️','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🦍','🦧','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐈','🐓','🦃','🦚','🦜','🦢','🦩','🕊️','🐇','🦝','🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿️','🦔','🌵','🌲','🌳','🌴','🌱','🌿','☘️','🍀','🍁','🍂','🍃','🌷','🌹','🥀','🌺','🌸','🌼','🌻','🌞','🌝','🌛','🌜','🌚','🌍','🌎','🌏','🌕','🌙','🌠','🌌'
+      ],
+      'الطعام والشراب': [
+        '🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','🍼','☕','🫖','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🧊'
+      ],
+      'الأنشطة والسفر': [
+        '⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🏑','🥍','🏏','🪃','🥅','⛳','🪁','🏹','🎣','🤿','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','⛷️','🏂','🪂','🏋️','🤼','🤸','⛹️','🤺','🤾','🏌️','🏇','🧘','🏄','🏊','🚣','🧗','🚴','🚵','🎮','🕹️','🎲','♟️','🎯','🎳','🎪','🎭','🎨','🎤','🎧','🎼','🎹','🥁','🪘','🎷','🎺','🎸','🪕','🎻','🎬','🎟️','🎫','🚗','🚕','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🛵','🏍️','🚲','🛴','✈️','🛫','🛬','🚀','🛸','🚁','⛵','🚤','🛳️','🚢','⚓','🗺️','🗽','🗼','🏰','🏯','🏟️','🏖️','🏝️','🏜️','🏕️','⛺','🏠','🏡','🏢','🏥','🏦','🏨','🏫','🏭','⛪','🕌','🛕','🌉','🌃','🌆','🌇'
+      ],
+      'الأشياء': [
+        '⌚','📱','💻','⌨️','🖥️','🖨️','🖱️','🖲️','💽','💾','💿','📀','📷','📸','📹','🎥','📞','☎️','📟','📠','🔋','🪫','🔌','💡','🔦','🕯️','🧯','🛢️','💸','💵','💴','💶','💷','🪙','💰','💳','🧾','✉️','📩','📨','📧','💌','📦','📫','📬','📮','📜','📃','📄','📑','🗂️','📁','📂','🗃️','🗄️','🗑️','🔒','🔓','🔑','🗝️','🔨','🪓','⛏️','⚒️','🛠️','🗡️','⚔️','💣','🪄','🔧','🪛','🔩','⚙️','🧰','🪜','🧲','🪝','🧪','🧫','🧬','🔬','🔭','📡','💉','🩹','🩺','🚪','🪑','🛏️','🛋️','🚿','🛁','🧴','🧷','🧹','🧺','🧻','🪣','🧼','🫧','🪥','🪒','🧽','🪤','🪒','🧸','🪆','🖼️','🎁','🪅','🎀','🎊','🎉','📚','📖','📝','✏️','🖊️','🖋️','🖌️','🖍️','📌','📍','📎','🖇️','📏','📐','✂️','🗃️','🗳️','🗞️','📰','📓','📔','📒','📕','📗','📘','📙','📇','🔖','🏷️'
+      ]
+    };
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * .58,
+          child: DefaultTabController(
+            length: groups.length,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text('اختر رمزًا تعبيريًا', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+                TabBar(
+                  isScrollable: true,
+                  tabs: groups.keys.map((name) => Tab(text: name)).toList(),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: groups.values.map((emojis) => GridView.builder(
+                      padding: const EdgeInsets.all(10),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 8,
+                        mainAxisSpacing: 4,
+                        crossAxisSpacing: 4,
+                      ),
+                      itemCount: emojis.length,
+                      itemBuilder: (_, index) => InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => Navigator.of(sheetContext).pop(emojis[index]),
+                        child: Center(child: Text(emojis[index], style: const TextStyle(fontSize: 25))),
+                      ),
+                    )).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final value = _controller.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : value.text.length;
+    final updated = value.text.replaceRange(start, end, picked);
+    _controller.value = value.copyWith(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + picked.length),
+      composing: TextRange.empty,
+    );
+    _focus.requestFocus();
+  }
+
   void _onTextChanged() {
     if (mounted) setState(() {});
     if (_controller.text.trim().isNotEmpty) {
@@ -692,8 +778,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           IconButton(
-                            tooltip: 'ملصقات ورموز',
-                            onPressed: _sending ? null : () {},
+                            tooltip: 'الرموز التعبيرية',
+                            onPressed: _sending ? null : _openEmojiPicker,
                             icon: Icon(Icons.emoji_emotions_outlined, color: iconColor),
                             splashRadius: 21,
                           ),
