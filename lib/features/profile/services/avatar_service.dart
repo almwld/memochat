@@ -130,17 +130,27 @@ class AvatarService {
     final statusRef = _db.collection('statuses').doc(uid);
     final status = await statusRef.get();
     if (status.exists) {
-      await statusRef.update({
-        'userImage': url,
-        'avatarUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      try {
+        await statusRef.update({
+          'userImage': url,
+          'avatarUpdatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (error) {
+        // Avatar upload/profile update has already succeeded. A denied status
+        // mirror must not report the whole avatar change as failed.
+        debugPrint('status avatar refresh failed: $error');
+      }
     }
 
-    // Keep the avatar used by community cards and reels in sync as well.
+    // Keep independent refreshes best-effort so a legacy document/rule mismatch
+    // in one collection does not prevent chat avatars from updating.
     await Future.wait([
-      _updateOwnedContentPhotos('socialPosts', uid, url, 'authorPhoto'),
-      _updateOwnedContentPhotos('socialReels', uid, url, 'authorPhoto'),
-      _updateOwnedContentPhotos('chats', uid, url, null),
+      _updateOwnedContentPhotos('socialPosts', uid, url, 'authorPhoto')
+          .catchError((Object error) => debugPrint('post avatar refresh failed: $error')),
+      _updateOwnedContentPhotos('socialReels', uid, url, 'authorPhoto')
+          .catchError((Object error) => debugPrint('reel avatar refresh failed: $error')),
+      _updateOwnedContentPhotos('chats', uid, url, null)
+          .catchError((Object error) => debugPrint('chat avatar refresh failed: $error')),
     ]);
   }
 
