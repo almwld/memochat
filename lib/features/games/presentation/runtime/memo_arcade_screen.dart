@@ -185,12 +185,76 @@ class MemoArcadeGame extends FlameGame {
   int _sudokuTurn = 1;
   bool _sudokuSolved = false;
   bool _pictureSolved = false;
+  int _mazePlayerCell = 56;
+  bool _mazeWon = false;
+  int _galaxyLives = 3;
+  bool _galaxyGameOver = false;
 
   bool get supportsDragMovement =>
       type == GameType.mazeRunner || type == GameType.galaxyCatch;
 
+  Rect _mazeBoardRect() {
+    final side = math.max(1.0, math.min(size.x - 32, size.y - 160));
+    return Rect.fromLTWH((size.x - side) / 2, math.max(90.0, (size.y - side) / 2), side, side);
+  }
+
+  Offset _mazeCellCenter(int cell) {
+    final rect = _mazeBoardRect();
+    final width = rect.width / 8;
+    final row = cell ~/ 8;
+    final column = cell % 8;
+    return Offset(rect.left + (column + .5) * width, rect.top + (row + .5) * width);
+  }
+
   void moveTo(Vector2 point) {
     if (!supportsDragMovement || size.x <= 0 || size.y <= 0) return;
+    if (type == GameType.mazeRunner) {
+      if (_mazeWon) {
+        if (point.y < 100) {
+          _mazeWon = false;
+          _mazePlayerCell = 56;
+          final start = _mazeCellCenter(_mazePlayerCell);
+          _playerPosition = Vector2(start.dx, start.dy);
+        }
+        return;
+      }
+      final rect = _mazeBoardRect();
+      if (!rect.contains(Offset(point.x, point.y))) return;
+      final cellSize = rect.width / 8;
+      final column = ((point.x - rect.left) / cellSize).floor();
+      final row = ((point.y - rect.top) / cellSize).floor();
+      if (row < 0 || row >= 8 || column < 0 || column >= 8) return;
+      final nextCell = row * 8 + column;
+      if (nextCell == _mazePlayerCell) return;
+      if (!GameBoardRules.canMoveMaze(_mazePlayerCell, nextCell)) return;
+      _mazePlayerCell = nextCell;
+      final center = _mazeCellCenter(nextCell);
+      _playerPosition = Vector2(center.dx, center.dy);
+      if (nextCell == 7) {
+        _mazeWon = true;
+        score += 10;
+        onScore(score);
+        _syncScore();
+      }
+      return;
+    }
+
+    if (_galaxyGameOver) {
+      if (point.y < 100) {
+        _galaxyLives = 3;
+        _galaxyGameOver = false;
+        score = 0;
+        targets.clear();
+        spawnClock = 0;
+        _playerPosition = Vector2(size.x / 2, size.y * .78);
+        for (var i = 0; i < 7; i++) {
+          spawnTarget();
+        }
+        onScore(score);
+      }
+      return;
+    }
+
     const margin = 22.0;
     _playerPosition = Vector2(
       point.x.clamp(margin, math.max(margin, size.x - margin)).toDouble(),
@@ -215,15 +279,21 @@ class MemoArcadeGame extends FlameGame {
   @override void onGameResize(Vector2 size) {
     super.onGameResize(size);
     if (supportsDragMovement && size.x > 0 && size.y > 0) {
-      _playerPosition ??= Vector2(size.x / 2, size.y * .78);
+      if (type == GameType.mazeRunner) {
+        final start = _mazeCellCenter(_mazePlayerCell);
+        _playerPosition = Vector2(start.dx, start.dy);
+      } else {
+        _playerPosition ??= Vector2(size.x / 2, size.y * .78);
+      }
     }
-    if (targets.isEmpty && size.x > 0) {
+    if (type != GameType.mazeRunner && targets.isEmpty && size.x > 0) {
       for (var i = 0; i < 7; i++) spawnTarget();
     }
   }
 
   void spawnTarget() {
-    if (targets.length >= 11 || size.x < 30 || size.y < 120) return;
+    if (type == GameType.mazeRunner || _galaxyGameOver ||
+        targets.length >= 11 || size.x < 30 || size.y < 120) return;
     final r = 18 + random.nextDouble() * 28;
     targets.add(Target(
       position: Vector2(r + random.nextDouble() * math.max(1, size.x - r * 2),
@@ -234,7 +304,21 @@ class MemoArcadeGame extends FlameGame {
   }
 
   @override void update(double dt) {
-    super.update(dt); elapsed += dt; spawnClock += dt; comboClock += dt;
+    super.update(dt);
+    elapsed += dt;
+    spawnClock += dt;
+    comboClock += dt;
+    if (type == GameType.mazeRunner) {
+      return;
+    }
+    if (_galaxyGameOver) {
+      for (final particle in particles) {
+        particle.age += dt;
+        particle.position += particle.velocity * dt;
+      }
+      particles.removeWhere((particle) => particle.age > .7);
+      return;
+    }
     if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
     for (final t in targets) {
       t.age += dt; t.position += t.velocity * dt;
@@ -247,15 +331,25 @@ class MemoArcadeGame extends FlameGame {
       }
     }
     targets.removeWhere((t) => t.age > 7);
-    if (supportsDragMovement && _playerPosition != null) {
+    if (type == GameType.galaxyCatch && _playerPosition != null) {
       final collected = targets.where((target) =>
           target.position.distanceTo(_playerPosition!) < target.radius + 20).toList();
       for (final target in collected) {
         targets.remove(target);
-        score += target.kind == 2 ? 3 : 1;
-        _spawnBurst(target.position, target.kind);
+        if (target.kind == 2) {
+          _galaxyLives = math.max(0, _galaxyLives - 1);
+          score = math.max(0, score - 2);
+          combo = 0;
+          comboClock = 0;
+          _spawnBurst(target.position, 2);
+          if (_galaxyLives == 0) _galaxyGameOver = true;
+        } else {
+          score += 2;
+          _spawnBurst(target.position, target.kind);
+        }
         onScore(score);
         _syncScore();
+        if (_galaxyGameOver) break;
       }
     }
     for (final p in particles) { p.age += dt; p.position += p.velocity*dt; }
@@ -538,9 +632,13 @@ class MemoArcadeGame extends FlameGame {
   String get _instruction {
     switch (type) {
       case GameType.mazeRunner:
-        return 'اسحب للتحرك واجمع الجواهر وتجنب الحواف';
+        return _mazeWon
+            ? 'وصلت إلى البوابة الذهبية — اضغط أعلى الشاشة لإعادة المحاولة'
+            : 'تحرك خطوة واحدة بين الممرات الخضراء حتى تصل إلى البوابة الذهبية';
       case GameType.galaxyCatch:
-        return 'اسحب المركبة لجمع النجوم وتجنب النيازك';
+        return _galaxyGameOver
+            ? 'انتهت المحاولة — اضغط أعلى الشاشة للبدء من جديد'
+            : 'اجمع الأجرام الزرقاء وتجنب النيازك الحمراء؛ لديك $_galaxyLives أرواح';
       default:
         return content.instruction;
     }
