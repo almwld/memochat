@@ -690,6 +690,8 @@ app.use((error, _req, res, _next) => {
   return res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
+startMessageListener();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`MemoChat LiveKit token server running on port ${PORT}`);
   console.log(`LIVEKIT_URL: ${LIVEKIT_URL}`);
