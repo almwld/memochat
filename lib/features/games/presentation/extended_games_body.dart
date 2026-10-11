@@ -238,7 +238,7 @@ class _ExtendedGamesBodyState extends State<ExtendedGamesBody> with SingleTicker
       ],
     };
     final questions = bank[widget.type] ?? bank[GameType.quizBattle]!;
-    final question = questions[(round - 1) % questions.length];
+    final question = questions[(round - 2) % questions.length];
     return Column(children: [
       _head(),
       const SizedBox(height: 18),
