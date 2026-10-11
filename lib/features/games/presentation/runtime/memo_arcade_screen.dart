@@ -1574,8 +1574,18 @@ class MemoArcadeGame extends FlameGame {
     final index = row * 4 + column;
     if (_sudokuPuzzle[index] != 0) return;
     final oldValue = _sudokuValues[index];
-    _sudokuValues[index] = (oldValue + 1) % 5;
-    if (!GameBoardRules.isValidSudoku4x4(_sudokuValues, requireComplete: false)) {
+    var foundValidValue = false;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      _sudokuValues[index] = (_sudokuValues[index] + 1) % 5;
+      if (GameBoardRules.isValidSudoku4x4(
+        _sudokuValues,
+        requireComplete: false,
+      )) {
+        foundValidValue = true;
+        break;
+      }
+    }
+    if (!foundValidValue) {
       _sudokuValues[index] = oldValue;
       score = math.max(0, score - 1);
       onScore(score);
