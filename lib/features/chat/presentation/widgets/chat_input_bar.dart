@@ -28,6 +28,7 @@ class ChatInputBar extends StatefulWidget {
   /// and the actual Firestore write.
   final String? replyToId;
   final Function(String, Timestamp) onSendMessage;
+  final VoidCallback? onClearReply;
   final Function(String)? onSendImage;
   final Function(Map<String, dynamic>)? onLocalMedia;
   final VoidCallback? onShareLocation;
@@ -38,6 +39,7 @@ class ChatInputBar extends StatefulWidget {
     required this.chatId,
     this.replyToId,
     required this.onSendMessage,
+    this.onClearReply,
     this.onSendImage,
     this.onLocalMedia,
     this.onShareLocation,
@@ -328,7 +330,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final viewOnce = _viewOnceEnabled;
     setState(() => _sending = true);
     try {
-      widget.onSendMessage(text, clientTimestamp);
+      if (viewOnce) {
+        // Do not leave a plaintext optimistic bubble behind if a view-once
+        // send fails. It appears only after the encrypted canonical write.
+        widget.onClearReply?.call();
+      } else {
+        widget.onSendMessage(text, clientTimestamp);
+      }
       _controller.clear();
     } catch (e) {
       debugPrint('chat optimistic text hand-off: $e');
