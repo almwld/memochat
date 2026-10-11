@@ -1037,6 +1037,275 @@ class MemoArcadeGame extends FlameGame {
     _syncScore();
   }
   void _tapLights(Vector2 point) { if (point.y < 100) return; final col = ((point.x - 8) / ((size.x - 24) / 3)).floor(); final row = ((point.y - 100) / 68).floor(); if (row < 0 || row > 2 || col < 0 || col > 2) return; final n = row * 3 + col; for (final j in [n, n - 1, n + 1, n - 3, n + 3]) { if (j >= 0 && j < 9 && (j ~/ 3 == row || j % 3 == col)) _lights[j] = !_lights[j]; } if (_lights.every((v) => !v)) { score += 5; for (var k = 0; k < 9; k++) _lights[k] = true; onScore(score); _syncScore(); } }
+  Rect _squareBoardRect() {
+    final side = math.max(1.0, math.min(size.x - 40, size.y - 220));
+    return Rect.fromLTWH(
+      (size.x - side) / 2,
+      math.max(100.0, (size.y - side) / 2),
+      side,
+      side,
+    );
+  }
+
+  Rect _fourBoardRect() {
+    final availableHeight = math.max(80.0, size.y - 180);
+    final width = math.max(1.0, math.min(size.x - 32, availableHeight * 7 / 6));
+    final height = width * 6 / 7;
+    return Rect.fromLTWH((size.x - width) / 2, math.max(100.0, (size.y - height) / 2), width, height);
+  }
+
+  void _drawBoardLabel(Canvas canvas, String text, double y) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    painter.paint(canvas, Offset((size.x - painter.width) / 2, y));
+  }
+
+  void _renderXo(Canvas canvas, Paint paint) {
+    final rect = _squareBoardRect();
+    final cell = rect.width / 3;
+    final status = _xoWinner == 3
+        ? 'تعادل — اضغط لمتابعة اللعب بجولة جديدة'
+        : _xoWinner != 0
+            ? 'فاز اللاعب $_xoWinner'
+            : _isMultiplayerSession
+                ? (_canPlayTurn ? 'دورك الآن' : 'بانتظار حركة الخصم')
+                : 'دور اللاعب $_xoTurn';
+    _drawBoardLabel(canvas, status, rect.top - 24);
+    for (var index = 0; index < 9; index++) {
+      final row = index ~/ 3;
+      final column = index % 3;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      paint
+        ..style = PaintingStyle.fill
+        ..color = const Color(0xFF123438);
+      canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(12)), paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0xFF39D5C5);
+      canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(12)), paint);
+      final marker = _xoBoard[index];
+      if (marker == 1) {
+        final center = tile.center;
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(4.0, cell * .045)
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF43D9C5);
+        canvas.drawLine(
+          Offset(center.dx - cell * .22, center.dy - cell * .22),
+          Offset(center.dx + cell * .22, center.dy + cell * .22),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(center.dx + cell * .22, center.dy - cell * .22),
+          Offset(center.dx - cell * .22, center.dy + cell * .22),
+          paint,
+        );
+      } else if (marker == 2) {
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(4.0, cell * .045)
+          ..color = const Color(0xFFFFC857);
+        canvas.drawCircle(tile.center, cell * .23, paint);
+      }
+    }
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _renderFourInRow(Canvas canvas, Paint paint) {
+    final rect = _fourBoardRect();
+    final cell = rect.width / 7;
+    _drawBoardLabel(
+      canvas,
+      _fourWinner == 3
+          ? 'تعادل'
+          : _fourWinner != 0
+              ? 'فاز اللاعب $_fourWinner'
+              : _isMultiplayerSession
+                  ? (_canPlayTurn ? 'اختر عمودًا في دورك' : 'بانتظار الخصم')
+                  : 'دور اللاعب $_fourTurn — اختر عمودًا',
+      rect.top - 24,
+    );
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFF12445B);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)), paint);
+    for (var row = 0; row < 6; row++) {
+      for (var column = 0; column < 7; column++) {
+        final marker = _fourBoard[row * 7 + column];
+        final center = Offset(rect.left + (column + .5) * cell, rect.top + (row + .5) * cell);
+        paint.color = marker == 1
+            ? const Color(0xFF40D8C4)
+            : marker == 2
+                ? const Color(0xFFFFC857)
+                : const Color(0xFF08232B);
+        canvas.drawCircle(center, cell * .38, paint);
+        if (marker != 0) {
+          paint
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = Colors.white.withOpacity(.65);
+          canvas.drawCircle(center, cell * .38, paint);
+          paint.style = PaintingStyle.fill;
+        }
+      }
+    }
+  }
+
+  void _renderDotsAndBoxes(Canvas canvas, Paint paint) {
+    final rect = _squareBoardRect();
+    final cell = rect.width / 3;
+    _drawBoardLabel(
+      canvas,
+      _dotsFinished
+          ? 'اكتملت المربعات'
+          : _isMultiplayerSession
+              ? (_canPlayTurn ? 'ارسم خطًا في دورك' : 'بانتظار الخصم')
+              : 'دور اللاعب $_dotsTurn — صِل بين نقطتين',
+      rect.top - 24,
+    );
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 3; column++) {
+        final owner = _dotsBoxOwners[row * 3 + column];
+        if (owner == 0) continue;
+        paint
+          ..style = PaintingStyle.fill
+          ..color = owner == 1 ? const Color(0x5539D5C5) : const Color(0x55FFC857);
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + column * cell + 5, rect.top + row * cell + 5, cell - 10, cell - 10),
+          paint,
+        );
+        _drawCenteredText(
+          canvas,
+          owner == 1 ? '1' : '2',
+          Offset(rect.left + (column + .5) * cell, rect.top + (row + .5) * cell),
+          const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+        );
+      }
+    }
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 3; column++) {
+        if (!_dotsHorizontal[row * 3 + column]) continue;
+        paint.color = const Color(0xFF39D5C5);
+        canvas.drawLine(
+          Offset(rect.left + column * cell, rect.top + row * cell),
+          Offset(rect.left + (column + 1) * cell, rect.top + row * cell),
+          paint,
+        );
+      }
+    }
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 4; column++) {
+        if (!_dotsVertical[row * 4 + column]) continue;
+        paint.color = const Color(0xFFFFC857);
+        canvas.drawLine(
+          Offset(rect.left + column * cell, rect.top + row * cell),
+          Offset(rect.left + column * cell, rect.top + (row + 1) * cell),
+          paint,
+        );
+      }
+    }
+    paint
+      ..style = PaintingStyle.fill
+      ..color = Colors.white;
+    for (var row = 0; row < 4; row++) {
+      for (var column = 0; column < 4; column++) {
+        canvas.drawCircle(Offset(rect.left + column * cell, rect.top + row * cell), 5, paint);
+      }
+    }
+  }
+
+  void _renderPicturePuzzle(Canvas canvas, Paint paint) {
+    _ensurePicturePuzzle();
+    final rect = _squareBoardRect();
+    final cell = rect.width / 4;
+    _drawBoardLabel(canvas, _pictureSolved ? 'أحسنت! اكتملت الصورة' : 'رتّب الأرقام من 1 إلى 15', rect.top - 24);
+    for (var index = 0; index < 16; index++) {
+      final row = index ~/ 4;
+      final column = index % 4;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      final value = _pictureTiles[index];
+      paint
+        ..style = PaintingStyle.fill
+        ..color = value == 0 ? const Color(0xFF071719) : palette[(value - 1) % palette.length];
+      canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(10)), paint);
+      if (value != 0) {
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = Colors.white.withOpacity(.7);
+        canvas.drawRRect(RRect.fromRectAndRadius(tile.deflate(3), const Radius.circular(10)), paint);
+        _drawCenteredText(
+          canvas,
+          value.toString(),
+          tile.center,
+          const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900),
+        );
+      }
+    }
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _renderSudoku(Canvas canvas, Paint paint) {
+    final rect = _squareBoardRect();
+    final cell = rect.width / 4;
+    _drawBoardLabel(canvas, _sudokuSolved ? 'تم حل السودوكو!' : 'املأ الخانات بالأرقام من 1 إلى 4', rect.top - 24);
+    for (var index = 0; index < 16; index++) {
+      final row = index ~/ 4;
+      final column = index % 4;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      final fixed = _sudokuPuzzle[index] != 0;
+      paint
+        ..style = PaintingStyle.fill
+        ..color = fixed ? const Color(0xFF245C59) : const Color(0xFF123438);
+      canvas.drawRect(tile, paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = row % 2 == 0 && column % 2 == 0 ? 2.5 : 1
+        ..color = const Color(0xFF70BDB4);
+      canvas.drawRect(tile, paint);
+      final value = _sudokuValues[index];
+      if (value != 0) {
+        _drawCenteredText(
+          canvas,
+          value.toString(),
+          tile.center,
+          TextStyle(
+            color: fixed ? Colors.white : const Color(0xFFB3F55A),
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        );
+      }
+    }
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _drawCenteredText(Canvas canvas, String text, Offset center, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, Offset(center.dx - painter.width / 2, center.dy - painter.height / 2));
+  }
+
+  void _ensurePicturePuzzle() {
+    if (_pictureTiles.isNotEmpty) return;
+    _pictureTiles.addAll(
+      GameBoardRules.scramblePicture(seed: (gameId ?? type.name).hashCode),
+    );
+  }
+
   void _renderPairs(Canvas canvas, Paint paint) {
     switch (type) {
       case GameType.fourInRow:
