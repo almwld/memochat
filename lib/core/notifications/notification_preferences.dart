@@ -55,12 +55,8 @@ class NotificationPreferences {
           : <String, dynamic>{};
 
       if (remote.isNotEmpty) {
-        for (final key in _keys) {
-          if (remote[key] is bool) {
-            await prefs.setBool(key, remote[key] as bool);
-          }
-        }
-        // Migrate older servers that saved preferences by notification type.
+        // Migrate older servers that saved preferences by notification type
+        // before reconciling canonical keys.
         const legacy = <String, String>{
           'new_message': 'notification_message_enabled',
           'text_message': 'notification_message_enabled',
@@ -73,13 +69,32 @@ class NotificationPreferences {
           'incoming_call': 'notification_call_enabled',
           'incoming_video_call': 'notification_call_enabled',
         };
+        final effectiveRemote = Map<String, dynamic>.from(remote);
         for (final entry in legacy.entries) {
-          final target = entry.value;
-          if (!remote.containsKey(target) &&
-              remote[entry.key] is bool &&
-              !prefs.containsKey(target)) {
-            await prefs.setBool(target, remote[entry.key] as bool);
+          if (!effectiveRemote.containsKey(entry.value) &&
+              remote[entry.key] is bool) {
+            effectiveRemote[entry.value] = remote[entry.key];
           }
+        }
+
+        final missingLocalValues = <String, bool>{};
+        for (final key in _keys) {
+          if (effectiveRemote[key] is bool) {
+            await prefs.setBool(key, effectiveRemote[key] as bool);
+          } else if (prefs.containsKey(key)) {
+            // Preserve explicit settings from an older local-only install
+            // when the cloud document contains only a partial preference set.
+            missingLocalValues[key] = prefs.getBool(key) ?? true;
+          }
+        }
+        if (missingLocalValues.isNotEmpty) {
+          await ref.set(
+            <String, dynamic>{
+              'notificationPreferences': missingLocalValues,
+              'notificationPreferencesUpdatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
         }
         return;
       }
