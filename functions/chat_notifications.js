@@ -104,8 +104,8 @@ async function sendToUser(uid,payload){
         ttl:60*60*1000,
       },
       apns:{
-        headers:{'apns-priority':'5','apns-push-type':'background'},
-        payload:{aps:{'content-available':1}},
+        headers:{'apns-priority':'10','apns-push-type':'alert'},
+        payload:{aps:{alert:{title:String(payload.data?.title || 'MemoChat'),body:String(payload.data?.body || 'لديك إشعار جديد')},badge:1,'content-available':1,'thread-id':String(payload.data?.chatId || payload.data?.callId || payload.data?.roomId || payload.data?.type || 'memochat')}},
       },
     };
     const response=await admin.messaging().sendEachForMulticast(message);
