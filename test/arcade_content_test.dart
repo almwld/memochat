@@ -57,7 +57,10 @@ void main() {
       ]) {
         final content = ArcadeContentBank.forType(type);
         expect(content.prompts, isNotEmpty, reason: '${type.name} needs prompts');
-        expect(content.options.length, greaterThanOrEqualTo(2));
+        final choices = content.choicesByPrompt.isNotEmpty
+            ? content.choicesByPrompt.first
+            : content.options;
+        expect(choices.length, greaterThanOrEqualTo(2));
         expect(content.prompts.every((prompt) => prompt.trim().isNotEmpty), isTrue);
       }
 
@@ -67,6 +70,37 @@ void main() {
         preferenceGame.choicesByPrompt.every((options) => options.length == 2),
         isTrue,
       );
+    });
+
+
+    test('known quiz answers point to the correct option, not just a valid index', () {
+      const expectedAnswers = <GameType, List<String>>{
+        GameType.emojiReaction: ['❤', '★', '●', '◆'],
+        GameType.guessSong: ['جاز', 'روك', 'كلاسيكي', 'عربي'],
+        GameType.movieQuiz: ['أكشن', 'كوميديا', 'خيال علمي', 'دراما'],
+        GameType.higherLower: ['18', '23', 'متساويان', '31'],
+        GameType.flagQuiz: ['اليمن', 'اليابان', 'فرنسا'],
+        GameType.animalQuiz: ['الفهد', 'الحوت الأزرق'],
+        GameType.foodQuiz: ['سوشي', 'كبسة', 'بيتزا', 'الحمص'],
+        GameType.geographyQuiz: ['إيفرست', 'آسيا'],
+        GameType.scienceQuiz: ['H₂O', 'إلكترون'],
+        GameType.historyQuiz: ['اليمن', 'مصر'],
+        GameType.languageQuiz: ['كتب', 'صغير'],
+      };
+
+      for (final entry in expectedAnswers.entries) {
+        final content = ArcadeContentBank.forType(entry.key);
+        expect(entry.value.length, content.prompts.length,
+            reason: '${entry.key.name} expected-answer fixture is out of sync');
+        for (var i = 0; i < entry.value.length; i++) {
+          final options = content.choicesByPrompt[i];
+          expect(
+            options[content.correctAnswers[i]],
+            entry.value[i],
+            reason: '${entry.key.name} question $i marks the wrong answer',
+          );
+        }
+      }
     });
 
     test('word scramble rounds use real words rather than already scrambled prompts', () {
