@@ -904,7 +904,7 @@ class MemoArcadeGame extends FlameGame {
           _wordCorrect = _wordOptions.indexOf(answer);
         }
         if (type == GameType.wordChain) {
-          final rawLast = source.characters.isEmpty ? '' : source.characters.last;
+          final rawLast = source.runes.isEmpty ? '' : String.fromCharCode(source.runes.last);
           final last = rawLast == 'ة' ? 'ه' : rawLast;
           _renderOptions(canvas, 'بعد «$source» اختر كلمة تبدأ بحرف «$last»', _wordOptions);
         } else {
