@@ -519,20 +519,23 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
                 child: FilledButton.icon(
                   onPressed: _message?.contains('ليسا متطابقين') == true
                       ? _continuePairs
-                      : () => setState(() {
-                            _score = 0;
-                            _remoteScore = 0;
-                            _moves = 0;
-                            _finished = false;
-                            _winnerUid = null;
-                            _message = null;
-                            _turnUid = _players.isNotEmpty ? _players.first : null;
-                            _resetLocalBoard();
-                            _localMark = 1;
-                            if (_multiplayer) _publish(nextTurn: _turnUid);
-                          }),
-                  icon: Icon(_finished ? Icons.refresh_rounded : Icons.visibility_off_rounded),
-                  label: Text(_finished ? 'العب مجددًا' : 'متابعة'),
+                      : _finished && _multiplayer
+                          ? () => Navigator.of(context).pop()
+                          : () => setState(() {
+                                _score = 0;
+                                _remoteScore = 0;
+                                _moves = 0;
+                                _finished = false;
+                                _winnerUid = null;
+                                _message = null;
+                                _turnUid = _players.isNotEmpty ? _players.first : null;
+                                _resetLocalBoard();
+                                _localMark = 1;
+                              }),
+                  icon: Icon(_finished ? Icons.arrow_back_rounded : Icons.visibility_off_rounded),
+                  label: Text(_finished && _multiplayer
+                      ? 'العودة للألعاب'
+                      : _finished ? 'العب مجددًا' : 'متابعة'),
                 ),
               ),
           ],
