@@ -624,28 +624,92 @@ class MediaTransferEngine {
   Future<void> _publishStatus(Map<String, dynamic> job, String url) async {
     final uid = job['uid']?.toString() ?? '';
     if (uid.isEmpty) throw StateError('معرّف المستخدم غير صالح');
-    final type = job['type']?.toString() ?? 'image';
     final id = job['id']?.toString() ?? '';
     if (id.isEmpty) throw StateError('معرّف الحالة غير صالح');
-    await FirebaseFirestore.instance.collection('statuses').doc(id).set({
-      'userId': uid,
-      'mediaUrl': url,
-      'mediaType': type,
-      'caption': job['caption']?.toString() ?? '',
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
+    final type = job['type']?.toString() ?? 'image';
+    final db = FirebaseFirestore.instance;
+    final profileSnap = await db.collection('users').doc(uid).get();
+    final profile = profileSnap.data() ?? const <String, dynamic>{};
+    final current = FirebaseAuth.instance.currentUser;
+    final name = profile['displayName']?.toString().trim().isNotEmpty == true
+        ? profile['displayName'].toString().trim()
+        : current?.displayName?.trim().isNotEmpty == true
+            ? current!.displayName!.trim()
+            : 'مستخدم MemoChat';
+    final photo = profile['photoUrl']?.toString().trim().isNotEmpty == true
+        ? profile['photoUrl'].toString().trim()
+        : profile['photoURL']?.toString().trim().isNotEmpty == true
+            ? profile['photoURL'].toString().trim()
+            : current?.photoURL ?? '';
+    final ref = db.collection('statuses').doc(uid);
+    final now = DateTime.now();
+    final story = <String, dynamic>{
+      'type': type,
+      'url': url,
+      'text': job['caption']?.toString() ?? '',
+      'durationSeconds': type == 'video' ? 10 : 5,
+    };
+
+    // Match the status document shape consumed by StatusService. Publish only
+    // after upload and share verification have completed successfully.
+    await db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      final expires = data['expiresAt'] is Timestamp
+          ? (data['expiresAt'] as Timestamp).toDate()
+          : DateTime.fromMillisecondsSinceEpoch(0);
+      final existingStories = expires.isAfter(now) && data['stories'] is List
+          ? (data['stories'] as List)
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+          : <Map<String, dynamic>>[];
+      existingStories.add(story);
+      transaction.set(ref, {
+        'userId': uid,
+        'userName': name,
+        'userImage': photo,
+        'stories': existingStories,
+        'createdAt': snapshot.exists && data['createdAt'] is Timestamp
+            ? data['createdAt']
+            : Timestamp.fromDate(now),
+        'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 24))),
+        'ready': true,
+        'createdBy': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     });
   }
 
   Future<void> _publishSocial(Map<String, dynamic> job, String url) async {
-    final uid = job['uid'].toString();
-    final collection = job['collection_name'].toString();
+    final uid = job['uid']?.toString() ?? '';
+    final collection = job['collection_name']?.toString() ?? '';
+    if (uid.isEmpty || !{'socialPosts', 'socialReels'}.contains(collection)) {
+      throw StateError('بيانات النشر الاجتماعي غير صالحة');
+    }
     final caption = job['caption']?.toString() ?? '';
+    final db = FirebaseFirestore.instance;
+    // Background workers may not have an authenticated FirebaseAuth user.
+    // Resolve the canonical profile from Firestore instead of publishing empty
+    // avatars/names when an upload completes outside the foreground isolate.
+    final profileSnap = await db.collection('users').doc(uid).get();
+    final profile = profileSnap.data() ?? const <String, dynamic>{};
+    final current = FirebaseAuth.instance.currentUser;
+    final authorName = profile['displayName']?.toString().trim().isNotEmpty == true
+        ? profile['displayName'].toString().trim()
+        : current?.displayName?.trim().isNotEmpty == true
+            ? current!.displayName!.trim()
+            : 'مستخدم MemoChat';
+    final authorPhoto = profile['photoUrl']?.toString().trim().isNotEmpty == true
+        ? profile['photoUrl'].toString().trim()
+        : profile['photoURL']?.toString().trim().isNotEmpty == true
+            ? profile['photoURL'].toString().trim()
+            : current?.photoURL ?? '';
     final data = collection == 'socialReels'
         ? <String, dynamic>{
             'authorId': uid,
-            'authorName': FirebaseAuth.instance.currentUser?.displayName ?? 'مستخدم Memo',
-            'authorPhoto': FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            'authorName': authorName,
+            'authorPhoto': authorPhoto,
             'caption': caption,
             'videoUrl': url,
             'thumbnailUrl': '',
@@ -660,11 +724,22 @@ class MediaTransferEngine {
             'updatedAt': FieldValue.serverTimestamp(),
           }
         : <String, dynamic>{
-            'authorId': uid, 'text': caption, 'mediaUrl': url, 'mediaType': job['type'].toString(),
-            'likesCount': 0, 'commentsCount': 0, 'sharesCount': 0,
-            'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp(),
+            'authorId': uid,
+            'authorName': authorName,
+            'authorPhoto': authorPhoto,
+            'text': caption,
+            'mediaUrl': url,
+            'mediaType': job['type']?.toString() ?? 'image',
+            'likesCount': 0,
+            'commentsCount': 0,
+            'sharesCount': 0,
+            'isPublished': true,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           };
-    await FirebaseFirestore.instance.collection(collection).doc(job['id'].toString()).set(data);
+    // Firestore listeners on feed/reels refresh as soon as this canonical
+    // document is committed; never expose a media URL before upload completion.
+    await db.collection(collection).doc(job['id'].toString()).set(data);
   }
 
   Future<void> cancel(String id) async {
