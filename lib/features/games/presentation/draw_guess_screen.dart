@@ -209,8 +209,8 @@ class _DrawGuessScreenState extends State<DrawGuessScreen> {
       _draft
         ..clear()
         ..add(Offset(
-          (local.dx / size.width).clamp(0.0, 1.0),
-          (local.dy / size.height).clamp(0.0, 1.0),
+          (local.dx / size.width).clamp(0.0, 1.0).toDouble(),
+          (local.dy / size.height).clamp(0.0, 1.0).toDouble(),
         ));
     });
   }
@@ -453,7 +453,7 @@ class _DrawingPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  static Color _color(int index) => _DrawGuessScreenState._colors[index.clamp(0, 4)];
+  static Color _color(int index) => _DrawGuessScreenState._colors[index.clamp(0, 4).toInt()];
 
   @override
   bool shouldRepaint(covariant _DrawingPainter oldDelegate) => true;
