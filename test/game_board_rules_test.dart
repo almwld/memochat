@@ -15,12 +15,21 @@ void main() {
       );
       expect(
         GameBoardRules.findWinner(
-          [1, 2, 0, 1, 2, 0, 0, 2, 1],
+          [1, 2, 0, 1, 0, 2, 0, 2, 1],
           rows: 3,
           columns: 3,
           runLength: 3,
         ),
         0,
+      );
+      expect(
+        GameBoardRules.findWinner(
+          [1, 2, 0, 1, 2, 0, 1, 0, 2],
+          rows: 3,
+          columns: 3,
+          runLength: 3,
+        ),
+        1,
       );
       expect(
         GameBoardRules.findWinner(
