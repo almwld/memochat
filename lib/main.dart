@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -58,6 +59,22 @@ Future<void> main() async {
   if (lastError != null) {
     runApp(_StartupErrorApp(error: lastError));
     return;
+  }
+
+  // Offline-first chat: keep Firestore's persistent disk cache enabled and
+  // unlimited so previously fetched conversations/messages remain available
+  // after force-close, restart, and network loss. Never clear or shrink it.
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    debugPrint('MemoChat: Firestore persistent offline cache enabled (unlimited)');
+  } catch (error, stackTrace) {
+    // A cache-settings failure should be visible in logs without preventing
+    // the user from opening locally available conversations.
+    debugPrint('MemoChat: unable to configure Firestore offline cache: $error');
+    debugPrintStack(stackTrace: stackTrace);
   }
 
   try {
