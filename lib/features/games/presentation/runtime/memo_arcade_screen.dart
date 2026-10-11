@@ -523,6 +523,9 @@ class MemoArcadeGame extends FlameGame {
     _specialSecret = 0;
     _mathAddend = 0;
     _codeDigit = -1;
+    _reactionGoal = _specialRound % math.max(1, content.options.length).toInt();
+    _higherLowerCurrent = 0;
+    _higherLowerNext = 0;
   }
 
   void _renderSpecial(Canvas canvas) {
@@ -540,8 +543,8 @@ class MemoArcadeGame extends FlameGame {
           _renderOptions(canvas, 'اضغط الرمز المطلوب: ${content.options[_reactionGoal % content.options.length]}', content.options);
         } else if (type == GameType.higherLower) {
           if (_higherLowerCurrent == 0) {
-            _higherLowerCurrent = 1 + random.nextInt(99);
-            _higherLowerNext = 1 + random.nextInt(99);
+            _higherLowerCurrent = 1 + ((_specialRound * 17 + 13) % 99);
+            _higherLowerNext = 1 + ((_specialRound * 29 + 7) % 99);
             _higherLowerCorrect = _higherLowerNext > _higherLowerCurrent
                 ? 0
                 : _higherLowerNext < _higherLowerCurrent ? 1 : 2;
@@ -554,14 +557,14 @@ class MemoArcadeGame extends FlameGame {
       case ArcadeMode.math:
         if (_mathOptions.isEmpty) {
           if (type == GameType.numberGuess) {
-            _specialSecret = 1 + random.nextInt(20);
-            _mathOptions = <int>{
+            _specialSecret = 1 + ((_specialRound * 7 + 11) % 20);
+            _mathOptions = <int>[
               _specialSecret,
-              (_specialSecret + 1).clamp(1, 20).toInt(),
-              (_specialSecret + 4).clamp(1, 20).toInt(),
-              (_specialSecret - 3).clamp(1, 20).toInt(),
-            }.toList()..shuffle(random);
-            _mathCorrect = _mathOptions.indexOf(_specialSecret);
+              (_specialSecret % 20) + 1,
+              ((_specialSecret + 3) % 20) + 1,
+              ((_specialSecret + 8) % 20) + 1,
+            ];
+            _mathCorrect = 0;
           } else {
             final a = 10 + random.nextInt(40);
             final b = 2 + random.nextInt(9);
@@ -655,8 +658,8 @@ class MemoArcadeGame extends FlameGame {
     if (n >= visibleCount) return;
     if (type == GameType.emojiReaction) {
       score = math.max(0, score + (n == _reactionGoal ? 3 : -1));
-      _reactionGoal = random.nextInt(math.max(1, content.options.length).toInt());
       _specialRound++;
+      _reactionGoal = _specialRound % math.max(1, content.options.length).toInt();
       onScore(score);
       _syncScore();
       return;
