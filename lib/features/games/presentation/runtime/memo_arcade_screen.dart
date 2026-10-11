@@ -497,9 +497,9 @@ class MemoArcadeGame extends FlameGame {
             _specialSecret = 1 + random.nextInt(20);
             _mathOptions = <int>{
               _specialSecret,
-              (_specialSecret + 1).clamp(1, 20),
-              (_specialSecret + 4).clamp(1, 20),
-              (_specialSecret - 3).clamp(1, 20),
+              (_specialSecret + 1).clamp(1, 20).toInt(),
+              (_specialSecret + 4).clamp(1, 20).toInt(),
+              (_specialSecret - 3).clamp(1, 20).toInt(),
             }.toList()..shuffle(random);
             _mathCorrect = _mathOptions.indexOf(_specialSecret);
           } else {
@@ -520,20 +520,32 @@ class MemoArcadeGame extends FlameGame {
       case ArcadeMode.word:
         const chainPrevious = <String>['كتاب', 'باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف'];
         const chainNext = <String>['باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف', 'فاكهة'];
-        final n = _specialRound % (type == GameType.wordChain ? chainPrevious.length : math.max(1, content.prompts.length));
+        final promptCount = type == GameType.wordChain ? chainPrevious.length : math.max(1, content.prompts.length).toInt();
+        final n = _specialRound % promptCount;
         final source = type == GameType.wordChain
             ? chainPrevious[n]
             : (content.prompts.isEmpty ? 'كتاب' : content.prompts[n]);
         final answer = type == GameType.wordChain ? chainNext[n] : source;
         if (_wordOptions.isEmpty) {
+          const chainDistractors = <List<String>>[
+            ['شمس', 'قلم', 'مدينة'],
+            ['كتاب', 'شجرة', 'قمر'],
+            ['هاتف', 'شمس', 'كتاب'],
+            ['باب', 'قمر', 'شجرة'],
+            ['بحر', 'شمس', 'قلم'],
+            ['كتاب', 'مدينة', 'قمر'],
+            ['شمس', 'قلم', 'كتاب'],
+            ['باب', 'بحر', 'شجرة'],
+          ];
           final distractors = type == GameType.wordChain
-              ? <String>['شمس', 'قلم', 'مدينة']
-              : <String>['هاتف', 'شجرة', 'مدينة'];
+              ? chainDistractors[n]
+              : <String>['هاتف', 'شجرة', 'مدينة'].where((word) => word != answer).toList();
           _wordOptions = <String>{answer, ...distractors}.toList()..shuffle(random);
           _wordCorrect = _wordOptions.indexOf(answer);
         }
         if (type == GameType.wordChain) {
-          final last = source.characters.isEmpty ? '' : source.characters.last;
+          final rawLast = source.characters.isEmpty ? '' : source.characters.last;
+          final last = rawLast == 'ة' ? 'ه' : rawLast;
           _renderOptions(canvas, 'بعد «$source» اختر كلمة تبدأ بحرف «$last»', _wordOptions);
         } else {
           final chars = source.runes.toList()..shuffle(random);
@@ -583,7 +595,7 @@ class MemoArcadeGame extends FlameGame {
     if (n >= visibleCount) return;
     if (type == GameType.emojiReaction) {
       score = math.max(0, score + (n == _reactionGoal ? 3 : -1));
-      _reactionGoal = random.nextInt(math.max(1, content.options.length));
+      _reactionGoal = random.nextInt(math.max(1, content.options.length).toInt());
       _specialRound++;
       onScore(score);
       _syncScore();
