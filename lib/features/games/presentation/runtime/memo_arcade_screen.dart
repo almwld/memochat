@@ -1069,9 +1069,9 @@ class MemoArcadeGame extends FlameGame {
     final rect = _squareBoardRect();
     final cell = rect.width / 3;
     final status = _xoWinner == 3
-        ? 'تعادل — اضغط لمتابعة اللعب بجولة جديدة'
+        ? 'تعادل — اضغط أعلى الشاشة لجولة جديدة'
         : _xoWinner != 0
-            ? 'فاز اللاعب $_xoWinner'
+            ? 'فاز اللاعب $_xoWinner — اضغط أعلى الشاشة لجولة جديدة'
             : _isMultiplayerSession
                 ? (_canPlayTurn ? 'دورك الآن' : 'بانتظار حركة الخصم')
                 : 'دور اللاعب $_xoTurn';
@@ -1124,9 +1124,9 @@ class MemoArcadeGame extends FlameGame {
     _drawBoardLabel(
       canvas,
       _fourWinner == 3
-          ? 'تعادل'
+          ? 'تعادل — اضغط أعلى الشاشة لجولة جديدة'
           : _fourWinner != 0
-              ? 'فاز اللاعب $_fourWinner'
+              ? 'فاز اللاعب $_fourWinner — اضغط أعلى الشاشة لجولة جديدة'
               : _isMultiplayerSession
                   ? (_canPlayTurn ? 'اختر عمودًا في دورك' : 'بانتظار الخصم')
                   : 'دور اللاعب $_fourTurn — اختر عمودًا',
@@ -1500,25 +1500,25 @@ class MemoArcadeGame extends FlameGame {
     if (bestDistance > cell * .23) return;
     final marker = _localMarker(_dotsTurn);
     if (marker == 0) return;
-    var captured = false;
+    var capturedCount = 0;
     if (horizontalIndex >= 0) {
       _dotsHorizontal[horizontalIndex] = true;
       final row = horizontalIndex ~/ 3;
       final column = horizontalIndex % 3;
-      if (row > 0 && _claimDotBox(row - 1, column, marker)) captured = true;
-      if (row < 3 && _claimDotBox(row, column, marker)) captured = true;
+      if (row > 0 && _claimDotBox(row - 1, column, marker)) capturedCount++;
+      if (row < 3 && _claimDotBox(row, column, marker)) capturedCount++;
     } else if (verticalIndex >= 0) {
       _dotsVertical[verticalIndex] = true;
       final row = verticalIndex ~/ 4;
       final column = verticalIndex % 4;
-      if (column > 0 && _claimDotBox(row, column - 1, marker)) captured = true;
-      if (column < 3 && _claimDotBox(row, column, marker)) captured = true;
+      if (column > 0 && _claimDotBox(row, column - 1, marker)) capturedCount++;
+      if (column < 3 && _claimDotBox(row, column, marker)) capturedCount++;
     } else {
       return;
     }
 
-    if (captured) score += _dotsBoxOwners.where((owner) => owner == marker).length -
-        _dotsBoxOwners.where((owner) => owner == marker).length + 1;
+    final captured = capturedCount > 0;
+    if (captured) score += capturedCount;
     _dotsFinished = _dotsBoxOwners.every((owner) => owner != 0);
     if (!captured && !_dotsFinished && !_isMultiplayerSession) {
       _dotsTurn = 3 - _dotsTurn;
