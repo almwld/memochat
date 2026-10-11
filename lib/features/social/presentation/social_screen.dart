@@ -519,12 +519,20 @@ class _ComposerState extends State<_Composer> {
   }
 
   Future<void> pickImage() async {
-    final result = await picker.pickImage(source: ImageSource.gallery, maxWidth: 2560, maxHeight: 2560, imageQuality: 85);
+    final result = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      imageQuality: 85,
+    );
     if (result != null && mounted) setState(() => media = File(result.path));
   }
 
   Future<void> pickVideo() async {
-    final result = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 90));
+    final result = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: 90),
+    );
     if (result != null && mounted) setState(() => media = File(result.path));
   }
 
@@ -543,112 +551,13 @@ class _ComposerState extends State<_Composer> {
       } else {
         final file = media;
         final isVideo = file != null &&
-            RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.viewInsetsOf(context).bottom + 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('إنشاء محتوى في Memo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 10),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('منشور'), icon: Icon(Icons.article_outlined)),
-              ButtonSegment(value: true, label: Text('ريل'), icon: Icon(Icons.video_library_outlined)),
-            ],
-            selected: {reel},
-            onSelectionChanged: (value) => setState(() => reel = value.first),
-          ),
-          TextField(controller: text, maxLength: 5000, maxLines: 5, decoration: const InputDecoration(hintText: 'ما الذي تريد مشاركته؟')),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: reel ? pickVideo : pickImage,
-            icon: Icon(reel ? Icons.video_library_rounded : Icons.photo_library_rounded),
-            label: Text(reel ? 'اختيار فيديو' : 'اختيار صورة'),
-          ),
-          if (!reel)
-            OutlinedButton.icon(onPressed: pickVideo, icon: const Icon(Icons.videocam_outlined), label: const Text('إضافة فيديو')),
-          if (media != null)
-            Padding(padding: const EdgeInsets.all(8), child: Text(media!.path.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis)),
-          FilledButton.icon(
-            onPressed: busy ? null : publish,
-            icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.publish_rounded),
-            label: Text(busy ? 'جارٍ النشر...' : 'نشر'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Search extends SearchDelegate<void> {
-  _Search(this.service);
-  final SocialService service;
-
-  @override
-  List<Widget>? buildActions(BuildContext context) => [
-        if (query.isNotEmpty)
-          IconButton(onPressed: () => query = '', icon: const Icon(Icons.clear)),
-      ];
-
-  @override
-  Widget? buildLeading(BuildContext context) =>
-      BackButton(onPressed: () => close(context, null));
-
-  @override
-  Widget buildResults(BuildContext context) {
-    final needle = query.trim();
-    if (needle.isEmpty) {
-      return const Center(child: Text('اكتب اسمًا أو كلمة للبحث'));
-    }
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: service.searchContent(needle),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(child: Text('تعذر تنفيذ البحث.'));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final results = snapshot.data!;
-        if (results.isEmpty) {
-          return const Center(child: Text('لا توجد نتائج مطابقة.'));
-        }
-        return ListView.separated(
-          itemCount: results.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (_, index) {
-            final item = results[index];
-            final isReel = item['collection'] == 'socialReels';
-            final title = item['authorName']?.toString().trim().isNotEmpty == true
-                ? item['authorName'].toString()
-                : 'مستخدم Memo';
-            final body = (item['text'] ?? item['caption'] ?? '').toString().trim();
-            return ListTile(
-              leading: CircleAvatar(
-                child: Icon(isReel ? Icons.play_arrow_rounded : Icons.article_outlined),
-              ),
-              title: Text(title),
-              subtitle: Text(
-                body.isEmpty ? (isReel ? 'ريل' : 'منشور') : body,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            );
-          },
+            RegExp(r'\.(mp4|mov|m4v|webm|3gp|mkv)$', caseSensitive: false)
+                .hasMatch(file.path);
+        await widget.service.createPost(
+          text: text.text,
+          media: file,
+          video: isVideo,
         );
-      },
-    );
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) => buildResults(context);
-}
-, caseSensitive: false).hasMatch(file.path);
-        await widget.service.createPost(text: text.text, media: file, video: isVideo);
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
@@ -665,11 +574,16 @@ class _Search extends SearchDelegate<void> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.viewInsetsOf(context).bottom + 20),
+      padding: EdgeInsets.fromLTRB(
+        16, 10, 16, MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('إنشاء محتوى في Memo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const Text(
+            'إنشاء محتوى في Memo',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 10),
           SegmentedButton<bool>(
             segments: const [
@@ -679,20 +593,42 @@ class _Search extends SearchDelegate<void> {
             selected: {reel},
             onSelectionChanged: (value) => setState(() => reel = value.first),
           ),
-          TextField(controller: text, maxLength: 5000, maxLines: 5, decoration: const InputDecoration(hintText: 'ما الذي تريد مشاركته؟')),
+          TextField(
+            controller: text,
+            maxLength: 5000,
+            maxLines: 5,
+            decoration: const InputDecoration(hintText: 'ما الذي تريد مشاركته؟'),
+          ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: reel ? pickVideo : pickImage,
+            onPressed: busy ? null : (reel ? pickVideo : pickImage),
             icon: Icon(reel ? Icons.video_library_rounded : Icons.photo_library_rounded),
             label: Text(reel ? 'اختيار فيديو' : 'اختيار صورة'),
           ),
           if (!reel)
-            OutlinedButton.icon(onPressed: pickVideo, icon: const Icon(Icons.videocam_outlined), label: const Text('إضافة فيديو')),
+            OutlinedButton.icon(
+              onPressed: busy ? null : pickVideo,
+              icon: const Icon(Icons.videocam_outlined),
+              label: const Text('إضافة فيديو'),
+            ),
           if (media != null)
-            Padding(padding: const EdgeInsets.all(8), child: Text(media!.path.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                media!.path.split(Platform.pathSeparator).last,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           FilledButton.icon(
             onPressed: busy ? null : publish,
-            icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.publish_rounded),
+            icon: busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.publish_rounded),
             label: Text(busy ? 'جارٍ النشر...' : 'نشر'),
           ),
         ],
