@@ -8,6 +8,7 @@ import '../../services/game_service.dart';
 import '../../models/game.dart';
 import '../../models/game_session.dart';
 import 'arcade_content.dart';
+import 'game_board_rules.dart';
 
 class MemoArcadeScreen extends StatefulWidget {
   const MemoArcadeScreen({super.key, required this.type, this.chatId = '', this.gameId});
@@ -42,6 +43,12 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
             _remoteScore = remote ?? 0;
             _sessionStatus = session.status.name;
           });
+          game.applyRemoteState(
+            session.state,
+            currentTurn: session.currentTurn,
+            players: session.players,
+            status: session.status.name,
+          );
           if (round is num) game.applyRemoteRound(round.toInt());
         },
         onError: (_) {
@@ -536,6 +543,9 @@ class MemoArcadeGame extends FlameGame {
       case GameType.treasureHunt:
         _tapExplorer(point);
         return;
+      case GameType.xo:
+        _tapXo(point);
+        return;
       case GameType.quizBattle:
       case GameType.trivia:
       case GameType.trueFalse:
@@ -766,6 +776,10 @@ class MemoArcadeGame extends FlameGame {
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice:
+        if (type == GameType.xo) {
+          _renderXo(canvas, paint);
+          break;
+        }
         final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
         final prompt = content.prompts.isEmpty ? 'اختر أحد الخيارات' : content.prompts[n];
         final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length
@@ -898,6 +912,22 @@ class MemoArcadeGame extends FlameGame {
   }
   void _tapLights(Vector2 point) { if (point.y < 100) return; final col = ((point.x - 8) / ((size.x - 24) / 3)).floor(); final row = ((point.y - 100) / 68).floor(); if (row < 0 || row > 2 || col < 0 || col > 2) return; final n = row * 3 + col; for (final j in [n, n - 1, n + 1, n - 3, n + 3]) { if (j >= 0 && j < 9 && (j ~/ 3 == row || j % 3 == col)) _lights[j] = !_lights[j]; } if (_lights.every((v) => !v)) { score += 5; for (var k = 0; k < 9; k++) _lights[k] = true; onScore(score); _syncScore(); } }
   void _renderPairs(Canvas canvas, Paint paint) {
+    switch (type) {
+      case GameType.fourInRow:
+        _renderFourInRow(canvas, paint);
+        return;
+      case GameType.dotsAndBoxes:
+        _renderDotsAndBoxes(canvas, paint);
+        return;
+      case GameType.picturePuzzle:
+        _renderPicturePuzzle(canvas, paint);
+        return;
+      case GameType.sudokuDuel:
+        _renderSudoku(canvas, paint);
+        return;
+      default:
+        break;
+    }
     if (_pairOrder.isEmpty) _pairOrder.addAll(List<int>.generate(16, (i) => i ~/ 2)..shuffle(random));
     final w = (size.x - 36) / 4;
     for (var n = 0; n < 16; n++) {
@@ -914,6 +944,22 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapPairs(Vector2 point) {
+    switch (type) {
+      case GameType.fourInRow:
+        _tapFourInRow(point);
+        return;
+      case GameType.dotsAndBoxes:
+        _tapDotsAndBoxes(point);
+        return;
+      case GameType.picturePuzzle:
+        _tapPicturePuzzle(point);
+        return;
+      case GameType.sudokuDuel:
+        _tapSudoku(point);
+        return;
+      default:
+        break;
+    }
     if (point.y < 100) return;
     if (_pairOrder.isEmpty) _pairOrder.addAll(List<int>.generate(16, (i) => i ~/ 2)..shuffle(random));
     final cellWidth = (size.x - 36) / 4;
