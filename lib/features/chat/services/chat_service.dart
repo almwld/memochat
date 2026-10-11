@@ -472,9 +472,14 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
     Future<void> start() async {
       try {
         await _authorizedChat(chatId);
-        subscription=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).limit(limit).snapshots().listen((s) async {
+        // Load the complete conversation, not just the latest page. Combined
+        // with Firestore's unlimited persistent disk cache, this keeps every
+        // previously fetched message available after restart and while offline.
+        // The limit parameter remains for source compatibility with existing
+        // callers; pagination can still be used by getMoreMessages elsewhere.
+        subscription=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).snapshots(includeMetadataChanges: true).listen((s) async {
           try {
-            controller.add(MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:s.docs.length>=limit));
+            controller.add(MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:false));
           } catch(e,st) { controller.addError(e,st); }
         },onError:controller.addError);
       } catch(e,st) { controller.addError(e,st); await controller.close(); }
