@@ -320,7 +320,7 @@ class MediaTransferEngine {
 
   void _validate(String type, String name, String? mime, int size) {
     if (size <= 0) throw StateError('الملف فارغ');
-    if (size > _maxBytes) throw StateError('حجم الوسائط يتجاوز 100MB');
+    if (size > _maxBytes) throw StateError('حجم الوسائط يتجاوز 250MB');
     const images = {'jpg','jpeg','png','webp','gif','heic','heif'};
     const videos = {'mp4','mov','m4v','webm','3gp','mkv'};
     const audios = {'m4a','aac','mp3','wav','ogg','opus','amr'};
@@ -670,9 +670,7 @@ class MediaTransferEngine {
         'userName': name,
         'userImage': photo,
         'stories': existingStories,
-        'createdAt': snapshot.exists && data['createdAt'] is Timestamp
-            ? data['createdAt']
-            : Timestamp.fromDate(now),
+        'createdAt': Timestamp.fromDate(now),
         'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 24))),
         'ready': true,
         'createdBy': uid,
