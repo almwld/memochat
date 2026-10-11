@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:memochat/features/chat/models/call_model.dart';
@@ -172,7 +171,7 @@ class _CallScreenState extends State<CallScreen> {
     if (raw.contains('network') || raw.contains('socket')) {
       return 'تعذر الاتصال بالشبكة. تحقق من الإنترنت وحاول مرة أخرى.';
     }
-    return 'تعذر بدء المكالمة. حاول مرة أخرى.';
+    return 'حدث خلل مؤقت في الاتصال.';
   }
 
   Future<void> connect() async {
@@ -268,20 +267,8 @@ class _CallScreenState extends State<CallScreen> {
       }
     } catch (e) {
       ActiveCallRegistry.instance.unregister(callId ?? widget.callId);
-      final failedCallId = callId ?? widget.callId;
-      if (failedCallId != null) {
-        unawaited(
-          FirebaseFirestore.instance
-              .collection('calls')
-              .doc(failedCallId)
-              .update({
-                'status': 'ended',
-                'endedAt': FieldValue.serverTimestamp(),
-                'endedReason': 'livekit_failed',
-              })
-              .catchError((_) {}),
-        );
-      }
+      // A temporary token/network/WebRTC failure must not terminally end the
+      // Firestore call. Keep the accepted call retryable from this screen.
       debugPrint('CALL CONNECT $e');
       if (mounted) {
         final friendly = _friendlyCallError(e);
@@ -566,8 +553,9 @@ class _CallScreenState extends State<CallScreen> {
   Widget build(BuildContext context) {
     final remote = swapped ? localTrack : remoteTrack;
     final local = swapped ? remoteTrack : localTrack;
-    final status = error ??
-        (!online ? 'غير متصل' : !joined ? (connecting ? 'جاري الاتصال' : 'في انتظار الرد') : connectionStatus == 'متصل' ? fmt(seconds) : connectionStatus);
+    final status = error != null
+        ? 'إعادة المحاولة'
+        : (!online ? 'غير متصل' : !joined ? (connecting ? 'جاري الاتصال' : 'في انتظار الرد') : connectionStatus == 'متصل' ? fmt(seconds) : connectionStatus);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -577,23 +565,34 @@ class _CallScreenState extends State<CallScreen> {
               Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(28), child: VideoTrackRenderer(remote)))
             else
               Positioned.fill(child: waiting(centerMessageFor(status))),
-            if (error == null)
-              Positioned(top: 12, left: 12, right: 12, child: top(status)),
+            Positioned(top: 12, left: 12, right: 12, child: top(status)),
             if (widget.isVideo && local != null)
               PositionedDirectional(top: 82, end: 18, child: preview(local)),
             if (widget.isVideo && joined && remoteTrack == null)
               Positioned.fill(child: IgnorePointer(child: fallback())),
-            if (error == null)
-              Positioned(left: 14, right: 14, bottom: 14, child: controls())
-            else
-              Positioned.fill(child: _errorPanel()),
+            Positioned(left: 14, right: 14, bottom: 14, child: controls()),
+            if (error != null)
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: 118,
+                child: Center(
+                  child: FilledButton.icon(
+                    onPressed: connecting ? null : _retryConnection,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: Text(connecting ? 'جاري الاتصال...' : 'إعادة المحاولة'),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  String centerMessageFor(String status) => error ?? (!online ? 'تحقق من اتصال الإنترنت' : connecting ? 'جاري الاتصال...' : !joined ? 'في انتظار قبول المكالمة...' : status);
+  String centerMessageFor(String status) => error != null
+      ? 'اضغط على إعادة المحاولة للمتابعة'
+      : (!online ? 'تحقق من اتصال الإنترنت' : connecting ? 'جاري الاتصال...' : !joined ? 'في انتظار قبول المكالمة...' : status);
 
   Widget _callHeader(String status) => Row(
     children: [
@@ -617,60 +616,6 @@ class _CallScreenState extends State<CallScreen> {
     ],
   );
 
-  Widget _errorPanel() => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.58),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: red.withOpacity(.25)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 48),
-            const SizedBox(height: 14),
-            const Text(
-              'تعذر الاتصال',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, height: 1.5),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: connecting ? null : _retryConnection,
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(
-                  connecting ? 'جاري إعادة الاتصال...' : 'إعادة المحاولة',
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: ending ? null : end,
-                icon: const Icon(Icons.close_rounded),
-                label: const Text('العودة'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
   Widget preview(VideoTrack t) => Container(
     width: 118,
     height: 176,
