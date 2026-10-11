@@ -251,7 +251,7 @@ class _MessageBubbleState extends State<MessageBubble> {
 
                     ],
                   ),
-                  _mediaMeta(m, compact: true),
+                  // Playback position and duration are already shown by the player.
                 ],
               ),
               dark,
@@ -612,29 +612,24 @@ class _MessageBubbleState extends State<MessageBubble> {
     final parts = <String>[];
 
     if (type == 'audio') {
-      // Voice notes show human-readable details only; never expose storage IDs
-      // or generated .m4a filenames in the conversation UI.
-      if (duration.isNotEmpty) {
-        final seconds = int.tryParse(duration);
-        if (seconds != null && seconds >= 0) {
-          parts.add('${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}');
-        } else {
-          parts.add(duration);
-        }
-      }
-      final bytes = int.tryParse(rawSize.replaceAll(RegExp(r'[^0-9]'), ''));
-      if (bytes != null && bytes > 0) {
-        parts.add(bytes < 1024
-            ? '${bytes} B'
-            : '${(bytes / 1024).round()} KB');
-      } else if (rawSize.isNotEmpty) {
-        parts.add(rawSize);
-      }
-    } else {
-      if (rawName.isNotEmpty) parts.add(rawName);
-      if (rawSize.isNotEmpty) parts.add(rawSize);
-      if (mime.isNotEmpty && rawName.isEmpty) parts.add(mime);
+      // The in-bubble player already displays elapsed and total duration.
+      // Repeating either value below it created duplicate and malformed-looking
+      // metadata rows on voice notes.
+      return const SizedBox.shrink();
     }
+
+    // Media previews should not expose generated storage filenames. Show only
+    // concise, useful metadata (human-readable size and file type).
+    final bytes = int.tryParse(rawSize.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (bytes != null && bytes > 0) {
+      parts.add(bytes < 1024
+          ? '${bytes} B'
+          : '${(bytes / 1024).round()} KB');
+    } else if (rawSize.isNotEmpty) {
+      parts.add(rawSize);
+    }
+    final typeLabel = mime.contains('/') ? mime.split('/').last.toUpperCase() : '';
+    if (typeLabel.isNotEmpty) parts.add(typeLabel);
     if (parts.isEmpty) return const SizedBox.shrink();
 
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -735,11 +730,6 @@ class _MessageBubbleState extends State<MessageBubble> {
         ClipRRect(
           borderRadius: BorderRadius.circular(14),
           child: previewImage,
-        ),
-        PositionedDirectional(
-          top: 8,
-          start: 8,
-          child: _mediaTypeChip(Icons.photo_outlined, 'صورة', dark),
         ),
         if (m['isUploading'] == true)
           PositionedDirectional(
