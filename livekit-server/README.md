@@ -8,7 +8,7 @@
 - خدمة Suga: `memochat-livekit-server`.
 - رابط الخدمة: `https://c3mhwp72itmc-production-ar6e2elm.us-central1.suga.run`.
 - فرع النشر التلقائي: `main`.
-- كود الخادم موجود في هذا المجلد `livekit-server/`. لا يصبح تعديل موجود على فرع Pull Request فعالًا في الخدمة المنشورة حتى يُدمج في `main) ثم تنجح عملية النشر على Suga.
+- كود الخادم موجود في هذا المجلد `livekit-server/`. لا يصبح تعديل موجود على فرع Pull Request فعالًا في الخدمة المنشورة حتى يُدمج في `main` ثم تنجح عملية النشر على Suga.
 
 ## متغيرات البيئة
 
