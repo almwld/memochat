@@ -172,6 +172,14 @@ class MemoArcadeGame extends FlameGame {
 
   @override void update(double dt) {
     super.update(dt); elapsed += dt; spawnClock += dt; comboClock += dt;
+    if (type == GameType.stackTower && _towerCenters.isEmpty && size.x > 0) {
+      _towerCenters.add(size.x / 2);
+      _towerWidths.add(size.x * .65);
+    }
+    if (type == GameType.balanceBeam) {
+      _balanceOffset = (_balanceOffset + math.sin(elapsed * 1.7) * dt * .24)
+          .clamp(-1.0, 1.0).toDouble();
+    }
     if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
     for (final t in targets) {
       t.age += dt; t.position += t.velocity * dt;
@@ -192,6 +200,8 @@ class MemoArcadeGame extends FlameGame {
     super.render(canvas);
     if (type == GameType.diceRoll) { _renderDice(canvas); return; }
     if (type == GameType.reactionRace) { _renderReactionRace(canvas); return; }
+    if (type == GameType.stackTower) { _renderStackTower(canvas); return; }
+    if (type == GameType.balanceBeam) { _renderBalanceBeam(canvas); return; }
     if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
@@ -243,6 +253,138 @@ class MemoArcadeGame extends FlameGame {
       textDirection: TextDirection.rtl,
     )..layout();
     scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, size.y * .72));
+  }
+
+  void _renderStackTower(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final heading = TextPainter(
+      text: const TextSpan(text: 'Stack Tower', style: TextStyle(
+        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    heading.paint(canvas, Offset(size.x / 2 - heading.width / 2, 22));
+    final hint = TextPainter(
+      text: TextSpan(text: _towerEnded ? 'انتهى البرج — المس لإعادة المحاولة' : 'المس عندما يتطابق البلوك مع البرج',
+        style: const TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    hint.paint(canvas, Offset(size.x / 2 - hint.width / 2, 58));
+    if (_towerCenters.isEmpty && size.x > 0) {
+      _towerCenters.add(size.x / 2);
+      _towerWidths.add(size.x * .65);
+    }
+    final baseY = size.y - 70.0;
+    for (var i = 0; i < _towerCenters.length; i++) {
+      final width = _towerWidths[i];
+      final y = baseY - i * 25.0;
+      paint.color = palette[i % palette.length];
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(_towerCenters[i], y), width: width, height: 22),
+        const Radius.circular(5)), paint);
+    }
+    if (!_towerEnded && _towerWidths.isNotEmpty) {
+      final movingX = size.x / 2 + math.sin(elapsed * 2.4) *
+          math.max(0.0, size.x * .27 - _towerWidths.last / 2).toDouble();
+      paint.color = const Color(0xFFFFC857);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(movingX, baseY - _towerCenters.length * 25.0),
+          width: _towerWidths.last, height: 22),
+        const Radius.circular(5)), paint);
+    }
+    final scoreText = TextPainter(
+      text: TextSpan(text: '$score نقطة', style: const TextStyle(
+        color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, 88));
+  }
+
+  void _tapStackTower() {
+    if (_towerEnded) {
+      _towerEnded = false;
+      _towerCenters
+        ..clear()
+        ..add(size.x / 2);
+      _towerWidths
+        ..clear()
+        ..add(size.x * .65);
+      return;
+    }
+    if (_towerCenters.isEmpty || _towerWidths.isEmpty) return;
+    final targetX = size.x / 2 + math.sin(elapsed * 2.4) *
+        math.max(0.0, size.x * .27 - _towerWidths.last / 2).toDouble();
+    final previousX = _towerCenters.last;
+    final nextWidth = _towerWidths.last - (targetX - previousX).abs();
+    if (nextWidth < 14) {
+      _towerEnded = true;
+      onScore(score);
+      return;
+    }
+    _towerCenters.add((targetX + previousX) / 2);
+    _towerWidths.add(nextWidth);
+    score++;
+    if (_towerCenters.length > 10) {
+      score += 5;
+      _towerCenters
+        ..clear()
+        ..add(size.x / 2);
+      _towerWidths
+        ..clear()
+        ..add(size.x * .65);
+    }
+    onScore(score);
+    _syncScore();
+  }
+
+  void _renderBalanceBeam(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final heading = TextPainter(
+      text: const TextSpan(text: 'Balance Beam', style: TextStyle(
+        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    heading.paint(canvas, Offset(size.x / 2 - heading.width / 2, 22));
+    final hint = TextPainter(
+      text: const TextSpan(text: 'المس يسارًا أو يمينًا لإبقاء المؤشر في المنتصف',
+        style: TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    hint.paint(canvas, Offset(size.x / 2 - hint.width / 2, 58));
+    final center = Offset(size.x / 2, size.y * .5);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(_balanceOffset * .22);
+    paint..color = const Color(0xFF7CA7A5)..strokeWidth = 10..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(-size.x * .36, 0), Offset(size.x * .36, 0), paint);
+    canvas.restore();
+    final markerX = size.x / 2 + _balanceOffset * size.x * .30;
+    paint.color = _balanceOffset.abs() < .18
+        ? const Color(0xFF20C997)
+        : const Color(0xFFFFC857);
+    canvas.drawCircle(Offset(markerX, center.dy), 18, paint);
+    final scoreText = TextPainter(
+      text: TextSpan(text: '$score نقطة', style: const TextStyle(
+        color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, size.y * .72));
+  }
+
+  void _tapBalanceBeam(Vector2 point) {
+    _balanceOffset = (_balanceOffset + (point.x < size.x / 2 ? -.18 : .18))
+        .clamp(-1.0, 1.0).toDouble();
+    final distance = _balanceOffset.abs();
+    if (distance < .14) {
+      score += 3;
+    } else if (distance < .32) {
+      score++;
+    } else if (distance > .88) {
+      score = math.max(0, score - 1);
+    }
+    onScore(score);
+    _syncScore();
   }
 
   void _renderDice(Canvas canvas) {
@@ -316,8 +458,10 @@ class MemoArcadeGame extends FlameGame {
         _tapSequence(point);
         return;
       case GameType.stackTower:
+        _tapStackTower();
+        return;
       case GameType.balanceBeam:
-        _tapTiming(point);
+        _tapBalanceBeam(point);
         return;
       case GameType.mazeRunner:
       case GameType.treasureHunt:
@@ -601,6 +745,10 @@ class MemoArcadeGame extends FlameGame {
   List<String> _wordGuessOptions = <String>[];
   int _wordGuessLives = 6;
   double _reactionReadyAt = 2.5;
+  final List<double> _towerCenters = <double>[];
+  final List<double> _towerWidths = <double>[];
+  bool _towerEnded = false;
+  double _balanceOffset = 0;
   int _codeDigit = -1;
   int _codeAttempts = 0;
   int _mathAddend = 0;
