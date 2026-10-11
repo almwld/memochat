@@ -23,6 +23,7 @@ import 'package:memochat/features/chat/presentation/starred_messages_screen.dart
 import 'package:memochat/features/chat/presentation/group_info_screen.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_background.dart';
 import 'package:memochat/features/chat/presentation/widgets/chat_input_bar.dart';
+import 'package:memochat/features/chat/presentation/widgets/typing_indicator.dart';
 import 'package:memochat/features/chat/presentation/widgets/media_upload_status_widget.dart';
 import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
 import 'package:memochat/core/services/chat_preferences_service.dart';
@@ -1482,15 +1483,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: dark ? null : AppColors.primary)),
-                    Text(
-                        _otherTyping
-                            ? 'يكتب الآن...'
-                            : (_online ? 'متصل الآن' : _lastSeenLabel()),
+                    if (_otherTyping)
+                      const TypingIndicator()
+                    else
+                      Text(
+                        _online ? 'متصل الآن' : _lastSeenLabel(),
                         style: TextStyle(
-                            fontSize: 11,
-                            color: _otherTyping
-                                ? AppColors.primary
-                                : (_online ? Colors.green : Colors.grey)))
+                          fontSize: 11,
+                          color: _online ? Colors.green : Colors.grey,
+                        ),
+                      )
                   ])),
                 ),
               ]);
