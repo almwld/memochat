@@ -281,13 +281,32 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 SliverToBoxAdapter(child: _buildCategoryBar()),
-                if (filtered.isEmpty)
+                if (conversations.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
                     child: _StateView(
                       icon: AppIcons.message,
                       title: 'ابدأ أول محادثة',
                       subtitle: 'انتقل إلى «تواصل» للعثور على أشخاص وابدأ محادثة جديدة.',
+                    ),
+                  )
+                else if (filtered.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _StateView(
+                      icon: AppIcons.chat,
+                      title: 'لا توجد محادثات مطابقة',
+                      subtitle: 'المحادثات موجودة، لكن البحث أو الفلاتر الحالية لا تعرضها.',
+                      action: TextButton.icon(
+                        onPressed: () => setState(() {
+                          _search.clear();
+                          _conversationFilter = _ConversationFilter.all;
+                          _showArchived = false;
+                          _activeFolder = null;
+                        }),
+                        icon: const Icon(Icons.filter_alt_off_rounded),
+                        label: const Text('عرض كل المحادثات'),
+                      ),
                     ),
                   )
                 else
