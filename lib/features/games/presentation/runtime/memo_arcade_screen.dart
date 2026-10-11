@@ -240,7 +240,7 @@ class MemoArcadeGame extends FlameGame {
       textDirection: TextDirection.rtl,
     )..layout(maxWidth: size.x - 24);
     instruction.paint(canvas, Offset(size.x / 2 - instruction.width / 2, 58));
-    final side = math.min(190.0, math.min(size.x - 48, size.y * .42));
+    final side = math.min(190.0, math.min(size.x - 48, size.y * .42)).toDouble();
     final rect = Rect.fromCenter(center: Offset(size.x / 2, size.y * .48), width: side, height: side);
     paint.color = const Color(0xFFF5FBFA);
     canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(28)), paint);
