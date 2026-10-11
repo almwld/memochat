@@ -135,6 +135,7 @@ class MemoArcadeGame extends FlameGame {
   final List<Target> targets = <Target>[];
   final List<Particle> particles = <Particle>[];
   int score = 0;
+  int _lastDice = 1;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
 
   ArcadeContent get content => ArcadeContentBank.forType(type);
@@ -171,6 +172,14 @@ class MemoArcadeGame extends FlameGame {
 
   @override void update(double dt) {
     super.update(dt); elapsed += dt; spawnClock += dt; comboClock += dt;
+    if (type == GameType.stackTower && _towerCenters.isEmpty && size.x > 0) {
+      _towerCenters.add(size.x / 2);
+      _towerWidths.add(size.x * .65);
+    }
+    if (type == GameType.balanceBeam) {
+      _balanceOffset = (_balanceOffset + math.sin(elapsed * 1.7) * dt * .24)
+          .clamp(-1.0, 1.0).toDouble();
+    }
     if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
     for (final t in targets) {
       t.age += dt; t.position += t.velocity * dt;
@@ -189,6 +198,10 @@ class MemoArcadeGame extends FlameGame {
 
   @override void render(Canvas canvas) {
     super.render(canvas);
+    if (type == GameType.diceRoll) { _renderDice(canvas); return; }
+    if (type == GameType.reactionRace) { _renderReactionRace(canvas); return; }
+    if (type == GameType.stackTower) { _renderStackTower(canvas); return; }
+    if (type == GameType.balanceBeam) { _renderBalanceBeam(canvas); return; }
     if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
@@ -201,7 +214,14 @@ class MemoArcadeGame extends FlameGame {
       final r=t.radius*(1+math.sin(t.age*5+t.phase)*.08);
       paint.color=palette[t.kind%palette.length];
       final c=Offset(t.position.x,t.position.y);
-      if (type == GameType.shapeMatch || type == GameType.patternTap) {
+      if (type == GameType.shapeMatch && t.kind == 0) {
+        canvas.drawCircle(c, r, paint);
+      } else if (type == GameType.shapeMatch && t.kind == 1) {
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: c, width: r * 1.7, height: r * 1.7), const Radius.circular(5)), paint);
+      } else if (type == GameType.shapeMatch && t.kind == 2) {
+        final path = Path()..moveTo(c.dx, c.dy-r)..lineTo(c.dx+r, c.dy+r)..lineTo(c.dx-r, c.dy+r)..close();
+        canvas.drawPath(path, paint);
+      } else if (type == GameType.patternTap) {
         final path=Path();
         for(var i=0;i<10;i++){final a=-math.pi/2+i*math.pi/5;final rr=i.isEven?r:r*.45;final q=Offset(c.dx+math.cos(a)*rr,c.dy+math.sin(a)*rr);if(i==0)path.moveTo(q.dx,q.dy);else path.lineTo(q.dx,q.dy);}
         canvas.drawPath(path..close(),paint);
@@ -220,11 +240,220 @@ class MemoArcadeGame extends FlameGame {
   }
 
   String get _instruction {
+    if (type == GameType.shapeMatch) {
+      const shapeNames = <String>['دائرة', 'مربع', 'مثلث'];
+      return 'اضغط الشكل: ${shapeNames[_shapeGoal]}';
+    }
     return content.instruction;
+  }
+
+  void _renderReactionRace(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final ready = elapsed >= _reactionReadyAt;
+    paint.color = ready ? const Color(0xFF20C997) : const Color(0xFFFFC857);
+    canvas.drawCircle(Offset(size.x / 2, size.y * .46), math.min(88.0, size.x * .22).toDouble(), paint);
+    final label = ready ? 'اضغط الآن!' : 'انتظر الإشارة';
+    final text = TextPainter(
+      text: TextSpan(text: label, style: const TextStyle(color: Color(0xFF071719), fontSize: 22, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    text.paint(canvas, Offset(size.x / 2 - text.width / 2, size.y * .46 - text.height / 2));
+    final scoreText = TextPainter(
+      text: TextSpan(text: '$score نقطة', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, size.y * .72));
+  }
+
+  void _renderStackTower(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final heading = TextPainter(
+      text: const TextSpan(text: 'Stack Tower', style: TextStyle(
+        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    heading.paint(canvas, Offset(size.x / 2 - heading.width / 2, 22));
+    final hint = TextPainter(
+      text: TextSpan(text: _towerEnded ? 'انتهى البرج — المس لإعادة المحاولة' : 'المس عندما يتطابق البلوك مع البرج',
+        style: const TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    hint.paint(canvas, Offset(size.x / 2 - hint.width / 2, 58));
+    if (_towerCenters.isEmpty && size.x > 0) {
+      _towerCenters.add(size.x / 2);
+      _towerWidths.add(size.x * .65);
+    }
+    final baseY = size.y - 70.0;
+    for (var i = 0; i < _towerCenters.length; i++) {
+      final width = _towerWidths[i];
+      final y = baseY - i * 25.0;
+      paint.color = palette[i % palette.length];
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(_towerCenters[i], y), width: width, height: 22),
+        const Radius.circular(5)), paint);
+    }
+    if (!_towerEnded && _towerWidths.isNotEmpty) {
+      final movingX = size.x / 2 + math.sin(elapsed * 2.4) *
+          math.max(0.0, size.x * .27 - _towerWidths.last / 2).toDouble();
+      paint.color = const Color(0xFFFFC857);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(movingX, baseY - _towerCenters.length * 25.0),
+          width: _towerWidths.last, height: 22),
+        const Radius.circular(5)), paint);
+    }
+    final scoreText = TextPainter(
+      text: TextSpan(text: '$score نقطة', style: const TextStyle(
+        color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, 88));
+  }
+
+  void _tapStackTower() {
+    if (_towerEnded) {
+      _towerEnded = false;
+      _towerCenters
+        ..clear()
+        ..add(size.x / 2);
+      _towerWidths
+        ..clear()
+        ..add(size.x * .65);
+      return;
+    }
+    if (_towerCenters.isEmpty || _towerWidths.isEmpty) return;
+    final targetX = size.x / 2 + math.sin(elapsed * 2.4) *
+        math.max(0.0, size.x * .27 - _towerWidths.last / 2).toDouble();
+    final previousX = _towerCenters.last;
+    final nextWidth = _towerWidths.last - (targetX - previousX).abs();
+    if (nextWidth < 14) {
+      _towerEnded = true;
+      onScore(score);
+      return;
+    }
+    _towerCenters.add((targetX + previousX) / 2);
+    _towerWidths.add(nextWidth);
+    score++;
+    if (_towerCenters.length > 10) {
+      score += 5;
+      _towerCenters
+        ..clear()
+        ..add(size.x / 2);
+      _towerWidths
+        ..clear()
+        ..add(size.x * .65);
+    }
+    onScore(score);
+    _syncScore();
+  }
+
+  void _renderBalanceBeam(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final heading = TextPainter(
+      text: const TextSpan(text: 'Balance Beam', style: TextStyle(
+        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    heading.paint(canvas, Offset(size.x / 2 - heading.width / 2, 22));
+    final hint = TextPainter(
+      text: const TextSpan(text: 'المس يسارًا أو يمينًا لإبقاء المؤشر في المنتصف',
+        style: TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    hint.paint(canvas, Offset(size.x / 2 - hint.width / 2, 58));
+    final center = Offset(size.x / 2, size.y * .5);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(_balanceOffset * .22);
+    paint..color = const Color(0xFF7CA7A5)..strokeWidth = 10..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(-size.x * .36, 0), Offset(size.x * .36, 0), paint);
+    canvas.restore();
+    final markerX = size.x / 2 + _balanceOffset * size.x * .30;
+    paint.color = _balanceOffset.abs() < .18
+        ? const Color(0xFF20C997)
+        : const Color(0xFFFFC857);
+    canvas.drawCircle(Offset(markerX, center.dy), 18, paint);
+    final scoreText = TextPainter(
+      text: TextSpan(text: '$score نقطة', style: const TextStyle(
+        color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scoreText.paint(canvas, Offset(size.x / 2 - scoreText.width / 2, size.y * .72));
+  }
+
+  void _tapBalanceBeam(Vector2 point) {
+    _balanceOffset = (_balanceOffset + (point.x < size.x / 2 ? -.18 : .18))
+        .clamp(-1.0, 1.0).toDouble();
+    final distance = _balanceOffset.abs();
+    if (distance < .14) {
+      score += 3;
+    } else if (distance < .32) {
+      score++;
+    } else if (distance > .88) {
+      score = math.max(0, score - 1);
+    }
+    onScore(score);
+    _syncScore();
+  }
+
+  void _renderDice(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF0B2225);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    final title = TextPainter(
+      text: TextSpan(text: content.title, style: const TextStyle(
+        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    title.paint(canvas, Offset(size.x / 2 - title.width / 2, 24));
+    final instruction = TextPainter(
+      text: const TextSpan(text: 'المس النرد لرميه واجمع النقاط',
+        style: TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    instruction.paint(canvas, Offset(size.x / 2 - instruction.width / 2, 58));
+    final side = math.min(190.0, math.min(size.x - 48, size.y * .42)).toDouble();
+    final rect = Rect.fromCenter(center: Offset(size.x / 2, size.y * .48), width: side, height: side);
+    paint.color = const Color(0xFFF5FBFA);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(28)), paint);
+    final spots = <Offset>[
+      Offset(rect.left + side * .25, rect.top + side * .25),
+      Offset(rect.left + side * .75, rect.top + side * .25),
+      Offset(rect.left + side * .25, rect.top + side * .50),
+      Offset(rect.left + side * .50, rect.top + side * .50),
+      Offset(rect.left + side * .75, rect.top + side * .50),
+      Offset(rect.left + side * .25, rect.top + side * .75),
+      Offset(rect.left + side * .75, rect.top + side * .75),
+    ];
+    final visible = switch (_lastDice) {
+      1 => <int>[3],
+      2 => <int>[0, 6],
+      3 => <int>[0, 3, 6],
+      4 => <int>[0, 1, 5, 6],
+      5 => <int>[0, 1, 3, 5, 6],
+      _ => <int>[0, 1, 2, 4, 5, 6],
+    };
+    paint.color = const Color(0xFF0D8274);
+    for (final index in visible) {
+      canvas.drawCircle(spots[index], side * .055, paint);
+    }
+    final scorePainter = TextPainter(
+      text: TextSpan(text: '$_lastDice  •  $score نقطة',
+        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    scorePainter.paint(canvas, Offset(size.x / 2 - scorePainter.width / 2, rect.bottom + 28));
   }
 
   void tap(Vector2 point) {
     switch (type) {
+      case GameType.diceRoll:
+        _tapDice();
+        return;
+      case GameType.reactionRace:
+        _tapReactionRace();
+        return;
       case GameType.memoryMatch:
       case GameType.cardFlip:
       case GameType.emojiMemory:
@@ -234,14 +463,19 @@ class MemoArcadeGame extends FlameGame {
       case GameType.colorRush:
         _tapColor(point);
         return;
+      case GameType.shapeMatch:
+        _tapShapeMatch(point);
+        return;
       case GameType.patternTap:
       case GameType.sequenceRecall:
       case GameType.rhythmTap:
         _tapSequence(point);
         return;
       case GameType.stackTower:
+        _tapStackTower();
+        return;
       case GameType.balanceBeam:
-        _tapTiming(point);
+        _tapBalanceBeam(point);
         return;
       case GameType.mazeRunner:
       case GameType.treasureHunt:
@@ -297,6 +531,84 @@ class MemoArcadeGame extends FlameGame {
   int _memoryFirst = -1;
   int _sequenceStep = 0;
   int _colorGoal = 0;
+
+  void _tapReactionRace() {
+    if (elapsed < _reactionReadyAt) {
+      score = math.max(0, score - 2);
+    } else {
+      final reactionSeconds = elapsed - _reactionReadyAt;
+      score += math.max(1, (30 - reactionSeconds * 10).round());
+    }
+    _reactionReadyAt = elapsed + 2 + random.nextDouble() * 2;
+    onScore(score);
+    _syncScore();
+  }
+
+  void _prepareWordGuess() {
+    if (_wordGuessTarget.isEmpty) {
+      _wordGuessTarget = content.prompts.isEmpty
+          ? 'قمر'
+          : content.prompts[_specialRound % content.prompts.length];
+      _wordGuessFound.clear();
+      _wordGuessLives = 6;
+      _wordGuessOptions = <String>[];
+    }
+    if (_wordGuessOptions.isNotEmpty) return;
+    final remaining = _wordGuessTarget.runes
+        .map(String.fromCharCode)
+        .where((letter) => !_wordGuessFound.contains(letter))
+        .toSet()
+        .toList()..shuffle(random);
+    final options = remaining.take(3).toList();
+    const distractors = <String>['س', 'ب', 'ت', 'ج', 'د', 'ر', 'م', 'ن', 'ل', 'ف', 'ك'];
+    final distractorPool = <String>[...distractors]..shuffle(random);
+    for (final letter in distractorPool) {
+      if (options.length >= 4) break;
+      if (!_wordGuessTarget.contains(letter) && !options.contains(letter)) options.add(letter);
+    }
+    _wordGuessOptions = options..shuffle(random);
+  }
+
+  void _tapWordGuess(int index) {
+    if (index < 0 || index >= _wordGuessOptions.length) return;
+    final letter = _wordGuessOptions[index];
+    if (_wordGuessTarget.runes.map(String.fromCharCode).contains(letter)) {
+      _wordGuessFound.add(letter);
+      score++;
+    } else {
+      _wordGuessLives--;
+      score = math.max(0, score - 1);
+    }
+    final complete = _wordGuessTarget.runes
+        .map(String.fromCharCode)
+        .every(_wordGuessFound.contains);
+    if (complete) {
+      score += 5;
+      _specialRound++;
+      _wordGuessTarget = '';
+      _wordGuessFound.clear();
+      _wordGuessOptions = <String>[];
+      _wordGuessLives = 6;
+    } else if (_wordGuessLives <= 0) {
+      _specialRound++;
+      _wordGuessTarget = '';
+      _wordGuessFound.clear();
+      _wordGuessOptions = <String>[];
+      _wordGuessLives = 6;
+    } else {
+      _wordGuessOptions = <String>[];
+      _prepareWordGuess();
+    }
+    onScore(score);
+    _syncScore();
+  }
+
+  void _tapDice() {
+    _lastDice = 1 + random.nextInt(6);
+    score += _lastDice + (_lastDice == 6 ? 2 : 0);
+    onScore(score);
+    _syncScore();
+  }
 
   void _tapMemory(Vector2 point) {
     if (_memoryOrder.isEmpty) {
@@ -372,6 +684,23 @@ class MemoArcadeGame extends FlameGame {
     _syncScore();
   }
 
+  void _tapShapeMatch(Vector2 point) {
+    final index = targets.indexWhere(
+      (target) => point.distanceTo(target.position) <= target.radius * 1.25,
+    );
+    if (index < 0) return;
+    final target = targets.removeAt(index);
+    if (target.kind == _shapeGoal) {
+      score += 2;
+      _specialRound++;
+      _shapeGoal = _specialRound % 3;
+    } else {
+      score = math.max(0, score - 1);
+    }
+    onScore(score);
+    _syncScore();
+  }
+
   void _tapSequence(Vector2 point) {
     if (targets.isEmpty) return;
     final ordered = targets.toList()..sort((a,b) => a.phase.compareTo(b.phase));
@@ -438,6 +767,21 @@ class MemoArcadeGame extends FlameGame {
 
   int _specialRound = 0;
   int _specialSecret = 0;
+  int _reactionGoal = 0;
+  int _higherLowerCurrent = 0;
+  int _higherLowerNext = 0;
+  int _higherLowerCorrect = 0;
+  String _wordGuessTarget = '';
+  final Set<String> _wordGuessFound = <String>{};
+  List<String> _wordGuessOptions = <String>[];
+  int _wordGuessLives = 6;
+  double _reactionReadyAt = 2.5;
+  final List<double> _towerCenters = <double>[];
+  final List<double> _towerWidths = <double>[];
+  bool _towerEnded = false;
+  double _balanceOffset = 0;
+  int _fastChoiceTarget = 0;
+  int _shapeGoal = 0;
   int _codeDigit = -1;
   int _codeAttempts = 0;
   int _mathAddend = 0;
@@ -459,6 +803,15 @@ class MemoArcadeGame extends FlameGame {
     _specialSecret = 0;
     _mathAddend = 0;
     _codeDigit = -1;
+    _reactionGoal = _specialRound % math.max(1, content.options.length).toInt();
+    _higherLowerCurrent = 0;
+    _higherLowerNext = 0;
+    _fastChoiceTarget = _specialRound * 3 % math.max(1, content.options.length).toInt();
+    _shapeGoal = _specialRound % 3;
+    _wordGuessTarget = '';
+    _wordGuessFound.clear();
+    _wordGuessOptions = <String>[];
+    _wordGuessLives = 6;
   }
 
   void _renderSpecial(Canvas canvas) {
@@ -471,16 +824,94 @@ class MemoArcadeGame extends FlameGame {
     i.paint(canvas, Offset(size.x / 2 - i.width / 2, 52));
     switch (content.mode) {
       case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
-      case ArcadeMode.choice: _renderOptions(canvas, 'اختر خيارك', content.options); break;
+      case ArcadeMode.choice:
+        if (type == GameType.fastChoice) {
+          _renderOptions(canvas, 'اختر الرقم المطلوب: ${content.options[_fastChoiceTarget % content.options.length]}', content.options);
+        } else if (type == GameType.emojiReaction) {
+          _renderOptions(canvas, 'اضغط الرمز المطلوب: ${content.options[_reactionGoal % content.options.length]}', content.options);
+        } else if (type == GameType.higherLower) {
+          if (_higherLowerCurrent == 0) {
+            _higherLowerCurrent = 1 + ((_specialRound * 17 + 13) % 99);
+            _higherLowerNext = 1 + ((_specialRound * 29 + 7) % 99);
+            _higherLowerCorrect = _higherLowerNext > _higherLowerCurrent
+                ? 0
+                : _higherLowerNext < _higherLowerCurrent ? 1 : 2;
+          }
+          _renderOptions(canvas, 'من $_higherLowerCurrent إلى $_higherLowerNext: هل ارتفع الرقم؟', content.options);
+        } else {
+          _renderOptions(canvas, 'اختر خيارك', content.options);
+        }
+        break;
       case ArcadeMode.math:
-        if (_mathOptions.isEmpty) { final a = 10 + random.nextInt(40); final b = 2 + random.nextInt(9); _specialSecret = a; _mathAddend = b; final correct = a + b; _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random); _mathCorrect = _mathOptions.indexOf(correct); }
-        final q = '$_specialSecret + $_mathAddend = ؟';
-        _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList()); break;
+        if (_mathOptions.isEmpty) {
+          if (type == GameType.numberGuess) {
+            _specialSecret = 1 + ((_specialRound * 7 + 11) % 20);
+            _mathOptions = <int>[
+              _specialSecret,
+              (_specialSecret % 20) + 1,
+              ((_specialSecret + 3) % 20) + 1,
+              ((_specialSecret + 8) % 20) + 1,
+            ];
+            _mathCorrect = 0;
+          } else {
+            final a = 10 + random.nextInt(40);
+            final b = 2 + random.nextInt(9);
+            _specialSecret = a;
+            _mathAddend = b;
+            final correct = a + b;
+            _mathOptions = [correct, correct + 2, correct - 3, correct + 5]..shuffle(random);
+            _mathCorrect = _mathOptions.indexOf(correct);
+          }
+        }
+        final q = type == GameType.numberGuess
+            ? 'خمن الرقم السري بين 1 و20'
+            : '$_specialSecret + $_mathAddend = ؟';
+        _renderOptions(canvas, q, _mathOptions.map((v) => v.toString()).toList());
+        break;
       case ArcadeMode.word:
-        final source = content.prompts.isEmpty ? 'كتاب' : content.prompts[_specialRound % content.prompts.length];
-        if (_wordOptions.isEmpty) { _wordOptions = [source, 'هاتف', 'شجرة', 'مدينة']..shuffle(random); _wordCorrect = _wordOptions.indexOf(source); }
-        final chars = source.runes.toList()..shuffle(random);
-        _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
+        if (type == GameType.wordGuess) {
+          _prepareWordGuess();
+          final masked = _wordGuessTarget.runes.map((rune) {
+            final letter = String.fromCharCode(rune);
+            return _wordGuessFound.contains(letter) ? letter : '＿';
+          }).join(' ');
+          _renderOptions(canvas, 'خمن الكلمة: $masked  •  المحاولات: $_wordGuessLives', _wordGuessOptions);
+          break;
+        }
+        const chainPrevious = <String>['كتاب', 'باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف'];
+        const chainNext = <String>['باب', 'بحر', 'ربيع', 'علم', 'مفتاح', 'حديقة', 'هاتف', 'فاكهة'];
+        final promptCount = type == GameType.wordChain ? chainPrevious.length : math.max(1, content.prompts.length).toInt();
+        final n = _specialRound % promptCount;
+        final source = type == GameType.wordChain
+            ? chainPrevious[n]
+            : (content.prompts.isEmpty ? 'كتاب' : content.prompts[n]);
+        final answer = type == GameType.wordChain ? chainNext[n] : source;
+        if (_wordOptions.isEmpty) {
+          const chainDistractors = <List<String>>[
+            ['شمس', 'قلم', 'مدينة'],
+            ['كتاب', 'شجرة', 'قمر'],
+            ['هاتف', 'شمس', 'كتاب'],
+            ['باب', 'قمر', 'شجرة'],
+            ['بحر', 'شمس', 'قلم'],
+            ['كتاب', 'مدينة', 'قمر'],
+            ['شمس', 'قلم', 'كتاب'],
+            ['باب', 'بحر', 'شجرة'],
+          ];
+          final distractors = type == GameType.wordChain
+              ? chainDistractors[n]
+              : <String>['هاتف', 'شجرة', 'مدينة'].where((word) => word != answer).toList();
+          _wordOptions = <String>{answer, ...distractors}.toList()..shuffle(random);
+          _wordCorrect = _wordOptions.indexOf(answer);
+        }
+        if (type == GameType.wordChain) {
+          final rawLast = source.runes.isEmpty ? '' : String.fromCharCode(source.runes.last);
+          final last = rawLast == 'ة' ? 'ه' : rawLast;
+          _renderOptions(canvas, 'بعد «$source» اختر كلمة تبدأ بحرف «$last»', _wordOptions);
+        } else {
+          final chars = source.runes.toList()..shuffle(random);
+          _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions);
+        }
+        break;
       case ArcadeMode.code: if (_codeDigit < 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
       case ArcadeMode.lights:
         for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100.0 + (n ~/ 3) * 68.0; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
@@ -522,6 +953,31 @@ class MemoArcadeGame extends FlameGame {
     // short choice lists, where blank space must never count as an answer.
     final visibleCount = math.min(4, options.length);
     if (n >= visibleCount) return;
+    if (type == GameType.fastChoice) {
+      score = math.max(0, score + (n == _fastChoiceTarget ? 2 : -1));
+      _specialRound++;
+      _fastChoiceTarget = _specialRound * 3 % math.max(1, content.options.length).toInt();
+      onScore(score);
+      _syncScore();
+      return;
+    }
+    if (type == GameType.emojiReaction) {
+      score = math.max(0, score + (n == _reactionGoal ? 3 : -1));
+      _specialRound++;
+      _reactionGoal = _specialRound % math.max(1, content.options.length).toInt();
+      onScore(score);
+      _syncScore();
+      return;
+    }
+    if (type == GameType.higherLower) {
+      score = math.max(0, score + (n == _higherLowerCorrect ? 2 : -1));
+      _higherLowerCurrent = 0;
+      _higherLowerNext = 0;
+      _specialRound++;
+      onScore(score);
+      _syncScore();
+      return;
+    }
     final hasAnswer = content.correctAnswers.isNotEmpty &&
         promptIndex < content.correctAnswers.length;
     final correct = hasAnswer ? content.correctAnswers[promptIndex] : -1;
@@ -549,6 +1005,10 @@ class MemoArcadeGame extends FlameGame {
 
   void _tapWord(Vector2 point) {
     final n = ((point.y - 150) / 62).floor();
+    if (type == GameType.wordGuess) {
+      _tapWordGuess(n);
+      return;
+    }
     if (n < 0 || n >= _wordOptions.length) return;
     score = math.max(0, score + (n == _wordCorrect ? 3 : -1));
     _specialRound++;

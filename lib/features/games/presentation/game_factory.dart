@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import '../models/game.dart';
 import 'runtime/memo_arcade_screen.dart';
+import 'board_game_screen.dart';
+import 'draw_guess_screen.dart';
 import 'games/bubble_pop_game.dart';
 import 'games/dice_roll_game.dart';
 import 'games/dots_and_boxes_game.dart';
@@ -28,6 +30,29 @@ class DedicatedGameFactory {
     String chatId = '',
     String? gameId,
   }) {
+    // Board games need their own rules and board state in both solo and
+    // multiplayer sessions; do not route them through generic arcade taps.
+    const boardGameTypes = <GameType>{
+      GameType.xo,
+      GameType.fourInRow,
+      GameType.dotsAndBoxes,
+      GameType.sudokuDuel,
+      GameType.picturePuzzle,
+      GameType.connectPairs,
+    };
+    final hasMultiplayerSession =
+        chatId.trim().isNotEmpty && (gameId?.trim().isNotEmpty ?? false);
+    if (hasMultiplayerSession && type == GameType.drawGuess) {
+      return DrawGuessScreen(chatId: chatId, gameId: gameId!.trim());
+    }
+    // Keep existing solo games with their AI/large-board implementations.
+    // XO and Connect Pairs need this board implementation even in solo mode.
+    if ((hasMultiplayerSession && boardGameTypes.contains(type)) ||
+        (!hasMultiplayerSession &&
+            const {GameType.xo, GameType.connectPairs}.contains(type))) {
+      return BoardGameScreen(type: type, chatId: chatId, gameId: gameId);
+    }
+
     // The dedicated local games are used only for solo play. Multiplayer
     // sessions stay on MemoArcadeGame so chatId/gameId score synchronization
     // remains authoritative through GameService.
