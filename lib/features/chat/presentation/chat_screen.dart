@@ -195,11 +195,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             final hasRenderableData =
                 snapshot.hasData || _lastConversations.isNotEmpty;
             if (!hasRenderableData && snapshot.hasError) {
-              return _StateView(
-                icon: AppIcons.chat,
-                title: 'لا توجد محادثات محفوظة',
-                subtitle: 'أنت غير متصل حالياً. ستظهر محادثاتك تلقائياً عند عودة الاتصال.',
-              );
+              // Keep the inbox in a neutral loading state during a transient
+              // startup/network failure. Never claim the user has no chats
+              // before a successful conversation snapshot is available.
+              return const Center(child: CircularProgressIndicator());
             }
             if (!hasRenderableData) {
               return const Center(child: CircularProgressIndicator());
@@ -284,11 +283,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 if (conversations.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
-                    child: _StateView(
-                      icon: AppIcons.message,
-                      title: 'ابدأ أول محادثة',
-                      subtitle: 'انتقل إلى «تواصل» للعثور على أشخاص وابدأ محادثة جديدة.',
-                    ),
+                    child: Center(child: CircularProgressIndicator()),
                   )
                 else if (filtered.isEmpty)
                   SliverFillRemaining(
