@@ -5,6 +5,19 @@ import 'dart:math' as math;
 class GameBoardRules {
   const GameBoardRules._();
 
+  static const Set<int> mazePathCells = <int>{
+    56, 57, 58, 59, 51, 43, 35, 36, 37, 38, 39, 31, 23, 15, 7,
+  };
+
+  static bool canMoveMaze(int fromCell, int toCell) {
+    if (!mazePathCells.contains(fromCell) || !mazePathCells.contains(toCell)) {
+      return false;
+    }
+    final rowDistance = (fromCell ~/ 8 - toCell ~/ 8).abs();
+    final columnDistance = (fromCell % 8 - toCell % 8).abs();
+    return rowDistance + columnDistance == 1;
+  }
+
   static int findWinner(
     List<int> board, {
     required int rows,
