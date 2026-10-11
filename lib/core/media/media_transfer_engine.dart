@@ -52,7 +52,9 @@ class MediaTransferEngine {
   MediaTransferEngine._();
   static final instance = MediaTransferEngine._();
 
-  static const _maxBytes = 100 * 1024 * 1024;
+  // Keep gallery videos durable on disk instead of loading their bytes into RAM.
+  // Allow larger uploads while the transfer engine streams file.openRead().
+  static const _maxBytes = 250 * 1024 * 1024;
   static const _maxAttempts = 8;
   Database? _db;
   StreamSubscription<dynamic>? _connectivity;
