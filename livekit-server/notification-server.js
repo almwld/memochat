@@ -67,10 +67,36 @@ async function sendOne(input) {
   const user = snap.data() || {}; const token = typeof user.fcmToken === 'string' ? user.fcmToken.trim() : '';
   if (!token) return { success:true, skipped:'fcm_token_missing', receiverId };
   const preferences = user.notificationPreferences || {};
-  if (!skipPreferences && preferences[type] === false) return { success:true, skipped:'user_disabled', receiverId };
+  const messageTypes = new Set(['new_message','text_message','image_message','video_message','file_message','audio_message','reply']);
+  const callTypes = new Set(['call','incoming_call','incoming_video_call','missed_call','call_status']);
+  const enabledKey = messageTypes.has(type)
+    ? 'notification_message_enabled'
+    : callTypes.has(type)
+      ? 'notification_call_enabled'
+      : 'notification_other_enabled';
+  const legacyEnabled = preferences[type];
+  const enabled = typeof preferences[enabledKey] === 'boolean'
+    ? preferences[enabledKey]
+    : typeof legacyEnabled === 'boolean' ? legacyEnabled : true;
+  if (!skipPreferences && !enabled) return { success:true, skipped:'user_disabled', receiverId };
   if (!skipPreferences && !skipDnd && dndActive(preferences) && type !== 'new_message') return { success:true, skipped:'dnd_active', receiverId };
   const high = HIGH.has(type);
-  const message = { token, data:{ type, subType:subType||'', title:String(title), body:String(body), channelId:CHANNELS[type], ...stringData(data), timestamp:String(Date.now()) }, android:{ priority:high?'high':'normal', ttl:TTL[type]||86400000, ...(type==='new_message'&&data.chatId?{collapseKey:`chat_${data.chatId}`}:{}) }, apns:{ headers:{'apns-priority':high?'10':'5','apns-push-type':'alert'}, payload:{aps:{alert:{title:String(title),body:String(body)},badge:1,'content-available':1,'thread-id':String(data.chatId||data.orderId||type)}}} };
+  const previewEnabled = preferences.notification_message_preview !== false;
+  const soundEnabled = messageTypes.has(type)
+    ? preferences.notification_message_sounds !== false
+    : callTypes.has(type)
+      ? preferences.notification_call_sounds !== false
+      : preferences.notification_other_sounds !== false;
+  const alertTitle = messageTypes.has(type) && !previewEnabled ? 'MemoChat' : String(title);
+  const alertBody = messageTypes.has(type) && !previewEnabled ? 'لديك رسالة جديدة في MemoChat' : String(body);
+  const aps = { alert:{title:alertTitle,body:alertBody}, badge:1, 'content-available':1, 'thread-id':String(data.chatId||data.callId||data.roomId||data.orderId||type) };
+  if (soundEnabled) aps.sound = 'default';
+  const message = {
+    token,
+    data:{ type, subType:subType||'', title:String(title), body:String(body), channelId:CHANNELS[type], ...stringData(data), timestamp:String(Date.now()) },
+    android:{ priority:high?'high':'normal', ttl:TTL[type]||86400000, ...(type==='new_message'&&data.chatId?{collapseKey:`chat_${data.chatId}`}:{}) },
+    apns:{ headers:{'apns-priority':high?'10':'5','apns-push-type':'alert','apns-expiration':String(Math.floor(Date.now()/1000)+Math.ceil((TTL[type]||86400000)/1000))}, payload:{aps} }
+  };
   try { return { success:true, sent:true, messageId:await messaging().send(message), receiverId, type }; }
   catch (e) { if(['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(e.code)) await db().collection('users').doc(String(receiverId)).set({fcmToken:null,lastTokenUpdate:null},{merge:true}); throw Object.assign(new Error(e.message||'FCM send failed'),{code:e.code||'FCM_SEND_FAILED'}); }
 }
