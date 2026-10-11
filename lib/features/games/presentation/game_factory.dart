@@ -31,14 +31,21 @@ class DedicatedGameFactory {
   }) {
     // Board games need their own rules and board state in both solo and
     // multiplayer sessions; do not route them through generic arcade taps.
-    if (const {
+    const boardGameTypes = <GameType>{
       GameType.xo,
       GameType.fourInRow,
       GameType.dotsAndBoxes,
       GameType.sudokuDuel,
       GameType.picturePuzzle,
       GameType.connectPairs,
-    }.contains(type)) {
+    };
+    final hasMultiplayerSession =
+        chatId.trim().isNotEmpty && (gameId?.trim().isNotEmpty ?? false);
+    // Keep existing solo games with their AI/large-board implementations.
+    // XO and Connect Pairs need this board implementation even in solo mode.
+    if ((hasMultiplayerSession && boardGameTypes.contains(type)) ||
+        (!hasMultiplayerSession &&
+            const {GameType.xo, GameType.connectPairs}.contains(type))) {
       return BoardGameScreen(type: type, chatId: chatId, gameId: gameId);
     }
 
