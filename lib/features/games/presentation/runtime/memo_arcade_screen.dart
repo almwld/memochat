@@ -362,6 +362,10 @@ class MemoArcadeGame extends FlameGame {
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
     canvas.drawRect(Rect.fromLTWH(0,0,size.x,size.y),paint);
+    if (type == GameType.mazeRunner) {
+      _renderMaze(canvas, paint);
+      return;
+    }
     paint..style=PaintingStyle.stroke..strokeWidth=1..color=const Color(0x2039D5C5);
     for (double x=0;x<size.x;x+=32) canvas.drawLine(Offset(x,78),Offset(x,size.y),paint);
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
@@ -372,10 +376,58 @@ class MemoArcadeGame extends FlameGame {
     _drawPlayer(canvas);
     for(final p in particles){paint.color=palette[p.kind%palette.length].withOpacity(math.max(0,1-p.age/.7));canvas.drawCircle(Offset(p.position.x,p.position.y),p.radius*(1+p.age*2),paint);}
     final comboLabel = combo >= 2 ? '  •  سلسلة $combo!' : '';
-    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة'+comboLabel,style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
+    final livesLabel = type == GameType.galaxyCatch ? '  •  أرواح $_galaxyLives' : '';
+    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة'+livesLabel+comboLabel,style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
     hud.paint(canvas,Offset(size.x/2-hud.width/2,20));
     final help=TextPainter(text:TextSpan(text:_instruction,style:const TextStyle(color:Color(0xB8FFFFFF),fontSize:12,fontWeight:FontWeight.w700)),textDirection:TextDirection.rtl)..layout();
     help.paint(canvas,Offset(size.x/2-help.width/2,49));
+    if (type == GameType.galaxyCatch && _galaxyGameOver) {
+      paint
+        ..style = PaintingStyle.fill
+        ..color = Colors.black.withOpacity(.72);
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+      _drawBoardLabel(canvas, 'انتهت اللعبة', size.y * .43);
+      _drawBoardLabel(canvas, 'اضغط أعلى الشاشة لإعادة المحاولة', size.y * .43 + 30);
+    }
+  }
+
+  void _renderMaze(Canvas canvas, Paint paint) {
+    final rect = _mazeBoardRect();
+    final cell = rect.width / 8;
+    for (var index = 0; index < 64; index++) {
+      final row = index ~/ 8;
+      final column = index % 8;
+      final tile = Rect.fromLTWH(rect.left + column * cell, rect.top + row * cell, cell, cell);
+      final onPath = GameBoardRules.mazePathCells.contains(index);
+      paint
+        ..style = PaintingStyle.fill
+        ..color = index == 7
+            ? const Color(0xFFFFC857)
+            : onPath
+                ? const Color(0xFF1B645A)
+                : const Color(0xFF102326);
+      canvas.drawRect(tile.deflate(1.5), paint);
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0xFF2A4548);
+      canvas.drawRect(tile.deflate(1.5), paint);
+    }
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFF0B2225);
+    final exit = _mazeCellCenter(7);
+    canvas.drawCircle(exit, cell * .2, paint);
+    paint.color = const Color(0xFF0B2225);
+    _drawPlayer(canvas);
+    _drawBoardLabel(canvas, content.title, 18);
+    _drawBoardLabel(canvas, _instruction, 45);
+    _drawBoardLabel(
+      canvas,
+      _mazeWon ? 'تم الوصول إلى المخرج! اضغط أعلى الشاشة للعب مجددًا' : 'ابدأ من أسفل اليسار واتبع الممر المتصل',
+      70,
+    );
+    _drawBoardLabel(canvas, '$score نقطة', size.y - 32);
   }
 
   void _drawPlayer(Canvas canvas) {
@@ -392,7 +444,7 @@ class MemoArcadeGame extends FlameGame {
       final flamePaint = Paint()..color = const Color(0xFFFF9F43).withOpacity(.8);
       canvas.drawPath(flame, flamePaint);
       _drawMesh(canvas, center, radius * .85, elapsed * .9,
-          _pyramidVertices, _pyramidFaces, const Color(0xFF56E6FF), tilt: .12);
+          _rocketVertices, _rocketFaces, const Color(0xFF56E6FF), tilt: .12);
     } else {
       _drawMesh(canvas, center, radius, elapsed * .65,
           _cubeVertices, _cubeFaces, const Color(0xFF4DE3C1), tilt: .45);
@@ -468,6 +520,25 @@ class MemoArcadeGame extends FlameGame {
     }
 
     if (type == GameType.galaxyCatch) {
+      if (target.kind == 2) {
+        _drawMesh(
+          canvas,
+          center,
+          r * .82,
+          target.age * .55 + target.phase,
+          _asteroidVertices,
+          _asteroidFaces,
+          const Color(0xFFE45B48),
+          tilt: .62,
+        );
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = const Color(0xFFFFB09A);
+        canvas.drawCircle(center, r * .84, paint);
+        paint.style = PaintingStyle.fill;
+        return;
+      }
       canvas.save();
       canvas.translate(center.dx, center.dy);
       canvas.rotate(target.age * .55 + target.phase);
@@ -480,7 +551,7 @@ class MemoArcadeGame extends FlameGame {
       canvas.restore();
       paint.style = PaintingStyle.fill;
       _drawMesh(canvas, center, r * .78, target.age * .55 + target.phase,
-          _sphereVertices, _sphereFaces, color);
+          _sphereVertices, _sphereFaces, target.kind == 0 ? const Color(0xFF55D9FF) : const Color(0xFF9B7CFF));
       return;
     }
 
@@ -627,6 +698,35 @@ class MemoArcadeGame extends FlameGame {
   static const List<List<int>> _gemFaces = <List<int>>[
     [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 6], [0, 6, 1],
     [7, 2, 1], [7, 3, 2], [7, 4, 3], [7, 5, 4], [7, 6, 5], [7, 1, 6],
+  ];
+
+  static const List<_Point3> _rocketVertices = <_Point3>[
+    _Point3(0, -1.25, 0),
+    _Point3(-.34, -.55, .22), _Point3(.34, -.55, .22),
+    _Point3(.34, -.55, -.22), _Point3(-.34, -.55, -.22),
+    _Point3(-.3, .48, .2), _Point3(.3, .48, .2),
+    _Point3(.3, .48, -.2), _Point3(-.3, .48, -.2),
+    _Point3(-.7, .78, .18), _Point3(.7, .78, .18),
+    _Point3(0, .9, 0),
+  ];
+  static const List<List<int>> _rocketFaces = <List<int>>[
+    [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1],
+    [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 8, 4], [4, 8, 5, 1],
+    [5, 9, 11, 8], [6, 7, 11, 10], [5, 6, 10, 11],
+    [8, 11, 7], [5, 8, 11], [5, 6, 10], [6, 7, 10],
+  ];
+
+  static const List<_Point3> _asteroidVertices = <_Point3>[
+    _Point3(-.82, -.25, .35), _Point3(-.42, -.78, .6),
+    _Point3(.35, -.7, .42), _Point3(.8, -.18, .12),
+    _Point3(.58, .5, -.28), _Point3(-.08, .8, -.45),
+    _Point3(-.7, .3, -.2), _Point3(0, 0, .9), _Point3(0, 0, -.85),
+  ];
+  static const List<List<int>> _asteroidFaces = <List<int>>[
+    [7, 0, 1], [7, 1, 2], [7, 2, 3], [7, 3, 4],
+    [7, 4, 5], [7, 5, 6], [7, 6, 0],
+    [8, 1, 0], [8, 2, 1], [8, 3, 2], [8, 4, 3],
+    [8, 5, 4], [8, 6, 5], [8, 0, 6],
   ];
 
   String get _instruction {
