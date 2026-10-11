@@ -294,13 +294,38 @@ class MemoArcadeGame extends FlameGame {
   void spawnTarget() {
     if (type == GameType.mazeRunner || _galaxyGameOver ||
         targets.length >= 11 || size.x < 30 || size.y < 120) return;
+    final phase = random.nextDouble() * math.pi * 2;
+    if (type == GameType.stackTower) {
+      targets.add(Target(
+        position: Vector2(size.x / 2, size.y - 100),
+        radius: 20,
+        velocity: Vector2.zero(),
+        kind: score % palette.length,
+        phase: phase,
+      ));
+      return;
+    }
+    if (type == GameType.balanceBeam) {
+      targets.add(Target(
+        position: Vector2(size.x / 2, size.y * .62),
+        radius: 20,
+        velocity: Vector2.zero(),
+        kind: random.nextInt(3),
+        phase: phase,
+      ));
+      return;
+    }
     final r = 18 + random.nextDouble() * 28;
     targets.add(Target(
-      position: Vector2(r + random.nextDouble() * math.max(1, size.x - r * 2),
-        90 + r + random.nextDouble() * math.max(1, size.y - 105 - r * 2)),
+      position: Vector2(
+        r + random.nextDouble() * math.max(1, size.x - r * 2),
+        115 + r + random.nextDouble() * math.max(1, size.y - 130 - r * 2),
+      ),
       radius: r,
-      velocity: Vector2((random.nextDouble()-.5)*100, (random.nextDouble()-.5)*100),
-      kind: random.nextInt(3), phase: random.nextDouble()*math.pi*2));
+      velocity: Vector2((random.nextDouble() - .5) * 100, (random.nextDouble() - .5) * 100),
+      kind: random.nextInt(3),
+      phase: phase,
+    ));
   }
 
   @override void update(double dt) {
@@ -321,7 +346,23 @@ class MemoArcadeGame extends FlameGame {
     }
     if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
     for (final t in targets) {
-      t.age += dt; t.position += t.velocity * dt;
+      t.age += dt;
+      if (type == GameType.stackTower) {
+        final level = math.min(8, score ~/ 3);
+        t.position = Vector2(
+          size.x / 2 + math.sin(elapsed * 2.2 + t.phase) * size.x * .22,
+          size.y - 88 - level * 21.0,
+        );
+        continue;
+      }
+      if (type == GameType.balanceBeam) {
+        t.position = Vector2(
+          size.x / 2 + math.sin(elapsed * 1.65 + t.phase) * size.x * .28,
+          size.y * .62 + math.sin(elapsed * 1.15 + t.phase) * 10,
+        );
+        continue;
+      }
+      t.position += t.velocity * dt;
       final r = t.radius;
       if (t.position.x < r || t.position.x > size.x-r) {
         t.velocity.x *= -1; t.position.x = t.position.x.clamp(r,size.x-r).toDouble();
