@@ -417,16 +417,16 @@ class _BoardGameScreenState extends State<BoardGameScreen> {
     final step = (side - pad * 2) / 3;
     final x = (local.dx - pad).clamp(0.0, side - pad * 2);
     final y = (local.dy - pad).clamp(0.0, side - pad * 2);
-    final col = (x / step).round().clamp(0, 3);
-    final row = (y / step).round().clamp(0, 3);
+    final col = (x / step).round().clamp(0, 3).toInt();
+    final row = (y / step).round().clamp(0, 3).toInt();
     final dx = (x - col * step).abs();
     final dy = (y - row * step).abs();
     var edgeIndex = -1;
     if (dy <= dx) {
-      final segmentCol = (x / step).floor().clamp(0, 2);
+      final segmentCol = (x / step).floor().clamp(0, 2).toInt();
       edgeIndex = row * 3 + segmentCol; // horizontal edge
     } else {
-      final segmentRow = (y / step).floor().clamp(0, 2);
+      final segmentRow = (y / step).floor().clamp(0, 2).toInt();
       edgeIndex = 12 + segmentRow * 4 + col; // vertical edge
     }
     if (edgeIndex < 0 || edgeIndex >= _edges.length || _edges[edgeIndex] != 0) return;
