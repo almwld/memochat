@@ -287,7 +287,10 @@ class MemoArcadeGame extends FlameGame {
       }
     }
     if (type != GameType.mazeRunner && targets.isEmpty && size.x > 0) {
-      for (var i = 0; i < 7; i++) spawnTarget();
+      final initialCount = type == GameType.stackTower || type == GameType.balanceBeam ? 1 : 7;
+      for (var i = 0; i < initialCount; i++) {
+        spawnTarget();
+      }
     }
   }
 
@@ -344,7 +347,11 @@ class MemoArcadeGame extends FlameGame {
       particles.removeWhere((particle) => particle.age > .7);
       return;
     }
-    if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
+    if (spawnClock > .7) {
+      spawnClock = 0;
+      final singleTargetMode = type == GameType.stackTower || type == GameType.balanceBeam;
+      if (!singleTargetMode || targets.isEmpty) spawnTarget();
+    }
     for (final t in targets) {
       t.age += dt;
       if (type == GameType.stackTower) {
@@ -356,9 +363,11 @@ class MemoArcadeGame extends FlameGame {
         continue;
       }
       if (type == GameType.balanceBeam) {
+        final targetX = size.x / 2 + math.sin(elapsed * 1.65 + t.phase) * size.x * .28;
+        final beamAngle = math.sin(elapsed * 1.15) * .12;
         t.position = Vector2(
-          size.x / 2 + math.sin(elapsed * 1.65 + t.phase) * size.x * .28,
-          size.y * .62 + math.sin(elapsed * 1.15 + t.phase) * 10,
+          targetX,
+          size.y * .62 - math.sin(beamAngle) * (targetX - size.x / 2),
         );
         continue;
       }
@@ -488,7 +497,7 @@ class MemoArcadeGame extends FlameGame {
       textDirection: TextDirection.rtl,
     )..layout();
     final swatch = Rect.fromLTWH(
-      (size.x + label.width + 14) / 2,
+      (size.x + label.width - 11) / 2,
       69,
       25,
       22,
