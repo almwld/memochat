@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/widgets/premium_ui.dart';
@@ -257,6 +259,75 @@ class ChannelScreen extends StatefulWidget {
 
 class _ChannelScreenState extends State<ChannelScreen> {
   final _controller = TextEditingController();
+  final Map<String, Map<String, dynamic>> _optimisticPosts =
+      <String, Map<String, dynamic>>{};
+  final Set<String> _sendingPostIds = <String>{};
+  final Map<String, String> _failedPosts = <String, String>{};
+
+  Future<void> _sendText() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    final postId = widget.service.newChannelPostId(
+      communityId: widget.communityId,
+      channelId: widget.channelId,
+    );
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    setState(() {
+      _optimisticPosts[postId] = <String, dynamic>{
+        'authorId': uid,
+        'text': text,
+        'createdAt': Timestamp.now(),
+      };
+      _sendingPostIds.add(postId);
+      _failedPosts.remove(postId);
+    });
+    _controller.clear();
+
+    // Match the main chat's responsive composer: render immediately and let
+    // the network write finish in the background with a stable message ID.
+    unawaited(_deliverPost(postId, text));
+  }
+
+  Future<void> _retryPost(String postId) async {
+    final post = _optimisticPosts[postId];
+    if (post == null || _sendingPostIds.contains(postId)) return;
+    final text = post['text']?.toString() ?? '';
+    if (text.trim().isEmpty) return;
+    setState(() {
+      _failedPosts.remove(postId);
+      _sendingPostIds.add(postId);
+    });
+    unawaited(_deliverPost(postId, text));
+  }
+
+  Future<void> _deliverPost(String postId, String text) async {
+    try {
+      await widget.service.sendChannelPost(
+        communityId: widget.communityId,
+        channelId: widget.channelId,
+        text: text,
+        postId: postId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sendingPostIds.remove(postId);
+        _failedPosts.remove(postId);
+        _optimisticPosts.remove(postId);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _sendingPostIds.remove(postId);
+        _failedPosts[postId] = error.toString();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تعذر إرسال الرسالة. بقيت محفوظة ويمكن إعادة المحاولة.'),
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -277,22 +348,53 @@ class _ChannelScreenState extends State<ChannelScreen> {
       ),
       body: Column(children: [
         Expanded(
-          child: StreamBuilder(
-            stream: widget.service.watchPosts(communityId: widget.communityId, channelId: widget.channelId),
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: widget.service.watchPosts(
+              communityId: widget.communityId,
+              channelId: widget.channelId,
+            ),
             builder: (context, snapshot) {
-              if (snapshot.hasError) return const Center(child: Text('تعذر تحميل رسائل الغرفة.'));
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-              final posts = snapshot.data!.docs;
-              if (posts.isEmpty) return const Center(child: Text('ابدأ أول رسالة في هذه الغرفة.'));
+              if (snapshot.hasError) {
+                return const Center(child: Text('تعذر تحميل رسائل الغرفة.'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final entries = <String, Map<String, dynamic>>{
+                for (final doc in snapshot.data!.docs) doc.id: doc.data(),
+              };
+              // Keep optimistic/failed posts visible if the server rejects a
+              // write or the stream has not received its canonical document yet.
+              for (final entry in _optimisticPosts.entries) {
+                entries.putIfAbsent(entry.key, () => entry.value);
+              }
+              int createdAtMillis(Map<String, dynamic> data) {
+                final value = data['createdAt'];
+                return value is Timestamp ? value.millisecondsSinceEpoch : 0;
+              }
+              final ordered = entries.entries.toList()
+                ..sort((a, b) => createdAtMillis(b.value).compareTo(createdAtMillis(a.value)));
+
+              if (ordered.isEmpty) {
+                return const Center(child: Text('ابدأ أول رسالة في هذه الغرفة.'));
+              }
               return ListView.builder(
                 reverse: true,
                 padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-                itemCount: posts.length,
+                itemCount: ordered.length,
                 itemBuilder: (_, index) {
-                  final data = posts[index].data();
-                  final mine = data['authorId']?.toString() == FirebaseAuth.instance.currentUser?.uid;
+                  final entry = ordered[index];
+                  final postId = entry.key;
+                  final data = entry.value;
+                  final mine = data['authorId']?.toString() ==
+                      FirebaseAuth.instance.currentUser?.uid;
+                  final failed = _failedPosts.containsKey(postId);
+                  final sending = _sendingPostIds.contains(postId);
                   return Align(
-                    alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+                    alignment: mine
+                        ? AlignmentDirectional.centerEnd
+                        : AlignmentDirectional.centerStart,
                     child: Container(
                       constraints: const BoxConstraints(maxWidth: 330),
                       margin: const EdgeInsets.only(bottom: 8),
@@ -301,7 +403,43 @@ class _ChannelScreenState extends State<ChannelScreen> {
                         color: mine ? scheme.primary : scheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Text(data['text']?.toString() ?? '', style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface, height: 1.35)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            data['text']?.toString() ?? '',
+                            style: TextStyle(
+                              color: mine ? scheme.onPrimary : scheme.onSurface,
+                              height: 1.35,
+                            ),
+                          ),
+                          if (sending || failed)
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: failed
+                                  ? TextButton.icon(
+                                      onPressed: () => _retryPost(postId),
+                                      icon: const Icon(Icons.refresh_rounded, size: 16),
+                                      label: const Text('إعادة الإرسال'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: mine
+                                            ? scheme.onPrimary
+                                            : scheme.primary,
+                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.schedule_rounded,
+                                      size: 14,
+                                      color: mine
+                                          ? scheme.onPrimary.withOpacity(.8)
+                                          : scheme.onSurfaceVariant,
+                                    ),
+                            ),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -329,16 +467,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
               const SizedBox(width: 6),
               IconButton.filled(
                 tooltip: 'إرسال',
-                onPressed: () async {
-                  final text = _controller.text.trim();
-                  if (text.isEmpty) return;
-                  _controller.clear();
-                  try {
-                    await widget.service.sendChannelPost(communityId: widget.communityId, channelId: widget.channelId, text: text);
-                  } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الإرسال: $e')));
-                  }
-                },
+                onPressed: _sendText,
                 icon: const Icon(Icons.send_rounded),
               ),
             ]),
