@@ -152,40 +152,22 @@ class CommunityService {
         .snapshots();
   }
 
-  String newChannelPostId({
-    required String communityId,
-    required String channelId,
-  }) {
-    _requireUser();
-    return _communities
-        .doc(communityId)
-        .collection('channels')
-        .doc(channelId)
-        .collection('posts')
-        .doc()
-        .id;
-  }
-
   Future<void> sendChannelPost({
     required String communityId,
     required String channelId,
     required String text,
-    String? postId,
   }) async {
     _requireUser();
     final cleanText = text.trim();
     if (cleanText.isEmpty || cleanText.length > 4000) {
       throw ArgumentError.value(text, 'text', 'المنشور غير صالح');
     }
-    final posts = _communities
+    await _communities
         .doc(communityId)
         .collection('channels')
         .doc(channelId)
-        .collection('posts');
-    final id = postId?.trim().isNotEmpty == true
-        ? postId!.trim()
-        : posts.doc().id;
-    await posts.doc(id).set({
+        .collection('posts')
+        .add({
       'authorId': _uid,
       'text': cleanText,
       'createdAt': FieldValue.serverTimestamp(),
