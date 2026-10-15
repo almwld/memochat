@@ -75,17 +75,22 @@ void main() {
 
     test('known quiz answers point to the correct option, not just a valid index', () {
       const expectedAnswers = <GameType, List<String>>{
+        GameType.quizBattle: ['المريخ', '7', 'صنعاء', '3'],
         GameType.emojiReaction: ['❤', '★', '●', '◆'],
-        GameType.guessSong: ['جاز', 'روك', 'كلاسيكي', 'عربي'],
+        GameType.trivia: ['الهادئ', 'العربية', '7', '12', 'الأكسجين', '6'],
+        GameType.fastChoice: ['13', '4', 'صنعاء', '60'],
+        GameType.trueFalse: ['صحيح', 'خطأ', 'صحيح'],
+        GameType.riddleRush: ['المشط', 'الوقت', 'الحفرة', 'الكتاب', 'الصدى'],
+        GameType.guessSong: ['جاز', 'روك', 'كلاسيكي', 'أغاني عربية'],
         GameType.movieQuiz: ['أكشن', 'كوميديا', 'خيال علمي', 'دراما'],
-        GameType.higherLower: ['18', '23', 'متساويان', '31'],
-        GameType.flagQuiz: ['اليمن', 'اليابان', 'فرنسا'],
-        GameType.animalQuiz: ['الفهد', 'الحوت الأزرق'],
+        GameType.higherLower: ['18', '23', 'متساويان', '31', '9', 'لا'],
+        GameType.flagQuiz: ['اليمن', 'اليابان', 'فرنسا', 'البرازيل', 'مصر', 'إيطاليا'],
+        GameType.animalQuiz: ['الفهد', 'الحوت الأزرق', 'خلد الماء', 'الحمار الوحشي', 'الدهون'],
         GameType.foodQuiz: ['سوشي', 'كبسة', 'بيتزا', 'الحمص'],
-        GameType.geographyQuiz: ['إيفرست', 'آسيا'],
-        GameType.scienceQuiz: ['H₂O', 'إلكترون'],
-        GameType.historyQuiz: ['اليمن', 'مصر'],
-        GameType.languageQuiz: ['كتب', 'صغير'],
+        GameType.geographyQuiz: ['إيفرست', 'آسيا', 'طوكيو', 'المحيط الهندي', 'أفريقيا'],
+        GameType.scienceQuiz: ['H₂O', 'إلكترون', 'البناء الضوئي', 'الشمس', '0°م'],
+        GameType.historyQuiz: ['اليمن', 'مصر', 'روما', 'نيل أرمسترونغ', 'الصين'],
+        GameType.languageQuiz: ['كتب', 'صغير', 'ماضٍ', 'طالبان', 'مدرسة'],
       };
 
       for (final entry in expectedAnswers.entries) {
