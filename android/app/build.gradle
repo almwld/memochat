@@ -74,3 +74,5 @@ android {
 flutter {
     source "../.."
 }
+
+// CI verification marker: keep Android SDK requirements explicit.
