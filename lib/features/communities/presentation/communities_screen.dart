@@ -4,6 +4,7 @@ import '../../../core/widgets/premium_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../data/community_service.dart';
+import 'package:memochat/features/chat/presentation/widgets/message_bubble.dart';
 
 class CommunitiesScreen extends StatelessWidget {
   const CommunitiesScreen({super.key, this.service});
@@ -257,52 +258,120 @@ class ChannelScreen extends StatefulWidget {
 
 class _ChannelScreenState extends State<ChannelScreen> {
   final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+  bool _sending = false;
 
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendPost() async {
+    if (_sending) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _sending = true);
+    _controller.clear();
+    try {
+      await widget.service.sendChannelPost(
+        communityId: widget.communityId,
+        channelId: widget.channelId,
+        text: text,
+      );
+    } catch (e) {
+      if (mounted) {
+        _controller.text = text;
+        _controller.selection = TextSelection.collapsed(offset: text.length);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر الإرسال: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
         title: Row(children: [
-          Container(width: 40, height: 40, decoration: BoxDecoration(color: scheme.primary.withOpacity(.10), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.forum_rounded, color: scheme.primary)),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(.10),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(Icons.forum_rounded, color: scheme.primary),
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(widget.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900))),
+          Expanded(
+            child: Text(
+              widget.name,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
         ]),
       ),
       body: Column(children: [
         Expanded(
           child: StreamBuilder(
-            stream: widget.service.watchPosts(communityId: widget.communityId, channelId: widget.channelId),
+            stream: widget.service.watchPosts(
+              communityId: widget.communityId,
+              channelId: widget.channelId,
+            ),
             builder: (context, snapshot) {
-              if (snapshot.hasError) return const Center(child: Text('تعذر تحميل رسائل الغرفة.'));
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError) {
+                return const Center(child: Text('تعذر تحميل رسائل الغرفة.'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
               final posts = snapshot.data!.docs;
-              if (posts.isEmpty) return const Center(child: Text('ابدأ أول رسالة في هذه الغرفة.'));
-              return ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-                itemCount: posts.length,
-                itemBuilder: (_, index) {
-                  final data = posts[index].data();
-                  final mine = data['authorId']?.toString() == FirebaseAuth.instance.currentUser?.uid;
-                  return Align(
-                    alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 330),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: mine ? scheme.primary : scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(data['text']?.toString() ?? '', style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface, height: 1.35)),
+              if (posts.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.forum_outlined, size: 44, color: scheme.primary.withOpacity(.65)),
+                        const SizedBox(height: 12),
+                        const Text('ابدأ أول رسالة في هذه الغرفة.', textAlign: TextAlign.center),
+                      ],
                     ),
+                  ),
+                );
+              }
+              return ListView.builder(
+                controller: _scrollController,
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                itemCount: posts.length,
+                itemBuilder: (context, index) {
+                  final doc = posts[index];
+                  final data = doc.data();
+                  final mine = data['authorId']?.toString() ==
+                      FirebaseAuth.instance.currentUser?.uid;
+                  final createdAt = data['createdAt'];
+                  return MessageBubble(
+                    key: ValueKey(doc.id),
+                    isMe: mine,
+                    message: <String, dynamic>{
+                      'id': doc.id,
+                      'authorId': data['authorId']?.toString() ?? '',
+                      'text': data['text']?.toString() ?? '',
+                      'type': 'text',
+                      'createdAt': createdAt,
+                      'timestamp': createdAt,
+                      'isEdited': data['isEdited'] == true,
+                    },
                   );
                 },
               );
@@ -311,37 +380,74 @@ class _ChannelScreenState extends State<ChannelScreen> {
         ),
         SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-            child: Row(children: [
-              Expanded(child: TextField(
-                controller: _controller,
-                minLines: 1,
-                maxLines: 4,
-                textInputAction: TextInputAction.newline,
-                decoration: InputDecoration(
-                  hintText: 'اكتب رسالة في الغرفة...',
-                  filled: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                ),
-              )),
-              const SizedBox(width: 6),
-              IconButton.filled(
-                tooltip: 'إرسال',
-                onPressed: () async {
-                  final text = _controller.text.trim();
-                  if (text.isEmpty) return;
-                  _controller.clear();
-                  try {
-                    await widget.service.sendChannelPost(communityId: widget.communityId, channelId: widget.channelId, text: text);
-                  } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر الإرسال: $e')));
-                  }
-                },
-                icon: const Icon(Icons.send_rounded),
+          child: Material(
+            color: dark ? const Color(0xFF111B21) : const Color(0xFFF0F2F5),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 46, maxHeight: 132),
+                      decoration: BoxDecoration(
+                        color: dark ? const Color(0xFF202C33) : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: dark ? const Color(0xFF29413D) : const Color(0xFFDCE5E3),
+                          width: .7,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _controller,
+                        minLines: 1,
+                        maxLines: 5,
+                        textDirection: TextDirection.rtl,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        onSubmitted: (_) => _sendPost(),
+                        decoration: InputDecoration(
+                          hintText: 'اكتب رسالة في القناة...',
+                          hintStyle: TextStyle(color: dark ? const Color(0xFF9AAEAA) : const Color(0xFF687A76)),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Semantics(
+                    button: true,
+                    label: 'إرسال رسالة إلى القناة',
+                    child: GestureDetector(
+                      onTap: _sending ? null : _sendPost,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        width: 46,
+                        height: 46,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF0D8274),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: _sending
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ]),
+            ),
           ),
         ),
       ]),
