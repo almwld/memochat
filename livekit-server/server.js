@@ -469,6 +469,20 @@ app.post('/call-notification', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid call participants', requestId });
     }
 
+    const receiverSnapshot = await db.collection('users').doc(receiverId).get();
+    const receiverPreferences = receiverSnapshot.data()?.notificationPreferences || {};
+    if (receiverPreferences.notification_call_enabled === false ||
+        receiverPreferences.incoming_call === false) {
+      return res.json({
+        success: true,
+        sent: false,
+        skipped: 'user_disabled',
+        callId,
+        receiverId,
+        requestId,
+      });
+    }
+
     const tokenSnapshot = await db.collection('users').doc(receiverId)
       .collection('private').doc('tokens').get();
     const tokenData = tokenSnapshot.exists ? (tokenSnapshot.data() || {}) : {};
@@ -488,6 +502,19 @@ app.post('/call-notification', async (req, res) => {
         requestId,
       });
     }
+
+    const callSoundEnabled = receiverPreferences.notification_call_sounds !== false;
+    const callTitle = String(call.callerName || 'مستخدم');
+    const callBody = (call.isVideoCall === true || call.isVideo === true || call.callType === 'video')
+      ? 'مكالمة فيديو واردة'
+      : 'مكالمة صوتية واردة';
+    const aps = {
+      alert: { title: callTitle, body: callBody },
+      badge: 1,
+      'content-available': 1,
+      'thread-id': 'call_' + callId,
+    };
+    if (callSoundEnabled) aps.sound = 'default';
 
     const message = {
       tokens: fcmTokens,
@@ -515,6 +542,14 @@ app.post('/call-notification', async (req, res) => {
         callType: String(call.callType || ((call.isVideoCall || call.isVideo) ? 'video' : 'audio')),
       },
       android: { priority: 'high', ttl: 60 * 1000 },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+          'apns-push-type': 'alert',
+          'apns-expiration': String(Math.floor(Date.now() / 1000) + 60),
+        },
+        payload: { aps },
+      },
     };
 
     const response = await admin.messaging().sendEachForMulticast(message);
@@ -702,7 +737,14 @@ app.use((error, _req, res, _next) => {
   return res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-startMessageListener();
+// Cloud Functions own message-notification delivery and archival. The
+// legacy Firestore listener remains opt-in for controlled migrations only;
+// running both dispatchers causes duplicate FCM notifications.
+if (process.env.ENABLE_LEGACY_FIRESTORE_MESSAGE_NOTIFICATIONS === 'true') {
+  startMessageListener();
+} else {
+  console.log('Firestore message listener disabled; Cloud Functions own message notifications.');
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`MemoChat LiveKit token server running on port ${PORT}`);

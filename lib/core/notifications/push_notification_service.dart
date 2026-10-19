@@ -37,6 +37,7 @@ class PushNotificationService {
 
   Future<void> _initialize() async {
     try {
+    await NotificationPreferences().syncWithCloud();
     _localNotifications.setNotificationTapHandler(_handleLocalTap);
     await _localNotifications.initialize();
     try {

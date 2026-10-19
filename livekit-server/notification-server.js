@@ -64,23 +64,74 @@ async function sendOne(input) {
   if (!TYPES.includes(type)) throw Object.assign(new Error(`Invalid notification type: ${type}`), { code:'INVALID_TYPE' });
   const snap = await db().collection('users').doc(String(receiverId)).get();
   if (!snap.exists) throw Object.assign(new Error('Receiver not found'), { code:'RECEIVER_NOT_FOUND' });
-  const user = snap.data() || {}; const token = typeof user.fcmToken === 'string' ? user.fcmToken.trim() : '';
-  if (!token) return { success:true, skipped:'fcm_token_missing', receiverId };
+  const user = snap.data() || {};
+  const tokenSnapshot = await db().collection('users').doc(String(receiverId)).collection('private').doc('tokens').get();
+  const tokenData = tokenSnapshot.data() || {};
+  const tokens = [...new Set([
+    ...(Array.isArray(tokenData.tokens) ? tokenData.tokens : []),
+    ...(typeof user.fcmToken === 'string' ? [user.fcmToken] : [])
+  ].map(value => String(value || '').trim()).filter(Boolean))];
+  if (!tokens.length) return { success:true, skipped:'fcm_token_missing', receiverId };
   const preferences = user.notificationPreferences || {};
-  if (!skipPreferences && preferences[type] === false) return { success:true, skipped:'user_disabled', receiverId };
+  const messageTypes = new Set(['new_message','text_message','image_message','video_message','file_message','audio_message','reply']);
+  const callTypes = new Set(['call','incoming_call','incoming_video_call','missed_call','call_status']);
+  const enabledKey = messageTypes.has(type)
+    ? 'notification_message_enabled'
+    : callTypes.has(type)
+      ? 'notification_call_enabled'
+      : 'notification_other_enabled';
+  const legacyEnabled = preferences[type];
+  const enabled = legacyEnabled === false
+    ? false
+    : typeof preferences[enabledKey] === 'boolean'
+      ? preferences[enabledKey]
+      : typeof legacyEnabled === 'boolean' ? legacyEnabled : true;
+  if (!skipPreferences && !enabled) return { success:true, skipped:'user_disabled', receiverId };
   if (!skipPreferences && !skipDnd && dndActive(preferences) && type !== 'new_message') return { success:true, skipped:'dnd_active', receiverId };
   const high = HIGH.has(type);
-  const message = { token, data:{ type, subType:subType||'', title:String(title), body:String(body), channelId:CHANNELS[type], ...stringData(data), timestamp:String(Date.now()) }, android:{ priority:high?'high':'normal', ttl:TTL[type]||86400000, ...(type==='new_message'&&data.chatId?{collapseKey:`chat_${data.chatId}`}:{}) }, apns:{ headers:{'apns-priority':high?'10':'5','apns-push-type':'alert'}, payload:{aps:{alert:{title:String(title),body:String(body)},badge:1,'content-available':1,'thread-id':String(data.chatId||data.orderId||type)}}} };
-  try { return { success:true, sent:true, messageId:await messaging().send(message), receiverId, type }; }
-  catch (e) { if(['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(e.code)) await db().collection('users').doc(String(receiverId)).set({fcmToken:null,lastTokenUpdate:null},{merge:true}); throw Object.assign(new Error(e.message||'FCM send failed'),{code:e.code||'FCM_SEND_FAILED'}); }
+  const previewEnabled = preferences.notification_message_preview !== false;
+  const soundEnabled = messageTypes.has(type)
+    ? preferences.notification_message_sounds !== false
+    : callTypes.has(type)
+      ? preferences.notification_call_sounds !== false
+      : preferences.notification_other_sounds !== false;
+  const alertTitle = messageTypes.has(type) && !previewEnabled ? 'MemoChat' : String(title);
+  const alertBody = messageTypes.has(type) && !previewEnabled ? 'لديك رسالة جديدة في MemoChat' : String(body);
+  const aps = { alert:{title:alertTitle,body:alertBody}, badge:1, 'content-available':1, 'thread-id':String(data.chatId||data.callId||data.roomId||data.orderId||type) };
+  if (soundEnabled) aps.sound = 'default';
+  const message = {
+    tokens,
+    data:{ type, subType:subType||'', title:String(title), body:String(body), channelId:CHANNELS[type], ...stringData(data), timestamp:String(Date.now()) },
+    android:{ priority:high?'high':'normal', ttl:TTL[type]||86400000, ...(type==='new_message'&&data.chatId?{collapseKey:`chat_${data.chatId}`}:{}) },
+    apns:{ headers:{'apns-priority':high?'10':'5','apns-push-type':'alert','apns-expiration':String(Math.floor(Date.now()/1000)+Math.ceil((TTL[type]||86400000)/1000))}, payload:{aps} }
+  };
+  try {
+    const response = await messaging().sendEachForMulticast(message);
+    const invalidTokens = response.responses
+      .map((result, index) => !result.success && ['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(result.error?.code) ? tokens[index] : '')
+      .filter(Boolean);
+    if (invalidTokens.length) {
+      await db().collection('users').doc(String(receiverId)).collection('private').doc('tokens').set({
+        tokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, {merge:true});
+      if (typeof user.fcmToken === 'string' && invalidTokens.includes(user.fcmToken.trim())) {
+        await db().collection('users').doc(String(receiverId)).set({fcmToken:null,lastTokenUpdate:null},{merge:true});
+      }
+    }
+    if (response.failureCount) console.warn(`FCM multicast failures for ${receiverId}: ${response.failureCount}`);
+    return { success:response.successCount > 0, sent:response.successCount > 0, successCount:response.successCount, failureCount:response.failureCount, receiverId, type };
+  } catch (e) {
+    throw Object.assign(new Error(e.message||'FCM send failed'),{code:e.code||'FCM_SEND_FAILED'});
+  }
 }
 async function logNotification(senderId,input,result,requestId) { try { await db().collection('notifications_log').add({senderId,receiverId:input?.receiverId||null,type:input?.type||null,subType:input?.subType||null,title:input?.title||null,body:input?.body||null,data:input?.data||{},result,requestId,createdAt:admin.firestore.FieldValue.serverTimestamp()}); } catch(e) { console.warn('Notification log failed:',e.message); } }
 app.get('/health', (_req,res) => res.json({status:'ok',service:'memochat-notification-server',firebaseAuth:firebaseConfigured?'configured':'not_configured',uptime:process.uptime()}));
-app.get('/notification/health', (_req,res) => res.json({status:'ok',service:'sehatak-notification-server',firebaseAuth:firebaseConfigured?'configured':'not_configured',uptime:process.uptime(),supportedTypes:TYPES}));
+app.get('/notification/health', (_req,res) => res.json({status:'ok',service:'memochat-notification-server',firebaseAuth:firebaseConfigured?'configured':'not_configured',uptime:process.uptime(),supportedTypes:TYPES}));
 app.post('/notification', async (req,res) => { const id=`notify-${Date.now()}-${Math.random().toString(36).slice(2,8)}`; try { const user=await verifyUser(req); const rl=checkLimit(user.uid); if(!rl.allowed)return res.status(429).json({success:false,code:'RATE_LIMIT',retryAfter:rl.retryAfter,requestId:id}); const result=await sendOne(req.body||{}); await logNotification(user.uid,req.body||{},result,id); return res.json({...result,requestId:id,rateLimitRemaining:rl.remaining}); } catch(e) { const status=e.statusCode||({MISSING_FIELDS:400,INVALID_TYPE:400,RECEIVER_NOT_FOUND:404}[e.code]||500); return res.status(status).json({success:false,code:e.code||'UNKNOWN',error:e.message,requestId:id}); } });
 app.post('/notification/batch', async (req,res) => { const id=`batch-${Date.now()}-${Math.random().toString(36).slice(2,8)}`; try { const user=await verifyUser(req); const rl=checkLimit(user.uid,20); if(!rl.allowed)return res.status(429).json({success:false,code:'RATE_LIMIT',retryAfter:rl.retryAfter,requestId:id}); const n=req.body?.notifications; if(!Array.isArray(n)||!n.length)return res.status(400).json({success:false,code:'INVALID_DATA',requestId:id}); if(n.length>100)return res.status(400).json({success:false,code:'BATCH_TOO_LARGE',requestId:id}); const results=await Promise.allSettled(n.map(sendOne)); const succeeded=[],failed=[]; results.forEach((r,i)=>r.status==='fulfilled'?succeeded.push({index:i,...r.value}):failed.push({index:i,receiverId:n[i]?.receiverId,error:r.reason?.message,code:r.reason?.code})); for(let i=0;i<n.length;i++) await logNotification(user.uid,n[i],results[i].status==='fulfilled'?results[i].value:{success:false,error:results[i].reason?.message},id); return res.json({success:failed.length===0,requestId:id,total:n.length,succeeded:succeeded.length,failed:failed.length,results:{succeeded,failed}}); } catch(e) { return res.status(e.statusCode||500).json({success:false,code:e.code||'UNKNOWN',error:e.message,requestId:id}); } });
 app.post('/notification/topic', async (req,res) => { try { const user=await verifyUser(req); const rl=checkLimit(user.uid,20); if(!rl.allowed)return res.status(429).json({success:false,code:'RATE_LIMIT'}); const snap=await db().collection('users').doc(user.uid).get(); if(!['admin','supervisor'].includes(snap.data()?.role))return res.status(403).json({success:false,code:'FORBIDDEN'}); const {topic,type='system',title,body,data={}}=req.body||{}; if(!topic||!title||!body)return res.status(400).json({success:false,code:'MISSING_FIELDS'}); if(!TYPES.includes(type))return res.status(400).json({success:false,code:'INVALID_TYPE'}); const messageId=await messaging().send({topic:String(topic),data:{type,title:String(title),body:String(body),...stringData(data),timestamp:String(Date.now())},android:{priority:'normal',ttl:86400000}}); return res.json({success:true,messageId,topic}); } catch(e) { return res.status(e.statusCode||500).json({success:false,code:e.code||'UNKNOWN',error:e.message}); } });
 app.post('/notification/test', async (req,res) => { if(process.env.NODE_ENV==='production')return res.status(403).json({success:false,code:'DISABLED_IN_PRODUCTION'}); try { const {fcmToken,type='system',title,body,data={}}=req.body||{}; if(!fcmToken||!title||!body)return res.status(400).json({success:false,code:'MISSING_FIELDS'}); const messageId=await messaging().send({token:String(fcmToken),data:{type,title:String(title),body:String(body),...stringData(data)},android:{priority:'high',ttl:3600000}}); return res.json({success:true,messageId}); } catch(e) { return res.status(500).json({success:false,code:e.code||'FCM_SEND_FAILED',error:e.message}); } });
 app.use((error,_req,res,_next)=>res.status(400).json({success:false,code:'BAD_REQUEST',error:error.message}));
-app.listen(PORT,'0.0.0.0',()=>console.log(`Sehatak Notification Server listening on ${PORT}`));
+app.listen(PORT,'0.0.0.0',()=>console.log(`MemoChat Notification Server listening on ${PORT}`));
 module.exports=app;
