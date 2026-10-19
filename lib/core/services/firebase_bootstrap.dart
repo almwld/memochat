@@ -20,34 +20,36 @@ class FirebaseBootstrap {
     _lastFirebaseError = null;
     _lastError = null;
 
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      try {
-        if (Firebase.apps.isEmpty) {
-          await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform,
-          );
-        }
-        return true;
-      } on FirebaseException catch (error) {
-        _lastFirebaseError = error;
-        _lastError = error;
-      } catch (error) {
-        _lastError = error;
-      }
-      if (attempt < 3) {
-        await Future<void>.delayed(Duration(milliseconds: 500 * attempt));
-      }
-    }
-
-    // Android can resolve the generated google-services.json natively.
-    // This is intentionally a fallback; no API key is embedded in source.
+    // On Android, prefer the native resources generated from
+    // android/app/google-services.json. This avoids accidentally initializing
+    // Firebase with an empty --dart-define API key in local/debug builds.
     try {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
-      return true;
+      if (Firebase.apps.isNotEmpty) return true;
     } catch (error) {
       _lastError = error;
+      if (error is FirebaseException) _lastFirebaseError = error;
+    }
+
+    // Fallback for builds where native Firebase resources are unavailable.
+    // The caller can show a useful error if both configuration paths fail.
+    try {
+      if (Firebase.apps.isEmpty) {
+        final options = DefaultFirebaseOptions.currentPlatform;
+        if (options.apiKey.isEmpty) {
+          throw StateError(
+            'Firebase Android API key is empty and native Firebase '
+            'configuration could not be loaded.',
+          );
+        }
+        await Firebase.initializeApp(options: options);
+      }
+      return Firebase.apps.isNotEmpty;
+    } catch (error) {
+      _lastError = error;
+      if (error is FirebaseException) _lastFirebaseError = error;
       _initialization = null;
       return false;
     }
