@@ -243,7 +243,9 @@ class ChatService {
     // ordinary encryption preference is disabled.
     final useEncryption = viewOnce || _security.isEncryptionEnabledForChat(chatId);
     if(useEncryption) await SignalSessionManager.instance.ensureReady();
-    if(idempotencyKey?.isNotEmpty==true){final x=await _chatRef(chatId).collection('messages').where('idempotencyKey',isEqualTo:idempotencyKey).limit(1).get();if(x.docs.isNotEmpty)return x.docs.first.id;}
+    // Idempotency is enforced by the deterministic document ID and the
+    // transaction below. Avoid a separate query and preflight document read:
+    // both add network round trips to every normal message send.
     final participants=List<String>.from(chat.data()?['participants']??const []);
     final receiverIds=participants.where((p)=>p!=id).toList();
     // Empty optional URL fields must not classify a message as media. Some
@@ -281,10 +283,6 @@ class ChatService {
         : deterministicId.isNotEmpty
             ? messagesRef.doc(deterministicId)
             : messagesRef.doc();
-    if (cleanMessageId.isNotEmpty || deterministicId.isNotEmpty) {
-      final existing = await ref.get();
-      if (existing.exists) return ref.id;
-    }
     Map<String,dynamic>? replyPreview;
     if(replyToId?.isNotEmpty==true){final rr=await _chatRef(chatId).collection('messages').doc(replyToId).get();if(rr.exists){final source=rr.data()??<String,dynamic>{};final d=await _decryptMessageData(id,source);final oneTime=source['viewOnce']==true||(source['metadata'] is Map&&(source['metadata'] as Map)['viewOnce']==true);replyPreview={'id':rr.id,'senderId':d['senderId']?.toString()??'','senderName':d['senderName']?.toString()??'مستخدم','text':oneTime?'رسالة لمرة واحدة':d['text']?.toString()??'مرفق','type':oneTime?'view_once':d['type']?.toString()??'text'};}}
     Map<String, dynamic> messageData;
