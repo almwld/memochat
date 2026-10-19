@@ -24,7 +24,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
   bool _isLoadingMore = false;
-  bool _markingSeen = false;
   bool _keepAtBottom = true;
 
   @override void initState() {
@@ -62,17 +61,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     });
   }
 
-  Future<void> _markConversationSeen() async {
-    if (_markingSeen) return;
-    _markingSeen = true;
-    try { await _chatService.markAsRead(widget.chatId); } catch (e) { debugPrint('Chat mark-as-read failed: $e'); } finally { _markingSeen = false; }
-  }
-
   void _sendText(String text, Timestamp clientTimestamp) {
-    final value = text.trim();
-    if (value.isEmpty) return;
+    if (text.trim().isEmpty) return;
+    // ChatInputBar owns the single reliable send path. This callback only
+    // handles the immediate UI response; dispatching SendMessage here as well
+    // caused the same text to be written through two independent services.
     _keepAtBottom = true;
-    context.read<MessagesBloc>().add(SendMessage(chatId: widget.chatId, text: value));
     _stickToBottom();
   }
 
@@ -110,7 +104,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             if (state is MessagesError) return Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(state.message, textAlign: TextAlign.center)));
             if (state is MessagesLoaded) {
               if (state.messages.isEmpty) return const Center(child: Text('لا توجد رسائل'));
-              unawaited(_markConversationSeen());
               final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
               final messages = List.of(state.messages)..sort((a, b) => (b.timestamp ?? Timestamp(0, 0)).compareTo(a.timestamp ?? Timestamp(0, 0)));
               return ListView.builder(
