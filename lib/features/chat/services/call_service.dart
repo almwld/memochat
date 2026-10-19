@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:memochat/core/config/livekit_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -67,10 +68,10 @@ class CallService {
   Stream<CallModel?> streamCall(String id) => _firestore.collection('calls').doc(id).snapshots().map((d) => d.exists ? CallModel.fromFirestore(d.id, d.data()!) : null);
   Future<void> _timeline({required String chatId, required String callId, required String text, required String status, required CallType type, int? durationSeconds}) async { if (chatId.isEmpty) return; try { await _chat.sendSystemMessage(chatId: chatId, text: text, idempotencyKey: 'call_${callId}_$status', metadata: {'callId': callId, 'callType': type.name, 'isVideo': type == CallType.video, 'status': status, if (durationSeconds != null) 'duration': _formatDuration(durationSeconds)}); } catch (e) { debugPrint('call timeline: $e'); } }
   String _lockId(String a, String b) { final ids = [a,b]..sort(); return '${ids[0]}_${ids[1]}'; }
-  static const String _callNotificationEndpoint = String.fromEnvironment(
-    'BACKEND_URL',
-    defaultValue: 'https://c3mhwp72itmc-production-ar6e2elm.us-central1.suga.run',
-  );
+  // Use the same Suga service base URL as the LiveKit token client.
+  // Separate BACKEND_URL and LIVEKIT_TOKEN_SERVER_URL values previously
+  // allowed token issuance and incoming-call wake-ups to target different hosts.
+  static const String _callNotificationEndpoint = LiveKitConfig.tokenServerUrl;
 
   Future<void> _notifyIncomingCall({required String callId}) async {
     final user = _auth.currentUser;
