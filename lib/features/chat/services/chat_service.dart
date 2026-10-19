@@ -467,17 +467,26 @@ Future<String> sendSystemMessage({required String chatId,required String text,St
     Stream<MessagePaginationResult> streamMessages(String chatId,{int limit=30}) {
     final controller=StreamController<MessagePaginationResult>();
     StreamSubscription<QuerySnapshot<Map<String,dynamic>>>? subscription;
+    final safeLimit = limit < 1 ? 30 : limit;
     Future<void> start() async {
       try {
         await _authorizedChat(chatId);
-        // Load the complete conversation, not just the latest page. Combined
-        // with Firestore's unlimited persistent disk cache, this keeps every
-        // previously fetched message available after restart and while offline.
-        // The limit parameter remains for source compatibility with existing
-        // callers; pagination can still be used by getMoreMessages elsewhere.
-        subscription=_chatRef(chatId).collection('messages').orderBy('timestamp',descending:true).snapshots(includeMetadataChanges: true).listen((s) async {
+        // Stream only the newest page. Re-decrypting the entire conversation
+        // on every snapshot made each incoming message progressively slower
+        // as history grew. Older messages are fetched through getMoreMessages.
+        // Exclude metadata-only snapshots because they do not change message
+        // content and should not trigger another full page decode.
+        subscription=_chatRef(chatId).collection('messages')
+            .orderBy('timestamp',descending:true)
+            .limit(safeLimit)
+            .snapshots()
+            .listen((s) async {
           try {
-            controller.add(MessagePaginationResult(messages:await _decryptMessageDocs(s.docs),lastDocument:s.docs.isNotEmpty?s.docs.last:null,hasMore:false));
+            controller.add(MessagePaginationResult(
+              messages: await _decryptMessageDocs(s.docs),
+              lastDocument: s.docs.isNotEmpty ? s.docs.last : null,
+              hasMore: s.docs.length >= safeLimit,
+            ));
           } catch(e,st) { controller.addError(e,st); }
         },onError:controller.addError);
       } catch(e,st) { controller.addError(e,st); await controller.close(); }
