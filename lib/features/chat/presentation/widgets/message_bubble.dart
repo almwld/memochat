@@ -35,58 +35,44 @@ class _MemoBubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
 
-    // WhatsApp-inspired palette: pale sage outgoing bubbles in light mode,
-    // deep green outgoing bubbles in dark mode, and neutral incoming bubbles.
-    final color = isMe
-        ? (dark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3))
-        : (dark ? const Color(0xFF202C33) : const Color(0xFFFFFFFF));
-    final paint = Paint()..style = PaintingStyle.fill..color = color;
-    final r = emphasized ? 16.0 : 13.0;
-    const tail = 7.0;
-    final path = ui.Path();
+    // Zion-inspired message surface: a clean rounded rectangle with a restrained
+    // green edge, rather than a speech tail. Keep MemoChat's teal/WhatsApp palette
+    // so the room remains visually consistent in both light and dark themes.
+    final fill = isMe
+        ? (dark ? const Color(0xFF073D32) : const Color(0xFFD9FDD3))
+        : (dark ? const Color(0xFF172522) : const Color(0xFFFFFFFF));
+    final radius = emphasized ? 15.0 : 12.0;
+    final rect = Offset.zero & size;
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
 
-    if (isMe) {
-      path
-        ..moveTo(r, 0)
-        ..lineTo(size.width - r, 0)
-        ..quadraticBezierTo(size.width, 0, size.width, r)
-        ..lineTo(size.width, size.height - r)
-        ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
-        ..lineTo(size.width - 28, size.height)
-        ..lineTo(size.width - 12, size.height - 1)
-        ..lineTo(size.width - 18, size.height - 8)
-        ..lineTo(size.width - 24, size.height)
-        ..lineTo(r, size.height)
-        ..quadraticBezierTo(0, size.height, 0, size.height - r)
-        ..lineTo(0, r)
-        ..quadraticBezierTo(0, 0, r, 0);
-    } else {
-      path
-        ..moveTo(r, 0)
-        ..lineTo(size.width - r, 0)
-        ..quadraticBezierTo(size.width, 0, size.width, r)
-        ..lineTo(size.width, size.height - r)
-        ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
-        ..lineTo(14, size.height)
-        ..lineTo(tail, size.height - 1)
-        ..lineTo(tail + 5, size.height - 8)
-        ..lineTo(r, size.height)
-        ..quadraticBezierTo(0, size.height, 0, size.height - r)
-        ..lineTo(0, r)
-        ..quadraticBezierTo(0, 0, r, 0);
-    }
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = fill,
+    );
 
-    canvas.drawPath(path, paint);
-    if (!isMe) {
-      // WhatsApp-like neutral incoming bubble: a subtle edge keeps the white
-      // and charcoal surfaces distinct from the chat wallpaper in both themes.
-      final border = Paint()
+    // Subtle neon-teal outline: visible enough to carry the Zion identity,
+    // without introducing a distracting glow around every message.
+    final borderColor = isMe
+        ? (dark ? const Color(0xFF19C9A7) : const Color(0xFF0A8F83))
+        : (dark ? const Color(0xFF29483F) : const Color(0xFFE0ECE8));
+    canvas.drawRRect(
+      rrect.deflate(0.35),
+      Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = .55
-        ..color = dark
-            ? const Color(0xFF2A3942)
-            : const Color(0xFFE7EDEF);
-      canvas.drawPath(path, border);
+        ..strokeWidth = isMe ? 0.8 : 0.55
+        ..color = borderColor,
+    );
+
+    if (isMe && dark) {
+      canvas.drawRRect(
+        rrect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.35
+          ..color = const Color(0xFF00FFB3).withOpacity(0.16),
+      );
     }
   }
 
