@@ -237,12 +237,11 @@ class ChatService {
 
   Future<String> sendMessage({required String chatId,required String text,String? messageId,String? imageUrl,String? videoUrl,String? audioUrl,String? fileUrl,String? locationUrl,double? locationLat,double? locationLng,String? locationAddress,Map<String,dynamic>? metadata,String? replyToId,String? idempotencyKey,String? fileName,String? fileSize,String? fileMimeType,String? audioDuration}) async {
     final id=_uid(); final user=_auth.currentUser!; final chat=await _authorizedChat(chatId);
-    await _security.ensureReady();
+    // Match the Community room transport: new messages are stored as ordinary
+    // Firestore message documents, without Signal/E2EE or per-chat encryption.
+    // Keep legacy decryption support below so older encrypted history remains readable.
     final viewOnce = metadata?['viewOnce'] == true;
-    // View-once payloads must never fall back to plaintext, even when the chat's
-    // ordinary encryption preference is disabled.
-    final useEncryption = viewOnce || _security.isEncryptionEnabledForChat(chatId);
-    if(useEncryption) await SignalSessionManager.instance.ensureReady();
+    const useEncryption = false;
     // Idempotency is enforced by the deterministic document ID and the
     // transaction below. Avoid a separate query and preflight document read:
     // both add network round trips to every normal message send.
