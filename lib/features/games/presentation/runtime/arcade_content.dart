@@ -69,7 +69,7 @@ class ArcadeContentBank {
     ArcadeContent(type: GameType.reactionRace, title: 'Reaction Race', instruction: 'استجب لحظة ظهور الإشارة', mode: ArcadeMode.timing),
     ArcadeContent(type: GameType.cardFlip, title: 'Card Flip', instruction: 'اقلب البطاقات واعثر على الأزواج', mode: ArcadeMode.memory),
     ArcadeContent(type: GameType.treasureHunt, title: 'Treasure Hunt', instruction: 'ابحث عن الكنز قبل اختفائه', mode: ArcadeMode.explorer),
-    ArcadeContent(type: GameType.mazeRunner, title: 'Maze Runner', instruction: 'اتبع العلامات داخل المتاهة', mode: ArcadeMode.explorer),
+    ArcadeContent(type: GameType.mazeRunner, title: 'Maze Runner', instruction: 'اسحب المكعب الأخضر داخل الساحة واجمع الأهداف المتحركة', mode: ArcadeMode.explorer),
     ArcadeContent(type: GameType.stackTower, title: 'Stack Tower', instruction: 'اضغط في اللحظة المثالية', mode: ArcadeMode.timing),
     ArcadeContent(type: GameType.targetHit, title: 'Target Hit', instruction: 'أصب الهدف المتحرك', mode: ArcadeMode.target),
     ArcadeContent(type: GameType.bubblePop, title: 'Bubble Pop', instruction: 'فرقع أكبر عدد من الفقاعات', mode: ArcadeMode.target),
@@ -93,9 +93,9 @@ class ArcadeContentBank {
     ArcadeContent(type: GameType.connectPairs, title: 'Connect Pairs', instruction: 'صل كل زوج متشابه', mode: ArcadeMode.pairs),
     ArcadeContent(type: GameType.wordGuess, title: 'Word Guess', instruction: 'خمن الكلمة حرفًا حرفًا', mode: ArcadeMode.word, prompts: ['قمر','كتاب','مفتاح','حديقة']),
     ArcadeContent(type: GameType.picturePuzzle, title: 'Picture Puzzle', instruction: 'رتب القطع لتكوين الصورة', mode: ArcadeMode.pairs),
-    ArcadeContent(type: GameType.balanceBeam, title: 'Balance Beam', instruction: 'حافظ على المؤشر في المنتصف', mode: ArcadeMode.timing),
-    ArcadeContent(type: GameType.rocketRace, title: 'Rocket Race', instruction: 'اضغط لدفع الصاروخ للأمام', mode: ArcadeMode.race),
-    ArcadeContent(type: GameType.galaxyCatch, title: 'Galaxy Catch', instruction: 'اجمع النجوم وتجنب النيازك', mode: ArcadeMode.explorer),
+    ArcadeContent(type: GameType.balanceBeam, title: 'Balance Beam', instruction: 'المس المكعب المتحرك في الوقت المناسب لتحصل على نقاط', mode: ArcadeMode.timing),
+    ArcadeContent(type: GameType.rocketRace, title: 'Rocket Race', instruction: 'اضغط على النصف السفلي من المسار لدفع الصاروخ حتى خط النهاية', mode: ArcadeMode.race),
+    ArcadeContent(type: GameType.galaxyCatch, title: 'Galaxy Catch', instruction: 'اسحب المركبة الفضائية واجمع الأهداف المتحركة قبل اختفائها', mode: ArcadeMode.explorer),
     ArcadeContent(type: GameType.rhythmTap, title: 'Rhythm Tap', instruction: 'اضغط مع النبض', mode: ArcadeMode.timing),
   ];
 
