@@ -69,7 +69,7 @@ class ArcadeContentBank {
     ArcadeContent(type: GameType.reactionRace, title: 'Reaction Race', instruction: 'استجب لحظة ظهور الإشارة', mode: ArcadeMode.timing),
     ArcadeContent(type: GameType.cardFlip, title: 'Card Flip', instruction: 'اقلب البطاقات واعثر على الأزواج', mode: ArcadeMode.memory),
     ArcadeContent(type: GameType.treasureHunt, title: 'Treasure Hunt', instruction: 'ابحث عن الكنز قبل اختفائه', mode: ArcadeMode.explorer),
-    ArcadeContent(type: GameType.mazeRunner, title: 'Maze Runner', instruction: 'اسحب المكعب الأخضر داخل الساحة واجمع الأهداف المتحركة', mode: ArcadeMode.explorer),
+    ArcadeContent(type: GameType.mazeRunner, title: 'Maze Runner', instruction: 'اسحب المكعب خطوة بخطوة عبر الممرات حتى تصل إلى المخرج الأخضر، وتجنب الجدران', mode: ArcadeMode.explorer),
     ArcadeContent(type: GameType.stackTower, title: 'Stack Tower', instruction: 'اضغط في اللحظة المثالية', mode: ArcadeMode.timing),
     ArcadeContent(type: GameType.targetHit, title: 'Target Hit', instruction: 'أصب الهدف المتحرك', mode: ArcadeMode.target),
     ArcadeContent(type: GameType.bubblePop, title: 'Bubble Pop', instruction: 'فرقع أكبر عدد من الفقاعات', mode: ArcadeMode.target),
