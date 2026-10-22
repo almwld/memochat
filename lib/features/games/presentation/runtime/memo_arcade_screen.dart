@@ -291,6 +291,17 @@ class MemoArcadeGame extends FlameGame {
   @override void update(double dt) {
     super.update(dt); elapsed += dt; spawnClock += dt; comboClock += dt;
     _feedbackClock += dt;
+    if (_memoryMismatchClock > 0) {
+      _memoryMismatchClock = math.max(0.0, _memoryMismatchClock - dt).toDouble();
+      if (_memoryMismatchClock == 0) {
+        _memoryVisible.removeAll(_memoryMismatchCells);
+        _memoryMismatchCells.clear();
+      }
+    }
+    if (_pairMismatchClock > 0) {
+      _pairMismatchClock = math.max(0.0, _pairMismatchClock - dt).toDouble();
+      if (_pairMismatchClock == 0) _pairMismatchCells.clear();
+    }
     if (level > _lastAnnouncedLevel) {
       _lastAnnouncedLevel = level;
       _showFeedback('أحسنت! وصلت إلى المرحلة $level: $stageName');
@@ -785,11 +796,14 @@ class MemoArcadeGame extends FlameGame {
   final List<int> _memoryOrder = <int>[];
   final Set<int> _memoryFound = <int>{};
   final Set<int> _memoryVisible = <int>{};
+  final Set<int> _memoryMismatchCells = <int>{};
+  double _memoryMismatchClock = 0;
   int _memoryFirst = -1;
   int _sequenceStep = 0;
   int _colorGoal = 0;
 
   void _tapMemory(Vector2 point) {
+    if (_memoryMismatchClock > 0) return;
     if (_memoryOrder.isEmpty) {
       _memoryOrder.addAll(List<int>.generate(12, (i) => i ~/ 2)..shuffle(random));
     }
@@ -809,12 +823,17 @@ class MemoArcadeGame extends FlameGame {
       score += 2;
       _memoryFound.addAll([_memoryFirst, cell]);
       _memoryFirst = -1;
+      _showFeedback('زوج متطابق! +2 نقاط');
       onScore(score);
       _syncScore();
     } else {
-      _memoryVisible.removeAll([_memoryFirst, cell]);
+      _memoryMismatchCells
+        ..clear()
+        ..addAll([_memoryFirst, cell]);
+      _memoryMismatchClock = .75;
       _memoryFirst = -1;
       score = math.max(0, score - 1);
+      _showFeedback('ليستا متطابقتين؛ احفظهما وحاول من جديد');
       onScore(score);
       _syncScore();
     }
@@ -828,7 +847,7 @@ class MemoArcadeGame extends FlameGame {
     for (var n = 0; n < 12; n++) {
       final x = 8 + (n % 4) * w;
       final y = 105.0 + (n ~/ 4) * 62.0;
-      final visible = _memoryFound.contains(n) || _memoryVisible.contains(n);
+      final visible = _memoryFound.contains(n) || _memoryVisible.contains(n) || _memoryMismatchCells.contains(n);
       paint.color = visible ? palette[_memoryOrder[n] % palette.length] : const Color(0xFF17383B);
       canvas.drawRRect(RRect.fromRectAndRadius(
         Rect.fromLTWH(x, y, w - 5, 52),
@@ -961,6 +980,8 @@ class MemoArcadeGame extends FlameGame {
   final List<bool> _lights = List<bool>.filled(9, true);
   final List<int> _pairOrder = <int>[];
   final Set<int> _pairMatched = <int>{};
+  final Set<int> _pairMismatchCells = <int>{};
+  double _pairMismatchClock = 0;
   int _pairFirst = -1;
   int _raceProgress = 0;
 
@@ -1601,7 +1622,7 @@ class MemoArcadeGame extends FlameGame {
     for (var n = 0; n < 16; n++) {
       final x = 8 + (n % 4) * w;
       final y = 105.0 + (n ~/ 4) * 60.0;
-      final visible = _pairMatched.contains(n) || n == _pairFirst;
+      final visible = _pairMatched.contains(n) || n == _pairFirst || _pairMismatchCells.contains(n);
       paint.color = visible ? palette[_pairOrder[n] % palette.length] : const Color(0xFF17383B);
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w - 5, 52), const Radius.circular(10)), paint);
       if (visible) {
@@ -1942,6 +1963,7 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapPairs(Vector2 point) {
+    if (_pairMismatchClock > 0) return;
     switch (type) {
       case GameType.fourInRow:
         _tapFourInRow(point);
@@ -1973,14 +1995,35 @@ class MemoArcadeGame extends FlameGame {
     if (_pairOrder[_pairFirst] == _pairOrder[cell]) {
       _pairMatched.addAll([_pairFirst, cell]);
       score += 2;
+      _showFeedback('وجدت زوجًا متطابقًا! +2 نقاط');
     } else {
+      _pairMismatchCells
+        ..clear()
+        ..addAll([_pairFirst, cell]);
+      _pairMismatchClock = .75;
       score = math.max(0, score - 1);
+      _showFeedback('الزوج مختلف؛ تذكّر البطاقتين ثم حاول مجددًا');
     }
     _pairFirst = -1;
     onScore(score);
     _syncScore();
   }
-  void _tapOddOneOut(Vector2 point) { if (point.y < 100) return; final col = (point.x / ((size.x - 12) / 4)).floor(); final row = ((point.y - 110) / 65).floor(); final n = row * 4 + col; if (n < 0 || n >= 12) return; score += n == 7 ? 4 : 0; onScore(score); _syncScore(); }
+  void _tapOddOneOut(Vector2 point) {
+    if (point.y < 100) return;
+    final col = (point.x / ((size.x - 12) / 4)).floor();
+    final row = ((point.y - 110) / 65).floor();
+    final n = row * 4 + col;
+    if (n < 0 || n >= 12 || col < 0 || col >= 4 || row < 0 || row >= 3) return;
+    if (n == 7) {
+      score += 4;
+      _showFeedback('أحسنت! وجدت العنصر المختلف +4 نقاط');
+    } else {
+      score = math.max(0, score - 1);
+      _showFeedback('هذا ليس المختلف؛ ابحث عن الدائرة الأكبر');
+    }
+    onScore(score);
+    _syncScore();
+  }
   void _tapRace(Vector2 point) {
     if (point.y < size.y * .42) {
       _showFeedback('المس النصف السفلي من المسار لدفع الصاروخ');
