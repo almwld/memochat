@@ -486,10 +486,11 @@ class _StoryContentState extends State<_StoryContent> {
 
   Future<void> _initVideo() async {
     if (widget.story.type != 'video' || widget.story.url.isEmpty) return;
-    final cached = await LocalMediaCache.instance.getOrDownload(widget.story.url, timeout: const Duration(seconds: 45));
+    final cached = await LocalMediaCache.instance.existing(widget.story.url);
     final controller = cached != null
         ? VideoPlayerController.file(cached)
         : VideoPlayerController.networkUrl(Uri.parse(widget.story.url));
+    if (cached == null) LocalMediaCache.instance.getOrDownload(widget.story.url, timeout: const Duration(seconds: 45));
     _controller = controller;
     await controller.initialize();
     controller.setLooping(true);
