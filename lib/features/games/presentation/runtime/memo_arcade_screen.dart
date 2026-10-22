@@ -166,9 +166,9 @@ class MemoArcadeGame extends FlameGame {
   String get controlsHelp {
     switch (type) {
       case GameType.mazeRunner:
-        return 'المس واسحب اللاعب داخل الساحة للتحرك، واجمع الجواهر المتحركة.';
+        return 'اسحب المكعب الأخضر داخل الساحة لالتقاط الأهداف المتحركة. لا توجد أزرار اتجاهات؛ اتبع إصبعك مباشرة.';
       case GameType.galaxyCatch:
-        return 'اسحب المركبة داخل الساحة لتلتقط الكرات النجمية؛ تجنب التوقف في مكان واحد.';
+        return 'اسحب المركبة الفضائية لتجمع النجوم. كلما ارتفع مستواك زادت سرعة الأهداف؛ لا حاجة لتمرير الصفحة.';
       case GameType.treasureHunt:
         return 'المس الجواهر الذهبية قبل أن تختفي. كل جوهرة تمنح نقاطًا.';
       case GameType.rocketRace:
@@ -201,6 +201,14 @@ class MemoArcadeGame extends FlameGame {
   int combo = 0;
   Vector2? _playerPosition;
   double elapsed = 0, spawnClock = 0, comboClock = 0;
+  String _feedbackMessage = 'ابدأ بلمس هدف مضيء';
+  double _feedbackClock = 3.0;
+  int _lastAnnouncedLevel = 1;
+
+  void _showFeedback(String message) {
+    _feedbackMessage = message;
+    _feedbackClock = 0;
+  }
 
   static const List<int> _sudokuPuzzle = <int>[
     1, 0, 0, 4,
@@ -282,7 +290,15 @@ class MemoArcadeGame extends FlameGame {
 
   @override void update(double dt) {
     super.update(dt); elapsed += dt; spawnClock += dt; comboClock += dt;
-    if (spawnClock > .7) { spawnClock = 0; spawnTarget(); }
+    _feedbackClock += dt;
+    if (level > _lastAnnouncedLevel) {
+      _lastAnnouncedLevel = level;
+      _showFeedback('أحسنت! وصلت إلى المرحلة $level: $stageName');
+    }
+    if (spawnClock > math.max(.34, .7 - (level - 1) * .035)) {
+      spawnClock = 0;
+      spawnTarget();
+    }
     for (final t in targets) {
       t.age += dt; t.position += t.velocity * dt;
       final r = t.radius;
@@ -311,7 +327,7 @@ class MemoArcadeGame extends FlameGame {
 
   @override void render(Canvas canvas) {
     super.render(canvas);
-    if (const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
+    if (type != GameType.rocketRace && const {ArcadeMode.quiz, ArcadeMode.math, ArcadeMode.word, ArcadeMode.code, ArcadeMode.lights, ArcadeMode.pairs, ArcadeMode.choice, ArcadeMode.race, ArcadeMode.oddOneOut, ArcadeMode.memory}.contains(content.mode)) { _renderSpecial(canvas); return; }
     final paint = Paint();
     paint.color = const Color(0xFF0B2225);
     canvas.drawRect(Rect.fromLTWH(0,0,size.x,size.y),paint);
@@ -320,6 +336,7 @@ class MemoArcadeGame extends FlameGame {
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
     if (type == GameType.rocketRace) {
       _renderRocketRace(canvas);
+      _renderFeedback(canvas);
       return;
     }
     paint.style=PaintingStyle.fill;
@@ -354,6 +371,26 @@ class MemoArcadeGame extends FlameGame {
       RRect.fromRectAndRadius(Rect.fromLTWH(16, 67, (size.x - 32) * levelProgress, 5), const Radius.circular(3)),
       progressPaint,
     );
+    _renderFeedback(canvas);
+  }
+
+  void _renderFeedback(Canvas canvas) {
+    if (_feedbackClock > 2.2 || _feedbackMessage.isEmpty || size.y < 180) return;
+    final opacity = (1 - (_feedbackClock / 2.2)).clamp(0.0, 1.0).toDouble();
+    final painter = TextPainter(
+      text: TextSpan(
+        text: _feedbackMessage,
+        style: TextStyle(color: Colors.white.withOpacity(opacity), fontSize: 13, fontWeight: FontWeight.w800),
+      ),
+      textDirection: TextDirection.rtl,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: size.x - 32);
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH((size.x - painter.width - 24) / 2, size.y - 66, painter.width + 24, painter.height + 14),
+      const Radius.circular(12),
+    );
+    canvas.drawRRect(rect, Paint()..color = const Color(0xFF15383B).withOpacity(opacity * .94));
+    painter.paint(canvas, Offset((size.x - painter.width) / 2, size.y - 59));
   }
 
   void _renderRocketRace(Canvas canvas) {
@@ -818,8 +855,10 @@ class MemoArcadeGame extends FlameGame {
     if (hit.kind == expected) {
       score += 2;
       _colorGoal++;
+      _showFeedback('لون صحيح! انتقل إلى اللون التالي');
     } else {
       score = math.max(0, score - 1);
+      _showFeedback('هذا ليس اللون المطلوب؛ طابق اللون مع الهدف');
     }
     targets.removeAt(index);
     onScore(score);
@@ -833,6 +872,7 @@ class MemoArcadeGame extends FlameGame {
     if (point.distanceTo(target.position) <= target.radius * 1.25) {
       score += 2;
       _sequenceStep++;
+      _showFeedback('تسلسل صحيح! تابع إلى الهدف التالي');
       targets.remove(target);
       onScore(score);
       _syncScore();
@@ -848,6 +888,7 @@ class MemoArcadeGame extends FlameGame {
     final distance = point.distanceTo(target.position);
     if (distance <= target.radius * 1.15) {
       score += 1 + (elapsed.floor() % 3);
+      _showFeedback('توقيت ممتاز!');
       targets.remove(target);
       onScore(score);
       _syncScore();
@@ -865,6 +906,7 @@ class MemoArcadeGame extends FlameGame {
     );
     if (point.distanceTo(target.position) <= target.radius * 1.4) {
       score += target.kind == 2 ? 3 : 1;
+      _showFeedback('جمعت الهدف! حرّك اللاعب نحو الهدف التالي');
       targets.remove(target);
       _spawnBurst(target.position, target.kind);
       onScore(score);
@@ -881,6 +923,7 @@ class MemoArcadeGame extends FlameGame {
       score = math.max(0, score - 1);
       combo = 0;
       comboClock = 0;
+      _showFeedback('لم تصب الهدف؛ اقترب من الشكل ثلاثي الأبعاد');
       onScore(score);
       return;
     }
@@ -890,6 +933,7 @@ class MemoArcadeGame extends FlameGame {
     final gain = 1 + (hit.kind == 2 ? 2 : 0) + comboBonus;
     score += gain;
     comboClock = 0;
+    _showFeedback(combo >= 3 ? 'سلسلة رائعة! +$gain نقاط' : 'إصابة ناجحة! +$gain نقاط');
     _spawnBurst(hit.position, hit.kind);
     onScore(score);
     _syncScore();
@@ -1891,13 +1935,21 @@ class MemoArcadeGame extends FlameGame {
   }
   void _tapOddOneOut(Vector2 point) { if (point.y < 100) return; final col = (point.x / ((size.x - 12) / 4)).floor(); final row = ((point.y - 110) / 65).floor(); final n = row * 4 + col; if (n < 0 || n >= 12) return; score += n == 7 ? 4 : 0; onScore(score); _syncScore(); }
   void _tapRace(Vector2 point) {
-    if (point.y < size.y * .42) return;
+    if (point.y < size.y * .42) {
+      _showFeedback('المس النصف السفلي من المسار لدفع الصاروخ');
+      return;
+    }
     if (_raceProgress >= 100) {
       _raceProgress = 0;
+      _showFeedback('انطلقت جولة جديدة! استمر بالضغط على المسار');
     } else {
       _raceProgress = math.min(100, _raceProgress + 8);
       score++;
-      if (_raceProgress >= 100) score += 10;
+      _showFeedback('تقدم الصاروخ: $_raceProgress٪');
+      if (_raceProgress >= 100) {
+        score += 10;
+        _showFeedback('وصلت إلى خط النهاية! +10 نقاط');
+      }
     }
     onScore(score);
     _syncScore();
