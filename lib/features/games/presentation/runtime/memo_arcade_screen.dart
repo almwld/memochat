@@ -1146,83 +1146,114 @@ class MemoArcadeGame extends FlameGame {
         for (var n = 0; n < 12; n++) { final w = (size.x - 36) / 4; final x = 8 + (n % 4) * w; final y = 110 + (n ~/ 4) * 65; paint.color = palette[n % palette.length]; canvas.drawCircle(Offset(x + w / 2, y + 22), n == 7 ? 21 : 16, paint); } break;
       default: break;
     }
+    _renderFeedback(canvas);
     final s = TextPainter(text: TextSpan(text: '$score نقطة', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)), textDirection: TextDirection.rtl)..layout();
     s.paint(canvas, Offset(size.x / 2 - s.width / 2, size.y - 38));
   }
 
   double _optionStartY = 150;
+  double _optionRowHeight = 62;
+  double _optionCardHeight = 48;
+  int _optionColumns = 1;
+  double _optionCardWidth = 0;
+  double _optionLeft = 18;
+
+  int _optionIndexAt(Vector2 point, int optionCount) {
+    if (optionCount <= 0 || point.y < _optionStartY || point.x < _optionLeft ||
+        point.x > size.x - _optionLeft) return -1;
+    final row = ((point.y - _optionStartY) / _optionRowHeight).floor();
+    if (row < 0) return -1;
+    final column = _optionColumns == 1
+        ? 0
+        : (point.x < size.x / 2 ? 0 : 1);
+    final cardLeft = _optionColumns == 1
+        ? _optionLeft
+        : column * (size.x / 2) + 10;
+    final cardWidth = _optionColumns == 1 ? size.x - _optionLeft * 2 : size.x / 2 - 20;
+    final localX = point.x - cardLeft;
+    final localY = point.y - (_optionStartY + row * _optionRowHeight);
+    if (localX < 0 || localX > cardWidth || localY < 0 || localY > _optionCardHeight) return -1;
+    final index = row * _optionColumns + column;
+    return index >= 0 && index < optionCount && index < 4 ? index : -1;
+  }
 
   void _renderOptions(Canvas canvas, String prompt, List<String> options) {
-    final promptPainter = TextPainter(
-      text: TextSpan(
-        text: prompt,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 17,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      textDirection: TextDirection.rtl,
-    )..layout(maxWidth: size.x - 28);
-
-    promptPainter.paint(
-      canvas,
-      Offset(size.x / 2 - promptPainter.width / 2, 92),
-    );
-
-    // Long, specific questions may wrap onto multiple lines. Keep the answer
-    // tiles below the complete question and use the same position for hit tests.
-    _optionStartY = math.max(150.0, 104.0 + promptPainter.height + 12.0).toDouble();
-    final paint = Paint();
     final visible = options.take(4).toList();
-    for (var n = 0; n < visible.length; n++) {
-      final y = _optionStartY + n * 62.0;
-      paint.color = palette[n % palette.length];
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(18, y, size.x - 36, 48),
-          const Radius.circular(14),
-        ),
-        paint,
-      );
-      final optionPainter = TextPainter(
-        text: TextSpan(
-          text: visible[n],
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
+    final availablePromptHeight = math.max(36.0, math.min(88.0, size.y * .24)).toDouble();
+    var fontSize = 17.0;
+    TextPainter promptPainter;
+    while (true) {
+      promptPainter = TextPainter(
+        text: TextSpan(text: prompt, style: TextStyle(
+          color: Colors.white, fontSize: fontSize, fontWeight: FontWeight.w800,
+        )),
         textDirection: TextDirection.rtl,
-      )..layout(maxWidth: size.x - 50);
-      optionPainter.paint(
-        canvas,
-        Offset(size.x / 2 - optionPainter.width / 2, y + 13),
-      );
+        maxLines: 3,
+        ellipsis: '…',
+      )..layout(maxWidth: size.x - 28);
+      if (promptPainter.height <= availablePromptHeight || fontSize <= 12) break;
+      fontSize -= 1;
+    }
+    promptPainter.paint(canvas, Offset(size.x / 2 - promptPainter.width / 2, 88));
+
+    _optionStartY = math.max(116.0, 92.0 + promptPainter.height + 10.0).toDouble();
+    _optionColumns = size.y < 480 && visible.length == 4 ? 2 : 1;
+    final rows = visible.isEmpty ? 1 : (visible.length / _optionColumns).ceil();
+    final availableOptionsHeight = math.max(1.0, size.y - _optionStartY - 106.0).toDouble();
+    _optionRowHeight = math.min(62.0, availableOptionsHeight / rows).toDouble();
+    _optionRowHeight = math.max(30.0, _optionRowHeight).toDouble();
+    _optionCardHeight = math.max(25.0, math.min(48.0, _optionRowHeight - 5.0)).toDouble();
+    _optionLeft = 18;
+    _optionCardWidth = _optionColumns == 1 ? size.x - 36 : size.x / 2 - 20;
+
+    final paint = Paint();
+    for (var n = 0; n < visible.length; n++) {
+      final row = n ~/ _optionColumns;
+      final column = n % _optionColumns;
+      final x = _optionColumns == 1 ? 18.0 : column * (size.x / 2) + 10.0;
+      final y = _optionStartY + row * _optionRowHeight;
+      paint.color = palette[n % palette.length];
+      final card = Rect.fromLTWH(x, y, _optionCardWidth, _optionCardHeight);
+      canvas.drawRRect(RRect.fromRectAndRadius(card, const Radius.circular(12)), paint);
+      final optionFontSize = math.min(16.0, math.max(11.0, _optionCardHeight * .34)).toDouble();
+      final optionPainter = TextPainter(
+        text: TextSpan(text: visible[n], style: TextStyle(
+          color: Colors.white, fontSize: optionFontSize, fontWeight: FontWeight.w900,
+        )),
+        textDirection: TextDirection.rtl,
+        maxLines: 2,
+        ellipsis: '…',
+        textAlign: TextAlign.center,
+      )..layout(maxWidth: _optionCardWidth - 12);
+      optionPainter.paint(Offset(x + (_optionCardWidth - optionPainter.width) / 2, y + (_optionCardHeight - optionPainter.height) / 2));
     }
   }
 
   void _tapChoice(Vector2 point) {
-    final n = ((point.y - _optionStartY) / 62).floor();
-    if (n < 0) return;
     final promptIndex =
         content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
     final options = content.choicesByPrompt.isNotEmpty &&
             promptIndex < content.choicesByPrompt.length
         ? content.choicesByPrompt[promptIndex]
         : content.options;
-    // Ignore taps in unused rows. This matters for true/false questions and
-    // short choice lists, where blank space must never count as an answer.
-    final visibleCount = math.min(4, options.length);
-    if (n >= visibleCount) return;
+    // Ignore taps outside an actual answer card, including empty space.
+    final n = _optionIndexAt(point, math.min(4, options.length));
+    if (n < 0) return;
     final hasAnswer = content.correctAnswers.isNotEmpty &&
         promptIndex < content.correctAnswers.length;
     final correct = hasAnswer ? content.correctAnswers[promptIndex] : -1;
     if (hasAnswer) {
-      score = math.max(0, score + (n == correct ? 2 : -1));
+      if (n == correct) {
+        score += 2;
+        _showFeedback('إجابة صحيحة! +2 نقاط');
+      } else {
+        score = math.max(0, score - 1);
+        final correctText = correct >= 0 && correct < options.length ? options[correct] : 'الخيار الصحيح';
+        _showFeedback('ليست الإجابة الصحيحة؛ الإجابة: $correctText');
+      }
     } else {
       score += 1;
+      _showFeedback('تم اختيار: ${options[n]}');
     }
     _specialRound++;
     onScore(score);
@@ -1230,9 +1261,11 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapMath(Vector2 point) {
-    final n = ((point.y - _optionStartY) / 62).floor();
-    if (n < 0 || n >= _mathOptions.length) return;
-    score = math.max(0, score + (n == _mathCorrect ? 3 : -1));
+    final n = _optionIndexAt(point, _mathOptions.length);
+    if (n < 0) return;
+    final correct = n == _mathCorrect;
+    score = math.max(0, score + (correct ? 3 : -1));
+    _showFeedback(correct ? 'حل صحيح! +3 نقاط' : 'الإجابة الصحيحة: ${_mathOptions[_mathCorrect]}');
     _specialRound++;
     _specialSecret = 0;
     _mathAddend = 0;
@@ -1242,9 +1275,11 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapWord(Vector2 point) {
-    final n = ((point.y - _optionStartY) / 62).floor();
-    if (n < 0 || n >= _wordOptions.length) return;
-    score = math.max(0, score + (n == _wordCorrect ? 3 : -1));
+    final n = _optionIndexAt(point, _wordOptions.length);
+    if (n < 0) return;
+    final correct = n == _wordCorrect;
+    score = math.max(0, score + (correct ? 3 : -1));
+    _showFeedback(correct ? 'كلمة صحيحة! +3 نقاط' : 'الكلمة الصحيحة: ${_wordOptions[_wordCorrect]}');
     _specialRound++;
     _wordOptions = const [];
     onScore(score);
@@ -1252,17 +1287,19 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapCode(Vector2 point) {
-    final n = ((point.y - _optionStartY) / 62).floor();
-    if (n < 0 || n > 3) return;
+    final n = _optionIndexAt(point, 4);
+    if (n < 0) return;
     if (_codeDigit < 0) _codeDigit = random.nextInt(4);
     if (n == _codeDigit) {
       score += 4;
+      _showFeedback('رمز صحيح! +4 نقاط');
       _codeDigit = random.nextInt(4);
       _codeAttempts = 0;
       _specialRound++;
     } else {
       _codeAttempts++;
       score = math.max(0, score - 1);
+      _showFeedback('جرّب رقمًا آخر؛ التلميح أعلى الشاشة');
       if (_codeAttempts >= 3) {
         _codeDigit = random.nextInt(4);
         _codeAttempts = 0;
