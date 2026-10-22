@@ -70,7 +70,6 @@ class GameService {
     required String gameId,
     required String uid,
     required int cell,
-    required int score,
   }) async {
     if (cell < 0 || cell >= 9) throw RangeError.index(cell, List<int>.filled(9, 0));
     final ref = _games(chatId).doc(gameId);
