@@ -109,6 +109,7 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
               ),
             ],
           ),
+        _GameGuidePanel(game: game),
         Expanded(
           child: Listener(
             behavior: HitTestBehavior.opaque,
@@ -152,6 +153,48 @@ class MemoArcadeGame extends FlameGame {
   final String? gameId;
   final String title;
   final math.Random random = math.Random();
+
+  int get level => (score ~/ 10 + 1).clamp(1, 10);
+  int get pointsToNextLevel => level >= 10 ? 0 : 10 - (score % 10);
+  double get levelProgress => level >= 10 ? 1 : (score % 10) / 10;
+  String get stageName => const [
+    'التعرّف على الحركة', 'جمع الأهداف', 'سرعة أعلى', 'أهداف متحركة',
+    'تحدي الدقة', 'مسار متعرّج', 'توقيت أسرع', 'تركيز متقدم',
+    'تحدي المحترفين', 'المرحلة النهائية',
+  ][level - 1];
+
+  String get controlsHelp {
+    switch (type) {
+      case GameType.mazeRunner:
+        return 'المس واسحب اللاعب داخل الساحة للتحرك، واجمع الجواهر المتحركة.';
+      case GameType.galaxyCatch:
+        return 'اسحب المركبة داخل الساحة لتلتقط الكرات النجمية؛ تجنب التوقف في مكان واحد.';
+      case GameType.treasureHunt:
+        return 'المس الجواهر الذهبية قبل أن تختفي. كل جوهرة تمنح نقاطًا.';
+      case GameType.rocketRace:
+        return 'المس الجزء السفلي من ساحة اللعب لدفع الصاروخ إلى خط النهاية.';
+      case GameType.targetHit:
+        return 'المس مركز الهدف الدائري المتحرك. إصابة الهدف تمنحك نقاطًا.';
+      case GameType.stackTower:
+        return 'المس المكعب عندما يقترب من منتصف الساحة لتحصل على نقاط التوقيت.';
+      case GameType.balanceBeam:
+        return 'المس المكعب المتحرك بدقة وحافظ على سلسلة إصاباتك.';
+      case GameType.colorRush:
+        return 'المس الأشكال باللون المطلوب؛ اللون الصحيح يزيد النقاط.';
+      case GameType.colorMatch:
+        return 'طابق الأشكال مع اللون المعروض في الساحة لتحصل على نقاط.';
+      case GameType.shapeMatch:
+      case GameType.patternTap:
+      case GameType.sequenceRecall:
+      case GameType.rhythmTap:
+        return 'المس الأشكال بالتسلسل المطلوب، وراقب الشكل التالي قبل الاختيار.';
+      default:
+        return content.instruction;
+    }
+  }
+
+  bool get usesDragControls =>
+      type == GameType.mazeRunner || type == GameType.galaxyCatch;
   final List<Target> targets = <Target>[];
   final List<Particle> particles = <Particle>[];
   int score = 0;
@@ -229,7 +272,10 @@ class MemoArcadeGame extends FlameGame {
       position: Vector2(r + random.nextDouble() * math.max(1, size.x - r * 2),
         90 + r + random.nextDouble() * math.max(1, size.y - 105 - r * 2)),
       radius: r,
-      velocity: Vector2((random.nextDouble()-.5)*100, (random.nextDouble()-.5)*100),
+      velocity: Vector2(
+        (random.nextDouble() - .5) * 100 * (1 + (level - 1) * .12),
+        (random.nextDouble() - .5) * 100 * (1 + (level - 1) * .12),
+      ),
       kind: random.nextInt(3), phase: random.nextDouble()*math.pi*2));
   }
 
@@ -278,10 +324,31 @@ class MemoArcadeGame extends FlameGame {
     _drawPlayer(canvas);
     for(final p in particles){paint.color=palette[p.kind%palette.length].withOpacity(math.max(0,1-p.age/.7));canvas.drawCircle(Offset(p.position.x,p.position.y),p.radius*(1+p.age*2),paint);}
     final comboLabel = combo >= 2 ? '  •  سلسلة $combo!' : '';
-    final hud=TextPainter(text:TextSpan(text:content.title+'  •  '+score.toString()+' نقطة'+comboLabel,style:const TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),textDirection:TextDirection.rtl)..layout();
-    hud.paint(canvas,Offset(size.x/2-hud.width/2,20));
-    final help=TextPainter(text:TextSpan(text:_instruction,style:const TextStyle(color:Color(0xB8FFFFFF),fontSize:12,fontWeight:FontWeight.w700)),textDirection:TextDirection.rtl)..layout();
-    help.paint(canvas,Offset(size.x/2-help.width/2,49));
+    final hud=TextPainter(
+      text: TextSpan(
+        text: 'المرحلة $level/10  •  $score نقطة$comboLabel',
+        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    hud.paint(canvas, Offset(math.max(12, (size.x - hud.width) / 2), 16));
+    final help=TextPainter(
+      text: TextSpan(text: stageName, style: const TextStyle(
+        color: Color(0xFF8DE7DB), fontSize: 12, fontWeight: FontWeight.w700,
+      )),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    help.paint(canvas, Offset(math.max(12, (size.x - help.width) / 2), 44));
+    final progressPaint = Paint()..color = const Color(0xFF24484B);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(16, 67, size.x - 32, 5), const Radius.circular(3)),
+      progressPaint,
+    );
+    progressPaint.color = const Color(0xFF39D5C5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(16, 67, (size.x - 32) * levelProgress, 5), const Radius.circular(3)),
+      progressPaint,
+    );
   }
 
   void _drawPlayer(Canvas canvas) {
@@ -535,16 +602,7 @@ class MemoArcadeGame extends FlameGame {
     [7, 2, 1], [7, 3, 2], [7, 4, 3], [7, 5, 4], [7, 6, 5], [7, 1, 6],
   ];
 
-  String get _instruction {
-    switch (type) {
-      case GameType.mazeRunner:
-        return 'اسحب للتحرك واجمع الجواهر وتجنب الحواف';
-      case GameType.galaxyCatch:
-        return 'اسحب المركبة لجمع النجوم وتجنب النيازك';
-      default:
-        return content.instruction;
-    }
-  }
+  String get _instruction => controlsHelp;
 
   void tap(Vector2 point) {
     switch (type) {
@@ -1782,6 +1840,85 @@ class MemoArcadeGame extends FlameGame {
     GameType.xo:'XO Arena',GameType.quizBattle:'Quiz Battle',GameType.emojiReaction:'Emoji Reaction',GameType.diceRoll:'Dice Rush',GameType.drawGuess:'Draw & Guess',GameType.wordChain:'Word Chain',GameType.truthDare:'Truth or Dare',GameType.guessSong:'Song Hunt',GameType.memoryMatch:'Memory Match',GameType.trivia:'Trivia Arena',GameType.quickTap:'Quick Tap',GameType.wouldYouRather:'Choice Clash',GameType.speedMath:'Speed Math',GameType.movieQuiz:'Movie Rush',GameType.sudokuDuel:'Sudoku Duel',GameType.colorRush:'Color Rush',GameType.higherLower:'Higher Lower',GameType.numberGuess:'Number Guess',GameType.wordScramble:'Word Scramble',GameType.emojiMemory:'Emoji Memory',GameType.patternTap:'Pattern Tap',GameType.oddOneOut:'Odd One Out',GameType.fourInRow:'Four in Row',GameType.dotsAndBoxes:'Dots & Boxes',GameType.reactionRace:'Reaction Race',GameType.cardFlip:'Card Flip',GameType.treasureHunt:'Treasure Hunt',GameType.mazeRunner:'Maze Runner',GameType.stackTower:'Stack Tower',GameType.targetHit:'Target Hit',GameType.bubblePop:'Bubble Pop',GameType.colorMatch:'Color Match',GameType.shapeMatch:'Shape Match',GameType.sequenceRecall:'Sequence Recall',GameType.fastChoice:'Fast Choice',GameType.trueFalse:'True / False',GameType.flagQuiz:'Flag Quiz',GameType.animalQuiz:'Animal Quiz',GameType.foodQuiz:'Food Quiz',GameType.geographyQuiz:'Geography',GameType.scienceQuiz:'Science',GameType.historyQuiz:'History',GameType.languageQuiz:'Language',GameType.riddleRush:'Riddle Rush',GameType.anagramBattle:'Anagram Battle',GameType.mathDuel:'Math Duel',GameType.codeBreaker:'Code Breaker',GameType.lightSwitch:'Light Switch',GameType.connectPairs:'Connect Pairs',GameType.wordGuess:'Word Guess',GameType.picturePuzzle:'Picture Puzzle',GameType.balanceBeam:'Balance Beam',GameType.rocketRace:'Rocket Race',GameType.galaxyCatch:'Galaxy Catch',GameType.rhythmTap:'Rhythm Tap',
   };
 }
+
+class _GameGuidePanel extends StatelessWidget {
+  const _GameGuidePanel({required this.game});
+
+  final MemoArcadeGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDrag = game.usesDragControls;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF102A2D),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x5539D5C5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.route_rounded, size: 19, color: Color(0xFF72E4D5)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'المرحلة ${game.level}/10 • ${game.stageName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                game.level >= 10 ? 'الأخيرة' : '${game.pointsToNextLevel} نقطة للتالية',
+                style: const TextStyle(color: Color(0xFFB6D8D5), fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: game.levelProgress,
+              minHeight: 4,
+              backgroundColor: const Color(0xFF24484B),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF39D5C5)),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            game.controlsHelp,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFFE3F1F0), fontSize: 12, height: 1.25),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.swipe_rounded, size: 16, color: isDrag ? const Color(0xFFFFD166) : const Color(0xFF9ABFBB)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  isDrag
+                      ? 'تنبيه تمرير: اسحب داخل مساحة اللعب فقط لتحريك اللاعب؛ لا تسحب من خارجها.'
+                      : 'تنبيه: المس الأهداف داخل مساحة اللعب فقط. لا حاجة لتمرير الشاشة أثناء الجولة.',
+                  style: const TextStyle(color: Color(0xFFFFDFA0), fontSize: 11, height: 1.2),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class Target { Target({required this.position,required this.radius,required this.velocity,required this.kind,required this.phase}); Vector2 position,velocity; final double radius,phase; final int kind; double age=0; }
 class Particle { Particle({required this.position,required this.velocity,required this.radius,required this.kind}); Vector2 position,velocity; final double radius; final int kind; double age=0; }
 
