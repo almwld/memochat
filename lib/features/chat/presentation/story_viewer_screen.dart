@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:video_player/video_player.dart';
+import '../../../core/media/local_media_cache.dart';
 
 import 'package:memochat/core/constants/app_colors.dart';
 import 'package:memochat/features/chat/models/status_model.dart';
@@ -485,7 +486,10 @@ class _StoryContentState extends State<_StoryContent> {
 
   Future<void> _initVideo() async {
     if (widget.story.type != 'video' || widget.story.url.isEmpty) return;
-    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.story.url));
+    final cached = await LocalMediaCache.instance.getOrDownload(widget.story.url, timeout: const Duration(seconds: 45));
+    final controller = cached != null
+        ? VideoPlayerController.file(cached)
+        : VideoPlayerController.networkUrl(Uri.parse(widget.story.url));
     _controller = controller;
     await controller.initialize();
     controller.setLooping(true);
