@@ -1036,7 +1036,7 @@ class MemoArcadeGame extends FlameGame {
   void _tapSequence(Vector2 point) {
     if (targets.isEmpty) return;
     final ordered = targets.toList()..sort((a,b) => a.phase.compareTo(b.phase));
-    final target = ordered[_sequenceStep % ordered.length];
+    final target = ordered.first;
     if (point.distanceTo(target.position) <= target.radius * 1.25) {
       score += 2;
       _sequenceStep++;
@@ -1122,6 +1122,7 @@ class MemoArcadeGame extends FlameGame {
   int _mathCorrect = 0;
   List<int> _mathOptions = const [];
   List<String> _wordOptions = const [];
+  String _wordScrambled = '';
   int _wordCorrect = 0;
   final List<bool> _lights = List<bool>.filled(9, true);
   final List<int> _pairOrder = <int>[];
@@ -1286,9 +1287,10 @@ class MemoArcadeGame extends FlameGame {
                                       : <String>['قلم', 'نهر', 'جبل'];
           _wordOptions = <String>[source, ...distractors]..shuffle(random);
           _wordCorrect = _wordOptions.indexOf(source);
+          final chars = source.runes.toList()..shuffle(random);
+          _wordScrambled = String.fromCharCodes(chars);
         }
-        final chars = source.runes.toList()..shuffle(random);
-        _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
+        _renderOptions(canvas, 'رتب الحروف: $_wordScrambled', _wordOptions); break;
       case ArcadeMode.code:
         if (_codeDigit < 0) _codeDigit = random.nextInt(4);
         final clue = switch (_codeDigit) {
@@ -1449,6 +1451,7 @@ class MemoArcadeGame extends FlameGame {
     _showFeedback(correct ? 'كلمة صحيحة! +3 نقاط' : 'الكلمة الصحيحة: ${_wordOptions[_wordCorrect]}');
     _specialRound++;
     _wordOptions = const [];
+    _wordScrambled = '';
     onScore(score);
     _syncScore();
   }
