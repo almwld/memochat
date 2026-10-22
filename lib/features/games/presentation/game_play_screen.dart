@@ -242,9 +242,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       children: [
         Positioned.fill(
           child: Padding(
-            // Reserve a stable strip for the in-game chat so it never covers
-            // game controls and remains reachable while the game is running.
-            padding: const EdgeInsets.only(bottom: 72),
+            // Keep the board full-size; the glass chat floats above it and
+            // only intercepts touches inside its own compact controls.
+            padding: EdgeInsets.zero,
             child: DedicatedGameFactory.build(
               widget.type,
               chatId: widget.chatId,
@@ -586,7 +586,8 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
         final visible = messages.where((m) {
           if (m.metadata?['kind']?.toString() != 'game_quick_chat') return false;
           final stamp = m.timestamp?.toDate() ?? now;
-          return now.difference(stamp).inSeconds < 6;
+          final age = now.difference(stamp);
+          return !age.isNegative && age < const Duration(seconds: 7);
         }).take(3).toList();
         if (visible.isEmpty) {
           _bubbleTimer?.cancel();
@@ -601,23 +602,49 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
           mainAxisSize: MainAxisSize.min,
           children: visible.map((m) {
             final mine = m.senderId == uid;
+            final stampKey = m.timestamp?.toDate().millisecondsSinceEpoch ?? 0;
             return Align(
+              key: ValueKey('${m.senderId}_${stampKey}_${m.text ?? ''}'),
               alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
-              child: Container(
-                margin: const EdgeInsets.only(top: 5),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                constraints: const BoxConstraints(maxWidth: 280),
-                decoration: BoxDecoration(
-                  color: scheme.surface.withOpacity(.55),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: scheme.onSurface.withOpacity(.10)),
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey('bubble_${m.senderId}_${stampKey}_${m.text ?? ''}'),
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) => Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 8 * (1 - value)),
+                    child: child,
+                  ),
                 ),
-                child: Text(
-                  m.text ?? '',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textDirection: TextDirection.rtl,
-                  style: TextStyle(fontSize: 13, color: scheme.onSurface.withOpacity(.78)),
+                child: Container(
+                  margin: const EdgeInsets.only(top: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  decoration: BoxDecoration(
+                    color: scheme.surface.withOpacity(.34),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: scheme.onSurface.withOpacity(.08)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    m.text ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface.withOpacity(.94),
+                    ),
+                  ),
                 ),
               ),
             );
@@ -628,7 +655,7 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
   }
 
   Widget _bubble(ColorScheme scheme) => Material(
-        color: scheme.surface.withOpacity(.42),
+        color: scheme.surface.withOpacity(.28),
         borderRadius: BorderRadius.circular(22),
         child: InkWell(
           borderRadius: BorderRadius.circular(22),
@@ -651,7 +678,7 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
       );
 
   Widget _inputBar(ColorScheme scheme) => Material(
-        color: scheme.surface.withOpacity(.90),
+        color: scheme.surface.withOpacity(.78),
         elevation: 8,
         borderRadius: BorderRadius.circular(26),
         child: Container(
