@@ -56,11 +56,12 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
         final path = value.startsWith('file://') ? Uri.parse(value).toFilePath() : value;
         await _player.setFilePath(path);
       } else {
-        final cached = await LocalMediaCache.instance.getOrDownload(value);
+        final cached = await LocalMediaCache.instance.existing(value);
         if (cached != null) {
           await _player.setFilePath(cached.path);
         } else {
           await _player.setUrl(value);
+          LocalMediaCache.instance.getOrDownload(value);
         }
       }
       await _player.setVolume(_volume);
