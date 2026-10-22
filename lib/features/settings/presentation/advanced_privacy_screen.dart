@@ -84,42 +84,16 @@ class _AdvancedPrivacyScreenState extends State<AdvancedPrivacyScreen> {
           Card(
             child: Column(
               children: [
-                SwitchListTile(
-                  value: _encryptionEnabled,
-                  onChanged: _saving
-                      ? null
-                      : (value) async {
-                          setState(() => _saving = true);
-                          try {
-                            await _settings.setEncryptionEnabled(value);
-                            if (mounted) setState(() => _encryptionEnabled = value);
-                          } finally {
-                            if (mounted) setState(() => _saving = false);
-                          }
-                        },
-                  title: const Text(
-                    'تشفير الرسائل E2EE',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: Text(
-                    _encryptionEnabled
-                        ? 'مفعّل يدويًا. ستستخدم المحادثات Signal عند الإرسال.'
-                        : 'غير مفعّل. الوضع الافتراضي هو الإرسال بدون تشفير.',
-                  ),
-                ),
-                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.verified_user_rounded),
                   title: const Text(
-                    'حالة التشفير',
+                    'نمط المراسلة',
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                   subtitle: const Text(
-                    'لا يتم تشغيل Signal أو إنشاء مفاتيحه للمسار العادي. لا يُستخدم إلا بعد اختيار التشفير.',
+                    'تُرسل الرسائل بالطريقة العادية نفسها المستخدمة في غرفة المجتمع، دون تشفير E2EE إضافي.',
                   ),
-                  trailing: Icon(
-                    _encryptionEnabled ? Icons.lock_rounded : Icons.lock_open_rounded,
-                  ),
+                  trailing: const Icon(Icons.chat_bubble_outline_rounded),
                 ),
               ],
             ),
