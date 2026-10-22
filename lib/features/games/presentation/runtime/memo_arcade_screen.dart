@@ -900,7 +900,7 @@ class MemoArcadeGame extends FlameGame {
     final i = TextPainter(text: TextSpan(text: content.instruction, style: const TextStyle(color: Color(0xB8FFFFFF), fontSize: 13, fontWeight: FontWeight.w700)), textDirection: TextDirection.rtl)..layout(maxWidth: size.x - 30);
     i.paint(canvas, Offset(size.x / 2 - i.width / 2, 52));
     switch (content.mode) {
-      case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'اختر الإجابة الصحيحة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
+      case ArcadeMode.quiz: { final q = content.prompts.isEmpty ? 'لا يوجد سؤال متاح لهذه الجولة' : content.prompts[_specialRound % content.prompts.length]; final n = content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length; final opts = content.choicesByPrompt.isNotEmpty && n < content.choicesByPrompt.length ? content.choicesByPrompt[n] : content.options; _renderOptions(canvas, q, opts); break; }
       case ArcadeMode.choice:
         if (type == GameType.xo) {
           _renderXo(canvas, paint);
