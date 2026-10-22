@@ -28,9 +28,10 @@ class DedicatedGameFactory {
     String chatId = '',
     String? gameId,
   }) {
-    // The dedicated local games are used only for solo play. Multiplayer
-    // sessions stay on MemoArcadeGame so chatId/gameId score synchronization
-    // remains authoritative through GameService.
+    // Question-based games always use the same content-driven runtime in solo
+    // and multiplayer mode. This keeps every prompt, answer set, and answer key
+    // together instead of showing generic instructions with unrelated options.
+    // Other dedicated local games remain available for their specialized UI.
     if (chatId.trim().isEmpty && (gameId == null || gameId.trim().isEmpty)) {
       switch (type) {
         case GameType.bubblePop:
@@ -51,28 +52,8 @@ class DedicatedGameFactory {
           return RhythmTapGame();
         case GameType.sudokuDuel:
           return SudokuDuelGame();
-        case GameType.quizBattle:
-          return QuizBattleGame();
-        case GameType.emojiReaction:
-          return EmojiReactionGame();
-        case GameType.drawGuess:
-          return DrawGuessGame();
-        case GameType.wordChain:
-          return WordChainGame();
-        case GameType.truthDare:
-          return TruthDareGame();
-        case GameType.guessSong:
-          return GuessSongGame();
-        case GameType.trivia:
-          return TriviaGame();
         case GameType.quickTap:
           return QuickTapGame();
-        case GameType.wouldYouRather:
-          return WouldYouRatherGame();
-        case GameType.speedMath:
-          return SpeedMathGame();
-        case GameType.movieQuiz:
-          return MovieQuizGame();
         default:
           break;
       }
