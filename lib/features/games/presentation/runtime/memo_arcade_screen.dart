@@ -120,7 +120,7 @@ class _MemoArcadeScreenState extends State<MemoArcadeScreen> with WidgetsBinding
               final p = renderObject.globalToLocal(e.position);
               final point = Vector2(p.dx, p.dy);
               if (game.supportsDragMovement) {
-                game.moveTo(point);
+                game.moveTo(point, isPointerDown: true);
               } else {
                 game.tap(point);
               }
@@ -286,14 +286,15 @@ class MemoArcadeGame extends FlameGame {
     }
   }
 
-  void _moveMazeRunner(Vector2 point) {
-    if (_mazeCompleted && level >= 10) {
+  void _moveMazeRunner(Vector2 point, {required bool isPointerDown}) {
+    if (_mazeCompleted && level >= 10 && isPointerDown) {
       score = 0;
       _mazeLevel = 1;
       _lastAnnouncedLevel = 1;
       _mazeCompleted = false;
       _resetMazePlayer();
       onScore(score);
+      _syncScore();
       _showFeedback('بدأت متاهة جديدة؛ اتبع الممرات إلى المخرج');
       return;
     }
@@ -369,10 +370,10 @@ class MemoArcadeGame extends FlameGame {
     }
   }
 
-  void moveTo(Vector2 point) {
+  void moveTo(Vector2 point, {bool isPointerDown = false}) {
     if (!supportsDragMovement || size.x <= 0 || size.y <= 0) return;
     if (type == GameType.mazeRunner) {
-      _moveMazeRunner(point);
+      _moveMazeRunner(point, isPointerDown: isPointerDown);
       return;
     }
     const margin = 22.0;
