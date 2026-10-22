@@ -75,9 +75,12 @@ class SecuritySettingsService extends ChangeNotifier {
       await _persist();
     }
 
-    _encryptionEnabled = prefs.getBool(_encryptionEnabledKey) ?? false;
-    final encryptedIds = prefs.getStringList(_encryptionIndexKey) ?? const <String>[];
-    _encryptedChats.addAll(encryptedIds);
+    // Messaging follows the same ordinary Firestore transport as the Community room.
+    // Clear legacy opt-ins so Signal/E2EE cannot be re-enabled from stale local settings.
+    _encryptionEnabled = false;
+    _encryptedChats.clear();
+    await prefs.setBool(_encryptionEnabledKey, false);
+    await prefs.setStringList(_encryptionIndexKey, const <String>[]);
 
     final chatIds = prefs.getStringList(_chatIndexKey) ?? const <String>[];
     for (final chatId in chatIds) {
@@ -131,24 +134,23 @@ class SecuritySettingsService extends ChangeNotifier {
   /// E2EE is opt-in. A chat is plaintext unless the user explicitly enables it.
   bool get encryptionEnabled => _encryptionEnabled;
 
-  bool isEncryptionEnabledForChat(String chatId) =>
-      _encryptedChats.contains(chatId) || _encryptionEnabled;
+  /// New conversations always use the same plaintext Firestore transport as Community.
+  /// This compatibility method intentionally stays false for old callers.
+  bool isEncryptionEnabledForChat(String chatId) => false;
 
   Future<void> setEncryptionEnabled(bool enabled) async {
     await _ensureReady();
-    _encryptionEnabled = enabled;
-    await _prefs!.setBool(_encryptionEnabledKey, enabled);
+    _encryptionEnabled = false;
+    _encryptedChats.clear();
+    await _prefs!.setBool(_encryptionEnabledKey, false);
+    await _prefs!.setStringList(_encryptionIndexKey, const <String>[]);
     notifyListeners();
   }
 
   Future<void> setChatEncryption(String chatId, bool enabled) async {
     await _ensureReady();
-    if (enabled) {
-      _encryptedChats.add(chatId);
-    } else {
-      _encryptedChats.remove(chatId);
-    }
-    await _prefs!.setStringList(_encryptionIndexKey, _encryptedChats.toList());
+    _encryptedChats.remove(chatId);
+    await _prefs!.setStringList(_encryptionIndexKey, const <String>[]);
     notifyListeners();
   }
 
