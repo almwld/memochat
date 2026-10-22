@@ -990,7 +990,7 @@ class MemoArcadeGame extends FlameGame {
 
     // Long, specific questions may wrap onto multiple lines. Keep the answer
     // tiles below the complete question and use the same position for hit tests.
-    _optionStartY = math.max(150.0, 104.0 + promptPainter.height + 12.0);
+    _optionStartY = math.max(150.0, 104.0 + promptPainter.height + 12.0).toDouble();
     final paint = Paint();
     final visible = options.take(4).toList();
     for (var n = 0; n < visible.length; n++) {
