@@ -1338,7 +1338,7 @@ class MemoArcadeGame extends FlameGame {
     }
   }
 
-  void _tapXo(Vector2 point) {
+  Future<void> _tapXo(Vector2 point) async {
     if (_xoWinner != 0) {
       if (point.y < 100 && _canPlayTurn) {
         _xoBoard.fillRange(0, _xoBoard.length, 0);
@@ -1376,6 +1376,31 @@ class MemoArcadeGame extends FlameGame {
     _specialRound++;
     onScore(score);
     final nextTurn = _xoWinner == 0 ? _nextTurnUid() : null;
+    if (_isMultiplayerSession) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final id = gameId?.trim();
+      if (uid == null || id == null || id.isEmpty) return;
+      try {
+        final result = await GameService.instance.submitXoMove(
+          chatId: chatId,
+          gameId: id,
+          uid: uid,
+          cell: index,
+          score: score,
+        );
+        _copyIntList(_xoBoard, result['board']);
+        _xoWinner = (result['winner'] as num?)?.toInt() ?? 0;
+        _specialRound = (result['round'] as num?)?.toInt() ?? _specialRound;
+        _currentTurnUid = result['currentTurn']?.toString();
+      } catch (_) {
+        // A stale turn or occupied cell must never remain as a local-only move.
+        _xoBoard[index] = 0;
+        score = math.max(0, score - (_xoWinner == marker ? 3 : 0));
+        _xoWinner = 0;
+      }
+      onScore(score);
+      return;
+    }
     _syncBoardState(
       {'xoBoard': _xoBoard, 'xoWinner': _xoWinner},
       currentTurn: nextTurn,
