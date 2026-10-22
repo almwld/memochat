@@ -1061,10 +1061,14 @@ class MemoArcadeGame extends FlameGame {
         const Radius.circular(10),
       ), paint);
       if (visible) {
+        const symbols = <String>['⭐', '❤️', '🌙', '⚽', '🍎', '🚀'];
+        final label = type == GameType.emojiMemory
+            ? symbols[_memoryOrder[n] % symbols.length]
+            : (_memoryOrder[n] + 1).toString();
         final t = TextPainter(
           text: TextSpan(
-            text: (_memoryOrder[n] + 1).toString(),
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+            text: label,
+            style: TextStyle(color: Colors.white, fontSize: type == GameType.emojiMemory ? 24 : 18, fontWeight: FontWeight.w900),
           ),
           textDirection: TextDirection.ltr,
         )..layout();
