@@ -248,7 +248,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             child: DedicatedGameFactory.build(
               widget.type,
               chatId: widget.chatId,
-              gameId: widget.gameId,
+              gameId: _gameId ?? widget.gameId,
             ),
           ),
         ),
