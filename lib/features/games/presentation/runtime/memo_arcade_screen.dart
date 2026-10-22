@@ -345,6 +345,14 @@ class MemoArcadeGame extends FlameGame {
       textDirection: TextDirection.rtl,
     )..layout(maxWidth: size.x - 20);
     hint.paint(canvas, Offset((size.x - hint.width) / 2, 43));
+    if (_feedbackClock <= 2.2 && _feedbackMessage.isNotEmpty) {
+      final feedback = TextPainter(
+        text: TextSpan(text: _feedbackMessage, style: TextStyle(color: Colors.white.withOpacity((1 - _feedbackClock / 2.2).clamp(0.0, 1.0).toDouble()), fontSize: 11, fontWeight: FontWeight.w800)),
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.center,
+      )..layout(maxWidth: size.x - 20);
+      feedback.paint(canvas, Offset((size.x - feedback.width) / 2, 61));
+    }
     final paint = Paint()..style = PaintingStyle.fill;
     for (var row = 0; row < _activeMaze.length; row++) {
       for (var column = 0; column < _activeMaze[row].length; column++) {
@@ -494,7 +502,6 @@ class MemoArcadeGame extends FlameGame {
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
     if (type == GameType.mazeRunner) {
       _renderMazeRunner(canvas);
-      _renderFeedback(canvas);
       return;
     }
     if (type == GameType.rocketRace) {
