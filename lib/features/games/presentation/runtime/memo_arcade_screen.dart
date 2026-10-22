@@ -475,7 +475,7 @@ class MemoArcadeGame extends FlameGame {
         t.velocity.y *= -1; t.position.y = t.position.y.clamp(75+r,size.y-r).toDouble();
       }
     }
-    targets.removeWhere((t) => t.age > 7);
+    if (!_isSequenceGame) targets.removeWhere((t) => t.age > 7);
     if (supportsDragMovement && _playerPosition != null) {
       final collected = targets.where((target) =>
           target.position.distanceTo(_playerPosition!) < target.radius + 20).toList();
