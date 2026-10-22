@@ -49,10 +49,11 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
     if (url.isEmpty) return;
     VideoPlayerController? controller;
     try {
-      final cached = await LocalMediaCache.instance.getOrDownload(url, timeout: const Duration(seconds: 45));
+      final cached = await LocalMediaCache.instance.existing(url);
       controller = cached != null
           ? VideoPlayerController.file(cached)
           : VideoPlayerController.networkUrl(Uri.parse(url));
+      if (cached == null) LocalMediaCache.instance.getOrDownload(url, timeout: const Duration(seconds: 45));
       _player = controller;
       await controller.initialize();
       await controller.setLooping(true);
