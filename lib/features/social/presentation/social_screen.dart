@@ -275,7 +275,7 @@ class _PostState extends State<_Post> {
         ),
       );
     } finally {
-      controller.dispose();
+      controller?.dispose();
     }
   }
 
