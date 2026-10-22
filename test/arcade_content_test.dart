@@ -41,6 +41,21 @@ void main() {
           expect(options.length, inInclusiveRange(2, 4));
           expect(options.every((option) => option.trim().isNotEmpty), isTrue);
           expect(
+            options.toSet().length,
+            options.length,
+            reason: 'Each quiz question must have distinct choices',
+          );
+          expect(
+            quiz.prompts[i],
+            isNot(anyOf('اختر الإجابة الصحيحة', 'اختر أحد الخيارات', 'اختر')),
+            reason: 'Each quiz prompt must say what the player is answering',
+          );
+          expect(
+            quiz.prompts[i],
+            isNot(contains('اختر أربعة')),
+            reason: 'Quiz runtime supports one answer per tap, not multi-select',
+          );
+          expect(
             quiz.correctAnswers[i],
             inInclusiveRange(0, options.length - 1),
             reason: '${quiz.type.name} question $i has an invalid answer index',
@@ -75,6 +90,9 @@ void main() {
 
     test('known quiz answers point to the correct option, not just a valid index', () {
       const expectedAnswers = <GameType, List<String>>{
+        GameType.quizBattle: ['المريخ', '7', 'صنعاء', '3'],
+        GameType.trivia: ['الهادئ', 'العربية', '7'],
+        GameType.trueFalse: ['صحيح', 'خطأ', 'صحيح'],
         GameType.emojiReaction: ['❤', '★', '●', '◆'],
         GameType.guessSong: ['جاز', 'روك', 'كلاسيكي', 'عربي'],
         GameType.movieQuiz: ['أكشن', 'كوميديا', 'خيال علمي', 'دراما'],
