@@ -170,11 +170,11 @@ class MemoArcadeGame extends FlameGame {
       case GameType.galaxyCatch:
         return 'اسحب المركبة الفضائية لتجمع النجوم. كلما ارتفع مستواك زادت سرعة الأهداف؛ لا حاجة لتمرير الصفحة.';
       case GameType.treasureHunt:
-        return 'المس الجواهر الذهبية قبل أن تختفي. كل جوهرة تمنح نقاطًا.';
+        return 'المس الأهداف الذهبية ثلاثية الأبعاد قبل اختفائها؛ كل هدف يمنحك نقاطًا.';
       case GameType.rocketRace:
         return 'المس الجزء السفلي من ساحة اللعب لدفع الصاروخ إلى خط النهاية.';
       case GameType.targetHit:
-        return 'المس مركز الهدف الدائري المتحرك. إصابة الهدف تمنحك نقاطًا.';
+        return 'المس مركز المجسم ثلاثي الأبعاد المتحرك؛ كل إصابة تمنحك نقاطًا.';
       case GameType.stackTower:
         return 'انتظر حتى يقترب المكعب المتحرك من الخط الأوسط ثم المسه؛ اللمس المبكر لا يحتسب.';
       case GameType.balanceBeam:
@@ -720,7 +720,9 @@ class MemoArcadeGame extends FlameGame {
     final pulse = 1 + math.sin(target.age * 4.8 + target.phase) * .045;
     final r = target.radius * pulse;
     final center = Offset(target.position.x, target.position.y);
-    final color = palette[target.kind % palette.length];
+    final color = type == GameType.treasureHunt
+        ? const Color(0xFFFFC857)
+        : palette[target.kind % palette.length];
 
     paint
       ..style = PaintingStyle.fill
