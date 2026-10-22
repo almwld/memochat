@@ -498,7 +498,7 @@ class _VideoState extends State<_Video> {
 
   @override
   void dispose() {
-    controller.dispose();
+    controller?.dispose();
     super.dispose();
   }
 
