@@ -1338,14 +1338,39 @@ class MemoArcadeGame extends FlameGame {
     }
   }
 
+  bool _xoMovePending = false;
+
   Future<void> _tapXo(Vector2 point) async {
+    if (_xoMovePending) return;
     if (_xoWinner != 0) {
       if (point.y < 100 && _canPlayTurn) {
-        _xoBoard.fillRange(0, _xoBoard.length, 0);
-        _xoWinner = 0;
-        _xoTurn = 1;
-        _specialRound++;
-        _syncBoardState({'xoBoard': _xoBoard, 'xoWinner': 0});
+        if (_isMultiplayerSession) {
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          final id = gameId?.trim();
+          if (uid == null || id == null || id.isEmpty) return;
+          _xoMovePending = true;
+          try {
+            final result = await GameService.instance.resetXoGame(
+              chatId: chatId,
+              gameId: id,
+              uid: uid,
+            );
+            _copyIntList(_xoBoard, result['board']);
+            _xoWinner = 0;
+            _specialRound = (result['round'] as num?)?.toInt() ?? _specialRound + 1;
+            _currentTurnUid = result['currentTurn']?.toString();
+          } catch (_) {
+            // Keep the finished board intact when the server rejects the reset.
+          } finally {
+            _xoMovePending = false;
+          }
+        } else {
+          _xoBoard.fillRange(0, _xoBoard.length, 0);
+          _xoWinner = 0;
+          _xoTurn = 1;
+          _specialRound++;
+          _syncBoardState({'xoBoard': _xoBoard, 'xoWinner': 0});
+        }
         onScore(score);
       }
       return;
@@ -1361,6 +1386,7 @@ class MemoArcadeGame extends FlameGame {
     if (_xoBoard[index] != 0) return;
     final marker = _localMarker(_xoTurn);
     if (marker == 0) return;
+    if (_isMultiplayerSession) _xoMovePending = true;
     _xoBoard[index] = marker;
     _xoWinner = GameBoardRules.findWinner(
       _xoBoard,
@@ -1397,6 +1423,8 @@ class MemoArcadeGame extends FlameGame {
         _xoBoard[index] = 0;
         score = math.max(0, score - (_xoWinner == marker ? 3 : 0));
         _xoWinner = 0;
+      } finally {
+        _xoMovePending = false;
       }
       onScore(score);
       return;
