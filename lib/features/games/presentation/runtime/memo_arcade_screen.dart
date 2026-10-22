@@ -166,7 +166,7 @@ class MemoArcadeGame extends FlameGame {
   String get controlsHelp {
     switch (type) {
       case GameType.mazeRunner:
-        return 'اسحب المكعب الأخضر داخل الساحة لالتقاط الأهداف المتحركة. لا توجد أزرار اتجاهات؛ اتبع إصبعك مباشرة.';
+        return 'اسحب المكعب الأخضر خطوة بخطوة داخل الممرات حتى تصل إلى المخرج الأخضر. الجدران تمنع المرور؛ لا تمرر الصفحة.';
       case GameType.galaxyCatch:
         return 'اسحب المركبة الفضائية لتجمع النجوم. كلما ارتفع مستواك زادت سرعة الأهداف؛ لا حاجة لتمرير الصفحة.';
       case GameType.treasureHunt:
@@ -240,8 +240,141 @@ class MemoArcadeGame extends FlameGame {
   bool get supportsDragMovement =>
       type == GameType.mazeRunner || type == GameType.galaxyCatch;
 
+  static const List<List<String>> _mazeLayouts = <List<String>>[
+    <String>['#######', '#S....#', '###.#.#', '#...#.#', '#.###.#', '#.....#', '#.#####', '#.....E', '#######'],
+    <String>['#######', '#S#...#', '#.#.#.#', '#...#.#', '###.#.#', '#.....#', '#.#####', '#.....E', '#######'],
+    <String>['#######', '#S....#', '#.###.#', '#...#.#', '###.#.#', '#...#.#', '#.###.#', '#.....E', '#######'],
+    <String>['#######', '#S....#', '#####.#', '#.....#', '#.#####', '#.....#', '#####.#', '#.....E', '#######'],
+    <String>['#######', '#S#...#', '#.#.#.#', '#.#.#.#', '#...#.#', '###.#.#', '#...#.#', '#.....E', '#######'],
+  ];
+  int _mazeLevel = 1;
+  int _mazeRow = 1;
+  int _mazeColumn = 1;
+  bool _mazeCompleted = false;
+
+  List<String> get _activeMaze => _mazeLayouts[(_mazeLevel - 1) % _mazeLayouts.length];
+
+  double get _mazeCellSize => math.max(1.0, math.min(
+    math.max(1.0, size.x - 24) / 7,
+    math.max(1.0, size.y - 120) / 9,
+  )).toDouble();
+
+  Rect get _mazeBoardRect => Rect.fromLTWH(
+    (size.x - _mazeCellSize * 7) / 2,
+    80,
+    _mazeCellSize * 7,
+    _mazeCellSize * 9,
+  );
+
+  bool _mazeWalkable(int row, int column) =>
+      row >= 0 && row < _activeMaze.length && column >= 0 &&
+      column < _activeMaze[row].length && _activeMaze[row][column] != '#';
+
+  void _resetMazePlayer() {
+    for (var row = 0; row < _activeMaze.length; row++) {
+      final column = _activeMaze[row].indexOf('S');
+      if (column >= 0) {
+        _mazeRow = row;
+        _mazeColumn = column;
+        final rect = _mazeBoardRect;
+        _playerPosition = Vector2(
+          rect.left + (column + .5) * _mazeCellSize,
+          rect.top + (row + .5) * _mazeCellSize,
+        );
+        return;
+      }
+    }
+  }
+
+  void _moveMazeRunner(Vector2 point) {
+    if (_mazeCompleted && level >= 10) {
+      score = 0;
+      _mazeLevel = 1;
+      _lastAnnouncedLevel = 1;
+      _mazeCompleted = false;
+      _resetMazePlayer();
+      onScore(score);
+      _showFeedback('بدأت متاهة جديدة؛ اتبع الممرات إلى المخرج');
+      return;
+    }
+    final rect = _mazeBoardRect;
+    if (!rect.contains(Offset(point.x, point.y))) return;
+    final targetColumn = ((point.x - rect.left) / _mazeCellSize).floor();
+    final targetRow = ((point.y - rect.top) / _mazeCellSize).floor();
+    if (targetRow == _mazeRow && targetColumn == _mazeColumn) return;
+    if ((targetRow - _mazeRow).abs() + (targetColumn - _mazeColumn).abs() != 1) {
+      if (_feedbackClock > 1.0) _showFeedback('تحرك خطوة واحدة في كل مرة عبر الممرات');
+      return;
+    }
+    if (!_mazeWalkable(targetRow, targetColumn)) {
+      if (_feedbackClock > 1.0) _showFeedback('هذا جدار! ابحث عن ممر مفتوح');
+      return;
+    }
+    _mazeRow = targetRow;
+    _mazeColumn = targetColumn;
+    _playerPosition = Vector2(
+      rect.left + (_mazeColumn + .5) * _mazeCellSize,
+      rect.top + (_mazeRow + .5) * _mazeCellSize,
+    );
+    if (_activeMaze[_mazeRow][_mazeColumn] == 'E' && !_mazeCompleted) {
+      _mazeCompleted = true;
+      score += 10;
+      _showFeedback(level >= 10
+          ? 'أكملت المرحلة النهائية! المس للعب من جديد'
+          : 'وصلت إلى المخرج! +10 نقاط؛ المرحلة التالية جاهزة');
+      onScore(score);
+      _syncScore();
+    }
+  }
+
+  void _renderMazeRunner(Canvas canvas) {
+    final rect = _mazeBoardRect;
+    final cellSize = _mazeCellSize;
+    final title = TextPainter(
+      text: TextSpan(text: 'متاهة المرحلة $_mazeLevel/10 • $score نقطة', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 20);
+    title.paint(canvas, Offset((size.x - title.width) / 2, 10));
+    final hint = TextPainter(
+      text: const TextSpan(text: 'البداية: أزرق • المخرج: أخضر • اسحب خطوة عبر الممر', style: TextStyle(color: Color(0xFF8DE7DB), fontSize: 11, fontWeight: FontWeight.w700)),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 20);
+    hint.paint(canvas, Offset((size.x - hint.width) / 2, 43));
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (var row = 0; row < _activeMaze.length; row++) {
+      for (var column = 0; column < _activeMaze[row].length; column++) {
+        final cell = _activeMaze[row][column];
+        final tile = Rect.fromLTWH(rect.left + column * cellSize, rect.top + row * cellSize, cellSize, cellSize).deflate(1.5);
+        paint.color = cell == '#'
+            ? const Color(0xFF164347)
+            : cell == 'E'
+                ? const Color(0xFF37C978)
+                : cell == 'S'
+                    ? const Color(0xFF236A91)
+                    : const Color(0xFF0C282C);
+        canvas.drawRRect(RRect.fromRectAndRadius(tile, const Radius.circular(5)), paint);
+        if (cell == 'E' || cell == 'S') {
+          final label = TextPainter(
+            text: TextSpan(text: cell == 'S' ? 'ب' : 'خ', style: TextStyle(color: Colors.white, fontSize: math.max(10.0, cellSize * .32), fontWeight: FontWeight.w900)),
+            textDirection: TextDirection.rtl,
+          )..layout();
+          label.paint(canvas, Offset(tile.center.dx - label.width / 2, tile.center.dy - label.height / 2));
+        }
+      }
+    }
+    final player = _playerPosition;
+    if (player != null) {
+      _drawMesh(canvas, Offset(player.x, player.y), cellSize * .31, elapsed * .8,
+        _cubeVertices, _cubeFaces, const Color(0xFF4DE3C1), tilt: .28);
+    }
+  }
+
   void moveTo(Vector2 point) {
     if (!supportsDragMovement || size.x <= 0 || size.y <= 0) return;
+    if (type == GameType.mazeRunner) {
+      _moveMazeRunner(point);
+      return;
+    }
     const margin = 22.0;
     _playerPosition = Vector2(
       point.x.clamp(margin, math.max(margin, size.x - margin)).toDouble(),
@@ -265,16 +398,18 @@ class MemoArcadeGame extends FlameGame {
 
   @override void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    if (supportsDragMovement && size.x > 0 && size.y > 0) {
+    if (type == GameType.mazeRunner && size.x > 0 && size.y > 0) {
+      _resetMazePlayer();
+    } else if (supportsDragMovement && size.x > 0 && size.y > 0) {
       _playerPosition ??= Vector2(size.x / 2, size.y * .78);
     }
-    if (targets.isEmpty && size.x > 0) {
+    if (type != GameType.mazeRunner && targets.isEmpty && size.x > 0) {
       for (var i = 0; i < 7; i++) spawnTarget();
     }
   }
 
   void spawnTarget() {
-    if (type == GameType.rocketRace) return;
+    if (type == GameType.rocketRace || type == GameType.mazeRunner) return;
     if (targets.length >= 11 || size.x < 30 || size.y < 120) return;
     final r = 18 + random.nextDouble() * 28;
     targets.add(Target(
@@ -304,9 +439,14 @@ class MemoArcadeGame extends FlameGame {
     }
     if (level > _lastAnnouncedLevel) {
       _lastAnnouncedLevel = level;
+      if (type == GameType.mazeRunner && level > _mazeLevel) {
+        _mazeLevel = level;
+        _mazeCompleted = false;
+        _resetMazePlayer();
+      }
       _showFeedback('أحسنت! وصلت إلى المرحلة $level: $stageName');
     }
-    if (spawnClock > math.max(.34, .7 - (level - 1) * .035)) {
+    if (type != GameType.mazeRunner && spawnClock > math.max(.34, .7 - (level - 1) * .035)) {
       spawnClock = 0;
       spawnTarget();
     }
@@ -345,6 +485,11 @@ class MemoArcadeGame extends FlameGame {
     paint..style=PaintingStyle.stroke..strokeWidth=1..color=const Color(0x2039D5C5);
     for (double x=0;x<size.x;x+=32) canvas.drawLine(Offset(x,78),Offset(x,size.y),paint);
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
+    if (type == GameType.mazeRunner) {
+      _renderMazeRunner(canvas);
+      _renderFeedback(canvas);
+      return;
+    }
     if (type == GameType.rocketRace) {
       _renderRocketRace(canvas);
       _renderFeedback(canvas);
