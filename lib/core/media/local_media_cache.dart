@@ -27,7 +27,7 @@ class LocalMediaCache {
 
   String _extension(Uri uri) {
     final ext = p.extension(uri.path).toLowerCase();
-    if (RegExp(r'^\\.(mp4|m4v|mov|webm|mp3|m4a|aac|wav|ogg|opus|3gp|jpg|jpeg|png|webp)$').hasMatch(ext)) return ext;
+    if (RegExp(r'^\.(mp4|m4v|mov|webm|mp3|m4a|aac|wav|ogg|opus|3gp|jpg|jpeg|png|webp)$').hasMatch(ext)) return ext;
     return '.media';
   }
 
