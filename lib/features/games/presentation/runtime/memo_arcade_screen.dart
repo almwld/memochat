@@ -1412,12 +1412,12 @@ class MemoArcadeGame extends FlameGame {
           gameId: id,
           uid: uid,
           cell: index,
-          score: score,
         );
         _copyIntList(_xoBoard, result['board']);
         _xoWinner = (result['winner'] as num?)?.toInt() ?? 0;
         _specialRound = (result['round'] as num?)?.toInt() ?? _specialRound;
         _currentTurnUid = result['currentTurn']?.toString();
+        score = (result['score'] as num?)?.toInt() ?? score;
       } catch (_) {
         // A stale turn or occupied cell must never remain as a local-only move.
         _xoBoard[index] = 0;
