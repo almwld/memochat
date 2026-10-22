@@ -63,6 +63,108 @@ class GameService {
     await _games(chatId).doc(gameId).update({...data,'updatedAt':FieldValue.serverTimestamp()});
   }
 
+  /// Applies a single XO move atomically so two clients cannot occupy the
+  /// same cell or both move from a stale turn snapshot.
+  Future<Map<String, dynamic>> submitXoMove({
+    required String chatId,
+    required String gameId,
+    required String uid,
+    required int cell,
+    required int score,
+  }) async {
+    if (cell < 0 || cell >= 9) throw RangeError.index(cell, List<int>.filled(9, 0));
+    final ref = _games(chatId).doc(gameId);
+    return _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw StateError('جلسة اللعبة غير موجودة.');
+      final data = snap.data() ?? <String, dynamic>{};
+      final players = List<String>.from(data['players'] as List? ?? const []);
+      if (players.length != 2 || !players.contains(uid)) {
+        throw StateError('يجب أن يكون اللاعب ضمن جلسة XO نشطة.');
+      }
+      if (data['status']?.toString() != GameStatus.playing.name) {
+        throw StateError('جلسة XO ليست قيد اللعب.');
+      }
+      if (data['currentTurn']?.toString() != uid) {
+        throw StateError('ليس دورك؛ تم تحديث دور اللاعب الآخر.');
+      }
+      final state = Map<String, dynamic>.from(data['state'] as Map? ?? const {});
+      final rawBoard = state['xoBoard'];
+      final board = rawBoard is List && rawBoard.length == 9
+          ? rawBoard.map((v) => v is num ? v.toInt() : 0).toList()
+          : List<int>.filled(9, 0);
+      if (board[cell] != 0) throw StateError('هذه الخانة حُجزت بالفعل.');
+      final winnerBefore = (state['xoWinner'] as num?)?.toInt() ?? 0;
+      if (winnerBefore != 0) throw StateError('انتهت الجولة؛ ابدأ جولة جديدة.');
+      final marker = players.indexOf(uid) + 1;
+      board[cell] = marker;
+      var winner = 0;
+      const lines = <List<int>>[
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6],
+      ];
+      for (final line in lines) {
+        if (board[line[0]] != 0 &&
+            board[line[0]] == board[line[1]] &&
+            board[line[1]] == board[line[2]]) {
+          winner = board[line[0]];
+          break;
+        }
+      }
+      if (winner == 0 && board.every((v) => v != 0)) winner = 3;
+      final round = ((state['round'] as num?)?.toInt() ?? 0) + 1;
+      state.addAll({'xoBoard': board, 'xoWinner': winner, 'round': round, 'gameType': GameType.xo.name});
+      final scores = Map<String, dynamic>.from(data['scores'] as Map? ?? const {});
+      scores[uid] = score < 0 ? 0 : score;
+      final nextTurn = winner == 0 ? players.firstWhere((player) => player != uid) : uid;
+      tx.update(ref, {
+        'state': state,
+        'scores': scores,
+        'currentTurn': nextTurn,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return <String, dynamic>{
+        'board': board,
+        'winner': winner,
+        'round': round,
+        'currentTurn': nextTurn,
+      };
+    });
+  }
+
+  /// Starts a rematch from a terminal XO board. The transaction prevents
+  /// both players from resetting the same round over one another.
+  Future<Map<String, dynamic>> resetXoGame({
+    required String chatId,
+    required String gameId,
+    required String uid,
+  }) async {
+    final ref = _games(chatId).doc(gameId);
+    return _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw StateError('جلسة اللعبة غير موجودة.');
+      final data = snap.data() ?? <String, dynamic>{};
+      final players = List<String>.from(data['players'] as List? ?? const []);
+      if (!players.contains(uid)) throw StateError('لست لاعبًا في هذه الجلسة.');
+      if (data['status']?.toString() != GameStatus.playing.name) {
+        throw StateError('جلسة XO ليست قيد اللعب.');
+      }
+      final state = Map<String, dynamic>.from(data['state'] as Map? ?? const {});
+      final winner = (state['xoWinner'] as num?)?.toInt() ?? 0;
+      if (winner == 0) throw StateError('لا يمكن إعادة الجولة قبل انتهائها.');
+      final board = List<int>.filled(9, 0);
+      final round = ((state['round'] as num?)?.toInt() ?? 0) + 1;
+      state.addAll({'xoBoard': board, 'xoWinner': 0, 'round': round, 'gameType': GameType.xo.name});
+      tx.update(ref, {
+        'state': state,
+        'currentTurn': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return <String, dynamic>{'board': board, 'winner': 0, 'round': round, 'currentTurn': uid};
+    });
+  }
+
   Future<void> updatePlayerState({
     required String chatId,
     required String gameId,
