@@ -116,7 +116,9 @@ class GameService {
       final round = ((state['round'] as num?)?.toInt() ?? 0) + 1;
       state.addAll({'xoBoard': board, 'xoWinner': winner, 'round': round, 'gameType': GameType.xo.name});
       final scores = Map<String, dynamic>.from(data['scores'] as Map? ?? const {});
-      scores[uid] = score < 0 ? 0 : score;
+      final previousScore = scores[uid] is num ? (scores[uid] as num).toInt() : 0;
+      final authoritativeScore = previousScore + (winner == marker ? 3 : 0);
+      scores[uid] = authoritativeScore;
       final nextTurn = winner == 0 ? players.firstWhere((player) => player != uid) : uid;
       tx.update(ref, {
         'state': state,
@@ -129,6 +131,7 @@ class GameService {
         'winner': winner,
         'round': round,
         'currentTurn': nextTurn,
+        'score': authoritativeScore,
       };
     });
   }
