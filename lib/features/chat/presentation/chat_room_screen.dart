@@ -529,6 +529,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       }
       final data = snapshot.data() ?? <String, dynamic>{};
       final uid = _auth.currentUser?.uid;
+
+      // Keep the inbox badge synchronized while this room is open. Incoming
+      // messages can increment unreadCount after the initial mark-as-read;
+      // clear only this signed-in user's counter, never other participants'.
+      final unreadCounts = data['unreadCount'];
+      final myUnread = uid != null && unreadCounts is Map
+          ? (unreadCounts[uid] as num?)?.toInt() ?? 0
+          : 0;
+      if (myUnread > 0) {
+        unawaited(_markRead());
+      }
+
       final mutedFor = data['mutedFor'];
       final pinnedFor = data['pinnedFor'];
       final typing = data['typing'];
@@ -1305,6 +1317,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
 
   @override
   void dispose() {
+    // Final reconciliation prevents a stale unread badge when leaving a room,
+    // including when the last read-state update raced with navigation.
+    unawaited(_markRead());
     _fontSizeSaveTimer?.cancel();
     if (_zoomPointers.isNotEmpty) _zoomPointers.clear();
     WidgetsBinding.instance.removeObserver(this);
