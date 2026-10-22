@@ -185,7 +185,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         return _withStatus(_buildVideo(_firstNonEmpty(m, ['videoUrl', 'fileUrl', 'text'])));
       case 'audio':
         final url = _firstNonEmpty(m, ['audioUrl', 'fileUrl', 'text']);
-        // Keep the status indicator inside the audio bubble, never below it.
+        // Keep delivery/read status outside the audio bubble, like images and video.
         return _withStatus(
           _shell(
             AudioWaveformBubble(
@@ -212,12 +212,10 @@ class _MessageBubbleState extends State<MessageBubble> {
     }
   }
 
-  /// Delivery/read state is part of every message document, including media.
-  /// Keep the same placement used by text messages: for received messages the
-  /// status is rendered before the bubble; for sent messages it stays at the end.
-  /// Keep the delivery/read indicator outside the media card, matching text messages.
+  /// Render exactly one delivery/read indicator outside each media bubble.
+  /// Uploading local/outbox items keep their own retry/progress control from the
+  /// room; sent media uses the same external status placement as text messages.
   Widget _withStatus(Widget bubble) {
-    // Local/outbox media uses the retry/progress indicator rendered by the room.
     if (widget.message['isLocal'] == true) return bubble;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -231,21 +229,6 @@ class _MessageBubbleState extends State<MessageBubble> {
         bubble,
       ],
     );
-  }
-
-  /// Keep delivery/read state as icons only. The chat UI intentionally
-  /// does not display textual status labels beside media messages.
-  Widget _mediaStatus(Map<String, dynamic> m) {
-    if (m['isSending'] == true) {
-      return const Icon(Icons.schedule, size: 14, color: Colors.grey);
-    }
-    if (m['isRead'] == true) {
-      return const Icon(Icons.done_all_rounded, size: 15, color: Color(0xFF53BDEB));
-    }
-    if (m['isDelivered'] == true) {
-      return const Icon(Icons.done_all_rounded, size: 15, color: Colors.grey);
-    }
-    return const Icon(Icons.done_rounded, size: 15, color: Colors.grey);
   }
 
   Widget _buildGameInvite(Map<String, dynamic> m, bool dark) {
