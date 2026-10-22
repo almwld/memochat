@@ -154,7 +154,7 @@ class MemoArcadeGame extends FlameGame {
   final String title;
   final math.Random random = math.Random();
 
-  int get level => (score ~/ 10 + 1).clamp(1, 10);
+  int get level => (score ~/ 10 + 1).clamp(1, 10).toInt();
   int get pointsToNextLevel => level >= 10 ? 0 : 10 - (score % 10);
   double get levelProgress => level >= 10 ? 1 : (score % 10) / 10;
   String get stageName => const [
