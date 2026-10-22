@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import '../../../core/media/local_media_cache.dart';
 
 import '../data/social_service.dart';
 import 'reels_screen.dart';
@@ -215,7 +216,7 @@ class _PostState extends State<_Post> {
                                             ],
                                           ),
                                         );
-                                        controller.dispose();
+                                        controller?.dispose();
                                         if (edited != null && edited.isNotEmpty) {
                                           await _run(() => widget.service.editPostComment(widget.id, comments[index].id, edited), message: 'تعذر تعديل التعليق');
                                         }
@@ -472,15 +473,26 @@ class _Video extends StatefulWidget {
 }
 
 class _VideoState extends State<_Video> {
-  late final VideoPlayerController controller;
+  VideoPlayerController? controller;
 
   @override
   void initState() {
     super.initState();
-    controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (mounted) setState(() {});
-      });
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    final cached = await LocalMediaCache.instance.getOrDownload(widget.url, timeout: const Duration(seconds: 45));
+    final next = cached != null
+        ? VideoPlayerController.file(cached)
+        : VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    controller = next;
+    try {
+      await next.initialize();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -491,8 +503,9 @@ class _VideoState extends State<_Video> {
 
   @override
   Widget build(BuildContext context) {
-    if (!controller.value.isInitialized) return const AspectRatio(aspectRatio: 16 / 9, child: Center(child: CircularProgressIndicator()));
-    return AspectRatio(aspectRatio: 16 / 9, child: VideoPlayer(controller));
+    final player = controller;
+    if (player == null || !player.value.isInitialized) return const AspectRatio(aspectRatio: 16 / 9, child: Center(child: CircularProgressIndicator()));
+    return AspectRatio(aspectRatio: 16 / 9, child: VideoPlayer(player));
   }
 }
 
