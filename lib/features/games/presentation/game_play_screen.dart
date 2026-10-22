@@ -592,15 +592,49 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
         if (visible.isEmpty) {
           _bubbleTimer?.cancel();
           _bubbleTimer = null;
-          return const SizedBox.shrink();
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, .08),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+            child: const SizedBox.shrink(key: ValueKey('game-chat-empty')),
+          );
         }
         _bubbleTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
           if (mounted) setState(() {});
         });
         final uid = FirebaseAuth.instance.currentUser?.uid;
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: visible.map((m) {
+        final bubbleKey = visible.map((m) {
+          final stamp = m.timestamp?.toDate().millisecondsSinceEpoch ?? 0;
+          return '${m.senderId}_${stamp}_${m.text ?? ''}';
+        }).join('|');
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 240),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, .08),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: Column(
+            key: ValueKey(bubbleKey),
+            mainAxisSize: MainAxisSize.min,
+            children: visible.map((m) {
             final mine = m.senderId == uid;
             final stampKey = m.timestamp?.toDate().millisecondsSinceEpoch ?? 0;
             return Align(
@@ -648,7 +682,8 @@ class _QuickGameChatBarState extends State<_QuickGameChatBar>
                 ),
               ),
             );
-          }).toList(),
+            }).toList(),
+          ),
         );
       },
     );
