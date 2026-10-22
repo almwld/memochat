@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import '../../../../core/media/local_media_cache.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Compact in-bubble voice-message player.
@@ -55,7 +56,12 @@ class _AdvancedAudioPlayerState extends State<AdvancedAudioPlayer> {
         final path = value.startsWith('file://') ? Uri.parse(value).toFilePath() : value;
         await _player.setFilePath(path);
       } else {
-        await _player.setUrl(value);
+        final cached = await LocalMediaCache.instance.getOrDownload(value);
+        if (cached != null) {
+          await _player.setFilePath(cached.path);
+        } else {
+          await _player.setUrl(value);
+        }
       }
       await _player.setVolume(_volume);
       await _player.setSpeed(_speed);
