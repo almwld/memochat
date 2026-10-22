@@ -1102,12 +1102,17 @@ class MemoArcadeGame extends FlameGame {
     if (targets.isEmpty) return;
     final target = targets.first;
     final distance = point.distanceTo(target.position);
-    if (distance <= target.radius * 1.15) {
+    final hit = distance <= target.radius * 1.15;
+    final needsCenterTiming = type == GameType.stackTower || type == GameType.balanceBeam;
+    final centered = (target.position.x - size.x / 2).abs() <= target.radius * .8;
+    if (hit && (!needsCenterTiming || centered)) {
       score += 1 + (elapsed.floor() % 3);
-      _showFeedback('توقيت ممتاز!');
+      _showFeedback('توقيت ممتاز! +${1 + (elapsed.floor() % 3)} نقاط');
       targets.remove(target);
       onScore(score);
       _syncScore();
+    } else if (hit && needsCenterTiming) {
+      _showFeedback('أصبت الهدف، لكن انتظر حتى يعبر الخط الأوسط');
     } else {
       score = math.max(0, score - 1);
       _showFeedback('حاول لمس الهدف بدقة أكبر');
