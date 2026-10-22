@@ -266,6 +266,7 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void spawnTarget() {
+    if (type == GameType.rocketRace) return;
     if (targets.length >= 11 || size.x < 30 || size.y < 120) return;
     final r = 18 + random.nextDouble() * 28;
     targets.add(Target(
@@ -317,6 +318,10 @@ class MemoArcadeGame extends FlameGame {
     paint..style=PaintingStyle.stroke..strokeWidth=1..color=const Color(0x2039D5C5);
     for (double x=0;x<size.x;x+=32) canvas.drawLine(Offset(x,78),Offset(x,size.y),paint);
     for (double y=80;y<size.y;y+=32) canvas.drawLine(Offset(0,y),Offset(size.x,y),paint);
+    if (type == GameType.rocketRace) {
+      _renderRocketRace(canvas);
+      return;
+    }
     paint.style=PaintingStyle.fill;
     for (final t in targets) {
       _drawTargetModel(canvas, paint, t);
@@ -349,6 +354,71 @@ class MemoArcadeGame extends FlameGame {
       RRect.fromRectAndRadius(Rect.fromLTWH(16, 67, (size.x - 32) * levelProgress, 5), const Radius.circular(3)),
       progressPaint,
     );
+  }
+
+  void _renderRocketRace(Canvas canvas) {
+    final laneWidth = math.min(110.0, size.x * .32);
+    final lane = Rect.fromLTWH(
+      (size.x - laneWidth) / 2,
+      104,
+      laneWidth,
+      math.max(80.0, size.y - 140),
+    );
+    final roadPaint = Paint()
+      ..color = const Color(0xFF16373B)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(lane, const Radius.circular(26)),
+      roadPaint,
+    );
+    roadPaint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = const Color(0xFF5CCFC1);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(lane.deflate(5), const Radius.circular(22)),
+      roadPaint,
+    );
+    final dashPaint = Paint()
+      ..color = Colors.white.withOpacity(.55)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    for (var y = lane.bottom - 20; y > lane.top + 20; y -= 30) {
+      canvas.drawLine(
+        Offset(lane.center.dx, y),
+        Offset(lane.center.dx, y - 12),
+        dashPaint,
+      );
+    }
+    final progress = _raceProgress / 100;
+    final rocketCenter = Offset(
+      lane.center.dx,
+      lane.bottom - 28 - (lane.height - 56) * progress,
+    );
+    _drawMesh(
+      canvas,
+      rocketCenter,
+      18,
+      elapsed * 2.4,
+      _pyramidVertices,
+      _pyramidFaces,
+      const Color(0xFF56E6FF),
+      tilt: 0,
+    );
+    final label = TextPainter(
+      text: TextSpan(
+        text: _raceProgress >= 100
+            ? 'وصل الصاروخ! المس للانطلاق مجددًا'
+            : 'المس أسفل الساحة لدفع الصاروخ إلى خط النهاية',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 24);
+    label.paint(canvas, Offset((size.x - label.width) / 2, size.y - 30));
   }
 
   void _drawPlayer(Canvas canvas) {
