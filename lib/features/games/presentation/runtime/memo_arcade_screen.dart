@@ -1225,7 +1225,7 @@ class MemoArcadeGame extends FlameGame {
         ellipsis: '…',
         textAlign: TextAlign.center,
       )..layout(maxWidth: _optionCardWidth - 12);
-      optionPainter.paint(Offset(x + (_optionCardWidth - optionPainter.width) / 2, y + (_optionCardHeight - optionPainter.height) / 2));
+      optionPainter.paint(canvas, Offset(x + (_optionCardWidth - optionPainter.width) / 2, y + (_optionCardHeight - optionPainter.height) / 2));
     }
   }
 
