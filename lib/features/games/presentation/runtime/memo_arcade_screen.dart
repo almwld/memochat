@@ -336,7 +336,7 @@ class MemoArcadeGame extends FlameGame {
       ),
       textDirection: TextDirection.rtl,
     )..layout(maxWidth: size.x - 24);
-    hud.paint(canvas, Offset(math.max(12, (size.x - hud.width) / 2), 16));
+    hud.paint(canvas, Offset(math.max(12.0, (size.x - hud.width) / 2).toDouble(), 16));
     final help=TextPainter(
       text: TextSpan(text: stageName, style: const TextStyle(
         color: Color(0xFF8DE7DB), fontSize: 12, fontWeight: FontWeight.w700,
