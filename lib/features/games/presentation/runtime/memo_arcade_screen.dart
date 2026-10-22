@@ -176,9 +176,9 @@ class MemoArcadeGame extends FlameGame {
       case GameType.targetHit:
         return 'المس مركز الهدف الدائري المتحرك. إصابة الهدف تمنحك نقاطًا.';
       case GameType.stackTower:
-        return 'المس المكعب عندما يقترب من منتصف الساحة لتحصل على نقاط التوقيت.';
+        return 'انتظر حتى يقترب المكعب المتحرك من الخط الأوسط ثم المسه؛ اللمس المبكر لا يحتسب.';
       case GameType.balanceBeam:
-        return 'المس المكعب المتحرك بدقة وحافظ على سلسلة إصاباتك.';
+        return 'راقب الخط الأوسط والمس الهدف عندما يعبره لتكسب نقاط التوقيت.';
       case GameType.colorRush:
         return 'المس الأشكال باللون المطلوب؛ اللون الصحيح يزيد النقاط.';
       case GameType.colorMatch:
@@ -500,6 +500,9 @@ class MemoArcadeGame extends FlameGame {
     for (final t in targets) {
       _drawTargetModel(canvas, paint, t);
     }
+    if (const {GameType.shapeMatch, GameType.patternTap, GameType.sequenceRecall, GameType.rhythmTap}.contains(type)) {
+      _renderSequenceHints(canvas);
+    }
     _drawPlayer(canvas);
     for(final p in particles){paint.color=palette[p.kind%palette.length].withOpacity(math.max(0,1-p.age/.7));canvas.drawCircle(Offset(p.position.x,p.position.y),p.radius*(1+p.age*2),paint);}
     final comboLabel = combo >= 2 ? '  •  سلسلة $combo!' : '';
@@ -528,7 +531,50 @@ class MemoArcadeGame extends FlameGame {
       RRect.fromRectAndRadius(Rect.fromLTWH(16, 67, (size.x - 32) * levelProgress, 5), const Radius.circular(3)),
       progressPaint,
     );
+    if (type == GameType.colorRush || type == GameType.colorMatch) {
+      _renderColorGoal(canvas);
+    }
+    if (type == GameType.stackTower || type == GameType.balanceBeam) {
+      final guidePaint = Paint()
+        ..color = const Color(0xAA39D5C5)
+        ..strokeWidth = 3;
+      canvas.drawLine(Offset(size.x / 2, 86), Offset(size.x / 2, size.y - 44), guidePaint);
+      final label = TextPainter(
+        text: const TextSpan(text: 'اضغط عندما يعبر الهدف الخط الأوسط', style: TextStyle(color: Color(0xFF8DE7DB), fontSize: 11, fontWeight: FontWeight.w800)),
+        textDirection: TextDirection.rtl,
+      )..layout(maxWidth: size.x - 24);
+      label.paint(canvas, Offset((size.x - label.width) / 2, 77));
+    }
     _renderFeedback(canvas);
+  }
+
+  void _renderColorGoal(Canvas canvas) {
+    final center = Offset(size.x / 2, 89);
+    final badge = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center, width: 184, height: 23),
+      const Radius.circular(11),
+    );
+    canvas.drawRRect(badge, Paint()..color = const Color(0xFF17383B));
+    final label = TextPainter(
+      text: const TextSpan(text: 'اللون المطلوب', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.rtl,
+    )..layout();
+    label.paint(canvas, Offset(center.dx - label.width / 2 - 14, center.dy - label.height / 2));
+    canvas.drawCircle(Offset(center.dx + 57, center.dy), 7, Paint()..color = palette[_colorGoal % palette.length]);
+  }
+
+  void _renderSequenceHints(Canvas canvas) {
+    final ordered = targets.toList()..sort((a, b) => a.phase.compareTo(b.phase));
+    for (var index = 0; index < ordered.length; index++) {
+      final target = ordered[index];
+      final center = Offset(target.position.x, target.position.y - target.radius - 8);
+      canvas.drawCircle(center, 10, Paint()..color = index == 0 ? const Color(0xFF39D5C5) : const Color(0xDD17383B));
+      final label = TextPainter(
+        text: TextSpan(text: '${index + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(canvas, Offset(center.dx - label.width / 2, center.dy - label.height / 2));
+    }
   }
 
   void _renderFeedback(Canvas canvas) {
