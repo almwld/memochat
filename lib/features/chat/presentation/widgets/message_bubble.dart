@@ -1413,10 +1413,11 @@ class _InlineVideoPreviewState extends State<_InlineVideoPreview> {
       if (widget.isLocal) {
         controller = VideoPlayerController.file(File(localPath));
       } else {
-        final cached = await LocalMediaCache.instance.getOrDownload(rawPath, timeout: const Duration(seconds: 45));
+        final cached = await LocalMediaCache.instance.existing(rawPath);
         controller = cached != null
             ? VideoPlayerController.file(cached)
             : VideoPlayerController.networkUrl(Uri.parse(rawPath));
+        if (cached == null) LocalMediaCache.instance.getOrDownload(rawPath, timeout: const Duration(seconds: 45));
       }
 
       _controller = controller;
@@ -1600,11 +1601,12 @@ class _JustAudioMessagePlayerState extends State<JustAudioMessagePlayer> {
               if (widget.local) {
                 await player.setFilePath(widget.url.replaceFirst('file://', ''));
               } else {
-                final cached = await LocalMediaCache.instance.getOrDownload(widget.url);
+                final cached = await LocalMediaCache.instance.existing(widget.url);
                 if (cached != null) {
                   await player.setFilePath(cached.path);
                 } else {
                   await player.setUrl(widget.url);
+                  LocalMediaCache.instance.getOrDownload(widget.url);
                 }
               }
               ready = true;
