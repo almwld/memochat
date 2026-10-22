@@ -34,46 +34,20 @@ class _MemoBubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
-
-    // Zion-inspired message surface: a clean rounded rectangle with a restrained
-    // green edge, rather than a speech tail. Keep MemoChat's teal/WhatsApp palette
-    // so the room remains visually consistent in both light and dark themes.
     final fill = isMe
         ? (dark ? const Color(0xFF073D32) : const Color(0xFFD9FDD3))
         : (dark ? const Color(0xFF172522) : const Color(0xFFFFFFFF));
     final radius = emphasized ? 15.0 : 12.0;
-    final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
-
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
     canvas.drawRRect(
       rrect,
       Paint()
         ..style = PaintingStyle.fill
         ..color = fill,
     );
-
-    // Subtle neon-teal outline: visible enough to carry the Zion identity,
-    // without introducing a distracting glow around every message.
-    final borderColor = isMe
-        ? (dark ? const Color(0xFF19C9A7) : const Color(0xFF0A8F83))
-        : (dark ? const Color(0xFF29483F) : const Color(0xFFE0ECE8));
-    canvas.drawRRect(
-      rrect.deflate(0.35),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = isMe ? 0.8 : 0.55
-        ..color = borderColor,
-    );
-
-    if (isMe && dark) {
-      canvas.drawRRect(
-        rrect,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.35
-          ..color = const Color(0xFF00FFB3).withOpacity(0.16),
-      );
-    }
   }
 
   @override
@@ -206,7 +180,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final m = widget.message;
     switch (type) {
       case 'image':
-        return _buildImage(_firstNonEmpty(m, ['imageUrl', 'fileUrl', 'text']));
+        return _withStatus(_buildImage(_firstNonEmpty(m, ['imageUrl', 'fileUrl', 'text'])));
       case 'video':
         return _withStatus(_buildVideo(_firstNonEmpty(m, ['videoUrl', 'fileUrl', 'text'])));
       case 'audio':
@@ -241,32 +215,18 @@ class _MessageBubbleState extends State<MessageBubble> {
   /// Delivery/read state is part of every message document, including media.
   /// Keep the same placement used by text messages: for received messages the
   /// status is rendered before the bubble; for sent messages it stays at the end.
+  /// Keep the delivery/read indicator outside the media card, matching text messages.
   Widget _withStatus(Widget bubble) {
-    // Render exactly one delivery/read indicator inside the media bubble.
-    // Keeping it in the bubble prevents the stray checkmark beneath the card
-    // and next to the file metadata.
-    return Stack(
-      clipBehavior: Clip.none,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      textDirection: widget.isMe ? TextDirection.ltr : TextDirection.rtl,
       children: [
-        bubble,
-        PositionedDirectional(
-          end: 8,
-          bottom: 8,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: widget.isMe
-                  ? const Color(0xFFD9FDD3).withOpacity(.92)
-                  : (Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF202C33).withOpacity(.92)
-                      : Colors.white.withOpacity(.92)),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-              child: _mediaStatus(widget.message),
-            ),
-          ),
+        Padding(
+          padding: const EdgeInsets.only(right: 4, bottom: 7),
+          child: _status(widget.message),
         ),
+        bubble,
       ],
     );
   }
@@ -715,25 +675,7 @@ class _MessageBubbleState extends State<MessageBubble> {
             start: 8,
             child: _uploadChip(m, dark),
           ),
-        if (m['isUploading'] != true)
-          PositionedDirectional(
-            bottom: 8,
-            end: 8,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: widget.isMe
-                    ? const Color(0xFFD9FDD3).withOpacity(.92)
-                    : (dark
-                        ? const Color(0xFF202C33).withOpacity(.92)
-                        : Colors.white.withOpacity(.92)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                child: _mediaStatus(m),
-              ),
-            ),
-          ),
+
       ],
     );
 
