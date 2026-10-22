@@ -10,17 +10,7 @@ import 'games/memory_match_game.dart';
 import 'games/picture_puzzle_game.dart';
 import 'games/rhythm_tap_game.dart';
 import 'games/sudoku_duel_game.dart';
-import 'games/quiz_battle_game.dart';
-import 'games/emoji_reaction_game.dart';
-import 'games/draw_guess_game.dart';
-import 'games/word_chain_game.dart';
-import 'games/truth_dare_game.dart';
-import 'games/guess_song_game.dart';
-import 'games/trivia_game.dart';
 import 'games/quick_tap_game.dart';
-import 'games/would_you_rather_game.dart';
-import 'games/speed_math_game.dart';
-import 'games/movie_quiz_game.dart';
 
 class DedicatedGameFactory {
   static Widget build(
