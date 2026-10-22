@@ -248,6 +248,10 @@ class MemoArcadeGame extends FlameGame {
     <String>['#######', '#S#...#', '#.#.#.#', '#.#.#.#', '#...#.#', '###.#.#', '#...#.#', '#.....E', '#######'],
   ];
   int _mazeLevel = 1;
+  double _nextSequencePhase = 0;
+  bool get _isSequenceGame => const {
+    GameType.shapeMatch, GameType.patternTap, GameType.sequenceRecall, GameType.rhythmTap,
+  }.contains(type);
   int _mazeRow = 1;
   int _mazeColumn = 1;
   bool _mazeCompleted = false;
@@ -411,7 +415,7 @@ class MemoArcadeGame extends FlameGame {
 
   void spawnTarget() {
     if (type == GameType.rocketRace || type == GameType.mazeRunner) return;
-    if (targets.length >= 11 || size.x < 30 || size.y < 120) return;
+    if (targets.length >= (_isSequenceGame ? 7 : 11) || size.x < 30 || size.y < 120) return;
     final r = 18 + random.nextDouble() * 28;
     targets.add(Target(
       position: Vector2(r + random.nextDouble() * math.max(1, size.x - r * 2),
@@ -421,7 +425,9 @@ class MemoArcadeGame extends FlameGame {
         (random.nextDouble() - .5) * 100 * (1 + (level - 1) * .12),
         (random.nextDouble() - .5) * 100 * (1 + (level - 1) * .12),
       ),
-      kind: random.nextInt(3), phase: random.nextDouble()*math.pi*2));
+      kind: random.nextInt(3),
+      phase: _isSequenceGame ? _nextSequencePhase++ : random.nextDouble() * math.pi * 2,
+    ));
   }
 
   @override void update(double dt) {
