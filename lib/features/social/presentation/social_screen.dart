@@ -482,10 +482,11 @@ class _VideoState extends State<_Video> {
   }
 
   Future<void> _initialize() async {
-    final cached = await LocalMediaCache.instance.getOrDownload(widget.url, timeout: const Duration(seconds: 45));
+    final cached = await LocalMediaCache.instance.existing(widget.url);
     final next = cached != null
         ? VideoPlayerController.file(cached)
         : VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    if (cached == null) LocalMediaCache.instance.getOrDownload(widget.url, timeout: const Duration(seconds: 45));
     controller = next;
     try {
       await next.initialize();
