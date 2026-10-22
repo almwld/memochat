@@ -1286,20 +1286,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
       if (message['hasError'] == true) return UploadStatus.failed;
       if (message['isUploading'] == true) return UploadStatus.uploading;
     }
-    if (message['isLocal'] != true &&
-        message['senderId'] == _auth.currentUser?.uid) {
-      // Firestore publication means "sent", not "delivered". Only the
-      // receiver's acknowledgement may advance the indicator.
-      if (message['isRead'] == true ||
-          message['status']?.toString() == 'read') {
-        return UploadStatus.read;
-      }
-      if (message['isDelivered'] == true ||
-          message['status']?.toString() == 'delivered') {
-        return UploadStatus.delivered;
-      }
-      return UploadStatus.sent;
-    }
+    // Remote delivery/read state is displayed once by MessageBubble, outside
+    // the media card. This widget is reserved for local outbox progress/errors.
     return null;
   }
 
@@ -1654,16 +1642,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with WidgetsBindingObse
                   }
                   Widget messageWidget = status == null
                       ? bubble
-                      : Stack(clipBehavior: Clip.none, children: [
-                          bubble,
-                          MediaUploadStatusWidget(
-                              status: status,
-                              progress:
-                                  (message['uploadProgress'] as num?)?.toDouble() ??
-                                      0.0,
-                              onRetry: () => message['onRetry']?.call(),
-                              onCancel: () => message['onCancel']?.call())
-                        ]);
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          textDirection: TextDirection.ltr,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4, bottom: 7),
+                              child: MediaUploadStatusWidget(
+                                status: status,
+                                progress:
+                                    (message['uploadProgress'] as num?)?.toDouble() ??
+                                        0.0,
+                                onRetry: () => message['onRetry']?.call(),
+                                onCancel: () => message['onCancel']?.call(),
+                              ),
+                            ),
+                            bubble,
+                          ],
+                        );
                   if (model != null && model.id.isNotEmpty) {
                     messageWidget = _SwipeToReply(
                       onReply: () => _startReply(model),
