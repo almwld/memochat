@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import '../../../../core/media/local_media_cache.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -1408,9 +1409,15 @@ class _InlineVideoPreviewState extends State<_InlineVideoPreview> {
     final rawPath = widget.url.trim();
     final localPath = rawPath.replaceFirst('file://', '');
     try {
-      final controller = widget.isLocal
-          ? VideoPlayerController.file(File(localPath))
-          : VideoPlayerController.networkUrl(Uri.parse(rawPath));
+      VideoPlayerController controller;
+      if (widget.isLocal) {
+        controller = VideoPlayerController.file(File(localPath));
+      } else {
+        final cached = await LocalMediaCache.instance.getOrDownload(rawPath, timeout: const Duration(seconds: 45));
+        controller = cached != null
+            ? VideoPlayerController.file(cached)
+            : VideoPlayerController.networkUrl(Uri.parse(rawPath));
+      }
 
       _controller = controller;
       await controller.initialize();
@@ -1593,7 +1600,12 @@ class _JustAudioMessagePlayerState extends State<JustAudioMessagePlayer> {
               if (widget.local) {
                 await player.setFilePath(widget.url.replaceFirst('file://', ''));
               } else {
-                await player.setUrl(widget.url);
+                final cached = await LocalMediaCache.instance.getOrDownload(widget.url);
+                if (cached != null) {
+                  await player.setFilePath(cached.path);
+                } else {
+                  await player.setUrl(widget.url);
+                }
               }
               ready = true;
             }
