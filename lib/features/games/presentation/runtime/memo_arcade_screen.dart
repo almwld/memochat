@@ -968,16 +968,61 @@ class MemoArcadeGame extends FlameGame {
     s.paint(canvas, Offset(size.x / 2 - s.width / 2, size.y - 38));
   }
 
+  double _optionStartY = 150;
+
   void _renderOptions(Canvas canvas, String prompt, List<String> options) {
-    final p = TextPainter(text: TextSpan(text: prompt, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)), textDirection: TextDirection.rtl)..layout(maxWidth: size.x - 28);
-    p.paint(canvas, Offset(size.x / 2 - p.width / 2, 92));
+    final promptPainter = TextPainter(
+      text: TextSpan(
+        text: prompt,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout(maxWidth: size.x - 28);
+
+    promptPainter.paint(
+      canvas,
+      Offset(size.x / 2 - promptPainter.width / 2, 92),
+    );
+
+    // Long, specific questions may wrap onto multiple lines. Keep the answer
+    // tiles below the complete question and use the same position for hit tests.
+    _optionStartY = math.max(150.0, 104.0 + promptPainter.height + 12.0);
     final paint = Paint();
     final visible = options.take(4).toList();
-    for (var n = 0; n < visible.length; n++) { final y = 150 + n * 62.0; paint.color = palette[n % palette.length]; canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(18, y, size.x - 36, 48), const Radius.circular(14)), paint); final t = TextPainter(text: TextSpan(text: visible[n], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)), textDirection: TextDirection.rtl)..layout(maxWidth: size.x - 50); t.paint(canvas, Offset(size.x / 2 - t.width / 2, y + 13)); }
+    for (var n = 0; n < visible.length; n++) {
+      final y = _optionStartY + n * 62.0;
+      paint.color = palette[n % palette.length];
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(18, y, size.x - 36, 48),
+          const Radius.circular(14),
+        ),
+        paint,
+      );
+      final optionPainter = TextPainter(
+        text: TextSpan(
+          text: visible[n],
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+      )..layout(maxWidth: size.x - 50);
+      optionPainter.paint(
+        canvas,
+        Offset(size.x / 2 - optionPainter.width / 2, y + 13),
+      );
+    }
   }
 
   void _tapChoice(Vector2 point) {
-    final n = ((point.y - 150) / 62).floor();
+    final n = ((point.y - _optionStartY) / 62).floor();
     if (n < 0) return;
     final promptIndex =
         content.prompts.isEmpty ? 0 : _specialRound % content.prompts.length;
@@ -1003,7 +1048,7 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapMath(Vector2 point) {
-    final n = ((point.y - 150) / 62).floor();
+    final n = ((point.y - _optionStartY) / 62).floor();
     if (n < 0 || n >= _mathOptions.length) return;
     score = math.max(0, score + (n == _mathCorrect ? 3 : -1));
     _specialRound++;
@@ -1015,7 +1060,7 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapWord(Vector2 point) {
-    final n = ((point.y - 150) / 62).floor();
+    final n = ((point.y - _optionStartY) / 62).floor();
     if (n < 0 || n >= _wordOptions.length) return;
     score = math.max(0, score + (n == _wordCorrect ? 3 : -1));
     _specialRound++;
@@ -1025,7 +1070,7 @@ class MemoArcadeGame extends FlameGame {
   }
 
   void _tapCode(Vector2 point) {
-    final n = ((point.y - 150) / 62).floor();
+    final n = ((point.y - _optionStartY) / 62).floor();
     if (n < 0 || n > 3) return;
     if (_codeDigit < 0) _codeDigit = random.nextInt(4);
     if (n == _codeDigit) {
