@@ -22,7 +22,7 @@ class LocalMediaCache {
       hash ^= byte;
       hash = (hash * 0x01000193) & 0xFFFFFFFF;
     }
-    return hash.toRadixString(16).padLeft(16, '0');
+    return hash.toRadixString(16).padLeft(8, '0');
   }
 
   String _extension(Uri uri) {
