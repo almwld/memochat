@@ -850,7 +850,10 @@ class MemoArcadeGame extends FlameGame {
   void _tapColor(Vector2 point) {
     final expected = _colorGoal % palette.length;
     final index = targets.indexWhere((t) => point.distanceTo(t.position) <= t.radius * 1.2);
-    if (index < 0) return;
+    if (index < 0) {
+      _showFeedback('المس شكلًا داخل ساحة اللعب أولًا');
+      return;
+    }
     final hit = targets[index];
     if (hit.kind == expected) {
       score += 2;
@@ -878,7 +881,9 @@ class MemoArcadeGame extends FlameGame {
       _syncScore();
     } else {
       score = math.max(0, score - 1);
+      _showFeedback('لم تصب الترتيب المطلوب؛ اتبع الهدف التالي');
       onScore(score);
+      _syncScore();
     }
   }
 
@@ -894,7 +899,9 @@ class MemoArcadeGame extends FlameGame {
       _syncScore();
     } else {
       score = math.max(0, score - 1);
+      _showFeedback('حاول لمس الهدف بدقة أكبر');
       onScore(score);
+      _syncScore();
     }
   }
 
@@ -911,6 +918,8 @@ class MemoArcadeGame extends FlameGame {
       _spawnBurst(target.position, target.kind);
       onScore(score);
       _syncScore();
+    } else {
+      _showFeedback('حرّك اللاعب حتى يلامس الهدف المتوهج');
     }
   }
 
@@ -925,6 +934,7 @@ class MemoArcadeGame extends FlameGame {
       comboClock = 0;
       _showFeedback('لم تصب الهدف؛ اقترب من الشكل ثلاثي الأبعاد');
       onScore(score);
+      _syncScore();
       return;
     }
     targets.remove(hit);
@@ -2026,7 +2036,7 @@ class _GameGuidePanel extends StatelessWidget {
           const SizedBox(height: 7),
           Text(
             game.controlsHelp,
-            maxLines: 2,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Color(0xFFE3F1F0), fontSize: 12, height: 1.25),
           ),
