@@ -1386,26 +1386,11 @@ class MemoArcadeGame extends FlameGame {
     if (_xoBoard[index] != 0) return;
     final marker = _localMarker(_xoTurn);
     if (marker == 0) return;
-    if (_isMultiplayerSession) _xoMovePending = true;
-    _xoBoard[index] = marker;
-    _xoWinner = GameBoardRules.findWinner(
-      _xoBoard,
-      rows: 3,
-      columns: 3,
-      runLength: 3,
-    );
-    if (_xoWinner == 0 && _xoBoard.every((value) => value != 0)) {
-      _xoWinner = 3;
-    }
-    if (_xoWinner == marker) score += 3;
-    if (_xoWinner == 0 && !_isMultiplayerSession) _xoTurn = 3 - _xoTurn;
-    _specialRound++;
-    onScore(score);
-    final nextTurn = _xoWinner == 0 ? _nextTurnUid() : null;
     if (_isMultiplayerSession) {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       final id = gameId?.trim();
       if (uid == null || id == null || id.isEmpty) return;
+      _xoMovePending = true;
       try {
         final result = await GameService.instance.submitXoMove(
           chatId: chatId,
@@ -1419,16 +1404,28 @@ class MemoArcadeGame extends FlameGame {
         _currentTurnUid = result['currentTurn']?.toString();
         score = (result['score'] as num?)?.toInt() ?? score;
       } catch (_) {
-        // A stale turn or occupied cell must never remain as a local-only move.
-        _xoBoard[index] = 0;
-        score = math.max(0, score - (_xoWinner == marker ? 3 : 0));
-        _xoWinner = 0;
+        // The authoritative board remains untouched when the server rejects a move.
       } finally {
         _xoMovePending = false;
       }
       onScore(score);
       return;
     }
+    _xoBoard[index] = marker;
+    _xoWinner = GameBoardRules.findWinner(
+      _xoBoard,
+      rows: 3,
+      columns: 3,
+      runLength: 3,
+    );
+    if (_xoWinner == 0 && _xoBoard.every((value) => value != 0)) {
+      _xoWinner = 3;
+    }
+    if (_xoWinner == marker) score += 3;
+    _xoTurn = 3 - _xoTurn;
+    _specialRound++;
+    onScore(score);
+    final nextTurn = _xoWinner == 0 ? _nextTurnUid() : null;
     _syncBoardState(
       {'xoBoard': _xoBoard, 'xoWinner': _xoWinner},
       currentTurn: nextTurn,
