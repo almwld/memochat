@@ -940,7 +940,16 @@ class MemoArcadeGame extends FlameGame {
         }
         final chars = source.runes.toList()..shuffle(random);
         _renderOptions(canvas, 'رتب: ${String.fromCharCodes(chars)}', _wordOptions); break;
-      case ArcadeMode.code: if (_codeDigit < 0) _codeDigit = random.nextInt(4); _renderOptions(canvas, 'اختر الرقم الصحيح لكسر الشفرة', ['0','1','2','3']); break;
+      case ArcadeMode.code:
+        if (_codeDigit < 0) _codeDigit = random.nextInt(4);
+        final clue = switch (_codeDigit) {
+          0 => 'اختر الرقم الذي يقل عن 1',
+          1 => 'اختر الرقم الأكبر من 0 والأصغر من 2',
+          2 => 'اختر الرقم الأكبر من 1 والأصغر من 3',
+          _ => 'اختر الرقم الأكبر من 2',
+        };
+        _renderOptions(canvas, clue, ['0','1','2','3']);
+        break;
       case ArcadeMode.lights:
         for (var n = 0; n < 9; n++) { final x = 12 + (n % 3) * ((size.x - 24) / 3); final y = 100.0 + (n ~/ 3) * 68.0; paint.color = _lights[n] ? const Color(0xFFFFD166) : const Color(0xFF17383B); canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, (size.x - 36) / 3, 52), const Radius.circular(12)), paint); } break;
       case ArcadeMode.pairs:
