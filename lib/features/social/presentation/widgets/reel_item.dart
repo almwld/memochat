@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../../../../core/media/local_media_cache.dart';
 
 import '../../data/social_service.dart';
 import 'comment_sheet.dart';
@@ -46,9 +47,13 @@ class _ReelItemState extends State<ReelItem> with SingleTickerProviderStateMixin
   Future<void> _initPlayer() async {
     final url = widget.data['videoUrl']?.toString() ?? '';
     if (url.isEmpty) return;
-    final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-    _player = controller;
+    VideoPlayerController? controller;
     try {
+      final cached = await LocalMediaCache.instance.getOrDownload(url, timeout: const Duration(seconds: 45));
+      controller = cached != null
+          ? VideoPlayerController.file(cached)
+          : VideoPlayerController.networkUrl(Uri.parse(url));
+      _player = controller;
       await controller.initialize();
       await controller.setLooping(true);
       await controller.setVolume(0.0);
