@@ -217,6 +217,8 @@ class _MessageBubbleState extends State<MessageBubble> {
   /// status is rendered before the bubble; for sent messages it stays at the end.
   /// Keep the delivery/read indicator outside the media card, matching text messages.
   Widget _withStatus(Widget bubble) {
+    // Local/outbox media uses the retry/progress indicator rendered by the room.
+    if (widget.message['isLocal'] == true) return bubble;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
