@@ -18,10 +18,7 @@ class MediaUploadStatusWidget extends StatelessWidget {
   final VoidCallback? onCancel;
 
   @override
-  Widget build(BuildContext context) {
-    // Keep the state indicator inside the bubble, as in modern chat clients.
-    return PositionedDirectional(end: 8, bottom: 5, child: _indicator());
-  }
+  Widget build(BuildContext context) => _indicator();
 
   Widget _indicator() {
     switch (status) {
