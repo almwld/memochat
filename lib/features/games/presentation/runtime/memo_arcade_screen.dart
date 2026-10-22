@@ -1890,7 +1890,18 @@ class MemoArcadeGame extends FlameGame {
     _syncScore();
   }
   void _tapOddOneOut(Vector2 point) { if (point.y < 100) return; final col = (point.x / ((size.x - 12) / 4)).floor(); final row = ((point.y - 110) / 65).floor(); final n = row * 4 + col; if (n < 0 || n >= 12) return; score += n == 7 ? 4 : 0; onScore(score); _syncScore(); }
-  void _tapRace(Vector2 point) { if (point.y < size.y * .42) return; _raceProgress = math.min(100, _raceProgress + 8); score++; if (_raceProgress >= 100) { score += 10; _raceProgress = 0; } onScore(score); _syncScore(); }
+  void _tapRace(Vector2 point) {
+    if (point.y < size.y * .42) return;
+    if (_raceProgress >= 100) {
+      _raceProgress = 0;
+    } else {
+      _raceProgress = math.min(100, _raceProgress + 8);
+      score++;
+      if (_raceProgress >= 100) score += 10;
+    }
+    onScore(score);
+    _syncScore();
+  }
   Future<void> _syncScore() async {
     final id = gameId?.trim();
     final uid = FirebaseAuth.instance.currentUser?.uid;
